@@ -28,6 +28,18 @@ if (-not $ProfilePath) {
     $ProfilePath = Join-Path $repoRoot 'Config\cursor-workstation-profile.json'
 }
 
+function Get-SasObjectPropertyValue {
+    param(
+        $InputObject,
+        [Parameter(Mandatory = $true)][string]$Name
+    )
+
+    if ($null -eq $InputObject) { return $null }
+    $property = $InputObject.PSObject.Properties[$Name]
+    if ($null -eq $property) { return $null }
+    return $property.Value
+}
+
 function Assert-WindowsHost {
     if ($env:OS -ne 'Windows_NT') {
         throw 'Cursor workstation lifecycle is supported only on Windows.'
@@ -36,7 +48,7 @@ function Assert-WindowsHost {
 
 function Assert-Administrator {
     $identity = [Security.Principal.WindowsIdentity]::GetCurrent()
-    $principal = New-Object Security.Principal.WindowsPrincipal($identity)
+    $principal = New-Object -TypeName Security.Principal.WindowsPrincipal -ArgumentList $identity
     if (-not $principal.IsInRole([Security.Principal.WindowsBuiltInRole]::Administrator)) {
         throw 'This Cursor mutation requires an elevated Administrator PowerShell session.'
     }
@@ -53,13 +65,13 @@ function Expand-SasProfilePath {
 
     $programFilesX86 = ${env:ProgramFiles(x86)}
     $tokens = [ordered]@{
-        '{LOCALAPPDATA}'   = $env:LOCALAPPDATA
-        '{APPDATA}'        = $env:APPDATA
-        '{USERPROFILE}'    = $env:USERPROFILE
-        '{PROGRAMFILES}'   = $env:ProgramFiles
+        '{LOCALAPPDATA}' = $env:LOCALAPPDATA
+        '{APPDATA}' = $env:APPDATA
+        '{USERPROFILE}' = $env:USERPROFILE
+        '{PROGRAMFILES}' = $env:ProgramFiles
         '{PROGRAMFILESX86}' = $programFilesX86
-        '{PROGRAMDATA}'    = $env:ProgramData
-        '{PUBLIC}'         = $env:PUBLIC
+        '{PROGRAMDATA}' = $env:ProgramData
+        '{PUBLIC}' = $env:PUBLIC
     }
 
     $expanded = $Value
@@ -76,9 +88,7 @@ function Get-ExpandedProfilePaths {
     $resolved = @()
     foreach ($value in @($Values)) {
         $path = Expand-SasProfilePath -Value ([string]$value)
-        if ($path) {
-            $resolved += $path
-        }
+        if ($path) { $resolved += $path }
     }
     return @($resolved | Select-Object -Unique)
 }
@@ -93,7 +103,10 @@ function Test-PathUnderRoot {
     try {
         $candidateFull = [IO.Path]::GetFullPath($Candidate).TrimEnd('\')
         $rootFull = [IO.Path]::GetFullPath($Root).TrimEnd('\')
-        return ($candidateFull -ieq $rootFull -or $candidateFull.StartsWith($rootFull + '\', [StringComparison]::OrdinalIgnoreCase))
+        return (
+            $candidateFull -ieq $rootFull -or
+            $candidateFull.StartsWith($rootFull + '\', [StringComparison]::OrdinalIgnoreCase)
+        )
     }
     catch {
         return $false
@@ -109,16 +122,19 @@ function Get-CursorUninstallEntries {
 
         foreach ($key in @(Get-ChildItem -LiteralPath $root.path -ErrorAction SilentlyContinue)) {
             $app = Get-ItemProperty -LiteralPath $key.PSPath -ErrorAction SilentlyContinue
-            if (-not $app -or -not $app.DisplayName) { continue }
-            if ([string]$app.DisplayName -notmatch [string]$Profile.application.display_name_regex) { continue }
+            if ($null -eq $app) { continue }
+
+            $displayName = [string](Get-SasObjectPropertyValue -InputObject $app -Name 'DisplayName')
+            if (-not $displayName) { continue }
+            if ($displayName -notmatch [string]$Profile.application.display_name_regex) { continue }
 
             $entries += [pscustomobject]@{
                 Scope = [string]$root.scope
-                DisplayName = [string]$app.DisplayName
-                DisplayVersion = [string]$app.DisplayVersion
-                InstallLocation = [string]$app.InstallLocation
-                UninstallString = [string]$app.UninstallString
-                QuietUninstallString = [string]$app.QuietUninstallString
+                DisplayName = $displayName
+                DisplayVersion = [string](Get-SasObjectPropertyValue -InputObject $app -Name 'DisplayVersion')
+                InstallLocation = [string](Get-SasObjectPropertyValue -InputObject $app -Name 'InstallLocation')
+                UninstallString = [string](Get-SasObjectPropertyValue -InputObject $app -Name 'UninstallString')
+                QuietUninstallString = [string](Get-SasObjectPropertyValue -InputObject $app -Name 'QuietUninstallString')
                 RegistryPath = [string]$key.PSPath
             }
         }
@@ -148,9 +164,7 @@ function Get-CursorStateDirectories {
 
     $items = @()
     foreach ($path in @(Get-ExpandedProfilePaths -Values $Profile.state.user_state_roots)) {
-        if (Test-Path -LiteralPath $path) {
-            $items += $path
-        }
+        if (Test-Path -LiteralPath $path) { $items += $path }
     }
     return @($items)
 }
@@ -167,18 +181,22 @@ function Get-CursorProcesses {
 
     try {
         foreach ($process in @(Get-CimInstance Win32_Process -ErrorAction Stop)) {
+            $name = [string](Get-SasObjectPropertyValue -InputObject $process -Name 'Name')
+            $executablePath = [string](Get-SasObjectPropertyValue -InputObject $process -Name 'ExecutablePath')
+            $processId = Get-SasObjectPropertyValue -InputObject $process -Name 'ProcessId'
+
             $nameMatch = $false
-            foreach ($name in $processNames) {
-                if ([string]$process.Name -ieq [string]$name) {
+            foreach ($expectedName in $processNames) {
+                if ($name -ieq [string]$expectedName) {
                     $nameMatch = $true
                     break
                 }
             }
 
             $pathMatch = $false
-            if ($process.ExecutablePath) {
+            if ($executablePath) {
                 foreach ($root in $roots) {
-                    if (Test-PathUnderRoot -Candidate ([string]$process.ExecutablePath) -Root $root) {
+                    if (Test-PathUnderRoot -Candidate $executablePath -Root $root) {
                         $pathMatch = $true
                         break
                     }
@@ -187,21 +205,22 @@ function Get-CursorProcesses {
 
             if ($nameMatch -or $pathMatch) {
                 $items += [pscustomobject]@{
-                    ProcessId = [int]$process.ProcessId
-                    Name = [string]$process.Name
-                    ExecutablePath = [string]$process.ExecutablePath
+                    ProcessId = [int]$processId
+                    Name = $name
+                    ExecutablePath = $executablePath
                 }
             }
         }
     }
     catch {
-        foreach ($name in $processNames) {
-            $baseName = [IO.Path]::GetFileNameWithoutExtension([string]$name)
+        foreach ($expectedName in $processNames) {
+            $baseName = [IO.Path]::GetFileNameWithoutExtension([string]$expectedName)
             foreach ($process in @(Get-Process -Name $baseName -ErrorAction SilentlyContinue)) {
+                $path = [string](Get-SasObjectPropertyValue -InputObject $process -Name 'Path')
                 $items += [pscustomobject]@{
                     ProcessId = [int]$process.Id
                     Name = [string]$process.ProcessName
-                    ExecutablePath = [string]$process.Path
+                    ExecutablePath = $path
                 }
             }
         }
@@ -213,7 +232,10 @@ function Get-CursorProcesses {
 function Get-CursorCommandPaths {
     $items = @()
     foreach ($command in @(Get-Command cursor -All -ErrorAction SilentlyContinue)) {
-        $path = if ($command.Path) { [string]$command.Path } else { [string]$command.Source }
+        $path = [string](Get-SasObjectPropertyValue -InputObject $command -Name 'Path')
+        if (-not $path) {
+            $path = [string](Get-SasObjectPropertyValue -InputObject $command -Name 'Source')
+        }
         if ($path) { $items += $path }
     }
     return @($items | Select-Object -Unique)
@@ -340,8 +362,7 @@ function Invoke-CursorRegisteredUninstallers {
     param($Profile)
 
     $results = @()
-    $entries = @(Get-CursorUninstallEntries -Profile $Profile)
-    foreach ($entry in $entries) {
+    foreach ($entry in @(Get-CursorUninstallEntries -Profile $Profile)) {
         if (-not $entry.UninstallString) {
             $results += [pscustomobject]@{
                 DisplayName = $entry.DisplayName
@@ -356,7 +377,10 @@ function Invoke-CursorRegisteredUninstallers {
             $resolved = $command.FilePath
             if (-not (Test-Path -LiteralPath $resolved -PathType Leaf)) {
                 $found = Get-Command $resolved -ErrorAction SilentlyContinue
-                if ($found -and $found.Path) { $resolved = $found.Path }
+                if ($found) {
+                    $foundPath = [string](Get-SasObjectPropertyValue -InputObject $found -Name 'Path')
+                    if ($foundPath) { $resolved = $foundPath }
+                }
             }
             if (-not (Test-Path -LiteralPath $resolved -PathType Leaf)) {
                 throw "Registered uninstaller is missing: $($command.FilePath)"
@@ -432,8 +456,10 @@ function Remove-CursorStartupEntries {
 
     foreach ($root in @($Profile.state.startup_registry_roots)) {
         if (-not (Test-Path -LiteralPath $root)) { continue }
-        $properties = (Get-ItemProperty -LiteralPath $root -ErrorAction SilentlyContinue).PSObject.Properties
-        foreach ($property in $properties) {
+        $item = Get-ItemProperty -LiteralPath $root -ErrorAction SilentlyContinue
+        if ($null -eq $item) { continue }
+
+        foreach ($property in $item.PSObject.Properties) {
             if ($property.Name -like 'PS*') { continue }
             $value = [string]$property.Value
             $cursorValue = $false
@@ -443,7 +469,7 @@ function Remove-CursorStartupEntries {
                     break
                 }
             }
-            if ($property.Name -match '^(?i)Cursor' -or $cursorValue) {
+            if ($property.Name -match '^Cursor' -or $cursorValue) {
                 Remove-ItemProperty -LiteralPath $root -Name $property.Name -Force -ErrorAction Stop
                 $removed += "$root::$($property.Name)"
             }
@@ -569,7 +595,12 @@ function Write-CursorResult {
         [Parameter(Mandatory = $true)]$Result
     )
 
-    $root = if ($OutputRoot) { $OutputRoot } else { Expand-SasProfilePath -Value ([string]$Profile.evidence.local_output_root) }
+    $root = if ($OutputRoot) {
+        $OutputRoot
+    }
+    else {
+        Expand-SasProfilePath -Value ([string]$Profile.evidence.local_output_root)
+    }
     $runDirectory = Join-Path $root ([string]$Result.run_id)
     New-Item -ItemType Directory -Path $runDirectory -Force | Out-Null
     $resultPath = Join-Path $runDirectory 'cursor_workstation_result.json'
@@ -649,7 +680,12 @@ try {
                 if (-not (Test-CursorCanonicalSystemInstall -Inventory $postInventory)) {
                     throw "Cursor installer completed but canonical system state was not proven; observed $($postInventory.Classification)."
                 }
-                $status = if ([int]$installerProcess.ExitCode -eq 3010) { 'INSTALLED_SYSTEM_REBOOT_REQUIRED' } else { 'INSTALLED_SYSTEM' }
+                $status = if ([int]$installerProcess.ExitCode -eq 3010) {
+                    'INSTALLED_SYSTEM_REBOOT_REQUIRED'
+                }
+                else {
+                    'INSTALLED_SYSTEM'
+                }
                 $detail = [pscustomobject]@{
                     InstallerFileName = $installer.FileName
                     InstallerSha256 = $installer.Sha256
