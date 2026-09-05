@@ -12,6 +12,7 @@ BeforeAll {
     $script:installer = Join-Path $script:repoRoot 'scripts\Install-SasUniversalFieldLauncher.ps1'
     $script:docs = Join-Path $script:repoRoot 'docs\CYBERNET_LOW_NOISE_CANARY.md'
     $script:identifierPolicy = Join-Path $script:repoRoot 'docs\CYBERNET_IDENTIFIER_POLICY.md'
+    $script:startHere = Join-Path $script:repoRoot 'START-HERE-CYBERNET-NEURON-SURVEY.md'
     $script:workflow = Join-Path $script:repoRoot '.github\workflows\cybernet-low-noise-canary.yml'
 }
 
@@ -184,6 +185,7 @@ Describe 'Cybernet low-noise identity canary' {
             'survey/sas-run-windows-pc-signature.sh',
             'survey/sas-filter-windows-pc-signature.py',
             'Tests/survey/test_windows_pc_signature_filter.py',
+            'START-HERE-CYBERNET-NEURON-SURVEY.md',
             'docs/CYBERNET_IDENTIFIER_POLICY.md'
         )) {
             $workflow | Should -Match ([regex]::Escape($marker))
@@ -226,5 +228,15 @@ Describe 'Cybernet low-noise identity canary' {
         $policy | Should -Match 'Future agents must not resurrect broad Nmap/Naabu service discovery'
         $policy | Should -Not -Match 'Use Nmap-derived evidence as the primary identity source'
         $policy | Should -Not -Match 'Future agents must not default Cybernet identity discovery back to PowerShell'
+    }
+
+    It 'routes the generic start-here away from printer-aware Cybernet hunting' {
+        $startHere = Get-Content -LiteralPath $script:startHere -Raw
+        $startHere | Should -Match 'Finding missing Cybernets specifically'
+        $startHere | Should -Match 'professional signature scan on TCP \*\*135 \+ 445 only\*\*'
+        $startHere | Should -Match 'ProductType=1'
+        $startHere | Should -Match 'mixed-purpose'
+        $startHere | Should -Match 'TCP 9100 is printer-oriented'
+        $startHere | Should -Match 'Do not use the generic mixed-purpose 9100/RDP preflight as the default way to hunt missing Cybernets'
     }
 }
