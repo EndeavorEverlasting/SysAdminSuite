@@ -99,9 +99,12 @@ function Invoke-SasLocalGit {
         if ([string]::IsNullOrWhiteSpace($detail)) { $detail = '(git produced no diagnostic text)' }
         throw "$FailureMessage (git exit $exitCode)`n$detail"
     }
-    if (-not $Quiet) {
-        if (-not [string]::IsNullOrWhiteSpace($stdoutText)) { Write-Host $stdoutText }
-        if (-not [string]::IsNullOrWhiteSpace($stderr)) { Write-Host $stderr -ForegroundColor DarkGray }
+    # Git legitimately writes progress and checkout status (for example detached-HEAD movement)
+    # to stderr even when it exits zero. Keep successful stderr captured for failure handling but
+    # do not replay it through Windows PowerShell, where native stderr becomes a misleading
+    # NativeCommandError record despite a successful Git operation.
+    if (-not $Quiet -and -not [string]::IsNullOrWhiteSpace($stdoutText)) {
+        Write-Host $stdoutText
     }
     return @($stdoutLines)
 }

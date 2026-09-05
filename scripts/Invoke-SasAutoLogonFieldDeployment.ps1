@@ -159,6 +159,7 @@ $result = [ordered]@{
     recovery_status = $null
     recovery_classification = $null
     recovery_result = $null
+    recoverable_probe_create_timeout = $false
     autologon_deployment_started = $false
     autologon_deployment_completed = $false
     apply_invocation_count = 0
@@ -292,14 +293,20 @@ try {
         }
 
         $priorStarted = [bool](Get-SasObjectPropertyValue $priorValue 'autologon_deployment_started' $false)
-        $priorPostApply = (
+        $priorRecoverableProbeCreateTimeout = [bool](Test-SasAutoLogonProbeCreateTimeoutRecoveryCandidate -Value $priorValue)
+        if ($priorRecoverableProbeCreateTimeout) {
+            $result.recoverable_probe_create_timeout = $true
+            Save-SasAutoLogonFieldResult -Value $result
+        }
+        $priorPostApply = (-not $priorRecoverableProbeCreateTimeout -and (
             [bool](Get-SasObjectPropertyValue $priorValue 'target_mutation_performed' $false) -or
             [bool](Get-SasObjectPropertyValue $priorValue 'autologon_applied' $false) -or
             [bool](Get-SasObjectPropertyValue $priorValue 'pre_reboot_autologon_ready' $false) -or
             [bool](Get-SasObjectPropertyValue $priorValue 'automatic_reboot_performed' $false) -or
             $priorClassification -eq 'AUTOLOGON_FIELD_POST_APPLY_REVIEW_REQUIRED'
-        )
-        $priorAmbiguousStarted = ($priorStatus -eq 'STARTED' -and $priorStarted)
+        ))
+        $priorAmbiguousStarted = (-not $priorRecoverableProbeCreateTimeout -and
+            $priorStatus -eq 'STARTED' -and $priorStarted)
         if ($Action -eq 'Remote' -and ($priorPostApply -or $priorAmbiguousStarted)) {
             throw "Prior AutoLogon field evidence requires evidence-led review before any new apply: $($priorField[0].path)"
         }
@@ -465,8 +472,12 @@ catch {
     }
     $result.reason = $_.Exception.Message
 
+    $recoverableProbeCreateTimeout = [bool](Test-SasAutoLogonProbeCreateTimeoutRecoveryCandidate -Value ([pscustomobject]$result))
+    $result.recoverable_probe_create_timeout = $recoverableProbeCreateTimeout
     $result.next_action = if ($result.classification -eq 'AUTOLOGON_FIELD_TARGET_LOCKED') {
         'STOP - another AutoLogon transaction owns this canonical target; do not start a second transaction.'
+    } elseif ($recoverableProbeCreateTimeout) {
+        "sas autologon Remote $requestedTarget"
     } elseif ($mustStop -or $evidenceReviewRequired) {
         "STOP - inspect durable evidence at $resultPath; do not rerun."
     } else {
@@ -478,16 +489,19 @@ catch {
         autologon_deployment_started=[bool]$result.autologon_deployment_started
         autologon_deployment_completed=$false
         latest_status='ACTION_REQUIRED'
-        latest_phase=$(if ($mustStop -or $evidenceReviewRequired) { 'post_apply_review' } else { 'pre_apply_blocked' })
+        latest_phase=$(if ($recoverableProbeCreateTimeout) { 'recovery_required' } elseif ($mustStop -or $evidenceReviewRequired) { 'post_apply_review' } else { 'pre_apply_blocked' })
         latest_checkpoint=[string]$result.classification
         target_mutation_performed=[bool]$result.target_mutation_performed
         evidence_path=$resultPath
-        next_required_network=$(if ($mustStop -or $evidenceReviewRequired -or $result.classification -eq 'AUTOLOGON_FIELD_TARGET_LOCKED') { 'NONE' } else { 'PROTECTED NORTHWELL' })
+        next_required_network=$(if ($recoverableProbeCreateTimeout) { 'PROTECTED NORTHWELL' } elseif ($mustStop -or $evidenceReviewRequired -or $result.classification -eq 'AUTOLOGON_FIELD_TARGET_LOCKED') { 'NONE' } else { 'PROTECTED NORTHWELL' })
         next_command=[string]$result.next_action
     })
 
     Write-Host "`nACTION REQUIRED: $($result.reason)" -ForegroundColor Yellow
     Write-Host "Classification: $($result.classification)"
+    if ($recoverableProbeCreateTimeout) {
+        Write-Host 'Recovery disposition: exact probe-create timeout is eligible for the next Remote command to run the existing recovery gate before any new apply.' -ForegroundColor Cyan
+    }
     Write-Host "Evidence: $resultPath"
     throw
 }
