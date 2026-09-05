@@ -21,13 +21,13 @@ def test_child_process_contains_internal_exit() -> None:
 
 def test_native_child_exit_codes_are_primed_under_strict_mode() -> None:
     text = read(SCRIPT)
-    assert text.count("$LASTEXITCODE = 0") >= 2
-    child_prime = text.index("$LASTEXITCODE = 0", text.index("$childArguments = @("))
+    assert text.count("$global:LASTEXITCODE = 0") >= 2
+    child_prime = text.index("$global:LASTEXITCODE = 0", text.index("$childArguments = @("))
     child_call = text.index("& powershell.exe @childArguments", child_prime)
-    child_capture = text.index("$result.child_exit_code = [int]$LASTEXITCODE", child_call)
-    evidence_prime = text.index("$LASTEXITCODE = 0", child_capture)
+    child_capture = text.index("$result.child_exit_code = [int]$global:LASTEXITCODE", child_call)
+    evidence_prime = text.index("$global:LASTEXITCODE = 0", child_capture)
     evidence_call = text.index("& powershell.exe @evidenceArguments", evidence_prime)
-    evidence_capture = text.index("$result.evidence_recovery_exit_code = [int]$LASTEXITCODE", evidence_call)
+    evidence_capture = text.index("$result.evidence_recovery_exit_code = [int]$global:LASTEXITCODE", evidence_call)
     assert child_prime < child_call < child_capture
     assert evidence_prime < evidence_call < evidence_capture
 
@@ -35,7 +35,7 @@ def test_native_child_exit_codes_are_primed_under_strict_mode() -> None:
 def test_stable_diagnostics_survive_terminal_loss() -> None:
     text = read(SCRIPT)
     assert "Start-Transcript" in text
-    assert "Tee-Object -FilePath $childOutputPath" in text
+    assert "Tee-Object -FilePath $childOutputPath -ErrorAction Stop" in text
     assert "field-runs\\autologon" in text
     assert "field-run-result.json" in text
     assert "last-autologon-field-run.json" in text
@@ -47,7 +47,7 @@ def test_offline_evidence_recovery_runs_after_child() -> None:
     assert "Show-SasOperatorEvidence.ps1" in text
     assert "'AutoLogon', '20'" in text
     assert "last-evidence.json" in text
-    assert "$result.evidence_recovery_exit_code = [int]$LASTEXITCODE" in text
+    assert "$result.evidence_recovery_exit_code = [int]$global:LASTEXITCODE" in text
     assert "[int]$result.evidence_recovery_exit_code -ne 0" in text
     assert "target_contact_performed_by_runner = $false" in text
     assert "target_mutation_performed_by_runner = $false" in text
