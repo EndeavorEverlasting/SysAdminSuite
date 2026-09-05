@@ -6,17 +6,20 @@ Load this skill **before emitting, executing, or asking an operator to run any S
 
 ## Protected AutoLogon window fast path
 
-A live protected-network window is an execution resource. Do not spend it on repository synchronization when the requested operation is AutoLogon `Remote` and a locally sealed runtime can already satisfy the operation.
+A live protected-network window is an execution resource. Do not spend it on workstation repository synchronization when the requested operation is AutoLogon `Remote` and a locally sealed runtime can already satisfy the operation.
+
+**Provider-side refreshed remote truth remains mandatory before this fast path is handed to an operator.** The coordinator must refresh the remote/default-branch floor first, select an explicit immutable deployment floor from that current truth, prove the floor is an ancestor of the refreshed default head, prove it contains every currently required safety/capability fix for the requested lane, and prove no current contract revokes that floor. Only the workstation-side Git/InternetSync trip is skipped while the protected window is being preserved.
 
 The fast path is allowed only when all of the following are true:
 
 - the requested command is the canonical AutoLogon `Remote` lane for one explicit authorized target;
 - the starting posture is already **PROTECTED NORTHWELL**, whether provided by approved hardwire, `NSLIJHS-WAB`, or authenticated `DomainAuthenticated` VPN;
-- the installed/sealed AutoLogon route is locally available and its v2 manifest, prepared commit, local-filesystem-only transport, removed-remotes posture, SHA-256 tracked-file seal, and protected bootstrap validate without remote Git;
-- the runtime satisfies the selected accepted deployment floor/capability for the operation. For the contiguous-progress capability, a sealed `Run-AutoLogon-ContiguousProgress.cmd` plus `scripts\SasAutoLogonProgress.psm1` is acceptable compatibility evidence for runtimes prepared before continuity moved into the common crash-safe runner;
+- provider-side refreshed remote truth has selected and accepted the immutable deployment floor for this operation;
+- the installed/sealed AutoLogon route is locally available and its v2 manifest, exact prepared commit, local-filesystem-only transport, removed-remotes posture, SHA-256 tracked-file seal, and protected bootstrap validate without remote Git;
+- the sealed prepared commit equals the selected accepted deployment floor and that floor contains the required capability. For contiguous-progress compatibility, a sealed `Run-AutoLogon-ContiguousProgress.cmd` plus `scripts\SasAutoLogonProgress.psm1` proves the already-merged presentation capability on runtimes prepared before continuity moved into the common crash-safe runner;
 - the repository-owned protected-network gate admits the current path.
 
-When those conditions hold, execute the sealed crash-safe AutoLogon front door **immediately from the existing protected posture**. Do not transition to `InternetSync`, do not run `git fetch`, do not run `sas refresh`, and do not disconnect/reconnect VPN merely to satisfy the standard repository-backed sequence. The runtime/bootstrap remains responsible for target safety and durable evidence.
+When those conditions hold, execute the sealed crash-safe AutoLogon front door **immediately from the existing protected posture**. Do not transition the workstation to `InternetSync`, do not run workstation `git fetch`, do not run `sas refresh`, and do not disconnect/reconnect VPN merely to replace an already accepted immutable floor with the latest head. The runtime/bootstrap remains responsible for target safety and durable evidence.
 
 If local protected-window proof is missing or stale, fail quickly and preserve the network window. Report the exact missing runtime/floor proof. Do not automatically leave VPN/hardwire/WAB or start a freshness detour. The standard repository-backed sequence applies only after the operator is no longer intentionally preserving that protected window.
 
@@ -32,7 +35,7 @@ For repository-backed commands and for AutoLogon when the protected-window fast 
 4. **Execute the canonical front door** — after path, freshness/runtime-currentness, and product-network admission are proven, execute the registered launcher/command and preserve its exit code and durable evidence.
 5. **Restore the starting network when the workflow changed it** — restoration is part of the transaction, not an optional cleanup note. A failed required restore prevents promotion of the command to success.
 
-A bare product snippet that starts at step 4 is invalid. The only exception is the explicitly admitted protected AutoLogon window fast path above.
+A bare product snippet that starts at step 4 is invalid. The only exception is the explicitly admitted protected AutoLogon window fast path above, whose provider freshness and immutable floor proof are completed before handoff.
 
 ## Canonical path gate
 
@@ -48,7 +51,7 @@ Before a repository-backed operator snippet can continue:
 - Git I/O health must be proven;
 - dirty, diverged, missing, unhealthy, or separately owned state fails closed before the product command;
 - a second mutable clone is not a fallback;
-- a registered sealed/runtime front door is selected only after canonical development freshness and its own runtime-currentness authority are proved, except for the locally admitted protected AutoLogon window fast path.
+- a registered sealed/runtime front door is selected only after canonical development freshness and its own runtime-currentness authority are proved, except for the locally admitted protected AutoLogon window fast path whose provider freshness/floor proof is already complete.
 
 ## Freshness gate
 
@@ -66,7 +69,7 @@ For a canonical development checkout, the atomic handoff must:
 8. prove the executing/deployment source HEAD is the selected current repository commit;
 9. return to the recorded starting network posture after the InternetSync freshness subtransaction before applying the product command's own network intent. If that required return fails, stop before product execution.
 
-Installed `sas`, a remembered command, a prior successful run, or a GitHub merge is command evidence only. None by itself proves a workstation checkout or sealed runtime is current. The protected-window exception relies on the sealed runtime's own local manifest/seal/capability proof instead of claiming repository freshness.
+Installed `sas`, a remembered command, a prior successful run, or a GitHub merge is command evidence only. None by itself proves a workstation checkout or sealed runtime is current. The protected-window exception does not claim latest-head equality: it relies on current provider truth selecting an accepted immutable floor and the sealed runtime proving exact equality to that floor.
 
 ### Sealed `C:\SASAL` runtime
 
@@ -74,7 +77,7 @@ Installed `sas`, a remembered command, a prior successful run, or a GitHub merge
 
 On the protected network, `scripts/SasPortableLauncher.ps1` / `Resolve-SasPreparedAutoLogonRuntime` is the runtime-currentness authority for the portable lane, while the universal field platform resolves the same machine-local runtime and protected bootstrap. The v2 manifest must prove prepared commit, Guest/Internet preparation classification, `LOCAL_FILESYSTEM_ONLY` transport, removed remotes, no protected bootstrap Git permission, complete SHA-256 seal, and the protected bootstrap.
 
-If the protected-window fast path is being used, do not demand a new remote refresh simply because the machine is currently protected. Compare the locally proven prepared runtime to the selected accepted deployment floor/capability. If that proof is insufficient, stop without changing networks and state exactly what must be refreshed later on Guest/Internet.
+If the protected-window fast path is being used, compare the locally proven prepared runtime to the provider-selected accepted immutable deployment floor/capability. Do not demand workstation InternetSync merely because the refreshed default branch is later than that accepted floor. If exact floor/seal/capability proof is insufficient, stop without changing networks and state exactly what must be refreshed later on Guest/Internet.
 
 ## Network intent and restoration gate
 
@@ -90,7 +93,7 @@ Repository intents are:
 Required behavior:
 
 - capture the starting classification/label/authority before changing anything, including before the freshness `InternetSync` transition;
-- when the protected AutoLogon fast path is admitted, the starting protected posture is also the execution posture and there is no freshness transition to restore;
+- when the protected AutoLogon fast path is admitted, the starting protected posture is also the execution posture and there is no workstation freshness transition to restore;
 - otherwise freshness has its own `InternetSync` transition/return subtransaction; after it returns to the captured posture, resolve the product command's separate intent;
 - automatic switching is saved-WLAN-profile-only and must be proven after the switch;
 - do not guess or automate VPN lifecycle when no repository-proven VPN adapter exists;
@@ -104,7 +107,7 @@ Required behavior:
 
 When the current environment cannot execute on the workstation, emit **one copy-paste PowerShell block** for the first executable field gate. Do not distribute path relocation, starting-network capture, InternetSync freshness, product-network transition, product execution, or required restoration as disconnected snippets that can be run out of order.
 
-For an already-protected AutoLogon window, that one block must attempt the local sealed-runtime fast path first and must not perform remote Git or network switching. A fast-path rejection may report the later Guest/Internet refresh action, but must not execute it while preserving the protected window.
+For an already-protected AutoLogon window, provider freshness and accepted-floor selection occur before the block is emitted. The block itself must attempt the local sealed-runtime fast path first and must not perform remote Git or network switching. A fast-path rejection may report the later Guest/Internet refresh action, but must not execute it while preserving the protected window.
 
 The block must fail closed on every material native nonzero exit. `$ErrorActionPreference = 'Stop'` is not sufficient for native commands by itself; check `$LASTEXITCODE`.
 
@@ -112,17 +115,18 @@ Prefer the repository-owned launcher/network-aware wrapper over embedding produc
 
 ## Procedure
 
-1. Identify whether this is an already-protected AutoLogon `Remote` window. If yes, attempt only local sealed-runtime/capability/network admission and execute immediately when proven; otherwise fail fast without changing network posture.
-2. For all other cases, resolve and enter the machine/profile canonical development authority with `canonical-path-resolution`; capture the starting network posture immediately afterward and before any transition.
-3. Prove repository freshness with `repository-freshness-before-launch`; perform remote Git I/O only under the `InternetSync` network contract and return to the captured starting posture afterward.
-4. If the selected execution route is a sealed runtime such as `C:\SASAL`, prove/update that runtime through its owning `sas refresh` / seal-manifest path; never substitute remote Git inside the runtime.
-5. Select the canonical command from `harness/api/harness-command-registry.json` and route it through `operator-execution-route` when a registered front door exists.
-6. Classify the product command's network intent from the recorded/restored starting posture.
-7. Use the network-aware field wrapper for `InternetSync` and `ProtectedNorthwell` transitions; do not hand-code WLAN/VPN switching.
-8. Execute the command only after the applicable path/freshness or protected-window runtime proof plus product network admission are proven.
-9. Restore any automatically changed network in the same transaction. A restore failure is a failed handoff outcome.
-10. Report the starting network, fast-path or freshness disposition, required product network, command exit, final restore disposition, selected repository/runtime identity when applicable, and durable evidence path.
-11. Never ask the operator to run a second corrective snippet for a prerequisite that should have been included in the original handoff.
+1. Refresh provider/default-branch truth and select/verify the accepted immutable deployment floor before emitting an already-protected AutoLogon handoff.
+2. Identify whether this is an already-protected AutoLogon `Remote` window. If yes, attempt only local sealed-runtime exact-floor/capability/network admission and execute immediately when proven; otherwise fail fast without changing network posture.
+3. For all other cases, resolve and enter the machine/profile canonical development authority with `canonical-path-resolution`; capture the starting network posture immediately afterward and before any transition.
+4. Prove repository freshness with `repository-freshness-before-launch`; perform remote Git I/O only under the `InternetSync` network contract and return to the captured starting posture afterward.
+5. If the selected execution route is a sealed runtime such as `C:\SASAL`, prove/update that runtime through its owning `sas refresh` / seal-manifest path; never substitute remote Git inside the runtime.
+6. Select the canonical command from `harness/api/harness-command-registry.json` and route it through `operator-execution-route` when a registered front door exists.
+7. Classify the product command's network intent from the recorded/restored starting posture.
+8. Use the network-aware field wrapper for `InternetSync` and `ProtectedNorthwell` transitions; do not hand-code WLAN/VPN switching.
+9. Execute the command only after the applicable path/freshness or protected-window exact-floor runtime proof plus product network admission are proven.
+10. Restore any automatically changed network in the same transaction. A restore failure is a failed handoff outcome.
+11. Report the starting network, provider-floor proof, fast-path or freshness disposition, required product network, command exit, final restore disposition, selected repository/runtime identity when applicable, and durable evidence path.
+12. Never ask the operator to run a second corrective snippet for a prerequisite that should have been included in the original handoff.
 
 ## Required agent-facing integrations
 
@@ -137,11 +141,11 @@ The following agent-facing owners must route to this skill when they are about t
 ## Expected outputs
 
 - canonical development path and role when repository maintenance is required;
-- current/default remote identity and freshness disposition when repository maintenance is required;
-- selected accepted deployment floor/capability;
+- current/default remote identity and provider freshness disposition;
+- selected accepted immutable deployment floor/capability and ancestry/revocation disposition;
 - starting network classification/label/authority;
 - protected-window fast-path disposition or freshness `InternetSync` transition/return disposition;
-- sealed/runtime currentness and prepared commit when applicable;
+- sealed/runtime currentness and exact prepared commit when applicable;
 - required product network intent;
 - product transition method or already-satisfied protected posture;
 - canonical command/front door;
