@@ -43,7 +43,7 @@ def test_handoff_preserves_existing_protected_window_without_skipping_provider_f
         "Protected AutoLogon window fast path",
         "Provider-side refreshed remote truth remains mandatory before this fast path is handed to an operator.",
         "ancestor of the refreshed default head",
-        "not revoked by a current contract",
+        "prove no current contract revokes that floor",
         "authenticated `DomainAuthenticated` VPN",
         "execute the sealed crash-safe AutoLogon front door **immediately from the existing protected posture**",
         "do not run workstation `git fetch`",
