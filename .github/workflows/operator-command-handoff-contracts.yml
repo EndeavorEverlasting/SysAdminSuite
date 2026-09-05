@@ -18,6 +18,7 @@ on:
       - 'harness/workflows/fresh-agent-intake.yaml'
       - 'harness/validators/validate-operator-command-handoff.py'
       - 'Tests/survey/test_operator_command_handoff_contracts.py'
+      - 'Tests/survey/test_autologon_protected_window_contracts.py'
       - 'docs/OPERATOR_COMMAND_HANDOFF.md'
       - 'harness/maps/OPERATOR_COMMAND_HANDOFF_MAP.md'
       - 'scripts/SasNetworkIntent.psm1'
@@ -25,6 +26,10 @@ on:
       - 'scripts/Refresh-SasOperatorCommand.ps1'
       - 'scripts/Prepare-SasAutoLogonShortRuntime.ps1'
       - 'scripts/SasPortableLauncher.ps1'
+      - 'scripts/Invoke-SasUniversalField.ps1'
+      - 'scripts/Invoke-SasAutoLogonCrashSafeFieldRun.ps1'
+      - 'scripts/SasAutoLogonProgress.psm1'
+      - 'Run-AutoLogon-ContiguousProgress.cmd'
       - '.githooks/pre-commit'
       - '.githooks/pre-push'
       - '.github/workflows/operator-command-handoff-contracts.yml'
@@ -41,6 +46,7 @@ on:
       - 'harness/workflows/fresh-agent-intake.yaml'
       - 'harness/validators/validate-operator-command-handoff.py'
       - 'Tests/survey/test_operator_command_handoff_contracts.py'
+      - 'Tests/survey/test_autologon_protected_window_contracts.py'
       - 'docs/OPERATOR_COMMAND_HANDOFF.md'
       - 'harness/maps/OPERATOR_COMMAND_HANDOFF_MAP.md'
       - 'scripts/SasNetworkIntent.psm1'
@@ -48,6 +54,10 @@ on:
       - 'scripts/Refresh-SasOperatorCommand.ps1'
       - 'scripts/Prepare-SasAutoLogonShortRuntime.ps1'
       - 'scripts/SasPortableLauncher.ps1'
+      - 'scripts/Invoke-SasUniversalField.ps1'
+      - 'scripts/Invoke-SasAutoLogonCrashSafeFieldRun.ps1'
+      - 'scripts/SasAutoLogonProgress.psm1'
+      - 'Run-AutoLogon-ContiguousProgress.cmd'
       - '.githooks/pre-commit'
       - '.githooks/pre-push'
       - '.github/workflows/operator-command-handoff-contracts.yml'
@@ -65,7 +75,9 @@ jobs:
         run: python harness/validators/validate-operator-command-handoff.py
 
       - name: Run focused regression contracts
-        run: python Tests/survey/test_operator_command_handoff_contracts.py
+        run: |
+          python Tests/survey/test_operator_command_handoff_contracts.py
+          python Tests/survey/test_autologon_protected_window_contracts.py
 
       - name: Validate existing freshness contracts
         run: python harness/validators/validate-repository-freshness-contracts.py
