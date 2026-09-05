@@ -24,6 +24,8 @@ This lane performs network signature collection only; it performs no endpoint me
 bash survey/sas-run-windows-pc-signature.sh --list targets/local/approved_computers.txt
 ```
 
+Before any live Naabu invocation, the wrapper delegates protected-network admission to the canonical PowerShell `Confirm-SasNorthwellNetwork.ps1` gate. That authority accepts approved WAB Wi-Fi and the current repository-supported **DomainAuthenticated non-Wi-Fi VPN/LAN** posture; the Bash wrapper does not invent a separate VPN detector. The gate is invoked noninteractively and performs no target contact.
+
 The wrapper is pinned to the generated `windows_pc_signature_json` profile:
 
 - TCP ports: `135,445` only
