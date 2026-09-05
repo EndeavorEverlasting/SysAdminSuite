@@ -11,6 +11,7 @@ on:
       - 'survey/sas-generate-naabu-runtime-profiles.sh'
       - 'Config/cybernet-naabu-profiles.json'
       - 'Config/low-noise-policy.json'
+      - 'scripts/Confirm-SasNorthwellNetwork.ps1'
       - 'scripts/SasLowNoisePolicy.psm1'
       - 'scripts/SasNetworkGuard.psm1'
       - 'scripts/SasTargetIntake.psm1'
@@ -41,7 +42,7 @@ jobs:
       - name: Parse canary and launcher surfaces under Windows PowerShell
         shell: powershell
         run: |
-          $paths = @('.\survey\sas-cybernet-canary.ps1','.\scripts\Invoke-SasUniversalField.ps1','.\scripts\Invoke-SasNetworkAwareField.ps1','.\scripts\Install-SasUniversalFieldLauncher.ps1')
+          $paths = @('.\survey\sas-cybernet-canary.ps1','.\scripts\Confirm-SasNorthwellNetwork.ps1','.\scripts\Invoke-SasUniversalField.ps1','.\scripts\Invoke-SasNetworkAwareField.ps1','.\scripts\Install-SasUniversalFieldLauncher.ps1')
           foreach ($path in $paths) {
             $tokens=$null; $errors=$null
             [void][System.Management.Automation.Language.Parser]::ParseFile((Resolve-Path $path),[ref]$tokens,[ref]$errors)
