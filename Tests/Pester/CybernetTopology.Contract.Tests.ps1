@@ -54,12 +54,24 @@ Describe 'Cybernet topology registry contract' {
     $sample = Get-Content -LiteralPath $script:samplePath -Raw | ConvertFrom-Json
     $sample.schema_version | Should -Be 'sas-cybernet-deployment-topology-registry/v1'
     $sample.policy.targeted_pass.medium_requires_independent_corroboration | Should -Be $true
+    $sample.sites[0].organization_id | Should -Not -BeNullOrEmpty
+    $sample.sites[0].site_status | Should -Be 'ACTIVE'
+
+    $requiredTop = @('schema_version', 'generated_at', 'policy', 'sites')
+    foreach ($name in $requiredTop) {
+      $sample.PSObject.Properties.Name | Should -Contain $name
+    }
 
     $eligible = $sample.sites[0].subnets | Where-Object { $_.subnet_id -like '*:10.20.30.0/24' } | Select-Object -First 1
     $siteOnly = $sample.sites[0].subnets | Where-Object { $_.subnet_id -like '*SITE-ONLY' } | Select-Object -First 1
 
     $eligible | Should -Not -BeNullOrEmpty
     $siteOnly | Should -Not -BeNullOrEmpty
+
+    foreach ($ev in @($eligible.deployment_evidence + $siteOnly.deployment_evidence)) {
+      $ev.PSObject.Properties.Name | Should -Contain 'device_anchor'
+      $ev.device_anchor.device_key | Should -Not -BeNullOrEmpty
+    }
 
     $eligibleSupports = @($eligible.deployment_evidence | ForEach-Object { $_.supports }) -join ','
     $eligibleSupports | Should -Match 'SUBNET'
@@ -70,6 +82,13 @@ Describe 'Cybernet topology registry contract' {
     $siteOnlySupports = @($siteOnly.deployment_evidence[0].supports)
     $siteOnlySupports | Should -Contain 'SITE'
     $siteOnlySupports | Should -Not -Contain 'SUBNET'
+  }
+
+  It 'Schema requires organization_id and device_anchor and tightens CIDR octets' {
+    $schema = Get-Content -LiteralPath $script:schemaPath -Raw | ConvertFrom-Json
+    @($schema.'$defs'.site.required) | Should -Contain 'organization_id'
+    @($schema.'$defs'.evidence.required) | Should -Contain 'device_anchor'
+    $schema.'$defs'.subnet.properties.cidr.pattern | Should -Match '25\[0-5\]'
   }
 
   It 'Charter doc freezes the one-question scope and deferred extractor boundary' {

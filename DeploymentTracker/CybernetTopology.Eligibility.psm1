@@ -102,9 +102,9 @@ function Test-CybernetTopologyIndependentSubnetCorroboration {
   $subnetEvidence = @()
   foreach ($ev in @($Evidence)) {
     $supports = Get-CybernetTopologySupports -Evidence $ev
-    if ($supports -contains 'SUBNET') {
-      $subnetEvidence += ,$ev
-    }
+    if ($supports -notcontains 'SUBNET') { continue }
+    if (-not (Test-CybernetTopologyConfirmedDeviceAnchor -Evidence $ev)) { continue }
+    $subnetEvidence += ,$ev
   }
   if ($subnetEvidence.Count -lt 2) { return $false }
 
@@ -125,6 +125,18 @@ function Test-CybernetTopologyIndependentSubnetCorroboration {
     }
   }
   return $hasStrongAuthority
+}
+
+function Test-CybernetTopologySubnetLinkedDeploymentProof {
+  param([object[]]$Evidence)
+  foreach ($ev in @($Evidence)) {
+    if (-not (Test-CybernetTopologyDeploymentProof -Evidence $ev)) { continue }
+    $supports = Get-CybernetTopologySupports -Evidence $ev
+    if ($supports -notcontains 'SUBNET') { continue }
+    if (-not (Test-CybernetTopologyConfirmedDeviceAnchor -Evidence $ev)) { continue }
+    return $true
+  }
+  return $false
 }
 
 function Test-CybernetTopologyHostnameOnlySubnet {
@@ -208,9 +220,27 @@ function Get-CybernetTopologyObservationAgeDays {
   $dateText = [string](Get-CybernetTopologyProperty -Object $LastObserved -Name 'date')
   if ([string]::IsNullOrWhiteSpace($dateText)) { return $null }
   $parsed = [datetime]::MinValue
-  if (-not [datetime]::TryParse($dateText, [ref]$parsed)) { return $null }
+  if (-not [datetime]::TryParseExact(
+      $dateText,
+      'yyyy-MM-dd',
+      [System.Globalization.CultureInfo]::InvariantCulture,
+      [System.Globalization.DateTimeStyles]::None,
+      [ref]$parsed
+    )) {
+    return $null
+  }
   $span = $AsOf.Date - $parsed.Date
   return [int][Math]::Floor($span.TotalDays)
+}
+
+function Test-CybernetTopologyConfirmedDeviceAnchor {
+  param([object]$Evidence)
+  $anchor = Get-CybernetTopologyProperty -Object $Evidence -Name 'device_anchor'
+  if ($null -eq $anchor) { return $false }
+  $key = [string](Get-CybernetTopologyProperty -Object $anchor -Name 'device_key')
+  if ([string]::IsNullOrWhiteSpace($key)) { return $false }
+  $status = [string](Get-CybernetTopologyProperty -Object $anchor -Name 'deployment_status')
+  return ($status -eq 'CONFIRMED_DEPLOYED')
 }
 
 function New-CybernetTopologyEligibilityResult {
@@ -326,15 +356,20 @@ function Get-TargetedPassEligibility {
         -BlockingReasonCodes $blocking)
   }
 
-  $hasDeploymentProof = $false
-  foreach ($ev in $evidence) {
-    if (Test-CybernetTopologyDeploymentProof -Evidence $ev) {
-      $hasDeploymentProof = $true
-      break
+  if (-not (Test-CybernetTopologySubnetLinkedDeploymentProof -Evidence $evidence)) {
+    $anySiteProof = $false
+    foreach ($ev in $evidence) {
+      if (Test-CybernetTopologyDeploymentProof -Evidence $ev) {
+        $anySiteProof = $true
+        break
+      }
     }
-  }
-  if (-not $hasDeploymentProof) {
-    [void]$blocking.Add('NO_DEPLOYMENT_PROOF')
+    if ($anySiteProof) {
+      [void]$blocking.Add('NO_SUBNET_LINKED_DEPLOYMENT_PROOF')
+    }
+    else {
+      [void]$blocking.Add('NO_DEPLOYMENT_PROOF')
+    }
     return (New-CybernetTopologyEligibilityResult `
         -Status 'NOT_ELIGIBLE' `
         -EvaluatedAt $AsOf `
@@ -342,6 +377,7 @@ function Get-TargetedPassEligibility {
         -BlockingReasonCodes $blocking)
   }
   [void]$reasons.Add('CONFIRMED_DEPLOYMENT_EVIDENCE')
+  [void]$reasons.Add('SUBNET_LINKED_DEPLOYMENT_PROOF')
 
   if ($requireLastObserved) {
     if ($null -eq $lastObserved) {
@@ -355,6 +391,14 @@ function Get-TargetedPassEligibility {
     $ageDays = Get-CybernetTopologyObservationAgeDays -LastObserved $lastObserved -AsOf $AsOf
     if ($null -eq $ageDays) {
       [void]$blocking.Add('INVALID_LAST_OBSERVED')
+      return (New-CybernetTopologyEligibilityResult `
+          -Status 'STALE' `
+          -EvaluatedAt $AsOf `
+          -ReasonCodes $reasons `
+          -BlockingReasonCodes $blocking)
+    }
+    if ($ageDays -lt 0) {
+      [void]$blocking.Add('FUTURE_LAST_OBSERVED')
       return (New-CybernetTopologyEligibilityResult `
           -Status 'STALE' `
           -EvaluatedAt $AsOf `
@@ -445,9 +489,28 @@ function Update-CybernetTopologyRegistryEligibility {
 
   $sites = @(Get-CybernetTopologyProperty -Object $Registry -Name 'sites')
   foreach ($site in $sites) {
+    $siteStatus = [string](Get-CybernetTopologyProperty -Object $site -Name 'site_status')
+    $organizationId = [string](Get-CybernetTopologyProperty -Object $site -Name 'organization_id')
     $subnets = @(Get-CybernetTopologyProperty -Object $site -Name 'subnets')
     foreach ($subnet in $subnets) {
-      $eligibility = Get-TargetedPassEligibility -Subnet $subnet -Policy $policy -AsOf $AsOf
+      if ([string]::IsNullOrWhiteSpace($organizationId)) {
+        $eligibility = New-CybernetTopologyEligibilityResult `
+          -Status 'NOT_ELIGIBLE' `
+          -EvaluatedAt $AsOf `
+          -ReasonCodes @() `
+          -BlockingReasonCodes @('MISSING_ORGANIZATION_ID')
+      }
+      elseif ($siteStatus -ne 'ACTIVE') {
+        $eligibility = New-CybernetTopologyEligibilityResult `
+          -Status 'NOT_ELIGIBLE' `
+          -EvaluatedAt $AsOf `
+          -ReasonCodes @() `
+          -BlockingReasonCodes @('SITE_NOT_ACTIVE')
+      }
+      else {
+        $eligibility = Get-TargetedPassEligibility -Subnet $subnet -Policy $policy -AsOf $AsOf
+      }
+
       $existing = $subnet.PSObject.Properties['targeted_pass_eligibility']
       if ($null -eq $existing) {
         $subnet | Add-Member -NotePropertyName targeted_pass_eligibility -NotePropertyValue $eligibility
@@ -465,4 +528,5 @@ Export-ModuleMember -Function @(
   'Update-CybernetTopologyRegistryEligibility'
   'Test-CybernetTopologyValidCidr'
   'Test-CybernetTopologyIndependentSubnetCorroboration'
+  'Test-CybernetTopologySubnetLinkedDeploymentProof'
 )

@@ -15,6 +15,7 @@
   "sites": [
     {
       "site_id": "SITE-SAMPLE-OR",
+      "organization_id": "ORG-SAMPLE",
       "site_name": "Sample OR Campus",
       "site_status": "ACTIVE",
       "subnets": [

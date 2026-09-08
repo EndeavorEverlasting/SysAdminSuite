@@ -39,8 +39,13 @@ It does **not** decide whether a host is a Cybernet. Subnet/topology evidence co
 For `MEDIUM` confidence to become `ELIGIBLE`, the evaluator requires:
 
 1. at least two `deployment_evidence` records that both `supports` include `SUBNET`
-2. distinct `source_type` values among those records
-3. at least one of those records has authority that is neither `DISCOVERY_ONLY` nor `INFERENTIAL`
+2. each of those records has a `device_anchor` with `deployment_status = CONFIRMED_DEPLOYED`
+3. distinct `source_type` values among those records
+4. at least one of those records has authority that is neither `DISCOVERY_ONLY` nor `INFERENTIAL`
+
+`ELIGIBLE` also requires at least one **subnet-linked deployment proof**: authoritative deployment evidence whose `supports` includes `SUBNET` and whose `device_anchor` is confirmed deployed. Site-only tracker rows are deployment proof for the facility, not authorization to survey a CIDR.
+
+`Update-CybernetTopologyRegistryEligibility` fails closed when `organization_id` is missing or `site_status` is not `ACTIVE`.
 
 Classification is authoritative for workflow decisions. Numeric `score` is for sorting/reporting only and is ignored by eligibility.
 

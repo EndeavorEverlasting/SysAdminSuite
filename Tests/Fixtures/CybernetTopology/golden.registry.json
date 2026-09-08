@@ -15,6 +15,7 @@
   "sites": [
     {
       "site_id": "SITE-GOLDEN",
+      "organization_id": "ORG-GOLDEN",
       "site_name": "Golden Fixture Campus",
       "site_status": "ACTIVE",
       "subnets": [
@@ -63,7 +64,7 @@
             "broad_service_enumeration_allowed": false
           },
           "targeted_pass_eligibility": {
-            "status": "PLACEHOLDER",
+            "status": "NOT_ELIGIBLE",
             "evaluated_at": "1970-01-01T00:00:00Z",
             "reason_codes": [],
             "blocking_reason_codes": []
@@ -143,7 +144,7 @@
             }
           ],
           "targeted_pass_eligibility": {
-            "status": "PLACEHOLDER",
+            "status": "NOT_ELIGIBLE",
             "evaluated_at": "1970-01-01T00:00:00Z",
             "reason_codes": [],
             "blocking_reason_codes": []
@@ -155,12 +156,12 @@
           "subnet_confidence": {
             "classification": "MEDIUM",
             "score": 0.55,
-            "basis": ["SITE_ONLY_DEPLOYMENT_RECORD", "DHCP_CORROBORATION"],
+            "basis": ["SITE_ONLY_DEPLOYMENT_RECORD", "SERIAL_ANCHORED_DEVICE_OBSERVATION"],
             "calculated_at": "2026-09-08T00:00:00Z"
           },
           "last_observed": {
             "date": "2026-07-15",
-            "source_evidence_ids": ["EV-REV-1", "EV-REV-2"]
+            "source_evidence_ids": ["EV-REV-1"]
           },
           "deployment_evidence": [
             {
@@ -177,31 +178,13 @@
                 "serial_reference_present": true,
                 "model_reference_present": false
               },
-              "supports": ["SITE"],
+              "supports": ["SITE", "SUBNET"],
               "authority": "AUTHORITATIVE",
-              "notes": null
-            },
-            {
-              "evidence_id": "EV-REV-2",
-              "evidence_type": "NETWORK_OBSERVATION",
-              "source_type": "DHCP",
-              "source_reference": "fixture://review-dhcp",
-              "observed_at": "2026-07-15T10:00:00Z",
-              "device_anchor": {
-                "device_key": "dev-rev-1",
-                "deployment_status": "CONFIRMED_DEPLOYED",
-                "identity_strength": "SERIAL_ANCHORED",
-                "hostname_reference_present": true,
-                "serial_reference_present": true,
-                "model_reference_present": false
-              },
-              "supports": ["SUBNET"],
-              "authority": "CORROBORATING",
-              "notes": "Only one SUBNET-supporting source_type; MEDIUM requires independent corroboration."
+              "notes": "Subnet-linked deployment proof exists, but MEDIUM still lacks a second independent SUBNET source_type."
             }
           ],
           "targeted_pass_eligibility": {
-            "status": "PLACEHOLDER",
+            "status": "NOT_ELIGIBLE",
             "evaluated_at": "1970-01-01T00:00:00Z",
             "reason_codes": [],
             "blocking_reason_codes": []
@@ -241,7 +224,7 @@
             }
           ],
           "targeted_pass_eligibility": {
-            "status": "PLACEHOLDER",
+            "status": "NOT_ELIGIBLE",
             "evaluated_at": "1970-01-01T00:00:00Z",
             "reason_codes": [],
             "blocking_reason_codes": []
@@ -281,7 +264,7 @@
             }
           ],
           "targeted_pass_eligibility": {
-            "status": "PLACEHOLDER",
+            "status": "NOT_ELIGIBLE",
             "evaluated_at": "1970-01-01T00:00:00Z",
             "reason_codes": [],
             "blocking_reason_codes": []
@@ -322,7 +305,7 @@
             }
           ],
           "targeted_pass_eligibility": {
-            "status": "PLACEHOLDER",
+            "status": "NOT_ELIGIBLE",
             "evaluated_at": "1970-01-01T00:00:00Z",
             "reason_codes": [],
             "blocking_reason_codes": []
@@ -362,7 +345,7 @@
             }
           ],
           "targeted_pass_eligibility": {
-            "status": "PLACEHOLDER",
+            "status": "NOT_ELIGIBLE",
             "evaluated_at": "1970-01-01T00:00:00Z",
             "reason_codes": [],
             "blocking_reason_codes": []
@@ -402,7 +385,7 @@
             }
           ],
           "targeted_pass_eligibility": {
-            "status": "PLACEHOLDER",
+            "status": "NOT_ELIGIBLE",
             "evaluated_at": "1970-01-01T00:00:00Z",
             "reason_codes": [],
             "blocking_reason_codes": []
@@ -442,7 +425,7 @@
             }
           ],
           "targeted_pass_eligibility": {
-            "status": "PLACEHOLDER",
+            "status": "NOT_ELIGIBLE",
             "evaluated_at": "1970-01-01T00:00:00Z",
             "reason_codes": [],
             "blocking_reason_codes": []
@@ -452,3 +435,4 @@
     }
   ]
 }
+

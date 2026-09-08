@@ -104,9 +104,75 @@ Describe 'Update-CybernetTopologyRegistryEligibility' {
     foreach ($site in @($registry.sites)) {
       foreach ($subnet in @($site.subnets)) {
         $subnet.targeted_pass_eligibility.status | Should -Be $expected[$subnet.subnet_id]
-        $subnet.targeted_pass_eligibility.status | Should -Not -Be 'PLACEHOLDER'
+        $subnet.targeted_pass_eligibility.status | Should -Not -BeNullOrEmpty
       }
     }
+  }
+
+  It 'Rejects inactive sites and missing organization_id before subnet math' {
+    $registry = Get-Content -LiteralPath $script:goldenPath -Raw | ConvertFrom-Json
+    $registry.sites[0].site_status = 'INACTIVE'
+    Update-CybernetTopologyRegistryEligibility -Registry $registry -AsOf $script:asOf | Out-Null
+    foreach ($subnet in @($registry.sites[0].subnets)) {
+      $subnet.targeted_pass_eligibility.status | Should -Be 'NOT_ELIGIBLE'
+      $subnet.targeted_pass_eligibility.blocking_reason_codes | Should -Contain 'SITE_NOT_ACTIVE'
+    }
+
+    $registry2 = Get-Content -LiteralPath $script:goldenPath -Raw | ConvertFrom-Json
+    $registry2.sites[0].organization_id = ''
+    Update-CybernetTopologyRegistryEligibility -Registry $registry2 -AsOf $script:asOf | Out-Null
+    foreach ($subnet in @($registry2.sites[0].subnets)) {
+      $subnet.targeted_pass_eligibility.blocking_reason_codes | Should -Contain 'MISSING_ORGANIZATION_ID'
+    }
+  }
+
+  It 'Rejects future last_observed dates as STALE' {
+    $subnet = $script:byId['GOLDEN:high-eligible'] | ConvertTo-Json -Depth 10 | ConvertFrom-Json
+    $subnet.last_observed.date = '2026-12-01'
+    $policy = $script:policy
+    $result = Get-TargetedPassEligibility -Subnet $subnet -Policy $policy -AsOf $script:asOf
+    $result.status | Should -Be 'STALE'
+    $result.blocking_reason_codes | Should -Contain 'FUTURE_LAST_OBSERVED'
+  }
+
+  It 'Rejects HIGH confidence when deployment proof is SITE-only' {
+    $subnet = [pscustomobject]@{
+      subnet_id = 'SITE-ONLY-HIGH'
+      cidr = '10.9.9.0/24'
+      subnet_confidence = [pscustomobject]@{
+        classification = 'HIGH'
+        score = 0.99
+        basis = @('SITE_ONLY_DEPLOYMENT_RECORD')
+        calculated_at = '2026-09-08T00:00:00Z'
+      }
+      last_observed = [pscustomobject]@{
+        date = '2026-08-01'
+        source_evidence_ids = @('EV-S')
+      }
+      deployment_evidence = @(
+        [pscustomobject]@{
+          evidence_id = 'EV-S'
+          evidence_type = 'CONFIRMED_DEPLOYMENT'
+          source_type = 'DEPLOYMENT_TRACKER'
+          source_reference = 'fixture://site-only-high'
+          observed_at = '2026-08-01T00:00:00Z'
+          device_anchor = [pscustomobject]@{
+            device_key = 'dev-s'
+            deployment_status = 'CONFIRMED_DEPLOYED'
+            identity_strength = 'SERIAL_ANCHORED'
+            hostname_reference_present = $true
+            serial_reference_present = $true
+            model_reference_present = $false
+          }
+          supports = @('SITE')
+          authority = 'AUTHORITATIVE'
+          notes = $null
+        }
+      )
+    }
+    $result = Get-TargetedPassEligibility -Subnet $subnet -Policy $script:policy -AsOf $script:asOf
+    $result.status | Should -Be 'NOT_ELIGIBLE'
+    $result.blocking_reason_codes | Should -Contain 'NO_SUBNET_LINKED_DEPLOYMENT_PROOF'
   }
 
   It 'Recomputes sample registry eligible and site-only rows' {
@@ -148,6 +214,14 @@ Describe 'Update-CybernetTopologyRegistryEligibility' {
           source_type = 'DEPLOYMENT_TRACKER'
           source_reference = 'fixture://score'
           observed_at = '2026-08-01T00:00:00Z'
+          device_anchor = [pscustomobject]@{
+            device_key = 'dev-score'
+            deployment_status = 'CONFIRMED_DEPLOYED'
+            identity_strength = 'SERIAL_ANCHORED'
+            hostname_reference_present = $true
+            serial_reference_present = $true
+            model_reference_present = $false
+          }
           supports = @('SITE', 'SUBNET')
           authority = 'AUTHORITATIVE'
           notes = $null
@@ -170,22 +244,46 @@ Describe 'Update-CybernetTopologyRegistryEligibility' {
 }
 
 Describe 'Independent corroboration helper' {
-  It 'Requires distinct source_type and non-inferential authority' {
+  It 'Requires distinct source_type, confirmed device anchors, and non-inferential authority' {
     $weak = @(
-      [pscustomobject]@{ supports = @('SUBNET'); source_type = 'DHCP'; authority = 'CORROBORATING' }
-      [pscustomobject]@{ supports = @('SUBNET'); source_type = 'DHCP'; authority = 'CORROBORATING' }
+      [pscustomobject]@{
+        supports = @('SUBNET'); source_type = 'DHCP'; authority = 'CORROBORATING'
+        device_anchor = [pscustomobject]@{ device_key = 'd1'; deployment_status = 'CONFIRMED_DEPLOYED' }
+      }
+      [pscustomobject]@{
+        supports = @('SUBNET'); source_type = 'DHCP'; authority = 'CORROBORATING'
+        device_anchor = [pscustomobject]@{ device_key = 'd1'; deployment_status = 'CONFIRMED_DEPLOYED' }
+      }
     )
     Test-CybernetTopologyIndependentSubnetCorroboration -Evidence $weak | Should -Be $false
 
+    $unanchored = @(
+      [pscustomobject]@{ supports = @('SUBNET'); source_type = 'DHCP'; authority = 'CORROBORATING' }
+      [pscustomobject]@{ supports = @('SUBNET'); source_type = 'DNS'; authority = 'CORROBORATING' }
+    )
+    Test-CybernetTopologyIndependentSubnetCorroboration -Evidence $unanchored | Should -Be $false
+
     $inferOnly = @(
-      [pscustomobject]@{ supports = @('SUBNET'); source_type = 'DHCP'; authority = 'INFERENTIAL' }
-      [pscustomobject]@{ supports = @('SUBNET'); source_type = 'DNS'; authority = 'DISCOVERY_ONLY' }
+      [pscustomobject]@{
+        supports = @('SUBNET'); source_type = 'DHCP'; authority = 'INFERENTIAL'
+        device_anchor = [pscustomobject]@{ device_key = 'd1'; deployment_status = 'CONFIRMED_DEPLOYED' }
+      }
+      [pscustomobject]@{
+        supports = @('SUBNET'); source_type = 'DNS'; authority = 'DISCOVERY_ONLY'
+        device_anchor = [pscustomobject]@{ device_key = 'd1'; deployment_status = 'CONFIRMED_DEPLOYED' }
+      }
     )
     Test-CybernetTopologyIndependentSubnetCorroboration -Evidence $inferOnly | Should -Be $false
 
     $ok = @(
-      [pscustomobject]@{ supports = @('SUBNET'); source_type = 'DHCP'; authority = 'CORROBORATING' }
-      [pscustomobject]@{ supports = @('SUBNET'); source_type = 'DNS'; authority = 'CORROBORATING' }
+      [pscustomobject]@{
+        supports = @('SUBNET'); source_type = 'DHCP'; authority = 'CORROBORATING'
+        device_anchor = [pscustomobject]@{ device_key = 'd1'; deployment_status = 'CONFIRMED_DEPLOYED' }
+      }
+      [pscustomobject]@{
+        supports = @('SUBNET'); source_type = 'DNS'; authority = 'CORROBORATING'
+        device_anchor = [pscustomobject]@{ device_key = 'd1'; deployment_status = 'CONFIRMED_DEPLOYED' }
+      }
     )
     Test-CybernetTopologyIndependentSubnetCorroboration -Evidence $ok | Should -Be $true
   }
