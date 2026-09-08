@@ -51,7 +51,7 @@ They are **not** proof of Cybernet hardware identity. The generic seven-port Cyb
 | Condition | Classification / disposition |
 |---|---|
 | Protected network not proven | Stop before target contact; network/environment blocked |
-| Approved computer candidate lacks both 135 and 445 | `WINDOWS_PC_SIGNATURE_NOT_MATCHED`; no metadata query |
+| Approved computer candidate does not have both TCP 135 and 445 | `WINDOWS_PC_SIGNATURE_NOT_MATCHED`; no metadata query |
 | Both 135 and 445 observed | `WINDOWS_PC_SIGNATURE_MATCH`; candidate only |
 | ProductType is not 1 | `NON_WORKSTATION_OS_METADATA_SKIPPED` |
 | Workstation class cannot be proved | `WORKSTATION_CLASS_UNRESOLVED_METADATA_SKIPPED` |
