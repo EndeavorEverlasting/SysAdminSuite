@@ -45,8 +45,12 @@ Describe 'Cybernet low-noise identity canary' {
         $content | Should -Match 'result_sha256'
         $content | Should -Match 'Get-FileHash'
         $content | Should -Match 'ObservationTimestamp'
-        $content | Should -Match ([regex]::Escape('$row.PSObject.Properties[''Port445'']'))
-        $content | Should -Match ([regex]::Escape('$row.PSObject.Properties[''PcSignatureStatus'']'))
+        $content | Should -Match ([regex]::Escape('$requiredColumns = @('))
+        $content | Should -Match "'Port445'"
+        $content | Should -Match "'PcSignatureStatus'"
+        $content | Should -Match "'WorkstationStatus'"
+        $content | Should -Match "'ObservedOperatingSystem'"
+        $content | Should -Match ([regex]::Escape('$row.PSObject.Properties[$_]'))
         $content | Should -Match ([regex]::Escape('ObservationTimestamp = [string]$fresh.ObservationTimestamp'))
         $content | Should -Match 'FreshLocalReuse'
         $content | Should -Match 'NetworkActivityPerformed = \$false'
@@ -83,6 +87,7 @@ Describe 'Cybernet low-noise identity canary' {
         $content | Should -Match 'WINDOWS_CLIENT_WORKSTATION_CONFIRMED'
         $content | Should -Match 'NON_WORKSTATION_OS_METADATA_SKIPPED'
         $content | Should -Match 'WORKSTATION_CLASS_UNRESOLVED_METADATA_SKIPPED'
+        $content | Should -Match 'Win32_OperatingSystem returned no instance; manufacturer/model/serial queries were skipped'
         $content | Should -Match 'manufacturer/model/serial queries were skipped'
     }
 
@@ -104,8 +109,10 @@ Describe 'Cybernet low-noise identity canary' {
         $runner = Get-Content -LiteralPath $script:signatureRunner -Raw
         $filter | Should -Match ([regex]::Escape('REQUIRED_PORTS = {135, 445}'))
         $filter | Should -Match 'performs no network activity'
+        $filter | Should -Match 'looks_json = first.startswith'
         $runner | Should -Match ([regex]::Escape('-retries "$retries"'))
         $runner | Should -Match ([regex]::Escape('-rate "$rate"'))
+        $runner | Should -Match ([regex]::Escape('-silent -ec -duc'))
         $runner | Should -Match 'Metadata collection: NONE'
         $runner | Should -Match 'CIDR is not allowed'
         $runner | Should -Match 'professional PC-signature cap is 256'
@@ -225,18 +232,23 @@ Describe 'Cybernet low-noise identity canary' {
         $policy | Should -Match 'population-first, signature-gated, and hardware-confirmed'
         $policy | Should -Match 'windows_pc_signature_json'
         $policy | Should -Match 'ProductType=1'
+        $policy | Should -Match 'does not have both TCP 135 and 445'
         $policy | Should -Match 'Future agents must not resurrect broad Nmap/Naabu service discovery'
         $policy | Should -Not -Match 'Use Nmap-derived evidence as the primary identity source'
         $policy | Should -Not -Match 'Future agents must not default Cybernet identity discovery back to PowerShell'
     }
 
-    It 'routes the generic start-here away from printer-aware Cybernet hunting' {
+    It 'routes the generic start-here away from printer-aware Cybernet hunting with complete handoff' {
         $startHere = Get-Content -LiteralPath $script:startHere -Raw
         $startHere | Should -Match 'Finding missing Cybernets specifically'
         $startHere | Should -Match 'professional signature scan on TCP \*\*135 \+ 445 only\*\*'
         $startHere | Should -Match 'ProductType=1'
         $startHere | Should -Match 'mixed-purpose'
         $startHere | Should -Match 'TCP 9100 is printer-oriented'
+        $startHere | Should -Match 'path → freshness → network intent → command → restoration'
+        $startHere | Should -Match 'Capture the starting network posture before any transition'
+        $startHere | Should -Match 'ProtectedNorthwell'
+        $startHere | Should -Match 'restore the recorded starting posture'
         $startHere | Should -Match 'Do not use the generic mixed-purpose 9100/RDP preflight as the default way to hunt missing Cybernets'
     }
 }
