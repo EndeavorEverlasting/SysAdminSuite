@@ -18,10 +18,11 @@ SCHEMA = ROOT / "schemas/harness/cybernet-device-exclusion-registry.schema.json"
 DOC = ROOT / "docs/CYBERNET_DEVICE_EXCLUSION_REGISTRY.md"
 MAP = ROOT / "harness/maps/CYBERNET_HARDWARE_IDENTITY_MAP.md"
 WORKFLOW = ROOT / "harness/workflows/cybernet-hardware-identity-discovery.yaml"
+SKILL = ROOT / "harness/skills/cybernet-hardware-identity/SKILL.md"
 TEST = ROOT / "Tests/survey/test_cybernet_hardware_identity_harness_completeness.py"
 CI = ROOT / ".github/workflows/cybernet-hardware-identity-harness.yml"
 
-TRACKED_SURFACES = (REGISTRY, SCHEMA, DOC, MAP, WORKFLOW, TEST, CI)
+TRACKED_SURFACES = (REGISTRY, SCHEMA, DOC, MAP, WORKFLOW, SKILL, TEST, CI)
 
 
 def read(path: Path) -> str:
@@ -214,6 +215,13 @@ def main() -> None:
         "do not create new active queries solely to obtain exclusion evidence",
         "REVIEW_REQUIRED_NO_AUTO_EXCLUSION",
     ))
+    require_markers(SKILL, (
+        "conservative exclusion registry",
+        "Reuse authoritative exclusion evidence before spending new queries",
+        "Weak, corroborating, and strong evidence never accumulates into authority",
+        "generic `computer`, `desktop`, or `workstation` inventory label is not enough",
+        "REVIEW_REQUIRED_NO_AUTO_EXCLUSION",
+    ))
     require_markers(TEST, ("validate-cybernet-device-exclusion-registry.py",))
     require_markers(CI, (
         "cybernet-device-exclusion-registry.json",
@@ -222,7 +230,7 @@ def main() -> None:
         "CYBERNET_DEVICE_EXCLUSION_REGISTRY.md",
     ))
 
-    for path in (REGISTRY, DOC, MAP, WORKFLOW):
+    for path in (REGISTRY, DOC, MAP, WORKFLOW, SKILL):
         text = read(path)
         assert not re.search(r"\bW[A-Z]{2}\d{3}OPR\d+\b", text), (
             f"live-looking target hostname must not be committed in {path.relative_to(ROOT)}"
@@ -233,6 +241,7 @@ def main() -> None:
     print("PASS: strong/corroborating/weak evidence never accumulates into exclusion authority")
     print("PASS: server ProductType rejection is limited to the existing pre-hardware gate")
     print("PASS: tracked device-exclusion registry contains no live device entries")
+    print("PASS: fresh-agent identity skill consults exclusions before new queries")
 
 
 if __name__ == "__main__":
