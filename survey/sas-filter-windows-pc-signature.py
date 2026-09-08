@@ -66,7 +66,9 @@ def iter_json_items(text: str) -> Iterable[dict]:
 def read_observations(path: Path) -> list[tuple[str, int]]:
     text = path.read_text(encoding="utf-8", errors="replace")
     observations: list[tuple[str, int]] = []
-    if path.suffix.lower() in {".json", ".jsonl"}:
+    first = next((line.strip() for line in text.splitlines() if line.strip()), "")
+    looks_json = first.startswith(("{", "["))
+    if path.suffix.lower() in {".json", ".jsonl"} or looks_json:
         for item in iter_json_items(text):
             host = str(item.get("host") or item.get("ip") or "").strip().strip("[]")
             try:
