@@ -110,7 +110,10 @@ def main() -> int:
     initial_result = runner.index("$result | ConvertTo-Json -Depth 10 | Set-Content -LiteralPath $resultPath")
     child_launch = runner.index("& powershell.exe @childArguments")
     recovery_launch = runner.index("& powershell.exe @evidenceArguments")
-    finally_block = runner.index("finally {")
+    # The crash-safe runner may use nested try/finally blocks around child execution details
+    # (for example, restoring ErrorActionPreference). Locate the outer persistence finally only
+    # after offline evidence recovery has been launched.
+    finally_block = runner.index("finally {", recovery_launch)
     final_result = runner.index("$result | ConvertTo-Json -Depth 10 | Set-Content -LiteralPath $resultPath", initial_result + 1)
     latest_pointer = runner.index("Set-Content -LiteralPath $latestPointerPath")
     failure_throw = runner.index("Diagnostics were preserved under:")
