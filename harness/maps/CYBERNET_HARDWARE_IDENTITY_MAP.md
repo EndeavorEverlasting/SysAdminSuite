@@ -19,10 +19,26 @@ Cybernet deployments changed over time and some hospitals carried different appl
 
 Unknown or conflicting evidence stops at read-only discovery.
 
+## Conservative exclusion rule
+
+**Exclusion is not identification.** Before spending network-signature or endpoint-metadata work, existing approved evidence may remove a device from the Cybernet candidate lane only under `harness/api/cybernet-device-exclusion-registry.json`.
+
+The registry is deliberately asymmetric:
+
+- authoritative exclusion evidence may stop already-proven printers, access points, Cronus/time clocks, servers, and other non-Cybernet devices at the stage explicitly authorized by that evidence type;
+- weak/corroborating/strong evidence never accumulates into automatic exclusion authority;
+- hostname patterns, software presence/absence, subnet/site inference, open ports, MAC OUI, and the 135+445 signature cannot auto-exclude;
+- no new active query may be created solely to obtain exclusion evidence;
+- conflicts or positive Cybernet hardware evidence block automatic exclusion and route to read-only identity review;
+- other Windows computers require prior confirmed-non-Cybernet identity or approved hardware-reference evidence before pre-query exclusion.
+
+Tracked exclusion policy contains no live entries. Live exclusions stay local/untracked or in another explicitly approved authority and bind to a stable device key rather than hostname/IP alone.
+
 ## Repository surfaces
 
 | Need | Canonical surface | What it proves |
 |---|---|---|
+| Conservative non-Cybernet exclusion | `harness/api/cybernet-device-exclusion-registry.json` + `docs/CYBERNET_DEVICE_EXCLUSION_REGISTRY.md` | Which existing evidence may safely stop printer/AP/time-clock/server/other-device follow-up before network or hardware metadata; weak hints remain non-authoritative |
 | Professional computer-population signature scan | `survey/sas-run-windows-pc-signature.sh` | Against an approved computer host list, probes only TCP 135+445 with zero retries/rate 50; emits only dual-port candidates; **no metadata** |
 | Local scanner-evidence filter | `survey/sas-filter-windows-pc-signature.py` | From existing Naabu evidence, requires both 135+445 before candidate promotion; performs no network activity |
 | Low-noise explicit-host reachability | `sas network probe HOST01 HOST02 ...` / `survey/sas-network-preflight.ps1` | DNS/ping/selected-port posture only |
@@ -31,28 +47,29 @@ Unknown or conflicting evidence stops at read-only discovery.
 | Optional read-only WMI identity | `bash/transport/sas-wmi-identity.sh` | Host/serial/MAC when WMI succeeds; **no model field today** |
 | Local hardware identity | `QRTasks/Get-ModelInfo.ps1` | Manufacturer, model, product identity, BIOS serial/version, board identity |
 | Cybernet profile after identity | `Config/cybernet-client-preferences.json` | Configuration/software rules for a **proven eligible Cybernet**, not identity itself |
-| Identity workflow | `harness/workflows/cybernet-hardware-identity-discovery.yaml` | Evidence ordering and classification |
+| Identity workflow | `harness/workflows/cybernet-hardware-identity-discovery.yaml` | Evidence ordering, conservative exclusion, and classification |
 | Artifact authority | `harness/api/cybernet-hardware-identity-artifact-registry.json` | Evidence roles, locations, tracking, proof ceilings |
 | Repeatable procedure | `harness/skills/cybernet-hardware-identity/SKILL.md` | Fresh-agent execution path |
 | Operator status | `harness/reports/CYBERNET_HARDWARE_IDENTITY_STATUS.md` | Working paths, known gaps, proof ceiling |
-| Contract validator | `harness/validators/validate-cybernet-hardware-identity.py` | Anti-misclassification wiring |
+| Contract validators | `harness/validators/validate-cybernet-hardware-identity.py` + `harness/validators/validate-cybernet-device-exclusion-registry.py` | Anti-misclassification and conservative exclusion wiring |
 
 ## Workflow
 
 1. **Computer population intake** — prefer passive/approved workstation sources: AD computer population, deployment trackers, prior inventory, approved sheets, CMDB/endpoint inventory, or existing local evidence. Do not begin with a broad service scan merely to discover printers/APs again.
-2. **Reuse evidence first** — when complete current evidence is already available, reuse it instead of generating more packets.
-3. **Minimal network signature** — for an approved computer host list, use `sas-run-windows-pc-signature.sh`. It spends only TCP 135+445, zero scan retries, rate 50, and promotes only hosts where both ports are observed. This is candidate evidence only.
-4. **Bounded canary** — feed unresolved dual-port candidates to `sas cybernet canary` in batches of at most five explicit hosts. The command refuses CIDRs/ranges/wildcards and performs no subnet discovery.
-5. **Prove workstation class** — after both ports open, the canary may create one read-only DCOM/CIM session and read `Win32_OperatingSystem.ProductType`. Only `ProductType=1` may advance to hardware metadata. Servers/DCs and unresolved OS class stop before model/serial queries.
-6. **Collect hardware identity** — a confirmed Windows client workstation may return manufacturer/model and BIOS serial from the same bounded session; local `QRTasks/Get-ModelInfo.ps1` remains another approved model+serial source when physically on the workstation.
-7. **Compare to an approved hardware reference** — keep the live reference local/untracked or in another explicitly approved source. Never invent model or serial rules from memory.
-8. **Classify**:
+2. **Reuse exclusion evidence first** — consult the device-exclusion registry against evidence already available. An authoritative source tied to the same stable device may exclude a proven printer/AP/time clock/server/other device at the allowed stage. Anything weaker remains in the candidate lane.
+3. **Reuse identity evidence first** — when complete current Cybernet identity evidence is already available, reuse it instead of generating more packets.
+4. **Minimal network signature** — for an approved computer host list, use `sas-run-windows-pc-signature.sh`. It spends only TCP 135+445, zero scan retries, rate 50, and promotes only hosts where both ports are observed. This is candidate evidence only.
+5. **Bounded canary** — feed unresolved dual-port candidates to `sas cybernet canary` in batches of at most five explicit hosts. The command refuses CIDRs/ranges/wildcards and performs no subnet discovery.
+6. **Prove workstation class** — after both ports open, the canary may create one read-only DCOM/CIM session and read `Win32_OperatingSystem.ProductType`. Only `ProductType=1` may advance to hardware metadata. Servers/DCs and unresolved OS class stop before model/serial queries.
+7. **Collect hardware identity** — a confirmed Windows client workstation may return manufacturer/model and BIOS serial from the same bounded session; local `QRTasks/Get-ModelInfo.ps1` remains another approved model+serial source when physically on the workstation.
+8. **Compare to an approved hardware reference** — keep the live reference local/untracked or in another explicitly approved source. Never invent model or serial rules from memory.
+9. **Classify**:
    - `IDENTITY_INCOMPLETE` — serial or model is missing, or the reference cannot be resolved.
    - `CONFLICTING_IDENTITY` — evidence sources disagree; block profile selection.
    - `CONFIRMED_NON_CYBERNET` — an approved reference establishes the observed serial/model pair is not Cybernet hardware. Keep it as a known device and remove it from prime Cybernet targets.
    - `CONFIRMED_CYBERNET` — observed serial + observed model satisfy the approved Cybernet hardware reference.
-9. **Profile gate** — only `CONFIRMED_CYBERNET` may load `Config/cybernet-client-preferences.json` or advance to Cybernet configuration/deployment lanes.
-10. **Handoff** — report classification, evidence artifact pointers, reference authority, gaps, and the next read-only or deployment gate without committing live inventory.
+10. **Profile gate** — only `CONFIRMED_CYBERNET` may load `Config/cybernet-client-preferences.json` or advance to Cybernet configuration/deployment lanes.
+11. **Handoff** — report exclusion disposition, hardware classification, evidence artifact pointers, reference authority, gaps, and the next read-only or deployment gate without committing live inventory.
 
 ## Commands
 
@@ -91,6 +108,9 @@ There is intentionally **no deployment command** in this identity workflow. Depl
 ## Known traps
 
 - Starting Cybernet hunting with web/printer-aware ports and then treating every responder as a workstation candidate.
+- Running new SNMP/HTTP/printer probes merely to prove a device should have been excluded.
+- Treating several weak/strong hints as equivalent to one authoritative exclusion source.
+- Rejecting an ordinary Windows computer merely because inventory says `computer`, `desktop`, or `workstation`.
 - Reusing the standardized six-app Cybernet software list as an identity signature.
 - Treating a missing clinical-core app as evidence that a device is not a Cybernet.
 - Treating an `OPR`-style hostname as proof of hardware class.
@@ -98,13 +118,14 @@ There is intentionally **no deployment command** in this identity workflow. Depl
 - Promoting model/serial evidence to `CONFIRMED_CYBERNET` without the approved hardware reference.
 - Confusing low-noise discipline with stealth: normal monitoring may still log or alert on authorized survey traffic.
 - Feeding CIDRs, IP ranges, or wildcards into the identity canary or professional host-list signature lane.
-- Committing live hostnames, serials, model inventories, or site deployment data to Git.
+- Committing live hostnames, serials, model inventories, exclusion entries, or site deployment data to Git.
 - Selecting the Cybernet profile before hardware identity is resolved.
 
 ## Validation
 
 ```text
 python harness/validators/validate-cybernet-hardware-identity.py
+python harness/validators/validate-cybernet-device-exclusion-registry.py
 python Tests/survey/test_cybernet_hardware_identity_harness_completeness.py
 python Tests/survey/test_windows_pc_signature_filter.py
 bash survey/sas-generate-naabu-runtime-profiles.sh --check
@@ -117,4 +138,4 @@ git diff --check
 
 ## Proof ceiling
 
-This harness can prove that repository routing requires serial + model + approved reference evidence before Cybernet profile selection, and that weaker network signals remain candidate-only. The professional signature lane proves only bounded 135+445 reachability; the canary additionally proves Windows client-workstation class before bounded model+serial collection. Neither surface itself proves a live target is a Cybernet, populates the approved hardware reference, authorizes deployment, or claims reduced monitoring visibility.
+This harness can prove that repository routing requires serial + model + approved reference evidence before Cybernet profile selection, and that weaker network signals remain candidate-only. It can also prove that automatic device exclusion requires authoritative pre-query evidence and cannot be synthesized from hostname/software/subnet/ports/OUI or repeated strong/weak hints. The professional signature lane proves only bounded 135+445 reachability; the canary additionally proves Windows client-workstation class before bounded model+serial collection. None of these surfaces themselves prove a live target is a Cybernet, prove an external exclusion source is accurate, populate the approved hardware reference, authorize deployment, or claim reduced monitoring visibility.
