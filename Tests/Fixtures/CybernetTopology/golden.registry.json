@@ -1,0 +1,454 @@
+{
+  "schema_version": "sas-cybernet-deployment-topology-registry/v1",
+  "generated_at": "2026-09-08T00:00:00Z",
+  "policy": {
+    "targeted_pass": {
+      "allowed_confidence": ["HIGH", "MEDIUM"],
+      "medium_requires_independent_corroboration": true,
+      "require_last_observed": true,
+      "max_observation_age_days": 365,
+      "reject_if_relocation_evidence_exists": true,
+      "reject_if_subnet_is_only_inferred_from_hostname": true,
+      "reject_if_only_network_discovery_supports_subnet": true
+    }
+  },
+  "sites": [
+    {
+      "site_id": "SITE-GOLDEN",
+      "site_name": "Golden Fixture Campus",
+      "site_status": "ACTIVE",
+      "subnets": [
+        {
+          "subnet_id": "GOLDEN:high-eligible",
+          "cidr": "10.10.10.0/24",
+          "subnet_confidence": {
+            "classification": "HIGH",
+            "score": 0.95,
+            "basis": [
+              "CONFIRMED_DEPLOYMENT_DEVICE_OBSERVED_IN_SUBNET",
+              "SERIAL_ANCHORED_DEVICE_OBSERVATION"
+            ],
+            "calculated_at": "2026-09-08T00:00:00Z"
+          },
+          "last_observed": {
+            "date": "2026-08-15",
+            "source_evidence_ids": ["EV-HIGH-1"]
+          },
+          "deployment_evidence": [
+            {
+              "evidence_id": "EV-HIGH-1",
+              "evidence_type": "CONFIRMED_DEPLOYMENT",
+              "source_type": "DEPLOYMENT_TRACKER",
+              "source_reference": "fixture://high",
+              "observed_at": "2026-08-15T10:00:00Z",
+              "device_anchor": {
+                "device_key": "dev-high-1",
+                "deployment_status": "CONFIRMED_DEPLOYED",
+                "identity_strength": "SERIAL_ANCHORED",
+                "hostname_reference_present": true,
+                "serial_reference_present": true,
+                "model_reference_present": true
+              },
+              "supports": ["SITE", "SUBNET"],
+              "authority": "AUTHORITATIVE",
+              "notes": null
+            }
+          ],
+          "targeted_pass_budget": {
+            "discovery_profile": "windows_pc_signature_json",
+            "allowed_ports": [135, 445],
+            "retries": 0,
+            "metadata_requires_signature_match": true,
+            "metadata_requires_windows_client": true,
+            "broad_service_enumeration_allowed": false
+          },
+          "targeted_pass_eligibility": {
+            "status": "PLACEHOLDER",
+            "evaluated_at": "1970-01-01T00:00:00Z",
+            "reason_codes": [],
+            "blocking_reason_codes": []
+          }
+        },
+        {
+          "subnet_id": "GOLDEN:medium-eligible",
+          "cidr": "10.10.20.0/24",
+          "subnet_confidence": {
+            "classification": "MEDIUM",
+            "score": 0.7,
+            "basis": [
+              "SITE_ONLY_DEPLOYMENT_RECORD",
+              "DHCP_CORROBORATION",
+              "DNS_CORROBORATION"
+            ],
+            "calculated_at": "2026-09-08T00:00:00Z"
+          },
+          "last_observed": {
+            "date": "2026-07-01",
+            "source_evidence_ids": ["EV-MED-1", "EV-MED-2", "EV-MED-3"]
+          },
+          "deployment_evidence": [
+            {
+              "evidence_id": "EV-MED-1",
+              "evidence_type": "CONFIRMED_DEPLOYMENT",
+              "source_type": "DEPLOYMENT_TRACKER",
+              "source_reference": "fixture://medium-deploy",
+              "observed_at": "2026-07-01T09:00:00Z",
+              "device_anchor": {
+                "device_key": "dev-med-1",
+                "deployment_status": "CONFIRMED_DEPLOYED",
+                "identity_strength": "SERIAL_ANCHORED",
+                "hostname_reference_present": true,
+                "serial_reference_present": true,
+                "model_reference_present": false
+              },
+              "supports": ["SITE", "SUBNET"],
+              "authority": "AUTHORITATIVE",
+              "notes": null
+            },
+            {
+              "evidence_id": "EV-MED-2",
+              "evidence_type": "NETWORK_OBSERVATION",
+              "source_type": "DHCP",
+              "source_reference": "fixture://medium-dhcp",
+              "observed_at": "2026-07-01T10:00:00Z",
+              "device_anchor": {
+                "device_key": "dev-med-1",
+                "deployment_status": "CONFIRMED_DEPLOYED",
+                "identity_strength": "SERIAL_ANCHORED",
+                "hostname_reference_present": true,
+                "serial_reference_present": true,
+                "model_reference_present": false
+              },
+              "supports": ["SUBNET"],
+              "authority": "CORROBORATING",
+              "notes": null
+            },
+            {
+              "evidence_id": "EV-MED-3",
+              "evidence_type": "NETWORK_OBSERVATION",
+              "source_type": "DNS",
+              "source_reference": "fixture://medium-dns",
+              "observed_at": "2026-07-01T11:00:00Z",
+              "device_anchor": {
+                "device_key": "dev-med-1",
+                "deployment_status": "CONFIRMED_DEPLOYED",
+                "identity_strength": "HOSTNAME_ANCHORED",
+                "hostname_reference_present": true,
+                "serial_reference_present": false,
+                "model_reference_present": false
+              },
+              "supports": ["SUBNET"],
+              "authority": "CORROBORATING",
+              "notes": null
+            }
+          ],
+          "targeted_pass_eligibility": {
+            "status": "PLACEHOLDER",
+            "evaluated_at": "1970-01-01T00:00:00Z",
+            "reason_codes": [],
+            "blocking_reason_codes": []
+          }
+        },
+        {
+          "subnet_id": "GOLDEN:medium-review",
+          "cidr": "10.10.21.0/24",
+          "subnet_confidence": {
+            "classification": "MEDIUM",
+            "score": 0.55,
+            "basis": ["SITE_ONLY_DEPLOYMENT_RECORD", "DHCP_CORROBORATION"],
+            "calculated_at": "2026-09-08T00:00:00Z"
+          },
+          "last_observed": {
+            "date": "2026-07-15",
+            "source_evidence_ids": ["EV-REV-1", "EV-REV-2"]
+          },
+          "deployment_evidence": [
+            {
+              "evidence_id": "EV-REV-1",
+              "evidence_type": "CONFIRMED_DEPLOYMENT",
+              "source_type": "DEPLOYMENT_TRACKER",
+              "source_reference": "fixture://review-deploy",
+              "observed_at": "2026-07-15T09:00:00Z",
+              "device_anchor": {
+                "device_key": "dev-rev-1",
+                "deployment_status": "CONFIRMED_DEPLOYED",
+                "identity_strength": "SERIAL_ANCHORED",
+                "hostname_reference_present": true,
+                "serial_reference_present": true,
+                "model_reference_present": false
+              },
+              "supports": ["SITE"],
+              "authority": "AUTHORITATIVE",
+              "notes": null
+            },
+            {
+              "evidence_id": "EV-REV-2",
+              "evidence_type": "NETWORK_OBSERVATION",
+              "source_type": "DHCP",
+              "source_reference": "fixture://review-dhcp",
+              "observed_at": "2026-07-15T10:00:00Z",
+              "device_anchor": {
+                "device_key": "dev-rev-1",
+                "deployment_status": "CONFIRMED_DEPLOYED",
+                "identity_strength": "SERIAL_ANCHORED",
+                "hostname_reference_present": true,
+                "serial_reference_present": true,
+                "model_reference_present": false
+              },
+              "supports": ["SUBNET"],
+              "authority": "CORROBORATING",
+              "notes": "Only one SUBNET-supporting source_type; MEDIUM requires independent corroboration."
+            }
+          ],
+          "targeted_pass_eligibility": {
+            "status": "PLACEHOLDER",
+            "evaluated_at": "1970-01-01T00:00:00Z",
+            "reason_codes": [],
+            "blocking_reason_codes": []
+          }
+        },
+        {
+          "subnet_id": "GOLDEN:stale",
+          "cidr": "10.10.30.0/24",
+          "subnet_confidence": {
+            "classification": "HIGH",
+            "score": 0.9,
+            "basis": ["CONFIRMED_DEPLOYMENT_DEVICE_OBSERVED_IN_SUBNET"],
+            "calculated_at": "2026-09-08T00:00:00Z"
+          },
+          "last_observed": {
+            "date": "2024-01-01",
+            "source_evidence_ids": ["EV-STALE-1"]
+          },
+          "deployment_evidence": [
+            {
+              "evidence_id": "EV-STALE-1",
+              "evidence_type": "CONFIRMED_DEPLOYMENT",
+              "source_type": "DEPLOYMENT_TRACKER",
+              "source_reference": "fixture://stale",
+              "observed_at": "2024-01-01T12:00:00Z",
+              "device_anchor": {
+                "device_key": "dev-stale-1",
+                "deployment_status": "CONFIRMED_DEPLOYED",
+                "identity_strength": "SERIAL_ANCHORED",
+                "hostname_reference_present": true,
+                "serial_reference_present": true,
+                "model_reference_present": true
+              },
+              "supports": ["SITE", "SUBNET"],
+              "authority": "AUTHORITATIVE",
+              "notes": null
+            }
+          ],
+          "targeted_pass_eligibility": {
+            "status": "PLACEHOLDER",
+            "evaluated_at": "1970-01-01T00:00:00Z",
+            "reason_codes": [],
+            "blocking_reason_codes": []
+          }
+        },
+        {
+          "subnet_id": "GOLDEN:conflicting",
+          "cidr": "10.10.40.0/24",
+          "subnet_confidence": {
+            "classification": "CONFLICTING",
+            "score": 0.4,
+            "basis": ["RELOCATION_CONFLICT", "CONFIRMED_DEPLOYMENT_DEVICE_OBSERVED_IN_SUBNET"],
+            "calculated_at": "2026-09-08T00:00:00Z"
+          },
+          "last_observed": {
+            "date": "2026-08-01",
+            "source_evidence_ids": ["EV-CONF-1"]
+          },
+          "deployment_evidence": [
+            {
+              "evidence_id": "EV-CONF-1",
+              "evidence_type": "CONFIRMED_DEPLOYMENT",
+              "source_type": "DEPLOYMENT_TRACKER",
+              "source_reference": "fixture://conflict",
+              "observed_at": "2026-08-01T12:00:00Z",
+              "device_anchor": {
+                "device_key": "dev-conf-1",
+                "deployment_status": "CONFIRMED_DEPLOYED",
+                "identity_strength": "SERIAL_ANCHORED",
+                "hostname_reference_present": true,
+                "serial_reference_present": true,
+                "model_reference_present": true
+              },
+              "supports": ["SITE", "SUBNET"],
+              "authority": "AUTHORITATIVE",
+              "notes": null
+            }
+          ],
+          "targeted_pass_eligibility": {
+            "status": "PLACEHOLDER",
+            "evaluated_at": "1970-01-01T00:00:00Z",
+            "reason_codes": [],
+            "blocking_reason_codes": []
+          }
+        },
+        {
+          "subnet_id": "GOLDEN:superseded",
+          "cidr": "10.10.50.0/24",
+          "superseded_by_subnet_id": "GOLDEN:high-eligible",
+          "subnet_confidence": {
+            "classification": "HIGH",
+            "score": 0.8,
+            "basis": ["CONFIRMED_DEPLOYMENT_DEVICE_OBSERVED_IN_SUBNET", "RELOCATION_CONFLICT"],
+            "calculated_at": "2026-09-08T00:00:00Z"
+          },
+          "last_observed": {
+            "date": "2025-06-01",
+            "source_evidence_ids": ["EV-SUP-1"]
+          },
+          "deployment_evidence": [
+            {
+              "evidence_id": "EV-SUP-1",
+              "evidence_type": "CONFIRMED_DEPLOYMENT",
+              "source_type": "DEPLOYMENT_TRACKER",
+              "source_reference": "fixture://superseded",
+              "observed_at": "2025-06-01T12:00:00Z",
+              "device_anchor": {
+                "device_key": "dev-sup-1",
+                "deployment_status": "CONFIRMED_DEPLOYED",
+                "identity_strength": "SERIAL_ANCHORED",
+                "hostname_reference_present": true,
+                "serial_reference_present": true,
+                "model_reference_present": true
+              },
+              "supports": ["SITE", "SUBNET"],
+              "authority": "AUTHORITATIVE",
+              "notes": null
+            }
+          ],
+          "targeted_pass_eligibility": {
+            "status": "PLACEHOLDER",
+            "evaluated_at": "1970-01-01T00:00:00Z",
+            "reason_codes": [],
+            "blocking_reason_codes": []
+          }
+        },
+        {
+          "subnet_id": "GOLDEN:hostname-only",
+          "cidr": "10.10.60.0/24",
+          "subnet_confidence": {
+            "classification": "LOW",
+            "score": 0.15,
+            "basis": ["HOSTNAME_INFERENCE_ONLY", "SITE_ONLY_DEPLOYMENT_RECORD"],
+            "calculated_at": "2026-09-08T00:00:00Z"
+          },
+          "last_observed": {
+            "date": "2026-08-01",
+            "source_evidence_ids": ["EV-HOST-1"]
+          },
+          "deployment_evidence": [
+            {
+              "evidence_id": "EV-HOST-1",
+              "evidence_type": "CONFIRMED_DEPLOYMENT",
+              "source_type": "DEPLOYMENT_TRACKER",
+              "source_reference": "fixture://hostname-only",
+              "observed_at": "2026-08-01T12:00:00Z",
+              "device_anchor": {
+                "device_key": "dev-host-1",
+                "deployment_status": "CONFIRMED_DEPLOYED",
+                "identity_strength": "HOSTNAME_ANCHORED",
+                "hostname_reference_present": true,
+                "serial_reference_present": false,
+                "model_reference_present": false
+              },
+              "supports": ["SITE"],
+              "authority": "AUTHORITATIVE",
+              "notes": null
+            }
+          ],
+          "targeted_pass_eligibility": {
+            "status": "PLACEHOLDER",
+            "evaluated_at": "1970-01-01T00:00:00Z",
+            "reason_codes": [],
+            "blocking_reason_codes": []
+          }
+        },
+        {
+          "subnet_id": "GOLDEN:discovery-only",
+          "cidr": "10.10.70.0/24",
+          "subnet_confidence": {
+            "classification": "LOW",
+            "score": 0.1,
+            "basis": ["NETWORK_DISCOVERY_ONLY"],
+            "calculated_at": "2026-09-08T00:00:00Z"
+          },
+          "last_observed": {
+            "date": "2026-08-20",
+            "source_evidence_ids": ["EV-DISC-1"]
+          },
+          "deployment_evidence": [
+            {
+              "evidence_id": "EV-DISC-1",
+              "evidence_type": "NETWORK_OBSERVATION",
+              "source_type": "PRIOR_SAS_NETWORK_EVIDENCE",
+              "source_reference": "fixture://discovery-only",
+              "observed_at": "2026-08-20T12:00:00Z",
+              "device_anchor": {
+                "device_key": "dev-disc-1",
+                "deployment_status": "UNKNOWN",
+                "identity_strength": "WEAK",
+                "hostname_reference_present": false,
+                "serial_reference_present": false,
+                "model_reference_present": false
+              },
+              "supports": ["SUBNET"],
+              "authority": "DISCOVERY_ONLY",
+              "notes": "Alive host alone does not prove Cybernet deployment."
+            }
+          ],
+          "targeted_pass_eligibility": {
+            "status": "PLACEHOLDER",
+            "evaluated_at": "1970-01-01T00:00:00Z",
+            "reason_codes": [],
+            "blocking_reason_codes": []
+          }
+        },
+        {
+          "subnet_id": "GOLDEN:invalid-cidr",
+          "cidr": "not-a-cidr",
+          "subnet_confidence": {
+            "classification": "HIGH",
+            "score": 0.9,
+            "basis": ["CONFIRMED_DEPLOYMENT_DEVICE_OBSERVED_IN_SUBNET"],
+            "calculated_at": "2026-09-08T00:00:00Z"
+          },
+          "last_observed": {
+            "date": "2026-08-01",
+            "source_evidence_ids": ["EV-BAD-1"]
+          },
+          "deployment_evidence": [
+            {
+              "evidence_id": "EV-BAD-1",
+              "evidence_type": "CONFIRMED_DEPLOYMENT",
+              "source_type": "DEPLOYMENT_TRACKER",
+              "source_reference": "fixture://bad-cidr",
+              "observed_at": "2026-08-01T12:00:00Z",
+              "device_anchor": {
+                "device_key": "dev-bad-1",
+                "deployment_status": "CONFIRMED_DEPLOYED",
+                "identity_strength": "SERIAL_ANCHORED",
+                "hostname_reference_present": true,
+                "serial_reference_present": true,
+                "model_reference_present": true
+              },
+              "supports": ["SITE", "SUBNET"],
+              "authority": "AUTHORITATIVE",
+              "notes": null
+            }
+          ],
+          "targeted_pass_eligibility": {
+            "status": "PLACEHOLDER",
+            "evaluated_at": "1970-01-01T00:00:00Z",
+            "reason_codes": [],
+            "blocking_reason_codes": []
+          }
+        }
+      ]
+    }
+  ]
+}
