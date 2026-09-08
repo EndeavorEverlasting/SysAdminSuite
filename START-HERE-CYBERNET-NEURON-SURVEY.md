@@ -19,6 +19,19 @@ Use [`docs/CYBERNET_LOW_NOISE_CANARY.md`](docs/CYBERNET_LOW_NOISE_CANARY.md) and
 
 The professional signature-scan lane intentionally uses the tracked Bash wrapper because Naabu is the scanner there; the bounded metadata canary uses Windows PowerShell. The PowerShell-first rules below remain the generic field-tech preflight path, not an instruction to bypass the professional Cybernet-hunt funnel.
 
+## Before any live command — complete operator handoff
+
+Do not start at the probe command. Follow the repository handoff contract in `docs/OPERATOR_COMMAND_HANDOFF.md`: **path → freshness → network intent → command → restoration**.
+
+1. **Canonical path** — resolve the current SysAdminSuite field-ready/repository surface first. The installed `sas` command is cwd-independent; a tracked Bash survey wrapper must be run from the current repository surface that owns it.
+2. **Capture the starting network posture before any transition** — record whether the controller starts on Guest/Internet, WAB, DomainAuthenticated VPN/LAN, or another posture. That starting state is the restoration target.
+3. **Repository freshness** — prove the selected repository/runtime is current before target contact. If synchronization is needed, perform it as the repository `InternetSync` subtransaction (`sas refresh` or the repository-approved `git fetch --all --prune --tags` plus safe `git pull --ff-only` path), then return to the recorded starting network posture before continuing. Do not run remote Git from a protected sealed runtime.
+4. **Required network intent** — the live survey requires `ProtectedNorthwell`. The canonical network-aware `sas` route or `Confirm-SasNorthwellNetwork.ps1` must prove the protected posture before target traffic; do not treat a claimed VPN connection as the proof by itself.
+5. **Execute the canonical command** — only after path, freshness, and protected-network intent are proven should the professional signature wrapper, bounded canary, or generic preflight run.
+6. **Restore** — if freshness or an approved launcher changed network posture, restore the recorded starting posture after the operation. Network-aware `sas` routes own their automatic restoration; manual transitions remain the operator's restoration obligation.
+
+This sequencing is part of the command, not optional preamble. A bare scan/probe snippet without its path, freshness, network-intent, and restoration context is an incomplete field handoff.
+
 ## Field shell doctrine
 
 **PowerShell first for the generic field-tech preflight below.**
