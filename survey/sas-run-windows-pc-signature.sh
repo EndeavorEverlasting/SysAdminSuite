@@ -125,21 +125,19 @@ if p.get('outputFormat') != 'json' or p.get('pipelineFollowup'):
 print(p['ports'])
 print(p['retries'])
 print(p['defaultRate'])
-print('1' if p.get('excludeCdn') else '0')
 PY
 )
-[[ ${#profile_values[@]} -eq 4 ]] || fail 'Could not resolve PC-signature profile.'
+[[ ${#profile_values[@]} -eq 3 ]] || fail 'Could not resolve PC-signature profile.'
 ports="${profile_values[0]}"
 retries="${profile_values[1]}"
 rate="${profile_values[2]}"
-exclude_cdn="${profile_values[3]}"
 
 ensure_args=()
 [[ "$DRY_RUN" -eq 1 ]] && ensure_args+=(--dry-run)
 naabu_bin="$(bash "$ENSURE_SCRIPT" "${ensure_args[@]}")"
 [[ -n "$naabu_bin" ]] || fail 'Naabu bootstrap returned no executable path.'
-args=(-list "$LIST" -p "$ports" -silent -duc -retries "$retries" -rate "$rate" -json -o "$OUT")
-[[ "$exclude_cdn" == '1' ]] && args+=(-ec)
+# Repository policy requires -silent and -ec on every naabu -list lane.
+args=(-list "$LIST" -p "$ports" -silent -ec -duc -retries "$retries" -rate "$rate" -json -o "$OUT")
 
 printf '[pc-signature] Targets: %s | ports: %s | retries: %s | rate: %s\n' "$count" "$ports" "$retries" "$rate" >&2
 printf '[pc-signature] Metadata collection: NONE\n' >&2
