@@ -76,8 +76,13 @@ function Get-SasFreshCanaryEvidence {
         if (-not $actualHash.Equals([string]$completion.result_sha256, [StringComparison]::OrdinalIgnoreCase)) { continue }
 
         foreach ($row in @(Import-Csv -LiteralPath $resultPath -ErrorAction SilentlyContinue)) {
+            $requiredColumns = @(
+                'Target','ObservationTimestamp','ResolvedAddress','PingStatus','Port135','Port445',
+                'PcSignatureStatus','WorkstationStatus','ObservedOperatingSystem','ObservedHostName',
+                'ObservedManufacturer','ObservedModel','ObservedSerial','IdentityStatus'
+            )
+            if (@($requiredColumns | Where-Object { -not $row.PSObject.Properties[$_] }).Count -gt 0) { continue }
             if ([string]::IsNullOrWhiteSpace([string]$row.Target) -or -not ([string]$row.Target).Equals($TargetName, [StringComparison]::OrdinalIgnoreCase)) { continue }
-            if (-not $row.PSObject.Properties['Port445'] -or -not $row.PSObject.Properties['PcSignatureStatus']) { continue }
             if ([string]::IsNullOrWhiteSpace([string]$row.ObservationTimestamp)) { continue }
             try { $observedAt = [datetime]$row.ObservationTimestamp } catch { continue }
             if ($observedAt.ToUniversalTime() -lt $Cutoff.ToUniversalTime()) { continue }
@@ -202,6 +207,10 @@ try {
                             $identityStatus = 'NON_WORKSTATION_OS_METADATA_SKIPPED'
                             [void]$noteParts.Add("Windows ProductType $([int]$os.ProductType) is not a client workstation; manufacturer/model/serial queries were skipped.")
                         }
+                    } else {
+                        $workstationStatus = 'WORKSTATION_CLASS_UNRESOLVED'
+                        $identityStatus = 'WORKSTATION_CLASS_UNRESOLVED_METADATA_SKIPPED'
+                        [void]$noteParts.Add('Win32_OperatingSystem returned no instance; manufacturer/model/serial queries were skipped.')
                     }
                 } catch {
                     $workstationStatus = 'WORKSTATION_CLASS_UNRESOLVED'
