@@ -1,0 +1,291 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "sas-cybernet-deployment-topology-registry/v1",
+  "title": "SysAdminSuite Cybernet Deployment Topology Registry",
+  "description": "Answers one question only: which network locations are sufficiently supported by deployment evidence to deserve a low-noise targeted Cybernet survey. Does not decide whether a host is a Cybernet.",
+  "type": "object",
+  "required": ["schema_version", "generated_at", "policy", "sites"],
+  "additionalProperties": false,
+  "properties": {
+    "schema_version": {
+      "const": "sas-cybernet-deployment-topology-registry/v1"
+    },
+    "generated_at": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "policy": {
+      "type": "object",
+      "required": ["targeted_pass"],
+      "additionalProperties": false,
+      "properties": {
+        "targeted_pass": {
+          "type": "object",
+          "required": [
+            "allowed_confidence",
+            "medium_requires_independent_corroboration",
+            "require_last_observed",
+            "max_observation_age_days",
+            "reject_if_relocation_evidence_exists",
+            "reject_if_subnet_is_only_inferred_from_hostname",
+            "reject_if_only_network_discovery_supports_subnet"
+          ],
+          "additionalProperties": false,
+          "properties": {
+            "allowed_confidence": {
+              "type": "array",
+              "items": {
+                "type": "string",
+                "enum": ["HIGH", "MEDIUM", "LOW", "CONFLICTING", "UNKNOWN"]
+              },
+              "minItems": 1
+            },
+            "medium_requires_independent_corroboration": { "type": "boolean" },
+            "require_last_observed": { "type": "boolean" },
+            "max_observation_age_days": { "type": "integer", "minimum": 1 },
+            "reject_if_relocation_evidence_exists": { "type": "boolean" },
+            "reject_if_subnet_is_only_inferred_from_hostname": { "type": "boolean" },
+            "reject_if_only_network_discovery_supports_subnet": { "type": "boolean" }
+          }
+        }
+      }
+    },
+    "sites": {
+      "type": "array",
+      "items": { "$ref": "#/$defs/site" }
+    }
+  },
+  "$defs": {
+    "source_type": {
+      "type": "string",
+      "enum": [
+        "DEPLOYMENT_TRACKER",
+        "TECHNICIAN_SIGNOFF",
+        "DEPLOYMENT_COMPLETION_REPORT",
+        "SERIAL_INVENTORY",
+        "CMDB",
+        "SCCM_CONFIGMGR",
+        "ACTIVE_DIRECTORY",
+        "DHCP",
+        "DNS",
+        "PRIOR_SAS_IDENTITY_EVIDENCE",
+        "PRIOR_SAS_NETWORK_EVIDENCE",
+        "OPERATOR_CONFIRMED",
+        "OTHER_APPROVED_SOURCE"
+      ]
+    },
+    "authority": {
+      "type": "string",
+      "enum": ["AUTHORITATIVE", "CORROBORATING", "INFERENTIAL", "DISCOVERY_ONLY"]
+    },
+    "supports": {
+      "type": "string",
+      "enum": ["SITE", "SUBNET"]
+    },
+    "confidence_classification": {
+      "type": "string",
+      "enum": ["HIGH", "MEDIUM", "LOW", "CONFLICTING", "UNKNOWN"]
+    },
+    "eligibility_status": {
+      "type": "string",
+      "enum": [
+        "ELIGIBLE",
+        "REVIEW_REQUIRED",
+        "STALE",
+        "CONFLICTING",
+        "NOT_ELIGIBLE",
+        "SUPERSEDED"
+      ]
+    },
+    "basis_code": {
+      "type": "string",
+      "enum": [
+        "CONFIRMED_DEPLOYMENT_DEVICE_OBSERVED_IN_SUBNET",
+        "MULTIPLE_DEPLOYED_DEVICES_OBSERVED_IN_SUBNET",
+        "SERIAL_ANCHORED_DEVICE_OBSERVATION",
+        "MULTIPLE_INDEPENDENT_DEPLOYMENT_RECORDS",
+        "DHCP_CORROBORATION",
+        "DNS_CORROBORATION",
+        "CMDB_CORROBORATION",
+        "SITE_ONLY_DEPLOYMENT_RECORD",
+        "HISTORICAL_SUBNET_ONLY",
+        "HOSTNAME_INFERENCE_ONLY",
+        "NETWORK_DISCOVERY_ONLY",
+        "RELOCATION_CONFLICT"
+      ]
+    },
+    "device_anchor": {
+      "type": "object",
+      "required": ["device_key"],
+      "additionalProperties": false,
+      "properties": {
+        "device_key": { "type": "string", "minLength": 1 },
+        "deployment_status": {
+          "type": "string",
+          "enum": ["CONFIRMED_DEPLOYED", "SUSPECTED_DEPLOYED", "UNKNOWN"]
+        },
+        "identity_strength": {
+          "type": "string",
+          "enum": ["SERIAL_ANCHORED", "HOSTNAME_ANCHORED", "MAC_ANCHORED", "WEAK"]
+        },
+        "hostname_reference_present": { "type": "boolean" },
+        "serial_reference_present": { "type": "boolean" },
+        "model_reference_present": { "type": "boolean" }
+      }
+    },
+    "evidence": {
+      "type": "object",
+      "required": [
+        "evidence_id",
+        "evidence_type",
+        "source_type",
+        "source_reference",
+        "observed_at",
+        "device_anchor",
+        "supports",
+        "authority"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "evidence_id": { "type": "string", "minLength": 1 },
+        "evidence_type": {
+          "type": "string",
+          "enum": [
+            "CONFIRMED_DEPLOYMENT",
+            "DEPLOYMENT_COMPLETION",
+            "NETWORK_OBSERVATION",
+            "INVENTORY_RECORD",
+            "OPERATOR_NOTE",
+            "OTHER"
+          ]
+        },
+        "source_type": { "$ref": "#/$defs/source_type" },
+        "source_reference": { "type": "string", "minLength": 1 },
+        "observed_at": { "type": "string", "format": "date-time" },
+        "device_anchor": { "$ref": "#/$defs/device_anchor" },
+        "supports": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/supports" },
+          "minItems": 1,
+          "uniqueItems": true
+        },
+        "authority": { "$ref": "#/$defs/authority" },
+        "notes": { "type": ["string", "null"] }
+      }
+    },
+    "subnet": {
+      "type": "object",
+      "required": [
+        "subnet_id",
+        "cidr",
+        "subnet_confidence",
+        "deployment_evidence",
+        "targeted_pass_eligibility"
+      ],
+      "additionalProperties": false,
+      "properties": {
+        "subnet_id": { "type": "string", "minLength": 1 },
+        "cidr": {
+          "type": "string",
+          "pattern": "^(?:(?:25[0-5]|2[0-4]\\d|1\\d\\d|[1-9]?\\d)\\.){3}(?:25[0-5]|2[0-4]\\d|1\\d\\d|[1-9]?\\d)/(?:3[0-2]|[12]?\\d|[0-9])$"
+        },
+        "superseded_by_subnet_id": { "type": ["string", "null"] },
+        "subnet_confidence": {
+          "type": "object",
+          "required": ["classification", "score", "basis", "calculated_at"],
+          "additionalProperties": false,
+          "properties": {
+            "classification": { "$ref": "#/$defs/confidence_classification" },
+            "score": { "type": "number", "minimum": 0, "maximum": 1 },
+            "basis": {
+              "type": "array",
+              "items": { "$ref": "#/$defs/basis_code" }
+            },
+            "calculated_at": { "type": "string", "format": "date-time" }
+          }
+        },
+        "last_observed": {
+          "type": ["object", "null"],
+          "required": ["date", "source_evidence_ids"],
+          "additionalProperties": false,
+          "properties": {
+            "date": { "type": "string", "format": "date" },
+            "source_evidence_ids": {
+              "type": "array",
+              "items": { "type": "string" }
+            }
+          }
+        },
+        "deployment_evidence": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/evidence" }
+        },
+        "targeted_pass_budget": {
+          "type": "object",
+          "required": [
+            "discovery_profile",
+            "allowed_ports",
+            "retries",
+            "metadata_requires_signature_match",
+            "metadata_requires_windows_client",
+            "broad_service_enumeration_allowed"
+          ],
+          "additionalProperties": false,
+          "properties": {
+            "discovery_profile": { "type": "string", "minLength": 1 },
+            "allowed_ports": {
+              "type": "array",
+              "items": { "type": "integer", "minimum": 1, "maximum": 65535 },
+              "minItems": 1
+            },
+            "retries": { "type": "integer", "minimum": 0 },
+            "metadata_requires_signature_match": { "type": "boolean" },
+            "metadata_requires_windows_client": { "type": "boolean" },
+            "broad_service_enumeration_allowed": { "type": "boolean" }
+          }
+        },
+        "targeted_pass_eligibility": {
+          "type": "object",
+          "required": [
+            "status",
+            "evaluated_at",
+            "reason_codes",
+            "blocking_reason_codes"
+          ],
+          "additionalProperties": false,
+          "properties": {
+            "status": { "$ref": "#/$defs/eligibility_status" },
+            "evaluated_at": { "type": "string", "format": "date-time" },
+            "reason_codes": {
+              "type": "array",
+              "items": { "type": "string" }
+            },
+            "blocking_reason_codes": {
+              "type": "array",
+              "items": { "type": "string" }
+            },
+            "superseded_by_subnet_id": { "type": ["string", "null"] }
+          }
+        }
+      }
+    },
+    "site": {
+      "type": "object",
+      "required": ["site_id", "organization_id", "site_name", "site_status", "subnets"],
+      "additionalProperties": false,
+      "properties": {
+        "site_id": { "type": "string", "minLength": 1 },
+        "organization_id": { "type": "string", "minLength": 1 },
+        "site_name": { "type": "string", "minLength": 1 },
+        "site_status": {
+          "type": "string",
+          "enum": ["ACTIVE", "INACTIVE", "UNKNOWN"]
+        },
+        "subnets": {
+          "type": "array",
+          "items": { "$ref": "#/$defs/subnet" }
+        }
+      }
+    }
+  }
+}
