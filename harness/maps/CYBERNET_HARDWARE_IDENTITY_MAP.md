@@ -127,6 +127,7 @@ There is intentionally **no deployment command** in this identity workflow. Depl
 python harness/validators/validate-cybernet-hardware-identity.py
 python harness/validators/validate-cybernet-device-exclusion-registry.py
 python Tests/survey/test_cybernet_hardware_identity_harness_completeness.py
+python harness/validators/validate-operator-command-handoff.py
 python Tests/survey/test_windows_pc_signature_filter.py
 bash survey/sas-generate-naabu-runtime-profiles.sh --check
 bash -n survey/sas-run-windows-pc-signature.sh
