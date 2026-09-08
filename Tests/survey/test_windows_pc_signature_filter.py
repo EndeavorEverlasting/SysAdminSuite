@@ -68,6 +68,26 @@ def test_jsonl_filters_non_pc_devices_and_requires_both_ports() -> None:
         assert "9100" in rows["printer01.example.invalid"]["ObservedPorts"]
 
 
+def test_json_content_is_detected_without_json_suffix() -> None:
+    with tempfile.TemporaryDirectory() as temp:
+        root = Path(temp)
+        evidence = root / "naabu-output.data"
+        candidates = root / "candidates.txt"
+        report = root / "report.csv"
+        evidence.write_text(
+            json.dumps({"host": "pc03.example.invalid", "port": 135})
+            + "\n"
+            + json.dumps({"host": "pc03.example.invalid", "port": 445})
+            + "\n",
+            encoding="utf-8",
+        )
+
+        result = run_filter(evidence, candidates, report)
+        assert result.returncode == 0, result.stderr
+        assert candidates.read_text(encoding="utf-8").splitlines() == ["pc03.example.invalid"]
+        assert "PC signature filter: 1 matched / 1 observed hosts" in result.stdout
+
+
 def test_text_input_is_aggregated_by_host_without_packets() -> None:
     with tempfile.TemporaryDirectory() as temp:
         root = Path(temp)
@@ -93,6 +113,7 @@ def test_source_contract_is_local_only_and_dual_port() -> None:
     assert "REQUIRED_PORTS = {135, 445}" in text
     assert "performs no network activity" in text
     assert "not proof of Cybernet identity" in text
+    assert "looks_json = first.startswith" in text
     for forbidden in ("nmap", "naabu -", "socket.connect", "requests.", "urllib.request"):
         assert forbidden not in text.lower(), forbidden
 
