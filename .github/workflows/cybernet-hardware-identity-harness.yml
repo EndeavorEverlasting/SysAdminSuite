@@ -8,13 +8,17 @@ on:
     branches: [main, 'feat/**', 'fix/**', 'harness/**']
     paths:
       - 'harness/api/cybernet-hardware-identity-artifact-registry.json'
+      - 'harness/api/cybernet-device-exclusion-registry.json'
       - 'schemas/harness/cybernet-hardware-identity-artifact-registry.schema.json'
+      - 'schemas/harness/cybernet-device-exclusion-registry.schema.json'
       - 'harness/maps/CYBERNET_HARDWARE_IDENTITY_MAP.md'
       - 'harness/workflows/cybernet-hardware-identity-discovery.yaml'
       - 'harness/skills/cybernet-hardware-identity/SKILL.md'
       - 'harness/reports/CYBERNET_HARDWARE_IDENTITY_STATUS.md'
       - 'harness/validators/validate-cybernet-hardware-identity.py'
+      - 'harness/validators/validate-cybernet-device-exclusion-registry.py'
       - 'Tests/survey/test_cybernet_hardware_identity_harness_completeness.py'
+      - 'docs/CYBERNET_DEVICE_EXCLUSION_REGISTRY.md'
       - 'harness/README.md'
       - '.githooks/pre-commit'
       - '.githooks/pre-push'
@@ -29,13 +33,17 @@ on:
   pull_request:
     paths:
       - 'harness/api/cybernet-hardware-identity-artifact-registry.json'
+      - 'harness/api/cybernet-device-exclusion-registry.json'
       - 'schemas/harness/cybernet-hardware-identity-artifact-registry.schema.json'
+      - 'schemas/harness/cybernet-device-exclusion-registry.schema.json'
       - 'harness/maps/CYBERNET_HARDWARE_IDENTITY_MAP.md'
       - 'harness/workflows/cybernet-hardware-identity-discovery.yaml'
       - 'harness/skills/cybernet-hardware-identity/SKILL.md'
       - 'harness/reports/CYBERNET_HARDWARE_IDENTITY_STATUS.md'
       - 'harness/validators/validate-cybernet-hardware-identity.py'
+      - 'harness/validators/validate-cybernet-device-exclusion-registry.py'
       - 'Tests/survey/test_cybernet_hardware_identity_harness_completeness.py'
+      - 'docs/CYBERNET_DEVICE_EXCLUSION_REGISTRY.md'
       - 'harness/README.md'
       - '.githooks/pre-commit'
       - '.githooks/pre-push'
@@ -68,11 +76,13 @@ jobs:
       - name: Compile harness validators
         run: |
           python -m py_compile harness/validators/validate-cybernet-hardware-identity.py
+          python -m py_compile harness/validators/validate-cybernet-device-exclusion-registry.py
           python -m py_compile Tests/survey/test_cybernet_hardware_identity_harness_completeness.py
 
       - name: Validate Cybernet hardware identity harness
         run: |
           python harness/validators/validate-cybernet-hardware-identity.py
+          python harness/validators/validate-cybernet-device-exclusion-registry.py
           python Tests/survey/test_cybernet_hardware_identity_harness_completeness.py
 
       - name: Validate hook syntax
