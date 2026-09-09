@@ -1,0 +1,56 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "sas-cybernet-topology-evidence-bundle/v1",
+  "title": "SysAdminSuite Cybernet Topology Evidence Bundle",
+  "description": "Portable topology evidence one technician can hand to another so a colleague's survey starts from accumulated context instead of rework. Carries deployment topology evidence only; it never asserts device hardware identity.",
+  "type": "object",
+  "required": [
+    "schema_version",
+    "generated_at",
+    "contains_operator_local_data",
+    "registry"
+  ],
+  "additionalProperties": false,
+  "properties": {
+    "schema_version": {
+      "const": "sas-cybernet-topology-evidence-bundle/v1"
+    },
+    "generated_at": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "source_run_id": {
+      "type": "string",
+      "description": "Run id of the session that produced this bundle."
+    },
+    "contains_operator_local_data": {
+      "const": true,
+      "description": "Always true. Bundles hold site and CIDR context, so they stay in local ignored paths or approved internal channels and are never committed."
+    },
+    "sharing_note": {
+      "type": "string"
+    },
+    "counts": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "sites": { "type": "integer", "minimum": 0 },
+        "subnets": { "type": "integer", "minimum": 0 },
+        "evidence": { "type": "integer", "minimum": 0 }
+      }
+    },
+    "registry": {
+      "type": "object",
+      "description": "A sas-cybernet-deployment-topology-registry/v1 payload with computed eligibility stripped. The receiving session always recomputes eligibility locally.",
+      "required": ["schema_version", "policy", "sites"],
+      "properties": {
+        "schema_version": {
+          "const": "sas-cybernet-deployment-topology-registry/v1"
+        },
+        "generated_at": { "type": "string" },
+        "policy": { "type": "object" },
+        "sites": { "type": "array" }
+      }
+    }
+  }
+}

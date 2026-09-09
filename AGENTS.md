@@ -84,7 +84,7 @@ Preserve existing work and keep mutation inside owned scope. Checkpoint coherent
 | Selecting parsers, unit tests, contracts, and bounded validators | [Scoped Validation](.claude/skills/scoped-validation/SKILL.md) |
 | Integration gates, composed workflows, browser/launcher journeys, merge/release proof | [End-to-End Validation](.claude/skills/end-to-end-validation/SKILL.md) |
 | Reading, generating, moving, or staging local/live evidence | [Live Data Guard](.claude/skills/live-data-guard/SKILL.md) |
-| Survey, preflight, target intake, Naabu/Nmap, packet probes, dashboard probes | [Survey Low-Noise](.claude/skills/survey-low-noise/SKILL.md) |
+| Survey, preflight, target intake, Naabu/Nmap, packet probes, dashboard probes, **Cybernet deployment topology survey loop** (`Run-CybernetTopologySurvey.cmd`; decides only *where* a bounded pass is justified, never device identity) | [Survey Low-Noise](.claude/skills/survey-low-noise/SKILL.md) |
 | WezTerm/tmux setup, persistent coding workspace, workstation repair, or agent readiness | [Developer Workstation](.claude/skills/developer-workstation/SKILL.md) |
 | EXE/MSI/archive inspection, installer behavior inference, large private package intake | [Package Static Analysis](.claude/skills/package-static-analysis/SKILL.md) |
 | AutoLogon planning, canonical admin deployment, post-reboot session or technician runtime proof | [AutoLogon Deployment](.claude/skills/autologon-deployment/SKILL.md) |
