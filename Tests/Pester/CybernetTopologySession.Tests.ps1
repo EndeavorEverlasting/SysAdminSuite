@@ -403,6 +403,31 @@ Describe 'End-to-end iteration through the entry script' {
     $handoff | Should -Match '\+1 evidence'
   }
 
+  It 'quarantines a malformed inbox file instead of bricking every future click' {
+    $paths = Get-SasCybernetTopologySessionPath -RepoRoot $script:repoRoot -SessionRoot $script:e2eRoot
+    $bad = Join-Path $paths.InboxDir 'corrupt.json'
+    Set-Content -LiteralPath $bad -Value '{ this is not valid json' -Encoding UTF8
+
+    $later = $script:asOf.AddMinutes(7)
+    & $script:entryScript -SessionRoot $script:e2eRoot -AsOf $later -WarningAction SilentlyContinue | Out-Null
+    $LASTEXITCODE | Should -Be 0
+
+    # The bad file must leave the inbox so the next click is not blocked by it.
+    Test-Path -LiteralPath $bad | Should -BeFalse
+    @(Get-ChildItem -LiteralPath $paths.RejectedDir -Filter '*corrupt.json' -File).Count | Should -Be 1
+
+    $runDir = Get-ChildItem -LiteralPath $paths.RunsDir -Directory | Sort-Object Name | Select-Object -Last 1
+    $summary = Get-Content -LiteralPath (Join-Path $runDir.FullName 'iteration_summary.json') -Raw | ConvertFrom-Json
+    @($summary.sources_rejected_this_run).Count | Should -Be 1
+
+    # Previously accumulated evidence must survive the rejection.
+    $summary.eligible_probe_targets | Should -Be 1
+
+    $handoff = Get-Content -LiteralPath (Join-Path $runDir.FullName 'operator_handoff.txt') -Raw
+    $handoff | Should -Match 'FILES REJECTED THIS RUN'
+    $handoff | Should -Match 'keep clicking as normal'
+  }
+
   It 'third click with no new evidence is stable and reports no change' {
     $paths = Get-SasCybernetTopologySessionPath -RepoRoot $script:repoRoot -SessionRoot $script:e2eRoot
     $later = $script:asOf.AddMinutes(10)

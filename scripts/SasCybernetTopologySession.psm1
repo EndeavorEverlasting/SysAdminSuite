@@ -46,6 +46,7 @@ function Get-SasCybernetTopologySessionPath {
     IngestDir    = Join-Path $SessionRoot 'ingest'
     RunsDir      = Join-Path $SessionRoot 'runs'
     ArchiveDir   = Join-Path $SessionRoot 'inbox\imported'
+    RejectedDir  = Join-Path $SessionRoot 'inbox\rejected'
   }
 }
 
@@ -205,7 +206,7 @@ function Initialize-SasCybernetTopologySession {
   $paths = Get-SasCybernetTopologySessionPath -RepoRoot $RepoRoot -SessionRoot $SessionRoot
   $created = $false
 
-  foreach ($dir in @($paths.SessionRoot, $paths.InboxDir, $paths.OutboxDir, $paths.IngestDir, $paths.RunsDir, $paths.ArchiveDir)) {
+  foreach ($dir in @($paths.SessionRoot, $paths.InboxDir, $paths.OutboxDir, $paths.IngestDir, $paths.RunsDir, $paths.ArchiveDir, $paths.RejectedDir)) {
     if (-not (Test-Path -LiteralPath $dir)) {
       New-Item -ItemType Directory -Path $dir -Force | Out-Null
       $created = $true

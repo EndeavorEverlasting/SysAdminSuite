@@ -40,6 +40,10 @@ Everything lives under `evidence\CybernetTopology\`, which is gitignored.
 
 You never have to remember an import command. Drop the file, click the CMD.
 
+If a dropped file is corrupt or the wrong format, it is moved to `inbox\rejected\` alongside a
+`.reason.txt`, the handoff names it, and the run continues normally. One bad file never blocks your
+next click and never discards evidence you already accumulated.
+
 ## What you get back from each run
 
 Under `evidence\CybernetTopology\runs\<run-id>\`:

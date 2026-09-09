@@ -65,34 +65,56 @@ if (-not (Test-Path -LiteralPath $runDir)) {
 
 $registry = Read-SasTopologyJsonFile -Path $paths.RegistryPath
 $mergeLog = New-Object System.Collections.Generic.List[object]
+$rejectedLog = New-Object System.Collections.Generic.List[object]
 
 function Add-SasTopologyMerge {
+  <#
+    Merge one staged file. A file the technician named explicitly is allowed to fail
+    the run; a file found by scanning is quarantined instead, so one bad drop can
+    never brick every future click.
+  #>
   param(
     [Parameter(Mandatory)][string]$Path,
-    [Parameter(Mandatory)][bool]$Archive
+    [Parameter(Mandatory)][bool]$Archive,
+    [Parameter(Mandatory)][bool]$QuarantineOnFailure
   )
-  $result = Import-SasCybernetTopologyBundle -Registry $script:registry -Path $Path
+
+  $name = Split-Path -Leaf $Path
+  try {
+    $result = Import-SasCybernetTopologyBundle -Registry $script:registry -Path $Path
+  }
+  catch {
+    if (-not $QuarantineOnFailure) { throw }
+    $reason = $_.Exception.Message
+    [void]$script:rejectedLog.Add([pscustomobject]@{ source = $name; reason = $reason })
+    $quarantine = Join-Path $paths.RejectedDir ("{0}__{1}" -f $runId, $name)
+    Move-Item -LiteralPath $Path -Destination $quarantine -Force
+    Set-Content -LiteralPath ($quarantine + '.reason.txt') -Encoding UTF8 -Value $reason
+    Write-Warning "Rejected $name and moved it to inbox\rejected. Reason: $reason"
+    return
+  }
+
   $script:registry = $result.Registry
   [void]$script:mergeLog.Add($result.Stats)
   if ($Archive) {
-    $destination = Join-Path $paths.ArchiveDir ("{0}__{1}" -f $runId, (Split-Path -Leaf $Path))
+    $destination = Join-Path $paths.ArchiveDir ("{0}__{1}" -f $runId, $name)
     Move-Item -LiteralPath $Path -Destination $destination -Force
   }
 }
 
-# Explicit import first so a named bundle is never skipped.
+# Explicit import first so a named bundle is never skipped, and fails loudly.
 if ($Action -eq 'Import') {
-  Add-SasTopologyMerge -Path $BundlePath -Archive:$false
+  Add-SasTopologyMerge -Path $BundlePath -Archive:$false -QuarantineOnFailure:$false
 }
 
 # Bundles shared by other technicians.
 foreach ($file in @(Get-ChildItem -LiteralPath $paths.InboxDir -Filter '*.json' -File -ErrorAction SilentlyContinue)) {
-  Add-SasTopologyMerge -Path $file.FullName -Archive:$true
+  Add-SasTopologyMerge -Path $file.FullName -Archive:$true -QuarantineOnFailure:$true
 }
 
 # Locally produced probe evidence staged for this session.
 foreach ($file in @(Get-ChildItem -LiteralPath $paths.IngestDir -Filter '*.json' -File -ErrorAction SilentlyContinue)) {
-  Add-SasTopologyMerge -Path $file.FullName -Archive:$true
+  Add-SasTopologyMerge -Path $file.FullName -Archive:$true -QuarantineOnFailure:$true
 }
 
 $registry = Update-CybernetTopologyRegistryEligibility -Registry $registry -AsOf $AsOf
@@ -161,6 +183,7 @@ $summary = [ordered]@{
   network_activity_performed         = $false
   decides_device_identity            = $false
   sources_merged_this_run            = @($mergeLog.ToArray())
+  sources_rejected_this_run          = @($rejectedLog.ToArray())
   subnets_total                      = $plan.StatusById.Keys.Count
   status_counts                      = $statusCounts
   eligible_probe_targets             = $plan.PlanRows.Count
@@ -198,6 +221,14 @@ else {
     [void]$handoff.Add(("  {0}: +{1} sites, +{2} subnets, +{3} evidence, {4} evidence refreshed" -f `
           $entry.source, $entry.sites_added, $entry.subnets_added, $entry.evidence_added, $entry.evidence_updated))
   }
+}
+if ($rejectedLog.Count -gt 0) {
+  [void]$handoff.Add('')
+  [void]$handoff.Add('FILES REJECTED THIS RUN')
+  foreach ($entry in $rejectedLog.ToArray()) {
+    [void]$handoff.Add(("  {0}: {1}" -f $entry.source, $entry.reason))
+  }
+  [void]$handoff.Add("  Moved to $($paths.RejectedDir). Nothing else was affected; keep clicking as normal.")
 }
 [void]$handoff.Add('')
 [void]$handoff.Add('WHAT CHANGED SINCE THE PREVIOUS RUN')
