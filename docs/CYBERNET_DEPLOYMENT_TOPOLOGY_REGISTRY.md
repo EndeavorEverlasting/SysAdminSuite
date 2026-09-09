@@ -72,3 +72,56 @@ $registry.sites[0].subnets | ForEach-Object {
 ```
 
 Eligibility is always recomputed. A manually declared `ELIGIBLE` status is never trusted.
+
+## Technician iteration loop
+
+The registry is not meant to be hand-edited by a field technician. The repeat-safe front door is
+`Run-CybernetTopologySurvey.cmd`, documented in `START-HERE-CYBERNET-TOPOLOGY-SURVEY.md`.
+
+Each click of that launcher runs one bounded iteration through
+`scripts/Invoke-SasCybernetTopologySession.ps1`:
+
+1. bootstrap the local session under gitignored `evidence/CybernetTopology/` if it is missing
+2. merge every file staged in `ingest/` (your own probe results) and `inbox/` (bundles from other technicians)
+3. recompute eligibility with `Update-CybernetTopologyRegistryEligibility`
+4. diff the resulting statuses against the previous run
+5. publish `next_probe_targets.csv`, `review_required.csv`, `iteration_summary.json`, and `operator_handoff.txt`
+6. export a shareable bundle to `outbox/`
+
+The first run and the fiftieth run take the same code path, so a technician never has to know whether
+a session already exists.
+
+### Merge semantics
+
+`scripts/SasCybernetTopologySession.psm1` owns accumulation and deliberately owns no eligibility logic:
+
+- sites merge by `site_id`, subnets by `subnet_id`, evidence by `evidence_id`
+- a repeated `evidence_id` only replaces the stored copy when its `observed_at` is strictly newer
+- `last_observed` is recomputed from the newest merged evidence, so genuine new observations renew
+  freshness rather than silently aging into `STALE`
+- a declared `subnet_confidence` only replaces the current one when its `calculated_at` is newer;
+  the session never derives or invents a classification
+- computed eligibility is stripped on export and always recomputed on import, so a bundle can never
+  hand a receiving technician a pre-approved `ELIGIBLE`
+- timestamps are normalised to canonical UTC on every merge so repeated passes do not drift the format
+
+Because eligibility still demands subnet-linked deployment proof, a discovery-only observation can
+refresh a date without ever authorizing a targeted pass.
+
+### Sharing evidence between technicians
+
+`Config/Cybernet/sas-cybernet-topology-evidence-bundle.v1.schema.json` defines the exchange format.
+A bundle wraps a registry payload and pins `contains_operator_local_data: true`.
+
+Machine-local absolute paths in `source_reference` are replaced with `operator-local-reference` before
+export. Site names, CIDRs, and device keys remain, so a bundle is always operator-local data: keep it
+in ignored local paths or approved internal channels, and never commit it.
+
+Import accepts a bundle or a raw registry and refuses any other `schema_version` rather than merging
+unknown content.
+
+### Budget is separate from eligibility
+
+An eligible subnet with no declared `targeted_pass_budget` is emitted as `BUDGET_NOT_DECLARED` in the
+probe plan. Eligibility says the location deserves a look; only a declared budget says how much
+looking is allowed. A blank budget is never treated as an unlimited one.
