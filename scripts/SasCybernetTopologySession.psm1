@@ -243,6 +243,35 @@ function Get-SasTopologyEvidenceObservedAt {
   return [datetime]::MinValue
 }
 
+function Compare-SasTopologyTimestamp {
+  <#
+  .SYNOPSIS
+    Order two timestamps by instant rather than by text.
+
+  .DESCRIPTION
+    Returns 1 when Left is later, -1 when earlier, 0 when equal. Raw string ordering
+    would rank an offset-bearing timestamp such as 2026-08-31T20:00:00-05:00 against a
+    UTC one incorrectly, which could let an older confidence overwrite a newer one.
+  #>
+  param(
+    [string]$Left,
+    [string]$Right
+  )
+
+  $styles = [System.Globalization.DateTimeStyles]::AdjustToUniversal -bor [System.Globalization.DateTimeStyles]::AssumeUniversal
+  $culture = [System.Globalization.CultureInfo]::InvariantCulture
+  $leftValue = [datetime]::MinValue
+  $rightValue = [datetime]::MinValue
+
+  $leftOk = -not [string]::IsNullOrWhiteSpace($Left) -and [datetime]::TryParse($Left, $culture, $styles, [ref]$leftValue)
+  $rightOk = -not [string]::IsNullOrWhiteSpace($Right) -and [datetime]::TryParse($Right, $culture, $styles, [ref]$rightValue)
+
+  if ($leftOk -and $rightOk) { return $leftValue.CompareTo($rightValue) }
+  if ($leftOk) { return 1 }
+  if ($rightOk) { return -1 }
+  return 0
+}
+
 function Merge-SasTopologyEvidenceList {
   <#
   .SYNOPSIS
@@ -324,6 +353,25 @@ function Update-SasTopologyLastObserved {
   }
 }
 
+function Initialize-SasTopologyIncomingSubnet {
+  <#
+  .SYNOPSIS
+    Apply the evidence-id merge contract to a subnet adopted wholesale.
+
+  .DESCRIPTION
+    A brand new site or subnet is taken from the incoming payload directly. Its own
+    evidence still has to be deduplicated by evidence_id and have last_observed
+    derived, otherwise a colleague's duplicate ids would survive into the registry.
+  #>
+  param([System.Collections.IDictionary]$Subnet)
+
+  if ($null -eq $Subnet) { return $null }
+  $deduped = Merge-SasTopologyEvidenceList -Existing @() -Incoming @($Subnet['deployment_evidence'])
+  $Subnet['deployment_evidence'] = $deduped.Evidence
+  Update-SasTopologyLastObserved -Subnet $Subnet
+  return $Subnet
+}
+
 function Measure-SasTopologyEvidenceCount {
   param([System.Collections.IDictionary]$Subnet)
   if ($null -eq $Subnet) { return 0 }
@@ -379,8 +427,9 @@ function Merge-SasCybernetTopologyRegistry {
       $stats['sites_added'] = [int]$stats['sites_added'] + 1
       foreach ($newSubnet in @($incomingSite['subnets'])) {
         if ($null -eq $newSubnet) { continue }
+        $prepared = Initialize-SasTopologyIncomingSubnet -Subnet $newSubnet
         $stats['subnets_added'] = [int]$stats['subnets_added'] + 1
-        $stats['evidence_added'] = [int]$stats['evidence_added'] + (Measure-SasTopologyEvidenceCount -Subnet $newSubnet)
+        $stats['evidence_added'] = [int]$stats['evidence_added'] + (Measure-SasTopologyEvidenceCount -Subnet $prepared)
       }
       continue
     }
@@ -398,9 +447,10 @@ function Merge-SasCybernetTopologyRegistry {
       if ([string]::IsNullOrWhiteSpace($subnetId)) { continue }
 
       if (-not $subnetsById.Contains($subnetId)) {
-        $subnetsById[$subnetId] = $incomingSubnet
+        $prepared = Initialize-SasTopologyIncomingSubnet -Subnet $incomingSubnet
+        $subnetsById[$subnetId] = $prepared
         $stats['subnets_added'] = [int]$stats['subnets_added'] + 1
-        $stats['evidence_added'] = [int]$stats['evidence_added'] + (Measure-SasTopologyEvidenceCount -Subnet $incomingSubnet)
+        $stats['evidence_added'] = [int]$stats['evidence_added'] + (Measure-SasTopologyEvidenceCount -Subnet $prepared)
         continue
       }
 
@@ -418,7 +468,8 @@ function Merge-SasCybernetTopologyRegistry {
         if ($subnet.Contains('subnet_confidence') -and $null -ne $subnet['subnet_confidence']) {
           $currentCalc = [string]$subnet['subnet_confidence']['calculated_at']
         }
-        if ([string]::IsNullOrWhiteSpace($currentCalc) -or ($incomingCalc -gt $currentCalc)) {
+        if ([string]::IsNullOrWhiteSpace($currentCalc) -or
+          ((Compare-SasTopologyTimestamp -Left $incomingCalc -Right $currentCalc) -gt 0)) {
           $subnet['subnet_confidence'] = $incomingSubnet['subnet_confidence']
           $stats['confidence_updated'] = [int]$stats['confidence_updated'] + 1
         }
@@ -570,7 +621,52 @@ function Import-SasCybernetTopologyBundle {
     throw "Unsupported schema_version '$schema' in $Path. Expected $($script:BundleSchemaVersion) or $($script:SessionSchemaVersion)."
   }
 
+  Assert-SasTopologyRegistryShape -Registry $incoming -Path $Path
+
   return Merge-SasCybernetTopologyRegistry -Registry $Registry -Incoming $incoming -SourceLabel (Split-Path -Leaf $Path)
+}
+
+function Assert-SasTopologyRegistryShape {
+  <#
+  .SYNOPSIS
+    Reject a payload that carries the right schema_version but the wrong shape.
+
+  .DESCRIPTION
+    A correct version string is not proof of a usable registry. Validating here means
+    a malformed share lands in the rejected folder with a readable reason instead of
+    silently contributing partial or dropped records to the merge.
+  #>
+  param(
+    [Parameter(Mandatory)][object]$Registry,
+    [Parameter(Mandatory)][string]$Path
+  )
+
+  $name = Split-Path -Leaf $Path
+  foreach ($required in @('policy', 'sites')) {
+    if (-not $Registry.PSObject.Properties[$required]) {
+      throw "Registry payload in $name is missing required '$required'."
+    }
+  }
+  if ($null -eq $Registry.sites) {
+    throw "Registry payload in $name has a null 'sites' collection."
+  }
+
+  $index = 0
+  foreach ($site in @($Registry.sites)) {
+    if ($null -eq $site) {
+      throw "Registry payload in $name has a null site at index $index."
+    }
+    if (-not $site.PSObject.Properties['site_id'] -or [string]::IsNullOrWhiteSpace([string]$site.site_id)) {
+      throw "Registry payload in $name has a site at index $index with no site_id; it would be dropped silently."
+    }
+    foreach ($subnet in @($site.subnets)) {
+      if ($null -eq $subnet) { continue }
+      if (-not $subnet.PSObject.Properties['subnet_id'] -or [string]::IsNullOrWhiteSpace([string]$subnet.subnet_id)) {
+        throw "Registry payload in $name has a subnet with no subnet_id under site '$($site.site_id)'."
+      }
+    }
+    $index++
+  }
 }
 
 function New-SasCybernetTopologyProbePlan {
@@ -756,6 +852,9 @@ Export-ModuleMember -Function @(
   'New-SasCybernetTopologyProbePlan'
   'Get-SasCybernetTopologyDelta'
   'Measure-SasTopologyEvidenceCount'
+  'Initialize-SasTopologyIncomingSubnet'
+  'Compare-SasTopologyTimestamp'
+  'Assert-SasTopologyRegistryShape'
   'Get-SasTopologyNextEvidenceHint'
   'Get-SasTopologySafeSourceReference'
   'ConvertTo-SasTopologyMutable'

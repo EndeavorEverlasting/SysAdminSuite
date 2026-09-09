@@ -57,11 +57,18 @@ if ($Action -eq 'Import' -and -not (Test-Path -LiteralPath $BundlePath -PathType
 
 $session = Initialize-SasCybernetTopologySession -RepoRoot $repoRoot -SessionRoot $SessionRoot -AsOf $AsOf
 $paths = $session.Paths
-$runId = New-SasCybernetTopologyRunId -AsOf $AsOf
+# Run ids are second-precision, so two clicks inside the same second would otherwise
+# share a run directory and overwrite each other's plan, summary, and handoff.
+$baseRunId = New-SasCybernetTopologyRunId -AsOf $AsOf
+$runId = $baseRunId
 $runDir = Join-Path $paths.RunsDir $runId
-if (-not (Test-Path -LiteralPath $runDir)) {
-  New-Item -ItemType Directory -Path $runDir -Force | Out-Null
+$suffix = 1
+while (Test-Path -LiteralPath $runDir) {
+  $suffix++
+  $runId = "{0}-{1:D2}" -f $baseRunId, $suffix
+  $runDir = Join-Path $paths.RunsDir $runId
 }
+New-Item -ItemType Directory -Path $runDir -Force | Out-Null
 
 $registry = Read-SasTopologyJsonFile -Path $paths.RegistryPath
 $mergeLog = New-Object System.Collections.Generic.List[object]

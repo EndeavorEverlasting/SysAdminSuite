@@ -308,6 +308,46 @@ Describe 'Technician-to-technician bundle exchange' {
     $ids | Should -Contain 'EV-RAW'
   }
 
+  It 'deduplicates evidence carried in by a brand new site' {
+    $base = New-TestRegistry -Evidence @((New-TestSubnetEvidence -EvidenceId 'EV-1'))
+    $incoming = ConvertTo-SasTopologyMutable -InputObject (New-TestRegistry -Evidence @(
+        (New-TestSubnetEvidence -EvidenceId 'EV-DUP' -ObservedAt '2026-01-01T00:00:00Z'),
+        (New-TestSubnetEvidence -EvidenceId 'EV-DUP' -ObservedAt '2026-09-04T00:00:00Z'),
+        (New-TestSubnetEvidence -EvidenceId 'EV-OTHER')
+      ))
+    $incoming['sites'][0]['site_id'] = 'SITE-OTHER'
+
+    $result = Merge-SasCybernetTopologyRegistry -Registry $base -Incoming $incoming -SourceLabel 'test'
+    $newSite = @($result.Registry.sites | Where-Object { $_.site_id -eq 'SITE-OTHER' })[0]
+    $ids = @($newSite.subnets[0].deployment_evidence | ForEach-Object { $_.evidence_id })
+    @($ids).Count | Should -Be 2
+    $result.Stats.evidence_added | Should -Be 2
+    $kept = @($newSite.subnets[0].deployment_evidence | Where-Object { $_.evidence_id -eq 'EV-DUP' })[0]
+    $kept.observed_at | Should -Be '2026-09-04T00:00:00Z'
+  }
+
+  It 'orders confidence timestamps by instant, not by raw text' {
+    # 2026-08-31T20:00:00-05:00 is 2026-09-01T01:00:00Z, later than 2026-09-01T00:00:00Z,
+    # but sorts earlier as a plain string.
+    (Compare-SasTopologyTimestamp -Left '2026-08-31T20:00:00-05:00' -Right '2026-09-01T00:00:00Z') | Should -BeGreaterThan 0
+    (Compare-SasTopologyTimestamp -Left '2026-09-01T00:00:00Z' -Right '2026-08-31T20:00:00-05:00') | Should -BeLessThan 0
+    (Compare-SasTopologyTimestamp -Left '2026-09-01T00:00:00Z' -Right '2026-09-01T00:00:00Z') | Should -Be 0
+  }
+
+  It 'refuses a version-correct bundle whose registry is malformed' {
+    $mine = ConvertTo-SasTopologyObject -InputObject (New-TestRegistry -Evidence @((New-TestSubnetEvidence -EvidenceId 'EV-MINE')))
+
+    $noSites = Join-Path $TestDrive 'no-sites.json'
+    Set-Content -LiteralPath $noSites -Encoding UTF8 -Value (
+      '{ "schema_version": "sas-cybernet-deployment-topology-registry/v1", "policy": {} }')
+    { Import-SasCybernetTopologyBundle -Registry $mine -Path $noSites } | Should -Throw "*missing required 'sites'*"
+
+    $noSiteId = Join-Path $TestDrive 'no-site-id.json'
+    Set-Content -LiteralPath $noSiteId -Encoding UTF8 -Value (
+      '{ "schema_version": "sas-cybernet-deployment-topology-registry/v1", "policy": {}, "sites": [ { "site_name": "x" } ] }')
+    { Import-SasCybernetTopologyBundle -Registry $mine -Path $noSiteId } | Should -Throw '*no site_id*'
+  }
+
   It 'refuses an unknown schema instead of silently merging junk' {
     $mine = ConvertTo-SasTopologyObject -InputObject (New-TestRegistry -Evidence @((New-TestSubnetEvidence -EvidenceId 'EV-MINE')))
     $badPath = Join-Path $TestDrive 'bad.json'
@@ -401,6 +441,19 @@ Describe 'End-to-end iteration through the entry script' {
     $handoff | Should -Not -Match 'No previous run to compare against'
     $handoff | Should -Match 'new subnet: TEST:10\.10\.10\.0/24'
     $handoff | Should -Match '\+1 evidence'
+  }
+
+  It 'gives two clicks in the same second separate run directories' {
+    $root = Join-Path $TestDrive 'session-same-second'
+    $stamp = [datetime]::Parse('2026-09-09T13:00:00Z').ToUniversalTime()
+    & $script:entryScript -SessionRoot $root -AsOf $stamp | Out-Null
+    & $script:entryScript -SessionRoot $root -AsOf $stamp | Out-Null
+    $LASTEXITCODE | Should -Be 0
+
+    $paths = Get-SasCybernetTopologySessionPath -RepoRoot $script:repoRoot -SessionRoot $root
+    $runs = @(Get-ChildItem -LiteralPath $paths.RunsDir -Directory)
+    $runs.Count | Should -Be 2
+    @($runs | Where-Object { $_.Name -eq '20260909T130000Z-02' }).Count | Should -Be 1
   }
 
   It 'quarantines a malformed inbox file instead of bricking every future click' {
