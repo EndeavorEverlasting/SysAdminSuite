@@ -30,8 +30,12 @@ foreach ($required in @(
     [void][System.Management.Automation.Language.Parser]::ParseFile($required,[ref]$tokens,[ref]$errors)
     if (@($errors).Count -gt 0) { throw "PowerShell parse failure: $required :: $($errors[0].Message)" }
 }
-if (-not (Test-Path -LiteralPath $sourcePrinterTechnicianCmd -PathType Leaf)) { throw "Required technician printer CMD missing: $sourcePrinterTechnicianCmd" }
-if (-not (Test-Path -LiteralPath $sourceMachineInfoTechnicianCmd -PathType Leaf)) { throw "Required technician machine-info CMD missing: $sourceMachineInfoTechnicianCmd" }
+if (-not (Test-Path -LiteralPath $sourcePrinterTechnicianCmd -PathType Leaf)) {
+    throw "Required technician printer CMD missing: $sourcePrinterTechnicianCmd"
+}
+if (-not (Test-Path -LiteralPath $sourceMachineInfoTechnicianCmd -PathType Leaf)) {
+    throw "Required technician machine-info CMD missing: $sourceMachineInfoTechnicianCmd"
+}
 Import-Module $sourcePlatform -Force
 
 function Test-SasDirectoryWritable {
@@ -49,6 +53,9 @@ function Test-SasDirectoryWritable {
 $canonicalRuntime = 'C:\SASAL'
 $canonicalReady = Test-SasControllerSurface -Root $canonicalRuntime
 if ($canonicalReady) {
+    # The installed network-intent module resolves these dependencies from the controller root.
+    # A legacy C:\SASAL that lacks any one of them must be refreshed before we install a shim
+    # that would otherwise fail on its first network canary.
     $networkProbeRuntimeFiles = @(
         'survey\sas-network-batch-probe.ps1',
         'survey\sas-network-preflight.ps1',
@@ -66,7 +73,7 @@ if ($canonicalReady) {
     )
     foreach ($relative in $networkProbeRuntimeFiles) {
         if (-not (Test-Path -LiteralPath (Join-Path $canonicalRuntime $relative) -PathType Leaf)) {
-            throw "MACHINE_RUNTIME_REFRESH_REQUIRED: C:\SASAL is a valid legacy controller but does not contain the current universal runtime dependency ($relative). Run 'sas refresh' on Guest/Internet before installing the current universal launcher."
+            throw "MACHINE_RUNTIME_REFRESH_REQUIRED: C:\SASAL is a valid legacy controller but does not contain the current network-aware runtime dependency ($relative). Run 'sas refresh' on Guest/Internet before installing the current universal launcher."
         }
     }
 }
@@ -76,17 +83,30 @@ if (-not [string]::IsNullOrWhiteSpace([string]$env:USERPROFILE)) {
     try { $userProfileRoot = ([IO.Path]::GetFullPath($env:USERPROFILE)).TrimEnd('\') + '\' } catch { $userProfileRoot = $null }
 }
 $normalizedRepo = ([IO.Path]::GetFullPath($repoRoot)).TrimEnd('\') + '\'
-$repoIsUserScoped = (-not [string]::IsNullOrWhiteSpace($userProfileRoot) -and $normalizedRepo.StartsWith($userProfileRoot,[StringComparison]::OrdinalIgnoreCase))
+$repoIsUserScoped = (-not [string]::IsNullOrWhiteSpace($userProfileRoot) -and
+    $normalizedRepo.StartsWith($userProfileRoot,[StringComparison]::OrdinalIgnoreCase))
 
 $machineRoot = if ($env:ProgramData) { Join-Path $env:ProgramData 'SysAdminSuite' } else { 'C:\ProgramData\SysAdminSuite' }
 $machineBin = Join-Path $machineRoot 'bin'
 $userBin = if ($env:LOCALAPPDATA) { Join-Path $env:LOCALAPPDATA 'SysAdminSuite\bin' } else { $null }
 $machineInstall = Test-SasDirectoryWritable -Path $machineBin
+
+# A user-profile checkout may bootstrap installation, but it cannot become shared execution authority.
+# If the canonical machine runtime is absent, require either a machine-neutral source root or its
+# preparation before claiming that the universal command is installed for arbitrary technicians.
 if (-not $canonicalReady -and $repoIsUserScoped) {
     throw 'MACHINE_NEUTRAL_RUNTIME_REQUIRED: C:\SASAL is not prepared and the source checkout is under the current user profile. Prepare the canonical local runtime (normally via sas refresh on Guest/Internet) or install from a machine-neutral local checkout.'
 }
 
-$installRoot = if ($machineInstall) { $machineBin } elseif ($userBin -and $canonicalReady -and (Test-SasDirectoryWritable -Path $userBin)) { $userBin } else { throw 'No safe universal launcher installation is available. A current-user shim requires an existing canonical machine-local C:\SASAL runtime.' }
+$installRoot = if ($machineInstall) {
+    $machineBin
+}
+elseif ($userBin -and $canonicalReady -and (Test-SasDirectoryWritable -Path $userBin)) {
+    $userBin
+}
+else {
+    throw 'No safe universal launcher installation is available. A current-user shim requires an existing canonical machine-local C:\SASAL runtime.'
+}
 $installScope = if ($machineInstall) { 'MACHINE' } else { 'CURRENT_USER_SHIM_WITH_MACHINE_RUNTIME' }
 
 $launcherDestination = Join-Path $installRoot 'Invoke-SasUniversalField.ps1'
@@ -107,12 +127,18 @@ Copy-Item -LiteralPath $sourcePrinterTechnicianCmd -Destination $printerTechnici
 Copy-Item -LiteralPath $sourceMachineInfoRunner -Destination $machineInfoRunnerDestination -Force
 Copy-Item -LiteralPath $sourceMachineInfoTechnicianCmd -Destination $machineInfoTechnicianCmdDestination -Force
 
+# Machine cache is optional and never points at a user-profile checkout. The trusted installed
+# launcher still resolves C:\SASAL first, and cache write failures cannot break command execution.
 $cacheRoot = if ($canonicalReady) { $canonicalRuntime } elseif (-not $repoIsUserScoped) { $repoRoot } else { $null }
 if (-not [string]::IsNullOrWhiteSpace([string]$cacheRoot) -and (Test-SasDirectoryWritable -Path $machineRoot)) {
     try { Set-Content -LiteralPath (Join-Path $machineRoot 'repo-root.txt') -Value $cacheRoot -Encoding ASCII -ErrorAction Stop }
     catch { Write-Warning "Machine controller cache could not be updated; continuing without it: $($_.Exception.Message)" }
 }
 
+# The CMD shim executes only the installer-owned network-aware PowerShell copy beside itself. That
+# wrapper prints the network canary before delegating to the existing universal dispatcher and may
+# perform only bounded saved-WLAN transitions that it can prove and restore. VPN lifecycle remains
+# fail-closed until a repository-proven client adapter exists.
 $cmd = @'
 @echo off
 setlocal EnableExtensions

@@ -58,6 +58,8 @@ function Invoke-SasLegacyDispatcher {
 }
 
 function Resolve-SasInstalledPrinterBootstrap {
+    # A machine-wide/user shim owns its sibling printer bootstrap. Source-checkout invocation may
+    # fall back to the validated local runtime/controller, but never to the caller's current path.
     foreach ($candidate in @(
         (Join-Path $PSScriptRoot 'Bootstrap-SysAdminSuitePrinter.ps1'),
         (Join-Path $runtimeRoot 'Bootstrap-SysAdminSuitePrinter.ps1'),
@@ -69,6 +71,9 @@ function Resolve-SasInstalledPrinterBootstrap {
 }
 
 function Resolve-SasInstalledAutoLogonBootstrap {
+    # Target-mutating AutoLogon Remote must enter the sealed crash-safe bootstrap so every run gets
+    # the registered LOCALAPPDATA transcript/result/latest-pointer recovery surface. Prefer the
+    # execution runtime; the controller fallback supports source-checkout validation only.
     foreach ($candidate in @(
         (Join-Path $runtimeRoot 'Bootstrap-SysAdminSuiteAutoLogon.cmd'),
         (Join-Path $controllerRoot 'Bootstrap-SysAdminSuiteAutoLogon.cmd')
@@ -79,6 +84,8 @@ function Resolve-SasInstalledAutoLogonBootstrap {
 }
 
 function Resolve-SasMachineInfoRunner {
+    # The installer owns a sibling runner. Source/sealed-runtime invocations may fall back to the
+    # active machine-neutral runtime/controller, but never to the caller's working directory.
     foreach ($candidate in @(
         (Join-Path $PSScriptRoot 'Invoke-SasMachineInfo.ps1'),
         (Join-Path $runtimeRoot 'scripts\Invoke-SasMachineInfo.ps1'),
@@ -109,14 +116,23 @@ switch ($normalized) {
         if ($actualArgs.Count -ne 0) { Write-Host 'Usage: sas refresh' -ForegroundColor Red; exit 2 }
         $refresh = Join-Path $controllerRoot 'scripts\Refresh-SasOperatorCommand.ps1'
         if (-not (Test-Path -LiteralPath $refresh -PathType Leaf)) { throw "Missing canonical refresh workflow: $refresh" }
+
+        # The existing refresh owns Guest/Internet Git synchronization and seals the next local
+        # C:\SASAL runtime. It currently installs the compatibility dispatcher as part of that flow.
+        # After it succeeds, reinstall the universal machine-neutral front door from the newly sealed
+        # runtime so refresh converges to this platform rather than silently regressing it.
         & powershell.exe -NoLogo -NoProfile -ExecutionPolicy Bypass -File $refresh -RepositoryRoot $controllerRoot
         $refreshExit = $LASTEXITCODE
         if ($refreshExit -ne 0) { exit $refreshExit }
+
         $sealedInstaller = 'C:\SASAL\scripts\Install-SasUniversalFieldLauncher.ps1'
-        if (-not (Test-Path -LiteralPath $sealedInstaller -PathType Leaf)) { throw "Refreshed machine-local runtime is missing the universal installer: $sealedInstaller" }
+        if (-not (Test-Path -LiteralPath $sealedInstaller -PathType Leaf)) {
+            throw "Refreshed machine-local runtime is missing the universal installer: $sealedInstaller"
+        }
         & powershell.exe -NoLogo -NoProfile -ExecutionPolicy Bypass -File $sealedInstaller
         $installExit = $LASTEXITCODE
         if ($installExit -ne 0) { exit $installExit }
+
         Write-Host 'UNIVERSAL_FIELD_PLATFORM_REFRESH_CONVERGED' -ForegroundColor Green
         exit 0
     }
@@ -124,10 +140,15 @@ switch ($normalized) {
     'network' {
         if ($actualArgs.Count -gt 0 -and ([string]$actualArgs[0]).Trim().ToLowerInvariant() -eq 'probe') {
             $targets = @($actualArgs | Select-Object -Skip 1)
-            if ($targets.Count -eq 0) { Write-Host 'Usage: sas network probe HOST01 [HOST02 ...]' -ForegroundColor Red; exit 2 }
+            if ($targets.Count -eq 0) {
+                Write-Host 'Usage: sas network probe HOST01 [HOST02 ...]' -ForegroundColor Red
+                exit 2
+            }
             [void](Assert-SasProtectedForAction -Purpose "Batch network probe for $($targets.Count) explicit targets")
             $batchProbe = Join-Path $controllerRoot 'survey\sas-network-batch-probe.ps1'
-            if (-not (Test-Path -LiteralPath $batchProbe -PathType Leaf)) { throw "Batch network probe runtime is not present in the active controller: $controllerRoot. Run 'sas refresh' on Guest/Internet to install the current sealed runtime." }
+            if (-not (Test-Path -LiteralPath $batchProbe -PathType Leaf)) {
+                throw "Batch network probe runtime is not present in the active controller: $controllerRoot. Run 'sas refresh' on Guest/Internet to install the current sealed runtime."
+            }
             & $batchProbe -Target $targets
             exit 0
         }
@@ -203,8 +224,12 @@ switch ($normalized) {
             exit 2
         }
         $clipboardReset = Join-Path $runtimeRoot 'scripts\Reset-SasClipboard.ps1'
-        if (-not (Test-Path -LiteralPath $clipboardReset -PathType Leaf)) { $clipboardReset = Join-Path $controllerRoot 'scripts\Reset-SasClipboard.ps1' }
-        if (-not (Test-Path -LiteralPath $clipboardReset -PathType Leaf)) { throw "Canonical clipboard reset script is missing: $clipboardReset" }
+        if (-not (Test-Path -LiteralPath $clipboardReset -PathType Leaf)) {
+            $clipboardReset = Join-Path $controllerRoot 'scripts\Reset-SasClipboard.ps1'
+        }
+        if (-not (Test-Path -LiteralPath $clipboardReset -PathType Leaf)) {
+            throw "Canonical clipboard reset script is missing: $clipboardReset"
+        }
         & powershell.exe -NoLogo -NoProfile -ExecutionPolicy Bypass -File $clipboardReset
         exit $LASTEXITCODE
     }
@@ -221,8 +246,12 @@ switch ($normalized) {
                     & $bootstrap $target
                     exit $LASTEXITCODE
                 }
+
+                # Recovery stays recovery-only. Do not send Recover through the deployment bootstrap.
                 $recoveryLauncher = Join-Path $runtimeRoot 'Run-AutoLogonOnsite.cmd'
-                if (-not (Test-Path -LiteralPath $recoveryLauncher -PathType Leaf)) { throw "Canonical local AutoLogon recovery launcher is missing from runtime: $recoveryLauncher" }
+                if (-not (Test-Path -LiteralPath $recoveryLauncher -PathType Leaf)) {
+                    throw "Canonical local AutoLogon recovery launcher is missing from runtime: $recoveryLauncher"
+                }
                 & $recoveryLauncher Recover $target
                 exit $LASTEXITCODE
             }
@@ -241,5 +270,7 @@ switch ($normalized) {
         Invoke-SasLegacyDispatcher
     }
 
-    default { Invoke-SasLegacyDispatcher }
+    default {
+        Invoke-SasLegacyDispatcher
+    }
 }
