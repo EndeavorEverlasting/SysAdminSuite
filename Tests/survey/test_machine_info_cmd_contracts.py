@@ -39,10 +39,22 @@ def main() -> int:
 
     for marker in (
         'call "%~dp0sas.cmd" machineinfo %*',
-        'scripts\\Invoke-SasNetworkAwareField.ps1',
+        'scripts\\Invoke-SasNetworkAwareField.ps1" refresh',
+        'scripts\\Resolve-SasActiveFieldCmd.ps1',
+        'call "!SAS_ACTIVE!" machineinfo %*',
         'set "SAS_MACHINEINFO_OPEN_OUTPUT=1"',
     ):
         assert marker in cmd, f"machine-info CMD missing marker: {marker}"
+    stale_direct = 'Invoke-SasNetworkAwareField.ps1" machineinfo %*'
+    assert stale_direct not in cmd, "repository/runtime CMD must refresh before installed MachineInfo handoff"
+    resolver = read("scripts/Resolve-SasActiveFieldCmd.ps1")
+    for marker in (
+        "active-sas-cmd.txt",
+        "LastWriteTimeUtc",
+        "Join-Path $root 'bin\\sas.cmd'",
+        "LOCALAPPDATA",
+    ):
+        assert marker in resolver, f"active sas.cmd resolver missing marker: {marker}"
     for forbidden in ("C:\\Users\\", "OneDrive", "WBK333", "ORT04"):
         assert forbidden not in cmd, f"machine-info CMD contains user/site-specific authority: {forbidden}"
 
@@ -65,11 +77,14 @@ def main() -> int:
         "legacy aggregate columns",
         "not primary/secondary fields",
         "NetworkAdapters",
-        'which IP belongs to which interface?',
+        "which IP belongs to which interface?",
         "target PCs are hostnames/FQDNs and printers are shared queue identities",
         "Printer IP mapping remains forbidden",
         "%LOCALAPPDATA%\\SysAdminSuite\\bin\\sas.cmd",
         "unique suffix prevents concurrent runs",
+        "canonical `sas refresh` transaction",
+        "stages that collector and its HTML helper",
+        "File mode validates its local target file",
     ):
         assert marker in docs, f"machine-info docs missing network/runtime semantics: {marker}"
     for marker in (
@@ -99,23 +114,30 @@ def main() -> int:
     assert 'Assert-SasProtectedForAction -Purpose $purpose' in universal
 
     for marker in (
+        "Test-SasMachineInfoTargetFileForNetworkTransition",
         "Test-SasMachineInfoShapeForNetworkTransition",
+        "[IO.File]::OpenText($fullPath)",
+        "$targets.Count -ge 500",
+        "DriveType]::Network",
         "@('machineinfo','machine-info')",
         "$intent = 'ProtectedNorthwell'",
-        "Test-Path -LiteralPath $inputPath -PathType Leaf",
-        "$fileTargets.Count -eq 0 -or $fileTargets.Count -gt 500",
-        "Test-SasAdHostNameForNetworkTransition -Value ([string]$value)",
+        "StartsWith('\\\\',[StringComparison]::Ordinal)",
     ):
         assert marker in network, f"machine-info network pre-transition validation missing: {marker}"
 
     for marker in (
         "$sourceMachineInfoRunner",
         "$sourceMachineInfoCore",
+        "$sourceMachineInfoHtmlHelper",
         "$sourceMachineInfoTechnicianCmd",
         "$machineInfoRunnerDestination",
+        "$machineInfoCoreDestination",
+        "$machineInfoHtmlHelperDestination",
         "$machineInfoTechnicianCmdDestination",
+        "active-sas-cmd.txt",
         "Get-MachineInfo.cmd",
         "Invoke-SasMachineInfo.ps1",
+        "tools\\ConvertTo-SuiteHtml.ps1",
     ):
         assert marker in installer, f"universal installer missing machine-info marker: {marker}"
 
@@ -144,11 +166,12 @@ def main() -> int:
     for signal in ("machine information", "machine inventory", "get machine info"):
         assert signal in field_route["deterministic_task_signals"], f"missing MachineInfo field-workflow signal: {signal}"
 
-    print("[PASS] Machine Info has a repository-owned CMD front door")
+    print("[PASS] Machine Info has a repository-owned CMD front door with freshness handoff")
     print("[PASS] Installed/source launchers route through the universal network-aware SAS command")
     print("[PASS] Machine Info publishes collision-safe ProgramData evidence and validates exact target coverage")
     print("[PASS] Direct installed runner resolves only trusted machine-local controller/runtime authorities")
     print("[PASS] Invalid file targets cannot trigger a protected-network transition")
+    print("[PASS] Installed MachineInfo runner carries its collector/helper dependencies")
     print("[PASS] Multi-IP rows carry deterministic per-adapter provenance; legacy aggregates are non-authoritative")
     print("[PASS] Printer mapping remains hostname/shared-queue based and cannot consume MachineInfo IPs as identity")
     print("[PASS] Machine Info remains read-only and protected-network gated")
