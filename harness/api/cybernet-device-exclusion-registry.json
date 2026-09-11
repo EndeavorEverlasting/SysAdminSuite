@@ -1,0 +1,386 @@
+{
+  "schema_version": "sas-cybernet-device-exclusion-registry/v1",
+  "repository": "EndeavorEverlasting/SysAdminSuite",
+  "purpose": "Conservatively stop unnecessary Cybernet survey or hardware-metadata work only when existing approved evidence proves that a candidate belongs to a non-Cybernet device class.",
+  "tracking_policy": {
+    "tracked_registry_contains_live_entries": false,
+    "live_entry_tracking": "local_untracked_or_approved_external_source",
+    "live_entry_default_path": "survey/output/cybernet_device_exclusions/device_exclusion_registry.json"
+  },
+  "decision_policy": {
+    "default_action": "DO_NOT_EXCLUDE",
+    "conflict_action": "REVIEW_REQUIRED_NO_AUTO_EXCLUSION",
+    "positive_cybernet_evidence_action": "BLOCK_EXCLUSION_AND_ROUTE_TO_HARDWARE_IDENTITY",
+    "before_network_signature_requires": "AUTHORITATIVE_NON_CYBERNET_CLASSIFICATION",
+    "before_endpoint_metadata_requires": "AUTHORITATIVE_NON_CYBERNET_CLASSIFICATION",
+    "before_hardware_metadata_allows": [
+      "AUTHORITATIVE_NON_CYBERNET_CLASSIFICATION",
+      "CURRENT_WINDOWS_NON_CLIENT_PRODUCT_TYPE"
+    ],
+    "weak_evidence_never_accumulates_to_reject": true,
+    "corroborating_evidence_never_accumulates_to_reject": true,
+    "strong_evidence_never_accumulates_to_reject_without_authority": true,
+    "hostname_alone_can_reject": false,
+    "software_presence_or_absence_can_reject": false,
+    "subnet_alone_can_reject": false,
+    "open_ports_alone_can_reject": false,
+    "mac_oui_alone_can_reject": false,
+    "network_signature_alone_can_reject": false,
+    "new_active_query_for_exclusion_allowed": false
+  },
+  "evidence_strengths": [
+    {
+      "id": "AUTHORITATIVE",
+      "auto_rejection_eligible": true,
+      "meaning": "An approved source explicitly identifies the same stable device as a non-Cybernet class, or an approved hardware reference proves the observed hardware is outside the Cybernet class."
+    },
+    {
+      "id": "STRONG",
+      "auto_rejection_eligible": false,
+      "meaning": "High-quality evidence suggests another class but is not authoritative enough to skip Cybernet work automatically."
+    },
+    {
+      "id": "CORROBORATING",
+      "auto_rejection_eligible": false,
+      "meaning": "Useful supporting context that may strengthen review but cannot independently or cumulatively reject a Cybernet candidate."
+    },
+    {
+      "id": "WEAK",
+      "auto_rejection_eligible": false,
+      "meaning": "Naming, software, port, subnet, or similar hints that are too ambiguous for exclusion."
+    },
+    {
+      "id": "CONFLICTING",
+      "auto_rejection_eligible": false,
+      "meaning": "Evidence conflicts with another credible source or with positive Cybernet hardware evidence."
+    }
+  ],
+  "evidence_types": [
+    {
+      "id": "prior_sas_confirmed_non_cybernet",
+      "strength": "AUTHORITATIVE",
+      "source_family": "sas_identity_decision",
+      "collection_policy": "REUSE_EXISTING_ONLY",
+      "auto_rejection_stages": [
+        "BEFORE_NETWORK_SIGNATURE",
+        "BEFORE_ENDPOINT_METADATA",
+        "BEFORE_HARDWARE_METADATA"
+      ],
+      "notes": "Must be bound to the same stable device identity; hostname/IP reuse alone is insufficient."
+    },
+    {
+      "id": "approved_hardware_reference_non_cybernet_match",
+      "strength": "AUTHORITATIVE",
+      "source_family": "hardware_reference",
+      "collection_policy": "REUSE_EXISTING_ONLY",
+      "auto_rejection_stages": [
+        "BEFORE_NETWORK_SIGNATURE",
+        "BEFORE_ENDPOINT_METADATA",
+        "BEFORE_HARDWARE_METADATA"
+      ],
+      "notes": "Requires observed hardware identity already available from an approved source and an explicit non-Cybernet reference result."
+    },
+    {
+      "id": "approved_cmdb_explicit_device_class",
+      "strength": "AUTHORITATIVE",
+      "source_family": "cmdb",
+      "collection_policy": "REUSE_EXISTING_ONLY",
+      "auto_rejection_stages": [
+        "BEFORE_NETWORK_SIGNATURE",
+        "BEFORE_ENDPOINT_METADATA"
+      ],
+      "notes": "The CMDB record must explicitly name a non-Cybernet class and bind to the same stable asset/device."
+    },
+    {
+      "id": "approved_asset_inventory_explicit_device_class",
+      "strength": "AUTHORITATIVE",
+      "source_family": "asset_inventory",
+      "collection_policy": "REUSE_EXISTING_ONLY",
+      "auto_rejection_stages": [
+        "BEFORE_NETWORK_SIGNATURE",
+        "BEFORE_ENDPOINT_METADATA"
+      ],
+      "notes": "The asset record must explicitly name a non-Cybernet class and bind to the same stable asset/device; generic computer/workstation labels are insufficient."
+    },
+    {
+      "id": "approved_printer_inventory_record",
+      "strength": "AUTHORITATIVE",
+      "source_family": "printer_inventory",
+      "collection_policy": "REUSE_EXISTING_ONLY",
+      "auto_rejection_stages": [
+        "BEFORE_NETWORK_SIGNATURE",
+        "BEFORE_ENDPOINT_METADATA"
+      ],
+      "notes": "Must identify the same stable printer endpoint/asset; an open printing port is not equivalent."
+    },
+    {
+      "id": "approved_network_controller_access_point_record",
+      "strength": "AUTHORITATIVE",
+      "source_family": "network_controller",
+      "collection_policy": "REUSE_EXISTING_ONLY",
+      "auto_rejection_stages": [
+        "BEFORE_NETWORK_SIGNATURE",
+        "BEFORE_ENDPOINT_METADATA"
+      ],
+      "notes": "Existing controller/NMS inventory may exclude a managed access point without probing that endpoint for Cybernet metadata."
+    },
+    {
+      "id": "approved_time_clock_inventory_record",
+      "strength": "AUTHORITATIVE",
+      "source_family": "time_clock_inventory",
+      "collection_policy": "REUSE_EXISTING_ONLY",
+      "auto_rejection_stages": [
+        "BEFORE_NETWORK_SIGNATURE",
+        "BEFORE_ENDPOINT_METADATA"
+      ],
+      "notes": "Covers approved Cronus/time-clock inventory tied to the same stable device."
+    },
+    {
+      "id": "approved_endpoint_inventory_server_class",
+      "strength": "AUTHORITATIVE",
+      "source_family": "endpoint_inventory",
+      "collection_policy": "REUSE_EXISTING_ONLY",
+      "auto_rejection_stages": [
+        "BEFORE_NETWORK_SIGNATURE",
+        "BEFORE_ENDPOINT_METADATA"
+      ],
+      "notes": "Requires an approved endpoint inventory source that explicitly establishes server/non-client OS class."
+    },
+    {
+      "id": "current_windows_product_type_non_client",
+      "strength": "AUTHORITATIVE",
+      "source_family": "current_cim_workstation_gate",
+      "collection_policy": "EXISTING_REQUIRED_GATE_ONLY",
+      "auto_rejection_stages": [
+        "BEFORE_HARDWARE_METADATA"
+      ],
+      "notes": "ProductType other than 1 may stop the existing canary before manufacturer/model/serial. Do not add a separate query solely for exclusion."
+    },
+    {
+      "id": "ad_operating_system_server_label",
+      "strength": "STRONG",
+      "source_family": "active_directory",
+      "collection_policy": "REUSE_EXISTING_ONLY",
+      "auto_rejection_stages": [],
+      "notes": "Potentially stale directory metadata; review or corroborate rather than auto-exclude."
+    },
+    {
+      "id": "existing_snmp_device_description",
+      "strength": "STRONG",
+      "source_family": "existing_network_evidence",
+      "collection_policy": "REUSE_ONLY_NO_NEW_QUERY_FOR_EXCLUSION",
+      "auto_rejection_stages": [],
+      "notes": "Do not run SNMP solely to reject a Cybernet candidate."
+    },
+    {
+      "id": "existing_http_device_banner",
+      "strength": "CORROBORATING",
+      "source_family": "existing_network_evidence",
+      "collection_policy": "REUSE_ONLY_NO_NEW_QUERY_FOR_EXCLUSION",
+      "auto_rejection_stages": [],
+      "notes": "Existing banner evidence may help review; do not open web ports solely to classify exclusions."
+    },
+    {
+      "id": "dhcp_vendor_class",
+      "strength": "CORROBORATING",
+      "source_family": "dhcp",
+      "collection_policy": "REUSE_EXISTING_ONLY",
+      "auto_rejection_stages": [],
+      "notes": "Useful context but not device identity."
+    },
+    {
+      "id": "dns_ptr_or_role_label",
+      "strength": "CORROBORATING",
+      "source_family": "dns",
+      "collection_policy": "REUSE_EXISTING_ONLY",
+      "auto_rejection_stages": [],
+      "notes": "Naming context can be stale or misleading."
+    },
+    {
+      "id": "mac_oui_vendor",
+      "strength": "CORROBORATING",
+      "source_family": "mac_vendor",
+      "collection_policy": "REUSE_EXISTING_ONLY",
+      "auto_rejection_stages": [],
+      "notes": "Vendor/OUI never proves exact device class."
+    },
+    {
+      "id": "hostname_role_pattern",
+      "strength": "WEAK",
+      "source_family": "hostname",
+      "collection_policy": "REUSE_EXISTING_ONLY",
+      "auto_rejection_stages": [],
+      "notes": "Hostname conventions nominate or inform review only."
+    },
+    {
+      "id": "software_footprint",
+      "strength": "WEAK",
+      "source_family": "software",
+      "collection_policy": "REUSE_EXISTING_ONLY",
+      "auto_rejection_stages": [],
+      "notes": "Software presence never excludes or confirms Cybernet hardware."
+    },
+    {
+      "id": "software_absence",
+      "strength": "WEAK",
+      "source_family": "software",
+      "collection_policy": "REUSE_EXISTING_ONLY",
+      "auto_rejection_stages": [],
+      "notes": "Software absence never excludes or confirms Cybernet hardware."
+    },
+    {
+      "id": "open_tcp_port",
+      "strength": "WEAK",
+      "source_family": "network_signature",
+      "collection_policy": "REUSE_EXISTING_ONLY",
+      "auto_rejection_stages": [],
+      "notes": "A printer port, web port, RPC port, SMB port, or any other open port is not a safe exclusion classifier."
+    },
+    {
+      "id": "network_signature_135_445",
+      "strength": "WEAK",
+      "source_family": "network_signature",
+      "collection_policy": "REUSE_EXISTING_ONLY",
+      "auto_rejection_stages": [],
+      "notes": "Dual-port posture earns the workstation-class gate; it does not exclude other classes by itself."
+    },
+    {
+      "id": "subnet_or_site_role_inference",
+      "strength": "WEAK",
+      "source_family": "topology",
+      "collection_policy": "REUSE_EXISTING_ONLY",
+      "auto_rejection_stages": [],
+      "notes": "Topology narrows where to look; it never proves what a device is."
+    }
+  ],
+  "device_classes": [
+    {
+      "id": "printer",
+      "aliases": ["printer", "multifunction_printer"],
+      "safe_pre_query_evidence_types": [
+        "prior_sas_confirmed_non_cybernet",
+        "approved_hardware_reference_non_cybernet_match",
+        "approved_cmdb_explicit_device_class",
+        "approved_asset_inventory_explicit_device_class",
+        "approved_printer_inventory_record"
+      ],
+      "safe_pre_hardware_evidence_types": [],
+      "never_sufficient_evidence_types": [
+        "hostname_role_pattern",
+        "open_tcp_port",
+        "existing_http_device_banner",
+        "mac_oui_vendor"
+      ]
+    },
+    {
+      "id": "access_point",
+      "aliases": ["access_point", "wireless_access_point"],
+      "safe_pre_query_evidence_types": [
+        "prior_sas_confirmed_non_cybernet",
+        "approved_hardware_reference_non_cybernet_match",
+        "approved_cmdb_explicit_device_class",
+        "approved_asset_inventory_explicit_device_class",
+        "approved_network_controller_access_point_record"
+      ],
+      "safe_pre_hardware_evidence_types": [],
+      "never_sufficient_evidence_types": [
+        "hostname_role_pattern",
+        "existing_http_device_banner",
+        "mac_oui_vendor",
+        "subnet_or_site_role_inference"
+      ]
+    },
+    {
+      "id": "time_clock",
+      "aliases": ["time_clock", "cronus_clock"],
+      "safe_pre_query_evidence_types": [
+        "prior_sas_confirmed_non_cybernet",
+        "approved_hardware_reference_non_cybernet_match",
+        "approved_cmdb_explicit_device_class",
+        "approved_asset_inventory_explicit_device_class",
+        "approved_time_clock_inventory_record"
+      ],
+      "safe_pre_hardware_evidence_types": [],
+      "never_sufficient_evidence_types": [
+        "hostname_role_pattern",
+        "existing_http_device_banner",
+        "mac_oui_vendor"
+      ]
+    },
+    {
+      "id": "server",
+      "aliases": ["server", "domain_controller"],
+      "safe_pre_query_evidence_types": [
+        "prior_sas_confirmed_non_cybernet",
+        "approved_hardware_reference_non_cybernet_match",
+        "approved_cmdb_explicit_device_class",
+        "approved_asset_inventory_explicit_device_class",
+        "approved_endpoint_inventory_server_class"
+      ],
+      "safe_pre_hardware_evidence_types": ["current_windows_product_type_non_client"],
+      "never_sufficient_evidence_types": [
+        "ad_operating_system_server_label",
+        "hostname_role_pattern",
+        "open_tcp_port",
+        "network_signature_135_445"
+      ]
+    },
+    {
+      "id": "other_computer",
+      "aliases": ["other_computer", "non_cybernet_workstation"],
+      "safe_pre_query_evidence_types": [
+        "prior_sas_confirmed_non_cybernet",
+        "approved_hardware_reference_non_cybernet_match"
+      ],
+      "safe_pre_hardware_evidence_types": [],
+      "never_sufficient_evidence_types": [
+        "approved_asset_inventory_explicit_device_class",
+        "ad_operating_system_server_label",
+        "hostname_role_pattern",
+        "software_footprint",
+        "software_absence",
+        "open_tcp_port",
+        "network_signature_135_445",
+        "mac_oui_vendor"
+      ]
+    },
+    {
+      "id": "other_network_device",
+      "aliases": ["switch", "router", "controller", "network_appliance"],
+      "safe_pre_query_evidence_types": [
+        "prior_sas_confirmed_non_cybernet",
+        "approved_hardware_reference_non_cybernet_match",
+        "approved_cmdb_explicit_device_class",
+        "approved_asset_inventory_explicit_device_class"
+      ],
+      "safe_pre_hardware_evidence_types": [],
+      "never_sufficient_evidence_types": [
+        "hostname_role_pattern",
+        "existing_http_device_banner",
+        "mac_oui_vendor",
+        "open_tcp_port"
+      ]
+    },
+    {
+      "id": "other_non_cybernet_device",
+      "aliases": ["other_non_cybernet_device"],
+      "safe_pre_query_evidence_types": [
+        "prior_sas_confirmed_non_cybernet",
+        "approved_hardware_reference_non_cybernet_match",
+        "approved_cmdb_explicit_device_class",
+        "approved_asset_inventory_explicit_device_class"
+      ],
+      "safe_pre_hardware_evidence_types": [],
+      "never_sufficient_evidence_types": [
+        "hostname_role_pattern",
+        "software_footprint",
+        "software_absence",
+        "open_tcp_port",
+        "network_signature_135_445",
+        "mac_oui_vendor",
+        "subnet_or_site_role_inference"
+      ]
+    }
+  ],
+  "entries": []
+}
