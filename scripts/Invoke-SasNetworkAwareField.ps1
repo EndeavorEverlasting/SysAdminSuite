@@ -66,7 +66,18 @@ function Test-SasMachineInfoShapeForNetworkTransition {
     $values = @($Arguments)
     if ($values.Count -eq 0) { return $false }
     if (([string]$values[0]).Trim().ToLowerInvariant() -eq 'file') {
-        return $values.Count -eq 2 -and -not [string]::IsNullOrWhiteSpace([string]$values[1])
+        if ($values.Count -ne 2 -or [string]::IsNullOrWhiteSpace([string]$values[1])) { return $false }
+        try { $inputPath = [IO.Path]::GetFullPath([string]$values[1]) } catch { return $false }
+        if (-not (Test-Path -LiteralPath $inputPath -PathType Leaf)) { return $false }
+        try {
+            $fileTargets = @(Get-Content -LiteralPath $inputPath -ErrorAction Stop |
+                Where-Object { -not [string]::IsNullOrWhiteSpace([string]$_) })
+        } catch { return $false }
+        if ($fileTargets.Count -eq 0 -or $fileTargets.Count -gt 500) { return $false }
+        foreach ($value in $fileTargets) {
+            if (-not (Test-SasAdHostNameForNetworkTransition -Value ([string]$value))) { return $false }
+        }
+        return $true
     }
     if ($values.Count -gt 100) { return $false }
     foreach ($value in $values) {
