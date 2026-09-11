@@ -59,6 +59,62 @@ function Test-SasAdHostNameForNetworkTransition {
     return -not [string]::IsNullOrWhiteSpace($Value) -and $Value -match '^[A-Za-z0-9][A-Za-z0-9._-]{0,254}$'
 }
 
+function Test-SasMachineInfoTargetFileForNetworkTransition {
+    [CmdletBinding()]
+    param([Parameter(Mandatory=$true)][string]$Path)
+
+    if ([string]::IsNullOrWhiteSpace($Path)) { return $false }
+    try { $fullPath = [IO.Path]::GetFullPath($Path) } catch { return $false }
+    if ($fullPath.StartsWith('\\',[StringComparison]::Ordinal)) { return $false }
+    try {
+        $root = [IO.Path]::GetPathRoot($fullPath)
+        if (-not [string]::IsNullOrWhiteSpace($root) -and $root.Length -ge 2 -and $root[1] -eq [char]':') {
+            $drive = New-Object -TypeName System.IO.DriveInfo -ArgumentList @($root.Substring(0,2))
+            if ($drive.DriveType -eq [System.IO.DriveType]::Network) { return $false }
+        }
+    } catch { return $false }
+    if (-not (Test-Path -LiteralPath $fullPath -PathType Leaf)) { return $false }
+
+    $targets = New-Object 'System.Collections.Generic.List[string]'
+    $lineCount = 0
+    try {
+        $reader = [IO.File]::OpenText($fullPath)
+        try {
+            while ($null -ne ($line = $reader.ReadLine())) {
+                $lineCount++
+                if ($lineCount -gt 2000) { return $false }
+                if ([string]::IsNullOrWhiteSpace($line)) { continue }
+                if ($targets.Count -ge 500) { return $false }
+                [void]$targets.Add(([string]$line).Trim())
+            }
+        }
+        finally { $reader.Dispose() }
+    }
+    catch { return $false }
+
+    if ($targets.Count -eq 0) { return $false }
+    foreach ($target in $targets) {
+        if (-not (Test-SasAdHostNameForNetworkTransition -Value $target)) { return $false }
+    }
+    return $true
+}
+
+function Test-SasMachineInfoShapeForNetworkTransition {
+    [CmdletBinding()]
+    param([string[]]$Arguments)
+
+    $values = @($Arguments)
+    if ($values.Count -eq 0) { return $false }
+    if (([string]$values[0]).Trim().ToLowerInvariant() -eq 'file') {
+        return $values.Count -eq 2 -and (Test-SasMachineInfoTargetFileForNetworkTransition -Path ([string]$values[1]))
+    }
+    if ($values.Count -gt 100) { return $false }
+    foreach ($value in $values) {
+        if (-not (Test-SasAdHostNameForNetworkTransition -Value ([string]$value))) { return $false }
+    }
+    return $true
+}
+
 function Test-SasAdManagedOuForNetworkTransition {
     param([AllowNull()][string]$Value)
     if ([string]::IsNullOrWhiteSpace($Value)) { return $false }
@@ -99,41 +155,6 @@ function Test-SasAdOuShapeForNetworkTransition {
     }
 }
 
-function Test-SasCanaryTargetForNetworkTransition {
-    param([AllowNull()][string]$Value)
-
-    if ([string]::IsNullOrWhiteSpace($Value)) { return $false }
-    $candidate = $Value.Trim()
-    if ($candidate -match '[/*?\[\]]') { return $false }
-    if ($candidate -match '^\d{1,3}(?:\.\d{1,3}){3}\s*-\s*\d') { return $false }
-    if ($candidate -match '^\d{1,3}(?:\.\d{1,3}){3}\s*-\s*\d{1,3}(?:\.\d{1,3}){3}$') { return $false }
-    if ($candidate -match '\.\.') { return $false }
-
-    $ip = $null
-    if ([System.Net.IPAddress]::TryParse($candidate, [ref]$ip)) { return $true }
-    if ($candidate -match '^[A-Za-z0-9][A-Za-z0-9.-]*\.[A-Za-z0-9.-]+$') { return $true }
-    if ($candidate -match '^[A-Za-z0-9]+[-_][A-Za-z0-9_-]+$') { return $true }
-    if ($candidate -match '^[A-Za-z]{2,6}[0-9]{2,}[A-Za-z0-9_-]*$') { return $true }
-    return $false
-}
-
-function Test-SasCybernetShapeForNetworkTransition {
-    [CmdletBinding()]
-    param([string[]]$Arguments)
-
-    $values = @($Arguments)
-    if ($values.Count -lt 2) { return $false }
-    $mode = ([string]$values[0]).Trim().ToLowerInvariant()
-    if ($mode -eq 'canary') {
-        if ($values.Count -gt 6) { return $false }
-        foreach ($value in @($values | Select-Object -Skip 1)) {
-            if (-not (Test-SasCanaryTargetForNetworkTransition -Value ([string]$value))) { return $false }
-        }
-        return $true
-    }
-    return $mode -in @('probe','deploy','core','profiled-core','recover')
-}
-
 # Determine whether a command can actually reach a network-sensitive product path before any
 # WLAN transition is allowed. Invalid/incomplete shapes still flow to the canonical dispatcher for
 # its usage/error result, but they remain CommandSpecific so they cannot cause a disruptive switch.
@@ -146,6 +167,9 @@ switch ($normalized) {
     }
     'printer' {
         if (Test-SasPrinterShapeForNetworkTransition -Arguments $actualArgs) { $intent = 'ProtectedNorthwell' }
+    }
+    { $_ -in @('machineinfo','machine-info') } {
+        if (Test-SasMachineInfoShapeForNetworkTransition -Arguments $actualArgs) { $intent = 'ProtectedNorthwell' }
     }
     'network' {
         if ($actualArgs.Count -eq 0) { $intent = 'LocalOnly' }
@@ -160,7 +184,7 @@ switch ($normalized) {
         }
     }
     'cybernet' {
-        if (Test-SasCybernetShapeForNetworkTransition -Arguments $actualArgs) {
+        if ($actualArgs.Count -ge 2 -and ([string]$actualArgs[0]).Trim().ToLowerInvariant() -in @('probe','deploy','core','profiled-core','recover')) {
             $intent = 'ProtectedNorthwell'
         }
     }

@@ -1,0 +1,25 @@
+{
+  "schema_version": "sas-agent-behavior-judge-rubric/v1",
+  "rubric_id": "repository-quality-v1",
+  "purpose": "Optional judge layer only for qualities that deterministic oracles cannot express.",
+  "activation_rule": "Do not invoke a model judge when exact code, schema, IDs, tool parameters, authorization, or repository contracts can decide the criterion.",
+  "dimensions": [
+    {
+      "id": "operator_clarity",
+      "weight": 0.5,
+      "question": "Is the handoff understandable without inventing or hiding execution state?"
+    },
+    {
+      "id": "remediation_fit",
+      "weight": 0.5,
+      "question": "Does the proposed remediation match the diagnosed cause rather than merely producing a plausible final answer?"
+    }
+  ],
+  "score_range": {
+    "minimum": 0.0,
+    "maximum": 1.0,
+    "default_gate": 0.8
+  },
+  "correctness_and_style_are_separate": true,
+  "human_escalation": "Use human review only when real-world operator acceptance or irreducible judgment remains."
+}

@@ -1,0 +1,140 @@
+{
+  "schema_version": "sas-cybernet-deployment-topology-registry/v1",
+  "generated_at": "2026-09-08T00:00:00Z",
+  "policy": {
+    "targeted_pass": {
+      "allowed_confidence": ["HIGH", "MEDIUM"],
+      "medium_requires_independent_corroboration": true,
+      "require_last_observed": true,
+      "max_observation_age_days": 365,
+      "reject_if_relocation_evidence_exists": true,
+      "reject_if_subnet_is_only_inferred_from_hostname": true,
+      "reject_if_only_network_discovery_supports_subnet": true
+    }
+  },
+  "sites": [
+    {
+      "site_id": "SITE-SAMPLE-OR",
+      "organization_id": "ORG-SAMPLE",
+      "site_name": "Sample OR Campus",
+      "site_status": "ACTIVE",
+      "subnets": [
+        {
+          "subnet_id": "SITE-SAMPLE-OR:10.20.30.0/24",
+          "cidr": "10.20.30.0/24",
+          "subnet_confidence": {
+            "classification": "HIGH",
+            "score": 0.94,
+            "basis": [
+              "CONFIRMED_DEPLOYMENT_DEVICE_OBSERVED_IN_SUBNET",
+              "MULTIPLE_INDEPENDENT_DEPLOYMENT_RECORDS"
+            ],
+            "calculated_at": "2026-09-08T00:00:00Z"
+          },
+          "last_observed": {
+            "date": "2026-08-21",
+            "source_evidence_ids": ["EV-SAMPLE-001", "EV-SAMPLE-002"]
+          },
+          "deployment_evidence": [
+            {
+              "evidence_id": "EV-SAMPLE-001",
+              "evidence_type": "CONFIRMED_DEPLOYMENT",
+              "source_type": "DEPLOYMENT_TRACKER",
+              "source_reference": "approved://deployment-tracker/Deployments#sample-row",
+              "observed_at": "2026-08-21T14:30:00Z",
+              "device_anchor": {
+                "device_key": "device-sample-001",
+                "deployment_status": "CONFIRMED_DEPLOYED",
+                "identity_strength": "SERIAL_ANCHORED",
+                "hostname_reference_present": true,
+                "serial_reference_present": true,
+                "model_reference_present": true
+              },
+              "supports": ["SITE", "SUBNET"],
+              "authority": "AUTHORITATIVE",
+              "notes": null
+            },
+            {
+              "evidence_id": "EV-SAMPLE-002",
+              "evidence_type": "NETWORK_OBSERVATION",
+              "source_type": "DHCP",
+              "source_reference": "approved://dhcp/leases#sample",
+              "observed_at": "2026-08-21T15:00:00Z",
+              "device_anchor": {
+                "device_key": "device-sample-001",
+                "deployment_status": "CONFIRMED_DEPLOYED",
+                "identity_strength": "SERIAL_ANCHORED",
+                "hostname_reference_present": true,
+                "serial_reference_present": true,
+                "model_reference_present": false
+              },
+              "supports": ["SUBNET"],
+              "authority": "CORROBORATING",
+              "notes": "Corroborates subnet for a confirmed deployed device; does not establish Cybernet identity."
+            }
+          ],
+          "targeted_pass_budget": {
+            "discovery_profile": "windows_pc_signature_json",
+            "allowed_ports": [135, 445],
+            "retries": 0,
+            "metadata_requires_signature_match": true,
+            "metadata_requires_windows_client": true,
+            "broad_service_enumeration_allowed": false
+          },
+          "targeted_pass_eligibility": {
+            "status": "ELIGIBLE",
+            "evaluated_at": "2026-09-08T00:00:00Z",
+            "reason_codes": [
+              "VALID_CIDR",
+              "CONFIRMED_DEPLOYMENT_EVIDENCE",
+              "RECENT_OBSERVATION",
+              "HIGH_SUBNET_CONFIDENCE",
+              "NO_RELOCATION_CONFLICT"
+            ],
+            "blocking_reason_codes": []
+          }
+        },
+        {
+          "subnet_id": "SITE-SAMPLE-OR:SITE-ONLY",
+          "cidr": "10.20.99.0/24",
+          "subnet_confidence": {
+            "classification": "LOW",
+            "score": 0.2,
+            "basis": ["SITE_ONLY_DEPLOYMENT_RECORD", "HOSTNAME_INFERENCE_ONLY"],
+            "calculated_at": "2026-09-08T00:00:00Z"
+          },
+          "last_observed": {
+            "date": "2026-08-01",
+            "source_evidence_ids": ["EV-SAMPLE-SITE-ONLY"]
+          },
+          "deployment_evidence": [
+            {
+              "evidence_id": "EV-SAMPLE-SITE-ONLY",
+              "evidence_type": "CONFIRMED_DEPLOYMENT",
+              "source_type": "DEPLOYMENT_TRACKER",
+              "source_reference": "approved://deployment-tracker/Deployments#site-only",
+              "observed_at": "2026-08-01T12:00:00Z",
+              "device_anchor": {
+                "device_key": "device-sample-site-only",
+                "deployment_status": "CONFIRMED_DEPLOYED",
+                "identity_strength": "HOSTNAME_ANCHORED",
+                "hostname_reference_present": true,
+                "serial_reference_present": false,
+                "model_reference_present": false
+              },
+              "supports": ["SITE"],
+              "authority": "AUTHORITATIVE",
+              "notes": "Site deployment proof only. CIDR here is illustrative and not subnet-proven; eligibility must reject hostname-only subnet linkage."
+            }
+          ],
+          "targeted_pass_eligibility": {
+            "status": "NOT_ELIGIBLE",
+            "evaluated_at": "2026-09-08T00:00:00Z",
+            "reason_codes": ["VALID_CIDR"],
+            "blocking_reason_codes": ["HOSTNAME_INFERENCE_ONLY"]
+          }
+        }
+      ]
+    }
+  ]
+}

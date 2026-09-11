@@ -213,6 +213,19 @@ Use this map to load only the files needed for a task.
 - `docs/LOW_NOISE_SURVEY_DOCTRINE.md` — narrative low-noise policy.
 - `docs/SURVEY_LANES.md` and `targets/README.md` — local target intake and tracked fixture boundaries.
 
+## Cybernet deployment topology survey loop
+
+Answers only *where* a bounded targeted pass is justified. Never decides whether a host is a Cybernet.
+
+- `START-HERE-CYBERNET-TOPOLOGY-SURVEY.md` and `Run-CybernetTopologySurvey.cmd` — operator contract and the single repeat-safe technician front door; the first click and every later click run the same iteration.
+- `scripts/Invoke-SasCybernetTopologySession.ps1` — session entry behind the CMD; absorbs `ingest/` and `inbox/`, recomputes eligibility, and writes the probe plan, review queue, run summary, and operator handoff.
+- `scripts/SasCybernetTopologySession.psm1` — offline session engine: idempotent bootstrap, evidence merge and dedupe, freshness refresh, run-to-run delta, and bundle export/import.
+- `DeploymentTracker/CybernetTopology.Eligibility.psm1` — the only eligibility authority. Do not reimplement its semantics in the session lane.
+- `Config/Cybernet/sas-cybernet-topology-evidence-bundle.v1.schema.json` — technician-to-technician share bundle; always operator-local data and never committed.
+- `docs/CYBERNET_DEPLOYMENT_TOPOLOGY_REGISTRY.md` — registry design, authority split, and corroboration rules.
+- `Tests/Pester/CybernetTopologySession.Tests.ps1` — idempotency, merge, delta, bundle exchange, launcher, and no-network contracts.
+- Session state lives under gitignored `evidence/CybernetTopology/`. `BUDGET_NOT_DECLARED` in a probe plan means not yet permitted, not unlimited.
+
 ## Dashboard and field entry
 
 - `docs/DASHBOARD_ENTRYPOINT.md` — canonical field and IT/developer launcher guidance.

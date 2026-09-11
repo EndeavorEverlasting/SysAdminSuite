@@ -83,16 +83,30 @@ function Resolve-SasInstalledAutoLogonBootstrap {
     throw 'Trusted crash-safe AutoLogon bootstrap is missing. Refresh/reseal the machine-local runtime before Remote deployment.'
 }
 
+function Resolve-SasMachineInfoRunner {
+    # The installer owns a sibling runner. Source/sealed-runtime invocations may fall back to the
+    # active machine-neutral runtime/controller, but never to the caller's working directory.
+    foreach ($candidate in @(
+        (Join-Path $PSScriptRoot 'Invoke-SasMachineInfo.ps1'),
+        (Join-Path $runtimeRoot 'scripts\Invoke-SasMachineInfo.ps1'),
+        (Join-Path $controllerRoot 'scripts\Invoke-SasMachineInfo.ps1')
+    )) {
+        if (Test-Path -LiteralPath $candidate -PathType Leaf) { return $candidate }
+    }
+    throw 'Trusted machine-info runner is missing. Run sas refresh on Guest/Internet and reinstall the universal field command.'
+}
+
 if ([string]::IsNullOrWhiteSpace($normalized) -or $normalized -eq 'platform') {
     Write-SasUniversalContext
     if ([string]::IsNullOrWhiteSpace($normalized)) {
         Write-Host 'Run the existing sas commands normally; the universal front door resolves controller/runtime/network context first.'
+        Write-Host 'Machine inventory: sas machineinfo HOST01 [HOST02 ...]' -ForegroundColor Green
+        Write-Host 'Machine inventory from file: sas machineinfo file C:\Path\hosts.txt' -ForegroundColor Green
         Write-Host 'Printer quick mapping: sas printer' -ForegroundColor Green
         Write-Host 'Printer file/batch mapping: sas printer file' -ForegroundColor Green
         Write-Host 'Printer mapping when GitHub is intentionally unavailable: sas printer offline' -ForegroundColor DarkGray
         Write-Host 'Clipboard recovery is available as: sas clipboard' -ForegroundColor Green
         Write-Host 'Batch network probing is available as: sas network probe HOST01 HOST02 ...' -ForegroundColor Green
-        Write-Host 'Cybernet model+serial canary is available as: sas cybernet canary HOST01 HOST02 ...' -ForegroundColor Green
     }
     exit 0
 }
@@ -147,6 +161,27 @@ switch ($normalized) {
         $gate = Join-Path $runtimeRoot 'scripts\Confirm-SasNorthwellNetwork.ps1'
         if (-not (Test-Path -LiteralPath $gate -PathType Leaf)) { $gate = Join-Path $controllerRoot 'scripts\Confirm-SasNorthwellNetwork.ps1' }
         & powershell.exe -NoLogo -NoProfile -ExecutionPolicy Bypass -File $gate -Purpose 'manual SysAdminSuite operator check' -NonInteractive
+        exit $LASTEXITCODE
+    }
+
+    { $_ -in @('machineinfo','machine-info') } {
+        if ($actualArgs.Count -eq 0) {
+            Write-Host 'Usage: sas machineinfo HOST01 [HOST02 ...]  OR  sas machineinfo file C:\Path\hosts.txt' -ForegroundColor Red
+            exit 2
+        }
+        $fileMode = ([string]$actualArgs[0]).Trim().ToLowerInvariant() -eq 'file'
+        if ($fileMode -and $actualArgs.Count -ne 2) {
+            Write-Host 'Usage: sas machineinfo file C:\Path\hosts.txt' -ForegroundColor Red
+            exit 2
+        }
+        if (-not $fileMode -and $actualArgs.Count -gt 100) {
+            Write-Host 'Direct machine-info mode is limited to 100 targets; use file mode for larger approved lists.' -ForegroundColor Red
+            exit 2
+        }
+        $purpose = if ($fileMode) { 'Machine inventory from explicit target file' } else { "Machine inventory for $($actualArgs.Count) explicit target(s)" }
+        [void](Assert-SasProtectedForAction -Purpose $purpose)
+        $runner = Resolve-SasMachineInfoRunner
+        & powershell.exe -NoLogo -NoProfile -ExecutionPolicy Bypass -File $runner @actualArgs
         exit $LASTEXITCODE
     }
 
@@ -227,20 +262,6 @@ switch ($normalized) {
     'cybernet' {
         if ($actualArgs.Count -gt 0) {
             $mode = ([string]$actualArgs[0]).Trim().ToLowerInvariant()
-            if ($mode -eq 'canary') {
-                $targets = @($actualArgs | Select-Object -Skip 1)
-                if ($targets.Count -eq 0) {
-                    Write-Host 'Usage: sas cybernet canary HOST01 [HOST02 ...]' -ForegroundColor Red
-                    exit 2
-                }
-                [void](Assert-SasProtectedForAction -Purpose "Cybernet low-noise canary for $($targets.Count) explicit targets")
-                $canary = Join-Path $controllerRoot 'survey\sas-cybernet-canary.ps1'
-                if (-not (Test-Path -LiteralPath $canary -PathType Leaf)) {
-                    throw "Cybernet canary runtime is not present in the active controller: $controllerRoot. Run 'sas refresh' on Guest/Internet to install the current sealed runtime."
-                }
-                & $canary -Target $targets
-                exit 0
-            }
             if ($mode -in @('probe','deploy','core','profiled-core','recover')) {
                 $targetLabel = if ($actualArgs.Count -gt 1) { [string]$actualArgs[1] } else { '<target>' }
                 [void](Assert-SasProtectedForAction -Purpose "Cybernet $mode for $targetLabel")

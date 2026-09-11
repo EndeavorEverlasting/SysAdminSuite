@@ -1,0 +1,67 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "sas-agent-behavior-response-set/v1",
+  "title": "SysAdminSuite Agent Behavior Eval Response Set",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema_version", "candidate_id", "responses"],
+  "properties": {
+    "schema_version": {"const": "sas-agent-behavior-response-set/v1"},
+    "candidate_id": {"type": "string", "minLength": 1},
+    "responses": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "case_id",
+          "classification",
+          "remediation",
+          "grounding_strategy",
+          "actions",
+          "tool_calls"
+        ],
+        "properties": {
+          "case_id": {"type": "string", "minLength": 1},
+          "classification": {"type": "string", "minLength": 1},
+          "remediation": {"type": "string", "minLength": 1},
+          "grounding_strategy": {"type": "string", "minLength": 1},
+          "actions": {
+            "type": "array",
+            "items": {"type": "string"},
+            "uniqueItems": true
+          },
+          "tool_calls": {
+            "type": "array",
+            "items": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": ["name", "params"],
+              "properties": {
+                "name": {"type": "string", "minLength": 1},
+                "params": {"type": "object"}
+              }
+            }
+          },
+          "judge": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["rubric_version", "score"],
+            "properties": {
+              "rubric_version": {"type": "string", "minLength": 1},
+              "score": {"type": "number", "minimum": 0, "maximum": 1}
+            }
+          },
+          "human_review": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["approved"],
+            "properties": {
+              "approved": {"type": "boolean"}
+            }
+          }
+        }
+      }
+    }
+  }
+}

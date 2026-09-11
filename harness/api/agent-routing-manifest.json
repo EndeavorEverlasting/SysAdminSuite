@@ -82,6 +82,9 @@
         "double-click entrypoint",
         "QR command capsule",
         "dashboard tutorial",
+        "machine information",
+        "machine inventory",
+        "get machine info",
         "map a printer",
         "printer mapping",
         "add a printer",
@@ -112,7 +115,9 @@
       "validators": [
         "Tests/survey/test_agent_routing_manifest_contracts.py",
         "Tests/survey/test_agent_instruction_factoring_contracts.py",
-        "Tests/survey/test_printer_mapping_use_case_contracts.py"
+        "Tests/survey/test_printer_mapping_use_case_contracts.py",
+        "Tests/survey/test_field_guide_cmd_first_contracts.py",
+        "Tests/survey/test_machine_info_cmd_contracts.py"
       ],
       "proof_ceiling": "Launcher, documentation, use-case routing, and fixture proof only."
     },
