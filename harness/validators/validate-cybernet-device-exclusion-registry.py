@@ -176,10 +176,12 @@ def main() -> None:
             assert "BEFORE_ENDPOINT_METADATA" in evidence[evidence_id]["auto_rejection_stages"], (
                 f"{class_id} pre-query evidence lacks stage authority: {evidence_id}"
             )
-        for evidence_id in item["never_sufficient_evidence_types"]:
-            assert evidence[evidence_id]["strength"] != "AUTHORITATIVE", (
-                f"{class_id} never-sufficient evidence became authoritative: {evidence_id}"
-            )
+        never_sufficient = set(item["never_sufficient_evidence_types"])
+        safe_for_class = set(item["safe_pre_query_evidence_types"]) | set(item["safe_pre_hardware_evidence_types"])
+        overlap = never_sufficient & safe_for_class
+        assert not overlap, (
+            f"{class_id} evidence cannot be both safe and never-sufficient for this class: {sorted(overlap)}"
+        )
 
     assert set(classes["other_computer"]["safe_pre_query_evidence_types"]) == {
         "prior_sas_confirmed_non_cybernet",
