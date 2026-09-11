@@ -59,6 +59,29 @@ function Test-SasAdHostNameForNetworkTransition {
     return -not [string]::IsNullOrWhiteSpace($Value) -and $Value -match '^[A-Za-z0-9][A-Za-z0-9._-]{0,254}$'
 }
 
+function Test-SasMachineInfoTargetFileForNetworkTransition {
+    [CmdletBinding()]
+    param([Parameter(Mandatory=$true)][string]$Path)
+
+    if ([string]::IsNullOrWhiteSpace($Path)) { return $false }
+    try { $fullPath = [IO.Path]::GetFullPath($Path) } catch { return $false }
+    if ($fullPath.StartsWith('\\',[StringComparison]::Ordinal)) { return $false }
+    if (-not (Test-Path -LiteralPath $fullPath -PathType Leaf)) { return $false }
+
+    try {
+        $targets = @(Get-Content -LiteralPath $fullPath -TotalCount 501 -ErrorAction Stop |
+            Where-Object { -not [string]::IsNullOrWhiteSpace([string]$_) } |
+            ForEach-Object { ([string]$_).Trim() })
+    }
+    catch { return $false }
+
+    if ($targets.Count -eq 0 -or $targets.Count -gt 500) { return $false }
+    foreach ($target in $targets) {
+        if (-not (Test-SasAdHostNameForNetworkTransition -Value $target)) { return $false }
+    }
+    return $true
+}
+
 function Test-SasMachineInfoShapeForNetworkTransition {
     [CmdletBinding()]
     param([string[]]$Arguments)
@@ -66,18 +89,7 @@ function Test-SasMachineInfoShapeForNetworkTransition {
     $values = @($Arguments)
     if ($values.Count -eq 0) { return $false }
     if (([string]$values[0]).Trim().ToLowerInvariant() -eq 'file') {
-        if ($values.Count -ne 2 -or [string]::IsNullOrWhiteSpace([string]$values[1])) { return $false }
-        try { $inputPath = [IO.Path]::GetFullPath([string]$values[1]) } catch { return $false }
-        if (-not (Test-Path -LiteralPath $inputPath -PathType Leaf)) { return $false }
-        try {
-            $fileTargets = @(Get-Content -LiteralPath $inputPath -ErrorAction Stop |
-                Where-Object { -not [string]::IsNullOrWhiteSpace([string]$_) })
-        } catch { return $false }
-        if ($fileTargets.Count -eq 0 -or $fileTargets.Count -gt 500) { return $false }
-        foreach ($value in $fileTargets) {
-            if (-not (Test-SasAdHostNameForNetworkTransition -Value ([string]$value))) { return $false }
-        }
-        return $true
+        return $values.Count -eq 2 -and (Test-SasMachineInfoTargetFileForNetworkTransition -Path ([string]$values[1]))
     }
     if ($values.Count -gt 100) { return $false }
     foreach ($value in $values) {

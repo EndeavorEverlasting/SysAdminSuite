@@ -17,13 +17,14 @@ $sourcePrinterBootstrap = Join-Path $repoRoot 'Bootstrap-SysAdminSuitePrinter.ps
 $sourcePrinterTechnicianCmd = Join-Path $repoRoot 'Map-NorthwellPrinter.cmd'
 $sourceMachineInfoRunner = Join-Path $repoRoot 'scripts\Invoke-SasMachineInfo.ps1'
 $sourceMachineInfoCore = Join-Path $repoRoot 'GetInfo\Get-MachineInfo.ps1'
+$sourceMachineInfoHtmlHelper = Join-Path $repoRoot 'tools\ConvertTo-SuiteHtml.ps1'
 $sourceMachineInfoTechnicianCmd = Join-Path $repoRoot 'Get-MachineInfo.cmd'
 $sourceNetworkBatchProbe = Join-Path $repoRoot 'survey\sas-network-batch-probe.ps1'
 $sourceNetworkPreflight = Join-Path $repoRoot 'survey\sas-network-preflight.ps1'
 foreach ($required in @(
     $sourceLauncher,$sourceNetworkAwareLauncher,$sourcePlatform,$sourceNetworkIntent,
     $sourceOperatorSession,$sourceNetworkGuard,$sourceBoundedNative,$sourcePrinterBootstrap,
-    $sourceMachineInfoRunner,$sourceMachineInfoCore,$sourceNetworkBatchProbe,$sourceNetworkPreflight
+    $sourceMachineInfoRunner,$sourceMachineInfoCore,$sourceMachineInfoHtmlHelper,$sourceNetworkBatchProbe,$sourceNetworkPreflight
 )) {
     if (-not (Test-Path -LiteralPath $required -PathType Leaf)) { throw "Required universal field file missing: $required" }
     $tokens = $null; $errors = $null
@@ -108,6 +109,10 @@ else {
     throw 'No safe universal launcher installation is available. A current-user shim requires an existing canonical machine-local C:\SASAL runtime.'
 }
 $installScope = if ($machineInstall) { 'MACHINE' } else { 'CURRENT_USER_SHIM_WITH_MACHINE_RUNTIME' }
+$installedSurfaceRoot = Split-Path -Parent $installRoot
+$installedGetInfoRoot = Join-Path $installedSurfaceRoot 'GetInfo'
+$installedToolsRoot = Join-Path $installedSurfaceRoot 'tools'
+New-Item -ItemType Directory -Path $installedGetInfoRoot,$installedToolsRoot -Force | Out-Null
 
 $launcherDestination = Join-Path $installRoot 'Invoke-SasUniversalField.ps1'
 $networkAwareLauncherDestination = Join-Path $installRoot 'Invoke-SasNetworkAwareField.ps1'
@@ -116,6 +121,8 @@ $networkIntentDestination = Join-Path $installRoot 'SasNetworkIntent.psm1'
 $printerBootstrapDestination = Join-Path $installRoot 'Bootstrap-SysAdminSuitePrinter.ps1'
 $printerTechnicianCmdDestination = Join-Path $installRoot 'Map-NorthwellPrinter.cmd'
 $machineInfoRunnerDestination = Join-Path $installRoot 'Invoke-SasMachineInfo.ps1'
+$machineInfoCoreDestination = Join-Path $installedGetInfoRoot 'Get-MachineInfo.ps1'
+$machineInfoHtmlHelperDestination = Join-Path $installedToolsRoot 'ConvertTo-SuiteHtml.ps1'
 $machineInfoTechnicianCmdDestination = Join-Path $installRoot 'Get-MachineInfo.cmd'
 $cmdDestination = Join-Path $installRoot 'sas.cmd'
 Copy-Item -LiteralPath $sourceLauncher -Destination $launcherDestination -Force
@@ -125,6 +132,8 @@ Copy-Item -LiteralPath $sourceNetworkIntent -Destination $networkIntentDestinati
 Copy-Item -LiteralPath $sourcePrinterBootstrap -Destination $printerBootstrapDestination -Force
 Copy-Item -LiteralPath $sourcePrinterTechnicianCmd -Destination $printerTechnicianCmdDestination -Force
 Copy-Item -LiteralPath $sourceMachineInfoRunner -Destination $machineInfoRunnerDestination -Force
+Copy-Item -LiteralPath $sourceMachineInfoCore -Destination $machineInfoCoreDestination -Force
+Copy-Item -LiteralPath $sourceMachineInfoHtmlHelper -Destination $machineInfoHtmlHelperDestination -Force
 Copy-Item -LiteralPath $sourceMachineInfoTechnicianCmd -Destination $machineInfoTechnicianCmdDestination -Force
 
 # Machine cache is optional and never points at a user-profile checkout. The trusted installed
@@ -173,6 +182,8 @@ Write-Host "Network-aware launcher: $networkAwareLauncherDestination"
 Write-Host "Network intent module: $networkIntentDestination"
 Write-Host "Machine info technician CMD: $machineInfoTechnicianCmdDestination"
 Write-Host "Machine info runner: $machineInfoRunnerDestination"
+Write-Host "Machine info collector: $machineInfoCoreDestination"
+Write-Host "Machine info HTML helper: $machineInfoHtmlHelperDestination"
 Write-Host "Printer technician CMD: $printerTechnicianCmdDestination"
 Write-Host "Printer bootstrap: $printerBootstrapDestination"
 Write-Host 'Execution resolution: trusted installed shim -> network canary/intent -> validated universal field dispatcher.'

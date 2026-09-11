@@ -37,15 +37,33 @@ if exist "%~dp0sas.cmd" (
     exit /b !SAS_EXIT!
 )
 
-rem Current repository or sealed C:\SASAL path: use the sibling network-aware dispatcher.
+rem Repository/sealed-runtime copy: never execute its product path as presumed-current.
+rem Route through the canonical refresh transaction first; it derives a fresh field-ready
+rem runtime on Guest/Internet, restores posture, and reinstalls the trusted sas.cmd front door.
 if exist "%~dp0scripts\Invoke-SasNetworkAwareField.ps1" (
-    "%SystemRoot%\System32\WindowsPowerShell\v1.0\powershell.exe" -NoLogo -NoProfile -ExecutionPolicy Bypass -File "%~dp0scripts\Invoke-SasNetworkAwareField.ps1" machineinfo %*
+    echo No installed machine-info launcher is beside this CMD. Proving current SysAdminSuite runtime first...
+    "%SystemRoot%\System32\WindowsPowerShell\v1.0\powershell.exe" -NoLogo -NoProfile -ExecutionPolicy Bypass -File "%~dp0scripts\Invoke-SasNetworkAwareField.ps1" refresh
     set "SAS_EXIT=!ERRORLEVEL!"
+    if not "!SAS_EXIT!"=="0" exit /b !SAS_EXIT!
+
+    if exist "%ProgramData%\SysAdminSuite\bin\sas.cmd" (
+        call "%ProgramData%\SysAdminSuite\bin\sas.cmd" machineinfo %*
+        set "SAS_EXIT=!ERRORLEVEL!"
+        exit /b !SAS_EXIT!
+    )
+    if defined LOCALAPPDATA if exist "%LOCALAPPDATA%\SysAdminSuite\bin\sas.cmd" (
+        call "%LOCALAPPDATA%\SysAdminSuite\bin\sas.cmd" machineinfo %*
+        set "SAS_EXIT=!ERRORLEVEL!"
+        exit /b !SAS_EXIT!
+    )
+
+    echo ERROR: SysAdminSuite refresh completed but no installed sas.cmd launcher was found.
+    set "SAS_EXIT=1"
     exit /b !SAS_EXIT!
 )
 
 echo ERROR: No trusted SysAdminSuite machine-info runtime is beside this CMD.
-echo Ask your lead to install/refresh SysAdminSuite, or run this CMD from a current SysAdminSuite folder.
+echo Ask your lead to install/refresh SysAdminSuite from a current machine-neutral runtime.
 set "SAS_EXIT=1"
 exit /b !SAS_EXIT!
 
