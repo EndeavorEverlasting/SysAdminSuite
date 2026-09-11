@@ -4,7 +4,7 @@
 #
 # Doctrine is the single source of truth. The runtime config is a deterministic,
 # generated representation consumed by survey/sas-run-naabu-pipeline.sh. Do not
-# hand-edit Config/cybernet-naabu-profiles.json; edit the doctrine contract and re-run the generator.
+# hand-edit Config/cybernet-naabu-profiles.json; edit survey/naabu_profiles.json and re-run this generator.
 # See docs/LOW_NOISE_SURVEY_DOCTRINE.md.
 #
 # Read-only doctrine input. No network, no targets.
