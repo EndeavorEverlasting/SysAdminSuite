@@ -1,0 +1,38 @@
+schema_version: sas-agent-behavior-eval-workflow/v1
+workflow_id: repository-ai-evals
+mode: local_transform
+network_activity: false
+target_mutation: false
+manifest: harness/evals/agent-behavior-eval-manifest.v1.json
+response_schema: schemas/harness/agent-behavior-response-set.schema.json
+threshold_approval_ledger: harness/evals/approved-threshold-changes.v1.json
+validator: harness/validators/validate-agent-behavior-evals.py
+runner: tools/run-agent-behavior-evals.py
+inputs:
+  - response_set_json
+outputs:
+  - sas-agent-behavior-eval-result/v1
+  - attributable_case_results
+  - correctness_score
+  - critical_failure_list
+gates:
+  deterministic_correctness: 1.0
+  critical_failures_allowed: 0
+  baseline_must_fail_exactly_as_versioned: true
+  candidate_must_pass: true
+  relaxed_threshold_requires_approved_evidence: true
+execution_order:
+  - validate_framework
+  - validate_manifest_and_response_schemas
+  - validate_threshold_authority
+  - score_known_failure_baseline
+  - score_candidate
+  - compare_baseline_and_candidate
+  - emit_report
+model_judge_policy:
+  default: disabled
+  enable_only_when: deterministic_oracle_cannot_express_quality
+human_review_policy:
+  default: disabled
+  enable_only_when: irreducible_operator_or_real_world_acceptance_judgment
+proof_ceiling: repository fixture, deterministic scoring, synthetic integration, and CI gate proof only; no external model-provider behavior, live target behavior, or operator acceptance is proven by this workflow
