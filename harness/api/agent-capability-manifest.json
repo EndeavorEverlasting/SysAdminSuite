@@ -420,6 +420,30 @@
       ]
     },
     {
+      "id": "package-clr-strong-name-verification",
+      "version": "1.0.0",
+      "path": ".claude/capabilities/package-clr-strong-name-verification.md",
+      "summary": "Cryptographically verify CLR strong-name integrity for managed assemblies without Authenticode or runtime claims.",
+      "lanes": [
+        "package-analysis",
+        "harness",
+        "validation"
+      ],
+      "default_network_activity": false,
+      "default_target_mutation": false,
+      "network_activity_mode": "none",
+      "target_mutation_mode": "none",
+      "authority_paths": [
+        "harness/api/package-strong-name-verification-skill.json",
+        "tools/package-analysis/verify_dotnet_strong_name.py",
+        "docs/PACKAGE_STRONG_NAME_VERIFICATION.md"
+      ],
+      "validators": [
+        "Tests/survey/test_package_strong_name_verification_contracts.py",
+        "Tests/survey/test_agent_capability_manifest_contracts.py"
+      ]
+    },
+    {
       "id": "package-vm-qualification-validation",
       "version": "1.0.0",
       "path": ".claude/capabilities/package-vm-qualification-validation.md",
@@ -741,7 +765,7 @@
     {
       "id": "package-static-analysis",
       "path": ".claude/skills/package-static-analysis/SKILL.md",
-      "summary": "Inspect private software packages without execution across static, semantic, offline trust, and VM-qualification gates.",
+      "summary": "Inspect private software packages without execution across static, semantic, offline trust, strong-name, and VM-qualification gates.",
       "capability_ids": [
         "language-runtime-selection",
         "mutation-and-evidence-boundaries",
@@ -750,6 +774,7 @@
         "package-static-inspection",
         "package-semantic-enrichment",
         "package-offline-trust-verification",
+        "package-clr-strong-name-verification",
         "package-vm-qualification-validation"
       ],
       "lanes": [
@@ -766,17 +791,20 @@
         "harness/api/package-static-analysis-skill.json",
         "harness/api/package-semantic-analysis-skill.json",
         "harness/api/package-trust-verification-skill.json",
+        "harness/api/package-strong-name-verification-skill.json",
         "harness/api/package-vm-qualification-skill.json",
         "harness/workflows/package-analysis.yaml",
         "docs/PACKAGE_STATIC_ANALYSIS.md",
         "docs/PACKAGE_SEMANTIC_ANALYSIS.md",
         "docs/PACKAGE_TRUST_VERIFICATION.md",
+        "docs/PACKAGE_STRONG_NAME_VERIFICATION.md",
         "docs/PACKAGE_VM_QUALIFICATION_PROFILES.md"
       ],
       "validators": [
         "Tests/survey/test_package_static_analysis_contracts.py",
         "Tests/survey/test_package_semantic_analysis_contracts.py",
         "Tests/survey/Test-PackageTrustVerificationContracts.ps1",
+        "Tests/survey/test_package_strong_name_verification_contracts.py",
         "Tests/survey/test_package_vm_qualification_profile_contracts.py",
         "Tests/survey/test_agent_capability_manifest_contracts.py",
         "Tests/survey/test_agent_routing_manifest_contracts.py"
