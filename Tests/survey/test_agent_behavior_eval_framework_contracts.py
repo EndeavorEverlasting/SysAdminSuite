@@ -144,7 +144,7 @@ def main() -> int:
             "oracle_mode": "judge",
             "judge_rubric_version": "repository-quality-v1",
             "judge_threshold": 0.8,
-            "critical": true
+            "critical": True
         }
     }
     judge_response = {
