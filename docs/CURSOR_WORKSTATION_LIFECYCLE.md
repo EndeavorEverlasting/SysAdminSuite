@@ -4,7 +4,7 @@
 
 This document is the progressive-disclosure authority for Cursor workstation diagnosis in SysAdminSuite. The current integrated candidate is deliberately **read-only**: `Audit` and `Verify` are implemented; `InstallSystem`, `Uninstall`, and `RecoveryPurge` are intentionally unavailable until the mutation trust boundary is hardened and separately proven.
 
-This reduction is evidence-driven. The earlier lifecycle branch had unresolved review findings around custom profile-controlled deletion, wrong-user HKCU targeting after elevation, registry-controlled uninstaller execution, process ownership, unresolved path tokens, persisted PATH semantics, installer identity, run-directory collisions, and stale-checkout mutation. Read-only inventory is still useful and can be integrated without carrying those hazards forward.
+This reduction is evidence-driven. The earlier lifecycle branch had unresolved review findings around custom profile-controlled deletion, wrong-user HKCU targeting after elevation, registry-controlled uninstaller execution, unresolved path tokens, process ownership, persisted PATH semantics, installer identity, run-directory collisions, and stale-checkout mutation. Read-only inventory is still useful and can be integrated without carrying those hazards forward.
 
 ## Canonical front door
 
@@ -14,7 +14,7 @@ Manage-Cursor.cmd Verify -ExpectedState Absent
 Manage-Cursor.cmd Verify -ExpectedState System
 ```
 
-The launcher delegates only to `scripts/Invoke-SasCursorWorkstation.ps1`. Any other action fails closed with exit code 3.
+`Manage-Cursor.cmd` does not trust the caller checkout as current. Before inventory it invokes the repository-owned `scripts\Invoke-SasNetworkAwareField.ps1 refresh` transaction, requires successful current-main refresh, and re-enters `C:\SASAL\Manage-Cursor.cmd`. Only the refreshed sealed launcher delegates to `scripts/Invoke-SasCursorWorkstation.ps1`. The launcher contains no ad-hoc Git command and any unsupported action fails closed with exit code 3.
 
 The canonical profile is `Config/cursor-workstation-profile.json`. The engine does not accept a custom profile path. Runtime evidence is written only beneath `%LOCALAPPDATA%\SysAdminSuite\field-runs\cursor\<timestamp>-<guid>\cursor_workstation_result.json` and is not tracked.
 
@@ -26,10 +26,13 @@ The canonical profile is `Config/cursor-workstation-profile.json`. The engine do
 - canonical machine and current-user install roots;
 - whether the expected `Cursor.exe` exists under those roots;
 - processes whose executable path is actually beneath a canonical Cursor root;
-- `cursor` commands whose resolved path is beneath a canonical Cursor root;
+- canonical `cursor.cmd` / `cursor.exe` entries beneath approved CLI path templates, even when those directories are not on the current PATH;
+- `cursor` commands resolved from PATH, counting them only when the path is beneath a canonical Cursor root;
 - the current Windows security principal, SID, and profile path.
 
-A command named `cursor` outside the canonical roots is recorded as ignored external evidence and does not make Cursor present. A process named `Cursor.exe` is not treated as Cursor-owned unless its executable path is under a canonical root.
+A command named `cursor` outside the canonical roots is recorded as ignored external evidence and does not make Cursor present. A process named `Cursor.exe` is not treated as Cursor-owned unless its executable path is under a canonical root. If a matching Cursor process does not expose `ExecutablePath`, process inspection is incomplete rather than silently absent.
+
+Registry enumeration is also fail-closed for verification: an access or property-read error records `RegistrationInspectionSucceeded=false` and forces `inspection-incomplete`. `Verify Absent` and `Verify System` require successful registry and process inspection.
 
 If an environment token such as `{PROGRAMFILESX86}` is unavailable, that profile path is skipped rather than becoming an empty-rooted path.
 
@@ -44,7 +47,7 @@ If an environment token such as `{PROGRAMFILESX86}` is unavailable, that profile
 
 A stale or empty `%ProgramFiles%\Cursor` directory alone is insufficient. Concurrent user-scoped evidence prevents the `System` classification.
 
-If process inspection fails, absence/system verification fails closed as `inspection-incomplete` rather than guessing.
+If registry or process inspection fails, absence/system verification fails closed as `inspection-incomplete` rather than guessing.
 
 ## Incident doctrine preserved from the field case
 
@@ -71,4 +74,4 @@ A future mutating implementation must, at minimum:
 
 ## Proof ceiling
 
-Repository/CI proof can establish profile/schema consistency, read-only routing, PowerShell parsing, current-context inventory behavior, and fail-closed verification semantics. It cannot prove a physical workstation repair, another user's profile state, GUI launch, login/session health, vendor-service health, or authorize software mutation.
+Repository/CI proof can establish profile/schema consistency, current-main refresh/re-entry, read-only routing, PowerShell parsing, current-context inventory behavior, and fail-closed verification semantics. It cannot prove a physical workstation repair, another user's profile state, GUI launch, login/session health, vendor-service health, or authorize software mutation.

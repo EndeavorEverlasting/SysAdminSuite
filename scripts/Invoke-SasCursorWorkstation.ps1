@@ -80,26 +80,30 @@ function Get-CursorRoots {
     return [pscustomobject]@{ Machine = $machine; User = $user; All = @($machine + $user | Select-Object -Unique) }
 }
 
-function Get-CursorUninstallEntries {
+function Get-CursorUninstallEvidence {
     param($Profile)
     $entries = @()
-    foreach ($root in @($Profile.installation.uninstall_registry_roots)) {
-        if (-not (Test-Path -LiteralPath $root.path)) { continue }
-        foreach ($key in @(Get-ChildItem -LiteralPath $root.path -ErrorAction SilentlyContinue)) {
-            $app = Get-ItemProperty -LiteralPath $key.PSPath -ErrorAction SilentlyContinue
-            if ($null -eq $app) { continue }
-            $displayName = [string](Get-SasObjectPropertyValue -InputObject $app -Name 'DisplayName')
-            if (-not $displayName -or $displayName -notmatch [string]$Profile.application.display_name_regex) { continue }
-            $entries += [pscustomobject]@{
-                Scope = [string]$root.scope
-                DisplayName = $displayName
-                DisplayVersion = [string](Get-SasObjectPropertyValue -InputObject $app -Name 'DisplayVersion')
-                InstallLocation = [string](Get-SasObjectPropertyValue -InputObject $app -Name 'InstallLocation')
-                RegistryPath = [string]$key.PSPath
+    try {
+        foreach ($root in @($Profile.installation.uninstall_registry_roots)) {
+            if (-not (Test-Path -LiteralPath $root.path -ErrorAction Stop)) { continue }
+            foreach ($key in @(Get-ChildItem -LiteralPath $root.path -ErrorAction Stop)) {
+                $app = Get-ItemProperty -LiteralPath $key.PSPath -ErrorAction Stop
+                $displayName = [string](Get-SasObjectPropertyValue -InputObject $app -Name 'DisplayName')
+                if (-not $displayName -or $displayName -notmatch [string]$Profile.application.display_name_regex) { continue }
+                $entries += [pscustomobject]@{
+                    Scope = [string]$root.scope
+                    DisplayName = $displayName
+                    DisplayVersion = [string](Get-SasObjectPropertyValue -InputObject $app -Name 'DisplayVersion')
+                    InstallLocation = [string](Get-SasObjectPropertyValue -InputObject $app -Name 'InstallLocation')
+                    RegistryPath = [string]$key.PSPath
+                }
             }
         }
+        return [pscustomobject]@{ Succeeded = $true; Error = $null; Items = @($entries) }
     }
-    return @($entries)
+    catch {
+        return [pscustomobject]@{ Succeeded = $false; Error = $_.Exception.Message; Items = @($entries) }
+    }
 }
 
 function Get-CursorInstallEvidence {
@@ -126,12 +130,21 @@ function Get-CursorInstallEvidence {
 }
 
 function Get-CursorProcessEvidence {
-    param($Roots)
+    param($Profile, $Roots)
     $items = @()
+    $expectedNames = @($Profile.application.process_names | ForEach-Object { ([string]$_).ToLowerInvariant() })
     try {
         foreach ($process in @(Get-CimInstance Win32_Process -ErrorAction Stop)) {
+            $name = [string](Get-SasObjectPropertyValue -InputObject $process -Name 'Name')
+            if (-not $name -or $expectedNames -notcontains $name.ToLowerInvariant()) { continue }
             $path = [string](Get-SasObjectPropertyValue -InputObject $process -Name 'ExecutablePath')
-            if (-not $path) { continue }
+            if ([string]::IsNullOrWhiteSpace($path)) {
+                return [pscustomobject]@{
+                    Succeeded = $false
+                    Error = "Matching Cursor process '$name' did not expose ExecutablePath; ownership cannot be proven."
+                    Items = @($items)
+                }
+            }
             $owned = $false
             foreach ($root in @($Roots.All)) {
                 if (Test-PathUnderRoot -Candidate $path -Root $root) { $owned = $true; break }
@@ -139,21 +152,34 @@ function Get-CursorProcessEvidence {
             if (-not $owned) { continue }
             $items += [pscustomobject]@{
                 ProcessId = [int](Get-SasObjectPropertyValue -InputObject $process -Name 'ProcessId')
-                Name = [string](Get-SasObjectPropertyValue -InputObject $process -Name 'Name')
+                Name = $name
                 ExecutablePath = $path
             }
         }
         return [pscustomobject]@{ Succeeded = $true; Error = $null; Items = @($items) }
     }
     catch {
-        return [pscustomobject]@{ Succeeded = $false; Error = $_.Exception.Message; Items = @() }
+        return [pscustomobject]@{ Succeeded = $false; Error = $_.Exception.Message; Items = @($items) }
     }
 }
 
 function Get-CursorCommandEvidence {
-    param($Roots)
+    param($Profile, $Roots)
     $owned = @()
     $external = @()
+
+    foreach ($template in @($Profile.installation.cli_path_templates)) {
+        $directory = Expand-SasProfilePath -Value ([string]$template)
+        if ([string]::IsNullOrWhiteSpace($directory)) { continue }
+        foreach ($entryName in @($Profile.application.cli_entry_names)) {
+            $candidate = Join-Path $directory ([string]$entryName)
+            if (-not (Test-Path -LiteralPath $candidate -PathType Leaf)) { continue }
+            foreach ($root in @($Roots.All)) {
+                if (Test-PathUnderRoot -Candidate $candidate -Root $root) { $owned += $candidate; break }
+            }
+        }
+    }
+
     foreach ($command in @(Get-Command cursor -All -ErrorAction SilentlyContinue)) {
         $path = [string](Get-SasObjectPropertyValue -InputObject $command -Name 'Path')
         if (-not $path) { $path = [string](Get-SasObjectPropertyValue -InputObject $command -Name 'Source') }
@@ -164,7 +190,10 @@ function Get-CursorCommandEvidence {
         }
         if ($isOwned) { $owned += $path } else { $external += $path }
     }
-    return [pscustomobject]@{ Owned = @($owned | Select-Object -Unique); External = @($external | Select-Object -Unique) }
+    return [pscustomobject]@{
+        Owned = @($owned | Select-Object -Unique)
+        External = @($external | Select-Object -Unique)
+    }
 }
 
 function Get-CursorInventory {
@@ -172,10 +201,11 @@ function Get-CursorInventory {
 
     $identity = [Security.Principal.WindowsIdentity]::GetCurrent()
     $roots = Get-CursorRoots -Profile $Profile
-    $registrations = @(Get-CursorUninstallEntries -Profile $Profile)
+    $registrationEvidence = Get-CursorUninstallEvidence -Profile $Profile
+    $registrations = @($registrationEvidence.Items)
     $installEvidence = @(Get-CursorInstallEvidence -Profile $Profile -Roots $roots)
-    $processEvidence = Get-CursorProcessEvidence -Roots $roots
-    $commandEvidence = Get-CursorCommandEvidence -Roots $roots
+    $processEvidence = Get-CursorProcessEvidence -Profile $Profile -Roots $roots
+    $commandEvidence = Get-CursorCommandEvidence -Profile $Profile -Roots $roots
 
     $machineRegistrations = @($registrations | Where-Object { $_.Scope -like 'machine*' })
     $userRegistrations = @($registrations | Where-Object { $_.Scope -eq 'user' })
@@ -187,7 +217,7 @@ function Get-CursorInventory {
     $residue = ($registrations.Count -gt 0 -or $installEvidence.Count -gt 0 -or @($processEvidence.Items).Count -gt 0 -or @($commandEvidence.Owned).Count -gt 0)
 
     $classification = 'absent-current-context'
-    if (-not [bool]$processEvidence.Succeeded) { $classification = 'inspection-incomplete' }
+    if (-not [bool]$registrationEvidence.Succeeded -or -not [bool]$processEvidence.Succeeded) { $classification = 'inspection-incomplete' }
     elseif ($machineEvidence -and $userEvidence) { $classification = 'mixed' }
     elseif ($registrations.Count -gt 1) { $classification = 'multiple-registrations' }
     elseif ($machineEvidence -and -not $userEvidence) { $classification = 'system' }
@@ -200,6 +230,8 @@ function Get-CursorInventory {
         ContextProfile = [string]$env:USERPROFILE
         ContextScope = 'current-security-principal'
         Registrations = $registrations
+        RegistrationInspectionSucceeded = [bool]$registrationEvidence.Succeeded
+        RegistrationInspectionError = [string]$registrationEvidence.Error
         InstallEvidence = $installEvidence
         Processes = @($processEvidence.Items)
         ProcessInspectionSucceeded = [bool]$processEvidence.Succeeded
@@ -214,6 +246,7 @@ function Get-CursorInventory {
 function Test-CursorAbsentCurrentContext {
     param($Inventory)
     return (
+        [bool]$Inventory.RegistrationInspectionSucceeded -and
         [bool]$Inventory.ProcessInspectionSucceeded -and
         @($Inventory.Registrations).Count -eq 0 -and
         @($Inventory.InstallEvidence).Count -eq 0 -and
@@ -225,6 +258,7 @@ function Test-CursorAbsentCurrentContext {
 function Test-CursorCanonicalSystemInstall {
     param($Inventory)
     return (
+        [bool]$Inventory.RegistrationInspectionSucceeded -and
         [bool]$Inventory.ProcessInspectionSucceeded -and
         [bool]$Inventory.MachineInstallEvidence -and
         -not [bool]$Inventory.UserInstallEvidence -and
@@ -237,7 +271,7 @@ function Get-CursorRecommendation {
     switch ([string]$Inventory.Classification) {
         'absent-current-context' { return 'No Cursor evidence was found for the current security principal or canonical machine roots. Mutation remains unavailable in this safety floor.' }
         'system' { return 'Canonical machine registration plus executable evidence is present. Perform a separate GUI smoke test if runtime behavior matters.' }
-        'inspection-incomplete' { return 'Process inspection failed. Treat absence/system verification as unproven and repair the local inspection boundary first.' }
+        'inspection-incomplete' { return 'Registry or process inspection was incomplete. Treat absence/system verification as unproven and repair the local inspection boundary first.' }
         default { return 'Local Cursor installation inconsistency is present. Preserve this evidence; mutating repair is intentionally disabled until the hardened lifecycle lane closes its trust-boundary requirements.' }
     }
 }

@@ -11,14 +11,15 @@
     "application": {
       "type": "object",
       "additionalProperties": false,
-      "required": ["name", "publisher", "official_download_url", "display_name_regex", "process_names", "expected_executable"],
+      "required": ["name", "publisher", "official_download_url", "display_name_regex", "process_names", "expected_executable", "cli_entry_names"],
       "properties": {
         "name": {"const": "Cursor"},
         "publisher": {"const": "Anysphere"},
         "official_download_url": {"const": "https://cursor.com/download"},
         "display_name_regex": {"type": "string", "minLength": 1},
         "process_names": {"type": "array", "minItems": 1, "uniqueItems": true, "contains": {"const": "Cursor.exe"}, "items": {"type": "string", "minLength": 1}},
-        "expected_executable": {"const": "Cursor.exe"}
+        "expected_executable": {"const": "Cursor.exe"},
+        "cli_entry_names": {"type": "array", "minItems": 1, "uniqueItems": true, "contains": {"const": "cursor.cmd"}, "items": {"type": "string", "pattern": "^cursor(?:\\.cmd|\\.exe)$"}}
       }
     },
     "installation": {

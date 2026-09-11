@@ -14,6 +14,8 @@ LAUNCHER = ROOT / "Manage-Cursor.cmd"
 DOC = ROOT / "docs/CURSOR_WORKSTATION_LIFECYCLE.md"
 WORKFLOW = ROOT / ".github/workflows/cursor-workstation-lifecycle.yml"
 ROUTING = ROOT / "harness/api/developer-workstation-agent-routing.json"
+PRIMARY_ROUTING = ROOT / "harness/api/agent-routing-manifest.json"
+CURSOR_SIGNALS = {"install Cursor", "uninstall Cursor", "Cursor Error 32", "unins000.dat"}
 
 
 def read(path: Path) -> str:
@@ -33,6 +35,7 @@ def test_profile_schema_and_readonly_posture() -> None:
     assert profile["posture"]["current_security_principal_only"] is True
     assert profile["posture"]["system_verification_requires_registration_and_executable"] is True
     assert profile["application"]["expected_executable"] == "Cursor.exe"
+    assert set(profile["application"]["cli_entry_names"]) == {"cursor.cmd", "cursor.exe"}
     pattern = schema["properties"]["installation"]["properties"]["uninstall_registry_roots"]["items"]["properties"]["path"]["pattern"]
     for row in profile["installation"]["uninstall_registry_roots"]:
         assert re.match(pattern, row["path"]), row
@@ -49,10 +52,12 @@ def test_engine_is_readonly_and_fail_closed() -> None:
     assert "mutation_available = $false" in text
     assert "target_mutation_performed = $false" in text
     assert "VERIFIED_ABSENT_CURRENT_CONTEXT" in text
+    assert "RegistrationInspectionSucceeded" in text
     assert "ProcessInspectionSucceeded" in text and "inspection-incomplete" in text
     assert "[Guid]::NewGuid()" in text
     assert "if ([string]::IsNullOrWhiteSpace($replacement)) { return '' }" in text
     assert "MachineInstallEvidence" in text and "ExecutableExists" in text
+    assert "cli_path_templates" in text and "cli_entry_names" in text
     assert "ExternalCommandPathsIgnored" in text
     for forbidden in (
         "Start-Process", "Stop-Process", "Remove-Item", "Remove-ItemProperty",
@@ -62,13 +67,18 @@ def test_engine_is_readonly_and_fail_closed() -> None:
         assert forbidden not in text, f"read-only engine contains mutating lifecycle marker: {forbidden}"
 
 
-def test_launcher_refuses_mutation_actions() -> None:
+def test_launcher_refuses_mutation_and_refreshes_before_inventory() -> None:
     text = read(LAUNCHER)
-    assert 'if /I "%~1"=="Audit" goto run' in text
-    assert 'if /I "%~1"=="Verify" goto run' in text
+    assert 'if /I "%~1"=="Audit" goto freshness' in text
+    assert 'if /I "%~1"=="Verify" goto freshness' in text
     assert "Cursor mutation is intentionally unavailable" in text
     assert "InstallSystem, Uninstall, and RecoveryPurge are intentionally disabled" in text
-    assert "scripts\\Invoke-SasCursorWorkstation.ps1" in text
+    refresh = text.index('scripts\\Invoke-SasNetworkAwareField.ps1\" refresh')
+    reentry = text.index('call \"C:\\SASAL\\Manage-Cursor.cmd\" %*')
+    engine = text.index('scripts\\Invoke-SasCursorWorkstation.ps1')
+    assert refresh < reentry < engine
+    assert 'SAS_CURSOR_AUDIT_REFRESHED=1' in text
+    assert not re.search(r"(?i)\bgit\s+(?:pull|fetch|reset|checkout)\b", text)
 
 
 def test_doctrine_explains_quarantine_and_proof_ceiling() -> None:
@@ -78,6 +88,7 @@ def test_doctrine_explains_quarantine_and_proof_ceiling() -> None:
         "current security principal", "unins000.dat", "Error 32",
         "mutation trust boundary", "registered uninstall executables",
         "REG_EXPAND_SZ", "collision-resistant evidence run IDs",
+        "RegistrationInspectionSucceeded=false", "C:\\SASAL\\Manage-Cursor.cmd",
     ):
         assert marker in text, marker
     assert re.search(r"(?:cannot|does not) prove a physical workstation repair", text, re.IGNORECASE)
@@ -86,11 +97,15 @@ def test_doctrine_explains_quarantine_and_proof_ceiling() -> None:
 def test_routing_and_ci_are_registered() -> None:
     routing = load(ROUTING)
     phrases = {row["phrase"] for row in routing["triggers"]}
-    assert {"install Cursor", "uninstall Cursor", "Cursor Error 32", "unins000.dat"} <= phrases
+    assert CURSOR_SIGNALS <= phrases
+    primary = next(row for row in load(PRIMARY_ROUTING)["triggers"] if row["target"] == "developer-workstation")
+    assert CURSOR_SIGNALS <= set(primary["deterministic_task_signals"])
     workflow = read(WORKFLOW)
     assert workflow.count("persist-credentials: false") == 2
+    assert "harness/api/agent-routing-manifest.json" in workflow
     assert "test_cursor_workstation_lifecycle_contracts.py" in workflow
     assert "test_developer_workstation_agent_harness_contracts.py" in workflow
+    assert "test_agent_routing_manifest_contracts.py" in workflow
     assert "-Action Audit" in workflow and "-Action Verify -ExpectedState Absent" in workflow
     assert "InstallSystem" not in workflow and "RecoveryPurge" not in workflow
 
