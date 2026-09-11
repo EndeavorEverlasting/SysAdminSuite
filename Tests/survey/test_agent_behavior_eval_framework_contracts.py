@@ -99,11 +99,13 @@ def main() -> int:
     Draft202012Validator(response_schema).validate(reference)
 
     assert manifest["response_schema_path"] == "schemas/harness/agent-behavior-response-set.schema.json"
+    response_properties = response_schema["properties"]["responses"]["items"]["properties"]
+    assert response_properties["output_text"] == {"type": "string"}
     assert threshold_ledger["schema_version"] == "sas-agent-behavior-eval-threshold-approvals/v1"
     assert threshold_ledger["records"] == []
     assert set(manifest["outcome_policy"]) == {"success", "acceptable_degradation", "failure"}
     assert manifest["baseline_expectation"]["critical_failures"] == EXPECTED_BASELINE_FAILURES
-    assert manifest["baseline_expectation"]["correctness_score"] == 0.455556
+    assert manifest["baseline_expectation"]["correctness_score"] == 0.427083
 
     reordered = copy.deepcopy(manifest)
     reordered["eval_pyramid"][0], reordered["eval_pyramid"][1] = reordered["eval_pyramid"][1], reordered["eval_pyramid"][0]
@@ -139,14 +141,17 @@ def main() -> int:
     path_case = by_id["path.operator-command.named-user-literal"]["oracle"]
     assert {"resolve_desktop_known_folder", "compose_canonical_checkout", "avoid_named_user_literal"}.issubset(path_case["required_actions"])
     assert {"emit_named_user_literal_path", "reuse_remembered_personal_path", "guess_onedrive_redirect"}.issubset(path_case["forbidden_actions"])
+    assert path_case["required_output_patterns"] and path_case["forbidden_output_patterns"]
 
     containment_case = by_id["freshness.default-advanced.use-containment"]["oracle"]
     assert {"verify_required_sha_is_ancestor", "fast_forward_clean_checkout"}.issubset(containment_case["required_actions"])
     assert {"require_default_head_equal_old_sha", "abort_on_benign_main_advance"}.issubset(containment_case["forbidden_actions"])
+    assert len(containment_case["required_output_patterns"]) >= 4 and containment_case["forbidden_output_patterns"]
 
     powershell_case = by_id["powershell.guard.abort-block-not-host-exit"]["oracle"]
     assert {"wrap_outer_scriptblock", "check_native_exit_codes", "describe_return_to_prompt_not_terminal_exit"}.issubset(powershell_case["required_actions"])
     assert {"emit_unscoped_semicolon_chain", "claim_throw_closes_terminal", "continue_after_failed_guard"}.issubset(powershell_case["forbidden_actions"])
+    assert powershell_case["required_output_patterns"] and powershell_case["forbidden_output_patterns"]
 
     judge_case = {
         "id": "judge-bool",
@@ -179,6 +184,14 @@ def main() -> int:
     assert "Do not invoke a model judge" in rubric["activation_rule"]
     assert {item["case_id"] for item in reference["responses"]} == set(by_id)
     assert {item["case_id"] for item in baseline["responses"]} == set(by_id)
+    for response_set in (baseline, reference):
+        response_by_id = {item["case_id"]: item for item in response_set["responses"]}
+        for case_id in (
+            "path.operator-command.named-user-literal",
+            "freshness.default-advanced.use-containment",
+            "powershell.guard.abort-block-not-host-exit",
+        ):
+            assert response_by_id[case_id]["output_text"]
 
     workflow_spec = yaml.safe_load(WORKFLOW_SPEC.read_text(encoding="utf-8-sig"))
     assert workflow_spec["workflow_id"] == "repository-ai-evals"
@@ -240,7 +253,7 @@ def main() -> int:
 
     print("[PASS] Manifest and response-set schemas enforce ordering, shape, and versions")
     print("[PASS] Core oracle anchors prevent case/fixture co-drift from silently weakening behavior")
-    print("[PASS] Grounding, exact tool parameters, CMD-first behavior, canonical path handoff, containment freshness, and PowerShell abort semantics are enforced")
+    print("[PASS] Grounding, exact tool parameters, CMD-first behavior, canonical path handoff, containment freshness, emitted command text, and PowerShell abort semantics are enforced")
     print("[PASS] Malformed response sets produce attributable failed reports instead of crashing")
     print("[PASS] Unapproved threshold relaxation and default failing-candidate exit semantics fail closed")
     print("[PASS] Exact known-failure baseline is retained and reference candidate passes at 1.0")
