@@ -63,6 +63,10 @@ def main() -> None:
     for forbidden in ("nmap", "naabu", "9100", "5985", "5986"):
         assert forbidden not in cmd.lower(), forbidden
 
+    # The canary's own footer must agree with the technician-facing CMD doctrine.
+    assert "Terminal contract: invoke C:\\SASAL\\Probe-Cybernet.cmd from Windows CMD; current directory is irrelevant." in canary
+    assert "installed sas command from Windows PowerShell" not in canary
+
     # Operator docs must make CMD the front door and preserve the proof ceiling.
     for path in (DOC, MAP, START):
         body = text(path)
