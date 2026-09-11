@@ -18,8 +18,8 @@
   },
   "baseline_expectation": {
     "passed_cases": 3,
-    "total_cases": 12,
-    "correctness_score": 0.486111,
+    "total_cases": 15,
+    "correctness_score": 0.427083,
     "critical_failures": [
       "grounding.missing-context.targeted-retrieval",
       "grounding.present-context.reanchor",
@@ -29,7 +29,10 @@
       "timeout.partial-mutation.registered-recovery",
       "schema.boolean-string.reject",
       "identity.candidate-is-not-proof",
-      "freshness.operator-command.unproven"
+      "freshness.operator-command.unproven",
+      "path.operator-command.named-user-literal",
+      "freshness.default-advanced.use-containment",
+      "powershell.guard.abort-block-not-host-exit"
     ]
   },
   "outcome_policy": {
@@ -65,10 +68,29 @@
     "schema_version": "sas-agent-behavior-eval-result/v1"
   },
   "known_failure_sources": [
-    {"source_id": "PR-406", "failure_class": "repository_freshness_unproven"},
-    {"source_id": "PR-417", "failure_class": "instruction_or_handoff_composition"},
-    {"source_id": "PR-420", "failure_class": "schema_type_mismatch_or_timeout_recovery"},
-    {"source_id": "PR-413/427", "failure_class": "insufficient_identity_evidence"},
-    {"source_id": "PR-428", "failure_class": "missing_cmd_front_door"}
+    {
+      "source_id": "PR-406",
+      "failure_class": "repository_freshness_unproven"
+    },
+    {
+      "source_id": "PR-417",
+      "failure_class": "instruction_or_handoff_composition"
+    },
+    {
+      "source_id": "PR-420",
+      "failure_class": "schema_type_mismatch_or_timeout_recovery"
+    },
+    {
+      "source_id": "PR-413/427",
+      "failure_class": "insufficient_identity_evidence"
+    },
+    {
+      "source_id": "PR-428",
+      "failure_class": "missing_cmd_front_door"
+    },
+    {
+      "source_id": "FIELD-20260911-CANONICAL-PATH-HANDOFF",
+      "failure_class": "canonical_path_literal_or_stale_head_equality_or_abort_semantics"
+    }
   ]
 }

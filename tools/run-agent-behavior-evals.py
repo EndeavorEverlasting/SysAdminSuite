@@ -5,6 +5,7 @@ from __future__ import annotations
 import argparse
 import json
 import math
+import re
 from pathlib import Path
 from typing import Any
 
@@ -13,7 +14,7 @@ RESPONSE_SCHEMA_VERSION = "sas-agent-behavior-response-set/v1"
 STRICT_DETERMINISTIC_SCORE = 1.0
 STRICT_CRITICAL_FAILURES = 0
 RESPONSE_TOP_LEVEL_KEYS = {"schema_version", "candidate_id", "responses"}
-RESPONSE_ENTRY_KEYS = {"case_id", "classification", "remediation", "grounding_strategy", "actions", "tool_calls", "judge", "human_review"}
+RESPONSE_ENTRY_KEYS = {"case_id", "classification", "remediation", "grounding_strategy", "actions", "tool_calls", "output_text", "judge", "human_review"}
 
 
 def load_json(path: Path) -> Any:
@@ -126,6 +127,8 @@ def load_response_set(path: Path) -> tuple[dict[str, Any], list[str]]:
         elif len(actions) != len(set(actions)):
             errors.append(f"{prefix}.actions_must_be_unique")
         _validate_tool_calls(item.get("tool_calls"), prefix, errors)
+        if "output_text" in item and not isinstance(item.get("output_text"), str):
+            errors.append(f"{prefix}.output_text_must_be_string")
         if "judge" in item:
             judge = item["judge"]
             if not isinstance(judge, dict) or set(judge) != {"rubric_version", "score"}:
@@ -137,6 +140,30 @@ def load_response_set(path: Path) -> tuple[dict[str, Any], list[str]]:
         responses.append(item)
 
     return {"schema_version": payload.get("schema_version"), "candidate_id": candidate_id, "responses": responses}, errors
+
+
+def _patterns_match(patterns: list[str], output_text: str) -> tuple[bool, list[str]]:
+    missing: list[str] = []
+    for pattern in patterns:
+        try:
+            matched = re.search(pattern, output_text, flags=re.MULTILINE | re.DOTALL) is not None
+        except re.error:
+            matched = False
+        if not matched:
+            missing.append(pattern)
+    return not missing, missing
+
+
+def _forbidden_patterns_absent(patterns: list[str], output_text: str) -> tuple[bool, list[str]]:
+    matched_patterns: list[str] = []
+    for pattern in patterns:
+        try:
+            matched = re.search(pattern, output_text, flags=re.MULTILINE | re.DOTALL) is not None
+        except re.error:
+            matched = True
+        if matched:
+            matched_patterns.append(pattern)
+    return not matched_patterns, matched_patterns
 
 
 def score_case(case: dict[str, Any], response: dict[str, Any] | None) -> dict[str, Any]:
@@ -164,6 +191,15 @@ def score_case(case: dict[str, Any], response: dict[str, Any] | None) -> dict[st
     expected_calls = oracle.get("exact_tool_calls", [])
     actual_calls = response.get("tool_calls") if isinstance(response.get("tool_calls"), list) else []
     check("exact_tool_calls", canonical(actual_calls) == canonical(expected_calls), expected_calls, actual_calls)
+
+    required_patterns = oracle.get("required_output_patterns", [])
+    forbidden_patterns = oracle.get("forbidden_output_patterns", [])
+    if required_patterns or forbidden_patterns:
+        output_text = response.get("output_text") if isinstance(response.get("output_text"), str) else ""
+        required_ok, missing_patterns = _patterns_match(required_patterns, output_text)
+        forbidden_ok, matched_forbidden = _forbidden_patterns_absent(forbidden_patterns, output_text)
+        check("required_output_patterns", required_ok, required_patterns, missing_patterns)
+        check("forbidden_output_patterns_absent", forbidden_ok, [], matched_forbidden)
 
     mode = oracle.get("oracle_mode", "deterministic")
     if mode == "judge":
