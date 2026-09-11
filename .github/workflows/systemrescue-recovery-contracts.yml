@@ -5,6 +5,7 @@ on:
     paths:
       - "recovery/systemrescue/**"
       - "Tests/recovery/test_systemrescue_recovery_contracts.py"
+      - "Tests/recovery/test_systemrescue_nvme_forensics_contracts.py"
       - "START-HERE-SYSTEMRESCUE-RECOVERY.md"
       - ".github/workflows/systemrescue-recovery-contracts.yml"
   push:
@@ -13,6 +14,7 @@ on:
     paths:
       - "recovery/systemrescue/**"
       - "Tests/recovery/test_systemrescue_recovery_contracts.py"
+      - "Tests/recovery/test_systemrescue_nvme_forensics_contracts.py"
       - "START-HERE-SYSTEMRESCUE-RECOVERY.md"
       - ".github/workflows/systemrescue-recovery-contracts.yml"
 
@@ -25,7 +27,7 @@ jobs:
     timeout-minutes: 5
     steps:
       - uses: actions/checkout@v4
-      - name: Parse shell entrypoint and libraries
+      - name: Parse shell entrypoint, libraries, and field-kit scripts
         shell: bash
         run: |
           set -Eeuo pipefail
@@ -33,7 +35,13 @@ jobs:
           for file in recovery/systemrescue/lib/*.sh; do
             bash -n "$file"
           done
+          bash -n recovery/systemrescue/export-field-kit.sh
+          bash -n recovery/systemrescue/verify-field-kit.sh
       - name: Run recovery contract tests
-        run: python Tests/recovery/test_systemrescue_recovery_contracts.py
-      - name: Compile Python contract test
-        run: python -m py_compile Tests/recovery/test_systemrescue_recovery_contracts.py
+        run: |
+          python Tests/recovery/test_systemrescue_recovery_contracts.py
+          python Tests/recovery/test_systemrescue_nvme_forensics_contracts.py
+      - name: Compile Python contract tests
+        run: |
+          python -m py_compile Tests/recovery/test_systemrescue_recovery_contracts.py
+          python -m py_compile Tests/recovery/test_systemrescue_nvme_forensics_contracts.py
