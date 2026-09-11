@@ -4,29 +4,51 @@
 
 Find Cybernet candidates without repeating the early broad-scan mistake where access points, printers, and other network devices were treated as useful workstation targets.
 
+The real field question is:
+
+> **Is each explicit candidate a Windows client workstation, and can it return model + serial for comparison with the approved Cybernet hardware reference?**
+
 The professional funnel is deliberately asymmetric:
 
 1. **Population before packets** — prefer an approved computer population from AD, tracker/inventory, prior evidence, DNS/DHCP correlation, or another authorized workstation source.
-2. **PC-signature network gate** — probe only TCP **135 and 445**, with zero scan retries and a default rate of 50. Both ports must be observed before a host becomes a metadata candidate.
-3. **Workstation-class gate** — a candidate gets at most one read-only DCOM/CIM session. `Win32_OperatingSystem.ProductType` must equal `1` (Windows client workstation) before hardware metadata is requested.
-4. **Hardware identity** — only a confirmed client workstation is queried for manufacturer/model and BIOS serial.
-5. **Cybernet identity** — model + serial are compared with the separately approved Cybernet hardware reference. Network signature alone never means “Cybernet.”
+2. **Reuse authoritative exclusions first** — printers, access points, Cronus/time clocks, servers, and other non-Cybernet devices may be removed before new querying only when `harness/api/cybernet-device-exclusion-registry.json` permits it. Weak clues never accumulate into exclusion authority.
+3. **PC-signature network gate** — probe only TCP **135 and 445**, with zero scan retries and a default rate of 50. Both ports must be observed before a host becomes a metadata candidate.
+4. **Workstation-class gate** — a candidate gets at most one read-only DCOM/CIM session. `Win32_OperatingSystem.ProductType` must equal `1` (Windows client workstation) before hardware metadata is requested.
+5. **Hardware identity** — only a confirmed client workstation is queried for manufacturer/model and BIOS serial.
+6. **Cybernet identity** — model + serial are compared with the separately approved Cybernet hardware reference. Network signature alone never means “Cybernet.”
 
 This is **not a stealth feature**. It minimizes unnecessary packets and unnecessary metadata queries; it does not hide activity and does not guarantee that monitoring will not alert.
 
+## Primary technician front door — CMD
+
+Run the probe from **Command Prompt** with up to five explicit candidates:
+
+```cmd
+C:\SASAL\Probe-Cybernet.cmd HOST01 HOST02
+```
+
+`Probe-Cybernet.cmd` is deliberately currentness-first. Before any target contact it routes through the repository-owned refresh transaction. That transaction performs remote Git synchronization only in the Guest/Internet sync cache, resolves current `origin/main`, derives a clean field-ready runtime, restores the starting network posture, and reseals `C:\SASAL`. The CMD then re-enters the **refreshed** `C:\SASAL\Probe-Cybernet.cmd` and runs exactly one bounded Cybernet canary.
+
+The CMD does **not** perform a generic discovery scan and does not run `git pull` in the caller checkout. If current repository proof or network restoration fails, the probe stops before target contact.
+
+The CMD prints its evidence ladder before running:
+
+- TCP 135 + 445 open → metadata candidate only;
+- `ProductType=1` → Windows client workstation only;
+- model + BIOS serial → observed hardware identity facts;
+- `CONFIRMED_CYBERNET` → only after the observed model + serial satisfy the approved hardware reference.
+
 ## Lane A — professional candidate survey
 
-Operator terminal: Git Bash / Bash-on-Windows.
-
-This lane performs network signature collection only; it performs no endpoint metadata query. Start from an approved **computer** host/IP list. Do not feed it printers, access points, arbitrary subnet discoveries, CIDRs, ranges, or wildcards.
+This optional population-reduction lane runs in Git Bash / Bash-on-Windows. It performs network signature collection only; it performs no endpoint metadata query. Start from an approved **computer** host/IP list. Do not feed it printers, access points, arbitrary subnet discoveries, CIDRs, ranges, or wildcards.
 
 ```bash
 bash survey/sas-run-windows-pc-signature.sh --list targets/local/approved_computers.txt
 ```
 
-Before any live Naabu invocation, the wrapper delegates protected-network admission to the canonical PowerShell `Confirm-SasNorthwellNetwork.ps1` gate. That authority accepts approved WAB Wi-Fi and the current repository-supported **DomainAuthenticated non-Wi-Fi VPN/LAN** posture; the Bash wrapper does not invent a separate VPN detector. The gate is invoked noninteractively and performs no target contact.
+Before any live Naabu invocation, the wrapper delegates protected-network admission to the canonical PowerShell `Confirm-SasNorthwellNetwork.ps1` gate. That authority accepts approved WAB Wi-Fi and the repository-supported **DomainAuthenticated non-Wi-Fi VPN/LAN** posture; the Bash wrapper does not invent a separate VPN detector.
 
-The wrapper is pinned to the generated `windows_pc_signature_json` profile:
+The generated `windows_pc_signature_json` profile is intentionally narrow:
 
 - TCP ports: `135,445` only
 - Naabu retries: `0`
@@ -36,29 +58,11 @@ The wrapper is pinned to the generated `windows_pc_signature_json` profile:
 - target mutation: none
 - metadata queries: none
 
-It writes ignored local artifacts under `logs/nmap/` and `survey/output/windows_pc_signature/`, including a candidate list containing only hosts where **both** ports were observed.
-
-Why this removes the earlier noise problem:
-
-- web-only access points do not qualify;
-- ordinary printers exposing HTTP/HTTPS or TCP 9100 do not qualify;
-- RPC-only or SMB-only devices do not qualify;
-- no service/version/vulnerability scan is performed;
-- no metadata call is made by this lane.
-
-A device can still expose both 135 and 445 without being a user workstation. That is why the next lane proves Windows client `ProductType=1` before reading hardware metadata.
+It writes ignored local artifacts under `logs/nmap/` and `survey/output/windows_pc_signature/`, including a candidate list containing only hosts where **both** ports were observed. A dual-port match is still only candidate evidence.
 
 ## Lane B — bounded metadata canary
 
-Operator terminal: **Windows PowerShell**.
-
-Use the installed `sas` command from any directory:
-
-```powershell
-sas cybernet canary HOST01 HOST02
-```
-
-Up to five explicit approved hostnames/FQDNs/IPs may be supplied. CIDRs, IP ranges, wildcard patterns, and subnet-discovery inputs are rejected before the network-aware wrapper changes network posture.
+The CMD front door ultimately runs `survey/sas-cybernet-canary.ps1` from the refreshed sealed runtime. The canary accepts at most five explicit approved hostnames/FQDNs/IPs. CIDRs, IP ranges, wildcard patterns, and subnet-discovery inputs are rejected.
 
 For candidates without reusable completed evidence, the canary performs one canonical preflight pass containing DNS resolution, one ICMP attempt, and TCP 135 + 445. It opens one DCOM/CIM session only when **both** ports are open. Inside that same session it first reads only `Win32_OperatingSystem.Caption` and `ProductType`.
 
@@ -69,18 +73,13 @@ Hardware queries are conditional:
 - ProductType unavailable/denied → stop; hardware metadata is skipped.
 - 135 or 445 missing → stop before any CIM session.
 
-When workstation class passes, the same one-shot session may read:
+When workstation class passes, the same one-shot session may read `Win32_ComputerSystem` for hostname/manufacturer/model and `Win32_BIOS` for BIOS serial. There is no canary-level retry and no command-line credential input.
 
-- `Win32_ComputerSystem`: hostname, manufacturer, model
-- `Win32_BIOS`: BIOS serial
+## Evidence reuse and artifacts
 
-There is no canary-level retry and no command-line credential input.
+Completed canary evidence may be reused for 24 hours based on the original `ObservationTimestamp`. Reuse never refreshes that observation clock. Older 135-only canary records do not satisfy the dual-port schema.
 
-## Evidence reuse
-
-Completed canary evidence may be reused for 24 hours based on the original `ObservationTimestamp`. Reuse never refreshes that observation clock. Older 135-only canary records do not satisfy the new dual-port schema and therefore cannot bypass the professional signature gate.
-
-Expected local artifacts:
+Expected ignored local artifacts:
 
 ```text
 survey/output/cybernet_canary/<run>/cybernet_canary_identity.csv
@@ -106,22 +105,12 @@ Useful fields include `Port135`, `Port445`, `PcSignatureStatus`, `WorkstationSta
 
 None of these classifications alone equals `CONFIRMED_CYBERNET`. Cybernet classification still requires observed model + observed serial + the approved hardware reference.
 
-## Known-good calibration
-
-A physically controlled, already-known Cybernet is valuable as a calibration target because it lets the operator confirm that the VPN/network path exposes the expected dual-port signature and read-only workstation metadata before scaling. Keep its hostname, serial, model, IP, and run evidence machine-local; tracked documentation uses synthetic placeholders only.
-
 ## If the approved computer population is incomplete
 
-Do **not** fall back immediately to the old broad web/printer-aware key-port scan. Expand population sources before expanding packet scope:
+Do **not** fall back immediately to the old broad web/printer-aware key-port scan. Expand population sources before expanding packet scope: AD computer records, tracker/deployment evidence, DNS/DHCP correlation, and approved SCCM/CMDB/endpoint inventory. Only when an approved subnet sweep is genuinely required should subnet-survey authority be used; feed resulting computer candidates back through the narrow identity funnel.
 
-1. Active Directory computer export / registered computer population.
-2. Existing tracker, serial manifest, deployment sheet, or prior local evidence.
-3. DNS and DHCP correlation against those computer records.
-4. SCCM/ConfigMgr, CMDB, endpoint-management, or other authorized workstation inventory when available.
-5. Only when an approved subnet sweep is genuinely required, use the subnet-survey authority with explicit CIDR approval; keep that discovery evidence separate and feed resulting computer candidates back through the 135+445 signature gate before metadata.
-
-The existing generic `keyports_cybernet_json` profile remains useful for broader service posture after a target population is already justified. It is **not** the preferred first-pass Cybernet hunting profile because its 80/443/3389/5985/5986 observations answer different questions and can surface unrelated infrastructure.
+The generic `keyports_cybernet_json` profile remains useful for broader service posture after a target population is already justified. It is **not** the preferred first-pass Cybernet hunt because its broader ports answer different questions and surface unrelated infrastructure.
 
 ## Proof ceiling
 
-This workflow can prove bounded reachability, dual-port candidate posture, Windows client-workstation class, and read-only hardware observations. It cannot prove a device is a Cybernet without the approved hardware reference, authorize deployment, or claim reduced monitoring visibility.
+This workflow can prove current repository selection, bounded reachability, dual-port candidate posture, Windows client-workstation class, and read-only hardware observations. It cannot prove a device is a Cybernet without the approved hardware reference, authorize deployment, or claim reduced monitoring visibility.
