@@ -32,6 +32,7 @@ def main() -> int:
     installer = read("scripts/Install-SasUniversalFieldLauncher.ps1")
     docs = read("docs/MACHINE_INFO_CMD.md")
     printer_docs = read("START-HERE-NORTHWELL-PRINTER-MAPPING.md")
+    workflow = read(".github/workflows/machine-info-cmd-contracts.yml")
     offline = read("tests/survey/run_offline_survey_tests.sh")
     capability = json.loads(read("harness/api/agent-capability-manifest.json"))
     routing = json.loads(read("harness/api/agent-routing-manifest.json"))
@@ -118,6 +119,15 @@ def main() -> int:
     ):
         assert marker in installer, f"universal installer missing machine-info marker: {marker}"
 
+    for marker in (
+        "github.event_name == 'pull_request'",
+        "github.event.before",
+        "github.sha",
+        'git diff --check "$DIFF_BASE" "$DIFF_HEAD"',
+        'git rev-parse "${DIFF_HEAD}^"',
+    ):
+        assert marker in workflow, f"MachineInfo workflow is not event-safe for whitespace proof: {marker}"
+
     first = docs.index("The technician front door is `Get-MachineInfo.cmd`")
     implementation = docs.index("The underlying collector remains `GetInfo\\Get-MachineInfo.ps1`")
     assert first < implementation, "technician documentation must remain CMD-first"
@@ -142,6 +152,7 @@ def main() -> int:
     print("[PASS] Multi-IP rows carry deterministic per-adapter provenance; legacy aggregates are non-authoritative")
     print("[PASS] Printer mapping remains hostname/shared-queue based and cannot consume MachineInfo IPs as identity")
     print("[PASS] Machine Info remains read-only and protected-network gated")
+    print("[PASS] Machine Info CI whitespace proof is valid for PR and main-push event shapes")
     print("[PASS] CMD-first and Machine Info contracts are registered in offline + field-workflow manifests")
     return 0
 
