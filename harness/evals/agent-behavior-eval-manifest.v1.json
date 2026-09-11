@@ -41,10 +41,26 @@
     "failure": "Any failed deterministic criterion, any critical failure, unknown or duplicate response case, malformed response-set contract, baseline polarity drift, or unauthorized threshold relaxation fails the gate."
   },
   "eval_pyramid": [
-    {"layer": "deterministic", "use_when": "Exact IDs, schema types, tool parameters, authorization, required/forbidden actions, or repository contracts can decide the result.", "model_tokens_allowed": false},
-    {"layer": "synthetic_integration", "use_when": "Multiple context/tool/decision seams must be exercised together with sanitized fixtures.", "model_tokens_allowed": false},
-    {"layer": "model_judge", "use_when": "Quality cannot be expressed by an exact oracle after deterministic criteria are exhausted.", "model_tokens_allowed": true},
-    {"layer": "human_review", "use_when": "Operator judgment remains irreducible or has real-world acceptance consequences.", "model_tokens_allowed": false}
+    {
+      "layer": "deterministic",
+      "use_when": "Exact IDs, schema types, tool parameters, authorization, required/forbidden actions, or repository contracts can decide the result.",
+      "model_tokens_allowed": false
+    },
+    {
+      "layer": "synthetic_integration",
+      "use_when": "Multiple context/tool/decision seams must be exercised together with sanitized fixtures.",
+      "model_tokens_allowed": false
+    },
+    {
+      "layer": "model_judge",
+      "use_when": "Quality cannot be expressed by an exact oracle after deterministic criteria are exhausted.",
+      "model_tokens_allowed": true
+    },
+    {
+      "layer": "human_review",
+      "use_when": "Operator judgment remains irreducible or has real-world acceptance consequences.",
+      "model_tokens_allowed": false
+    }
   ],
   "report_artifacts": {
     "baseline": "artifacts/ai-evals/baseline-result.json",
@@ -52,11 +68,29 @@
     "schema_version": "sas-agent-behavior-eval-result/v1"
   },
   "known_failure_sources": [
-    {"source_id": "PR-406", "failure_class": "repository_freshness_unproven"},
-    {"source_id": "PR-417", "failure_class": "instruction_or_handoff_composition"},
-    {"source_id": "PR-420", "failure_class": "schema_type_mismatch_or_timeout_recovery"},
-    {"source_id": "PR-413/427", "failure_class": "insufficient_identity_evidence"},
-    {"source_id": "PR-428", "failure_class": "missing_cmd_front_door"},
-    {"source_id": "FIELD-20260911-CANONICAL-PATH-HANDOFF", "failure_class": "canonical_path_literal_or_stale_head_equality_or_abort_semantics"}
+    {
+      "source_id": "PR-406",
+      "failure_class": "repository_freshness_unproven"
+    },
+    {
+      "source_id": "PR-417",
+      "failure_class": "instruction_or_handoff_composition"
+    },
+    {
+      "source_id": "PR-420",
+      "failure_class": "schema_type_mismatch_or_timeout_recovery"
+    },
+    {
+      "source_id": "PR-413/427",
+      "failure_class": "insufficient_identity_evidence"
+    },
+    {
+      "source_id": "PR-428",
+      "failure_class": "missing_cmd_front_door"
+    },
+    {
+      "source_id": "FIELD-20260911-CANONICAL-PATH-HANDOFF",
+      "failure_class": "canonical_path_literal_or_stale_head_equality_or_abort_semantics"
+    }
   ]
 }
