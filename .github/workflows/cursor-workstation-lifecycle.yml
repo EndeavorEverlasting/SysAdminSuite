@@ -1,0 +1,87 @@
+name: Cursor Workstation Read-Only Lifecycle
+
+on:
+  pull_request:
+    paths:
+      - 'Config/cursor-workstation-profile.json'
+      - 'schemas/harness/cursor-workstation-profile.schema.json'
+      - 'scripts/Invoke-SasCursorWorkstation.ps1'
+      - 'Manage-Cursor.cmd'
+      - 'docs/CURSOR_WORKSTATION_LIFECYCLE.md'
+      - '.claude/skills/developer-workstation/SKILL.md'
+      - 'harness/api/developer-workstation-agent-routing.json'
+      - 'harness/api/agent-routing-manifest.json'
+      - 'Tests/survey/test_cursor_workstation_lifecycle_contracts.py'
+      - 'Tests/survey/test_developer_workstation_agent_harness_contracts.py'
+      - 'Tests/survey/test_agent_routing_manifest_contracts.py'
+      - '.github/workflows/cursor-workstation-lifecycle.yml'
+  push:
+    branches: [main]
+    paths:
+      - 'Config/cursor-workstation-profile.json'
+      - 'schemas/harness/cursor-workstation-profile.schema.json'
+      - 'scripts/Invoke-SasCursorWorkstation.ps1'
+      - 'Manage-Cursor.cmd'
+      - 'docs/CURSOR_WORKSTATION_LIFECYCLE.md'
+      - '.claude/skills/developer-workstation/SKILL.md'
+      - 'harness/api/developer-workstation-agent-routing.json'
+      - 'harness/api/agent-routing-manifest.json'
+      - 'Tests/survey/test_cursor_workstation_lifecycle_contracts.py'
+      - 'Tests/survey/test_developer_workstation_agent_harness_contracts.py'
+      - 'Tests/survey/test_agent_routing_manifest_contracts.py'
+      - '.github/workflows/cursor-workstation-lifecycle.yml'
+
+permissions:
+  contents: read
+
+jobs:
+  contracts:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.x'
+      - name: Install schema validator
+        run: python -m pip install jsonschema
+      - name: Validate Cursor and routing contracts
+        run: |
+          python Tests/survey/test_cursor_workstation_lifecycle_contracts.py
+          python Tests/survey/test_developer_workstation_agent_harness_contracts.py
+          python Tests/survey/test_agent_routing_manifest_contracts.py
+      - name: Check PR whitespace
+        if: github.event_name == 'pull_request'
+        env:
+          BASE_REF: ${{ github.base_ref }}
+        run: git diff --check "origin/$BASE_REF...HEAD"
+      - name: Check pushed commit whitespace
+        if: github.event_name == 'push'
+        run: git diff --check HEAD^..HEAD
+
+  windows-read-only:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.x'
+      - name: Parse lifecycle engine with Windows PowerShell 5.1
+        shell: powershell
+        run: |
+          $tokens=$null; $errors=$null
+          [void][System.Management.Automation.Language.Parser]::ParseFile((Resolve-Path 'scripts/Invoke-SasCursorWorkstation.ps1'),[ref]$tokens,[ref]$errors)
+          if (@($errors).Count) { throw $errors[0].Message }
+      - name: Audit clean runner
+        shell: powershell
+        run: powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\scripts\Invoke-SasCursorWorkstation.ps1 -Action Audit
+      - name: Verify current-context absent state
+        shell: powershell
+        run: powershell.exe -NoProfile -ExecutionPolicy Bypass -File .\scripts\Invoke-SasCursorWorkstation.ps1 -Action Verify -ExpectedState Absent
+      - name: Run dependency-free Cursor contracts
+        shell: powershell
+        run: python Tests/survey/test_cursor_workstation_lifecycle_contracts.py

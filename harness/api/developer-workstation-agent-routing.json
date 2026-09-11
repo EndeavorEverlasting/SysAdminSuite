@@ -2,11 +2,7 @@
   "schema_version": "sas-developer-workstation-agent-routing/v1",
   "schema_path": "schemas/harness/developer-workstation-agent-routing.schema.json",
   "skill_id": "developer-workstation",
-  "terminal_context_labels": [
-    "Windows PowerShell",
-    "WezTerm/tmux Bash",
-    "file content: Lua"
-  ],
+  "terminal_context_labels": ["Windows PowerShell", "WezTerm/tmux Bash", "file content: Lua"],
   "triggers": [
     {"phrase": "set up WezTerm and tmux", "operation": "Plan", "capability_id": "workstation-planning", "terminal_context": "Windows PowerShell"},
     {"phrase": "start my coding workspace", "operation": "Start", "capability_id": "workstation-session-lifecycle", "terminal_context": "Windows PowerShell"},
@@ -15,7 +11,11 @@
     {"phrase": "repair workstation", "operation": "Repair", "capability_id": "workstation-managed-configuration", "terminal_context": "Windows PowerShell"},
     {"phrase": "stop persistent workspace", "operation": "Stop", "capability_id": "workstation-session-lifecycle", "terminal_context": "Windows PowerShell"},
     {"phrase": "use native Linux", "operation": "Plan", "capability_id": "workstation-backend-lifecycle", "terminal_context": "WezTerm/tmux Bash"},
-    {"phrase": "use PowerShell fallback", "operation": "Plan", "capability_id": "workstation-planning", "terminal_context": "Windows PowerShell"}
+    {"phrase": "use PowerShell fallback", "operation": "Plan", "capability_id": "workstation-planning", "terminal_context": "Windows PowerShell"},
+    {"phrase": "install Cursor", "operation": "Status", "capability_id": "workstation-inventory", "terminal_context": "Windows PowerShell"},
+    {"phrase": "uninstall Cursor", "operation": "Status", "capability_id": "workstation-inventory", "terminal_context": "Windows PowerShell"},
+    {"phrase": "Cursor Error 32", "operation": "Status", "capability_id": "workstation-inventory", "terminal_context": "Windows PowerShell"},
+    {"phrase": "unins000.dat", "operation": "Status", "capability_id": "workstation-inventory", "terminal_context": "Windows PowerShell"}
   ],
   "guards": {
     "already_inside_tmux": "route-to-status-or-current-session",

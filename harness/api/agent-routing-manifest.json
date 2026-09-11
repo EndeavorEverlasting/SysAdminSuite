@@ -263,14 +263,18 @@
     },
     {
       "id": "developer-workstation-trigger",
-      "summary": "Route WezTerm, tmux, WSL, Linux host, lifecycle, and coding-agent readiness work.",
+      "summary": "Route WezTerm, tmux, WSL, Linux host, lifecycle, coding-agent readiness, and governed Cursor workstation diagnosis.",
       "deterministic_task_signals": [
         "WezTerm",
         "tmux dev",
         "developer workstation",
         "Windows WSL backend",
         "native Linux workstation",
-        "AgentSwitchboard"
+        "AgentSwitchboard",
+        "install Cursor",
+        "uninstall Cursor",
+        "Cursor Error 32",
+        "unins000.dat"
       ],
       "priority": 55,
       "composition_mode": "primary",

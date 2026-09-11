@@ -20,7 +20,7 @@ CAPS = {
 PHRASES = {
     "set up WezTerm and tmux", "start my coding workspace", "why did my tmux session disappear?",
     "check my agents", "repair workstation", "stop persistent workspace", "use native Linux",
-    "use PowerShell fallback",
+    "use PowerShell fallback", "install Cursor", "uninstall Cursor", "Cursor Error 32", "unins000.dat",
 }
 
 
@@ -50,6 +50,8 @@ def test_triggers_are_exact_and_unique() -> None:
     phrases = [item["phrase"] for item in triggers]
     assert set(phrases) == PHRASES and len(phrases) == len(set(phrases))
     assert {item["capability_id"] for item in triggers} <= CAPS
+    cursor = [item for item in triggers if item["phrase"] in {"install Cursor", "uninstall Cursor", "Cursor Error 32", "unins000.dat"}]
+    assert all(item["operation"] == "Status" and item["capability_id"] == "workstation-inventory" for item in cursor)
 
 
 def test_terminal_context_and_fail_closed_guards() -> None:
@@ -65,6 +67,8 @@ def test_skill_routes_to_real_application_entrypoints() -> None:
     skill = read(SKILL)
     assert "scripts/Invoke-SasWindowsTmuxWorkspace.ps1" in skill
     assert "scripts/invoke-sas-linux-tmux-workspace.sh" in skill
+    assert "docs/CURSOR_WORKSTATION_LIFECYCLE.md" in skill and "Manage-Cursor.cmd Audit" in skill
+    assert "install/uninstall/purge" in skill and "remain unavailable" in skill
     assert "Windows PowerShell" in skill and "WezTerm/tmux Bash" in skill and "file content: Lua" in skill
     assert "already inside tmux" in skill and "never start nested tmux" in skill
     assert "never paste Lua into PowerShell or Bash" in skill

@@ -1,0 +1,83 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "schemas/harness/cursor-workstation-profile.schema.json",
+  "title": "SysAdminSuite Cursor Workstation Read-Only Profile",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema_version", "schema_path", "application", "installation", "evidence", "posture"],
+  "properties": {
+    "schema_version": {"const": "sas-cursor-workstation-profile/v1"},
+    "schema_path": {"const": "schemas/harness/cursor-workstation-profile.schema.json"},
+    "application": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["name", "publisher", "official_download_url", "display_name_regex", "process_names", "expected_executable", "cli_entry_names"],
+      "properties": {
+        "name": {"const": "Cursor"},
+        "publisher": {"const": "Anysphere"},
+        "official_download_url": {"const": "https://cursor.com/download"},
+        "display_name_regex": {"type": "string", "minLength": 1},
+        "process_names": {"type": "array", "minItems": 1, "uniqueItems": true, "contains": {"const": "Cursor.exe"}, "items": {"type": "string", "minLength": 1}},
+        "expected_executable": {"const": "Cursor.exe"},
+        "cli_entry_names": {"type": "array", "minItems": 1, "uniqueItems": true, "contains": {"const": "cursor.cmd"}, "items": {"type": "string", "pattern": "^cursor(?:\\.cmd|\\.exe)$"}}
+      }
+    },
+    "installation": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["machine_install_roots", "user_install_roots", "uninstall_registry_roots", "cli_path_templates"],
+      "properties": {
+        "machine_install_roots": {"$ref": "#/$defs/tokenizedPathList"},
+        "user_install_roots": {"$ref": "#/$defs/tokenizedPathList"},
+        "uninstall_registry_roots": {
+          "type": "array",
+          "minItems": 3,
+          "uniqueItems": true,
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["scope", "path"],
+            "properties": {
+              "scope": {"enum": ["user", "machine64", "machine32"]},
+              "path": {"type": "string", "pattern": "^HK(?:CU|LM):\\\\Software\\\\(?:WOW6432Node\\\\)?Microsoft\\\\Windows\\\\CurrentVersion\\\\Uninstall$"}
+            }
+          }
+        },
+        "cli_path_templates": {"$ref": "#/$defs/tokenizedPathList"}
+      }
+    },
+    "evidence": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["local_output_root", "tracked_runtime_evidence_allowed"],
+      "properties": {
+        "local_output_root": {"$ref": "#/$defs/tokenizedPath"},
+        "tracked_runtime_evidence_allowed": {"const": false}
+      }
+    },
+    "posture": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["mutation_available", "current_security_principal_only", "system_verification_requires_registration_and_executable", "local_audit_precedes_external_outage_assumption"],
+      "properties": {
+        "mutation_available": {"const": false},
+        "current_security_principal_only": {"const": true},
+        "system_verification_requires_registration_and_executable": {"const": true},
+        "local_audit_precedes_external_outage_assumption": {"const": true}
+      }
+    }
+  },
+  "$defs": {
+    "tokenizedPath": {
+      "type": "string",
+      "minLength": 4,
+      "pattern": "^\\{(?:LOCALAPPDATA|APPDATA|USERPROFILE|PROGRAMFILES|PROGRAMFILESX86|PROGRAMDATA|PUBLIC)\\}\\\\.+"
+    },
+    "tokenizedPathList": {
+      "type": "array",
+      "minItems": 1,
+      "uniqueItems": true,
+      "items": {"$ref": "#/$defs/tokenizedPath"}
+    }
+  }
+}
