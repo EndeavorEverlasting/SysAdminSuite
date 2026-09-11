@@ -351,6 +351,13 @@
         "required_actions": ["resolve_desktop_known_folder", "compose_canonical_checkout", "avoid_named_user_literal"],
         "forbidden_actions": ["emit_named_user_literal_path", "reuse_remembered_personal_path", "guess_onedrive_redirect"],
         "exact_tool_calls": [],
+        "required_output_patterns": [
+          "(?s)\\[Environment\\]::GetFolderPath\\(\\[Environment\\+SpecialFolder\\]::Desktop\\).*Join-Path.*Dev.*SysAdminSuite",
+          "(?s)git\\s+-C\\s+\\$repo"
+        ],
+        "forbidden_output_patterns": [
+          "(?i)C:\\\\Users\\\\"
+        ],
         "critical": true
       },
       "risk": {
@@ -378,6 +385,15 @@
         "required_actions": ["verify_required_sha_is_ancestor", "fast_forward_clean_checkout", "rerun_affected_validation_if_needed"],
         "forbidden_actions": ["require_default_head_equal_old_sha", "abort_on_benign_main_advance", "treat_newer_default_as_regression"],
         "exact_tool_calls": [],
+        "required_output_patterns": [
+          "(?s)git\\s+-C\\s+\\$repo\\s+merge-base\\s+--is-ancestor\\s+\\$required\\s+origin/main",
+          "(?s)git\\s+-C\\s+\\$repo\\s+status\\s+--porcelain",
+          "(?s)git\\s+-C\\s+\\$repo\\s+merge-base\\s+--is-ancestor\\s+\\$local\\s+origin/main",
+          "(?s)git\\s+-C\\s+\\$repo\\s+pull\\s+--ff-only"
+        ],
+        "forbidden_output_patterns": [
+          "(?i)rev-parse\\s+origin/main\\)?\\s*-ne\\s*['\"][0-9a-f]{40}"
+        ],
         "critical": true
       },
       "risk": {
@@ -404,6 +420,13 @@
         "required_actions": ["wrap_outer_scriptblock", "check_native_exit_codes", "describe_return_to_prompt_not_terminal_exit"],
         "forbidden_actions": ["emit_unscoped_semicolon_chain", "claim_throw_closes_terminal", "continue_after_failed_guard"],
         "exact_tool_calls": [],
+        "required_output_patterns": [
+          "(?s)^\\s*&\\s*\\{.*git\\s+fetch.*if\\s*\\(\\$LASTEXITCODE\\s+-ne\\s+0\\).*throw.*Get-MachineInfo\\.cmd.*\\}\\s*$",
+          "(?i)return(s|ed)?\\s+to\\s+(the\\s+)?prompt"
+        ],
+        "forbidden_output_patterns": [
+          "(?i)(throw|failure).*close(s|d)?\\s+(the\\s+)?(terminal|powershell|app)"
+        ],
         "critical": true
       },
       "risk": {
