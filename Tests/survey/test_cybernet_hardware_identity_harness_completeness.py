@@ -7,13 +7,16 @@ import sys
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[2]
-VALIDATOR = ROOT / "harness/validators/validate-cybernet-hardware-identity.py"
+VALIDATORS = (
+    ROOT / "harness/validators/validate-cybernet-hardware-identity.py",
+    ROOT / "harness/validators/validate-cybernet-device-exclusion-registry.py",
+)
 
 
-def main() -> None:
-    assert VALIDATOR.is_file(), "Cybernet hardware-identity validator is missing"
+def run_validator(path: Path) -> None:
+    assert path.is_file(), f"Cybernet harness validator is missing: {path.relative_to(ROOT)}"
     result = subprocess.run(
-        [sys.executable, str(VALIDATOR)],
+        [sys.executable, str(path)],
         cwd=ROOT,
         text=True,
         capture_output=True,
@@ -26,6 +29,11 @@ def main() -> None:
             print(result.stderr, file=sys.stderr, end="")
         raise SystemExit(result.returncode)
     print(result.stdout, end="")
+
+
+def main() -> None:
+    for validator in VALIDATORS:
+        run_validator(validator)
     print("PASS: Cybernet hardware-identity harness completeness contract")
 
 

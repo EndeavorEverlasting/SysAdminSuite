@@ -6,7 +6,7 @@ target_mutation: false
 purpose: >-
   Determine whether an explicit workstation candidate is eligible for the Cybernet
   device profile without using software footprint, hostname convention, AD presence,
-  reachability, or subnet/site inference as hardware identity.
+  reachability, subnet/site inference, or weak device-class hints as hardware identity.
 
 inputs:
   required:
@@ -14,6 +14,7 @@ inputs:
   optional:
     - approved_hardware_reference
     - prior_inventory_evidence
+    - approved_device_exclusion_evidence
     - ad_reconciliation_evidence
     - network_preflight_evidence
     - workstation_identity_evidence
@@ -28,8 +29,20 @@ stages:
       - software footprint is non-authoritative for both confirmation and disqualification
       - do not load the Cybernet client profile during candidate intake
 
-  - id: network_preflight
+  - id: pre_query_exclusion
     order: 2
+    actions:
+      - consult harness/api/cybernet-device-exclusion-registry.json against existing approved evidence before spending network-signature or endpoint-metadata work
+      - default to DO_NOT_EXCLUDE when exclusion authority is missing
+      - require AUTHORITATIVE evidence explicitly bound to the same stable device before excluding a printer, access point, Cronus/time clock, server, or other non-Cybernet device before endpoint metadata
+      - weak/corroborating/strong evidence never accumulates into automatic exclusion authority
+      - hostname patterns, software presence or absence, subnet/site inference, open ports, MAC OUI, and the 135+445 network signature never auto-exclude
+      - do not create new active queries solely to obtain exclusion evidence
+      - if credible evidence conflicts or positive Cybernet hardware evidence exists, use REVIEW_REQUIRED_NO_AUTO_EXCLUSION and continue only through read-only identity review
+      - preserve live exclusion records outside Git using stable device keys rather than hostname/IP alone
+
+  - id: network_preflight
+    order: 3
     actions:
       - when reachability evidence is needed, use the repository low-noise explicit-target preflight
       - DNS resolution, ping response, and open TCP ports may earn a deeper identity query but never confirm Cybernet identity
@@ -37,7 +50,7 @@ stages:
       - a non-response is not proof that the candidate is not a Cybernet
 
   - id: hardware_identity_collection
-    order: 3
+    order: 4
     actions:
       - require observed serial and observed model before Cybernet confirmation is possible
       - use bash/transport/sas-workstation-identity.sh only for the fields it actually returns
@@ -46,7 +59,7 @@ stages:
       - do not infer model from software, hostname, site, subnet, MAC vendor, or remembered deployment behavior
 
   - id: reference_comparison
-    order: 4
+    order: 5
     actions:
       - compare observed serial and observed model with an approved hardware reference
       - keep live hardware reference data local/untracked or in another explicitly approved source
@@ -56,16 +69,16 @@ stages:
       - if evidence sources conflict, classify CONFLICTING_IDENTITY and block profile selection
 
   - id: classification
-    order: 5
+    order: 6
     actions:
       - classify CONFIRMED_CYBERNET only when observed serial plus observed model satisfy the approved hardware reference
       - classify CONFIRMED_NON_CYBERNET only when the approved reference establishes the observed serial/model identity belongs outside the Cybernet hardware class
       - for CONFIRMED_NON_CYBERNET, preserve the record as a known device and mark KEEP_AS_KNOWN_DEVICE_EXCLUDE_FROM_CYBERNET_TARGETS
       - keep unresolved candidates at IDENTITY_INCOMPLETE rather than guessing
-      - never upgrade candidate-only network or software evidence into a hardware classification
+      - never upgrade candidate-only network, software, or weak exclusion evidence into a hardware classification
 
   - id: profile_gate
-    order: 6
+    order: 7
     actions:
       - load Config/cybernet-client-preferences.json only after CONFIRMED_CYBERNET
       - do not select Cybernet software, AutoLogon, hardware configuration, or deployment validators for any other classification
@@ -73,22 +86,37 @@ stages:
       - keep CONFIRMED_NON_CYBERNET out of prime Cybernet target lists while preserving its known-device evidence
 
   - id: failure
-    order: 7
+    order: 8
     actions:
-      - stop on missing serial, missing model, missing reference authority, conflicting evidence, or ambiguous source provenance
-      - report the exact missing identity field or reference dependency
+      - stop on missing serial, missing model, missing reference authority, conflicting evidence, ambiguous source provenance, or unproven exclusion authority
+      - report the exact missing identity field, exclusion authority, or reference dependency
       - do not compensate by broadening scans, installing software, checking software footprint as a classifier, or mutating the target
 
   - id: handoff
-    order: 8
+    order: 9
     actions:
       - report candidate target count without embedding live target values in tracked files
-      - report classification per candidate in local evidence only
+      - report exclusion disposition and hardware classification per candidate in local evidence only
       - report evidence artifact paths and reference authority
       - report whether the Cybernet profile gate is open or closed
-      - report one exact next action: obtain the missing read-only identity field, resolve the reference, or enter the already-authorized Cybernet workflow for CONFIRMED_CYBERNET
+      - report one exact next action: reuse authoritative exclusion evidence, obtain the missing read-only identity field, resolve the reference, or enter the already-authorized Cybernet workflow for CONFIRMED_CYBERNET
 
 outputs:
+  local_exclusion_decision:
+    fields:
+      - target
+      - stable_device_key
+      - device_class
+      - exclusion_disposition
+      - evidence_types
+      - source_references
+    tracking: untracked
+  exclusion_dispositions:
+    - DO_NOT_EXCLUDE
+    - REVIEW_REQUIRED_NO_AUTO_EXCLUSION
+    - EXCLUDED_BEFORE_NETWORK_SIGNATURE
+    - EXCLUDED_BEFORE_ENDPOINT_METADATA
+    - EXCLUDED_BEFORE_HARDWARE_METADATA
   local_identity_decision:
     fields:
       - target
@@ -107,6 +135,7 @@ outputs:
     - CONFIRMED_CYBERNET
 
 proof_ceiling: >-
-  This workflow proves evidence ordering, read-only identity gating, and fail-closed
-  Cybernet profile selection. It does not prove that any live candidate is Cybernet,
-  supply the approved hardware reference, or authorize configuration/deployment.
+  This workflow proves evidence ordering, conservative device exclusion, read-only identity
+  gating, and fail-closed Cybernet profile selection. It does not prove that any live candidate
+  is Cybernet, prove an external exclusion source is accurate, supply the approved hardware
+  reference, or authorize configuration/deployment.
