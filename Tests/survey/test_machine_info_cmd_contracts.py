@@ -67,8 +67,10 @@ def main() -> int:
         'which IP belongs to which interface?',
         "target PCs are hostnames/FQDNs and printers are shared queue identities",
         "Printer IP mapping remains forbidden",
+        "%LOCALAPPDATA%\\SysAdminSuite\\bin\\sas.cmd",
+        "unique suffix prevents concurrent runs",
     ):
-        assert marker in docs, f"machine-info docs missing network-identity semantics: {marker}"
+        assert marker in docs, f"machine-info docs missing network/runtime semantics: {marker}"
     for marker in (
         "Target PCs use hostnames/FQDNs, not IP addresses.",
         "Never map by printer IP address.",
@@ -79,6 +81,9 @@ def main() -> int:
         "'sas-machine-info-run/v1'",
         "SysAdminSuite\\jobs\\MachineInfo",
         "GetInfo\\Get-MachineInfo.ps1",
+        "C:\\SASAL\\GetInfo\\Get-MachineInfo.ps1",
+        "SysAdminSuite\\repo-root.txt",
+        "[guid]::NewGuid().ToString('N').Substring(0,8)",
         "MACHINE_INFO_TARGET_SET_MISMATCH",
         "exact_target_set_validated = $true",
         "target_mutation_performed = $false",
@@ -92,12 +97,19 @@ def main() -> int:
     assert "'machineinfo'" in universal and "Invoke-SasMachineInfo.ps1" in universal
     assert 'Assert-SasProtectedForAction -Purpose $purpose' in universal
 
-    assert "Test-SasMachineInfoShapeForNetworkTransition" in network
-    assert "@('machineinfo','machine-info')" in network
-    assert "$intent = 'ProtectedNorthwell'" in network
+    for marker in (
+        "Test-SasMachineInfoShapeForNetworkTransition",
+        "@('machineinfo','machine-info')",
+        "$intent = 'ProtectedNorthwell'",
+        "Test-Path -LiteralPath $inputPath -PathType Leaf",
+        "$fileTargets.Count -eq 0 -or $fileTargets.Count -gt 500",
+        "Test-SasAdHostNameForNetworkTransition -Value ([string]$value)",
+    ):
+        assert marker in network, f"machine-info network pre-transition validation missing: {marker}"
 
     for marker in (
         "$sourceMachineInfoRunner",
+        "$sourceMachineInfoCore",
         "$sourceMachineInfoTechnicianCmd",
         "$machineInfoRunnerDestination",
         "$machineInfoTechnicianCmdDestination",
@@ -124,7 +136,9 @@ def main() -> int:
 
     print("[PASS] Machine Info has a repository-owned CMD front door")
     print("[PASS] Installed/source launchers route through the universal network-aware SAS command")
-    print("[PASS] Machine Info publishes bounded ProgramData evidence and validates exact target coverage")
+    print("[PASS] Machine Info publishes collision-safe ProgramData evidence and validates exact target coverage")
+    print("[PASS] Direct installed runner resolves only trusted machine-local controller/runtime authorities")
+    print("[PASS] Invalid file targets cannot trigger a protected-network transition")
     print("[PASS] Multi-IP rows carry deterministic per-adapter provenance; legacy aggregates are non-authoritative")
     print("[PASS] Printer mapping remains hostname/shared-queue based and cannot consume MachineInfo IPs as identity")
     print("[PASS] Machine Info remains read-only and protected-network gated")
