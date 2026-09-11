@@ -1,6 +1,6 @@
 # Repository-wide AI behavior evaluations
 
-SysAdminSuite treats AI behavior as a versioned product surface. Ordinary unit tests still validate code; this layer evaluates **agent decisions, grounding, remediation, tool use, and proof boundaries**.
+SysAdminSuite treats AI behavior as a versioned product surface. Ordinary unit tests still validate code; this layer evaluates **agent decisions, grounding, remediation, tool use, emitted handoff evidence, and proof boundaries**.
 
 ## Canonical entrypoint
 
@@ -10,11 +10,11 @@ python tools/run-agent-behavior-evals.py --manifest harness/evals/agent-behavior
 
 The harness-owned workflow is `harness/workflows/agent-behavior-evals.yaml`, and the blocking framework validator is `harness/validators/validate-agent-behavior-evals.py`.
 
-The response adapter is provider-agnostic. A local agent, external agent framework, recorded trace, or future model runner only needs to emit `sas-agent-behavior-response-set/v1`; the repository scorer remains deterministic.
+The response adapter is provider-agnostic. A local agent, external agent framework, recorded trace, or future model runner only needs to emit `sas-agent-behavior-response-set/v1`; the repository scorer remains deterministic. Cases that must validate an actual emitted command or handoff may include `output_text` in the response and pair it with repository-owned `required_output_patterns` / `forbidden_output_patterns`. Those patterns inspect the candidate's emitted evidence instead of trusting self-reported action labels.
 
 ## Eval pyramid
 
-1. **Deterministic** — exact IDs, schema types, tool names/parameters, required and forbidden actions, authorization, and repository contracts.
+1. **Deterministic** — exact IDs, schema types, tool names/parameters, required and forbidden actions, authorization, emitted-text patterns, and repository contracts.
 2. **Synthetic integration** — sanitized multi-seam cases that combine context, tool output, and decision state.
 3. **Model judge** — only after exact oracles are exhausted. The versioned rubric is `harness/evals/judges/repository-quality-rubric.v1.json`.
 4. **Human review** — only for irreducible operator judgment or real-world acceptance.
@@ -32,7 +32,9 @@ The scorer checks the diagnosis and the remediation. A superficially correct fin
 
 ## Current regression classes
 
-The initial suite covers CMD-first field guidance, exact harness operation IDs/tool parameters, malformed tool results, repository freshness before operator commands, timeout/recovery behavior, Boolean schema truthiness, profile/identity proof separation, instruction conflicts, missing authorization, and paired grounding failures. These cases are sanitized from repository regression history; live hostnames, credentials, or private runtime evidence are forbidden.
+The suite covers CMD-first field guidance, exact harness operation IDs/tool parameters, malformed tool results, repository freshness before operator commands, timeout/recovery behavior, Boolean schema truthiness, profile/identity proof separation, instruction conflicts, missing authorization, paired grounding failures, environment-derived canonical-path handoffs, containment-based reconciliation after a benign default-branch advance, and PowerShell preflight abort semantics. These cases are sanitized from repository regression history; live hostnames, credentials, private runtime evidence, and named-user checkout paths are forbidden.
+
+For path-sensitive operator handoffs, a passing response must show the relevant evidence when the oracle requires it. Declaring an action such as `resolve_desktop_known_folder` or `verify_required_sha_is_ancestor` is not sufficient if the emitted handoff still hard-codes `C:\Users\...`, pins an earlier default-branch HEAD by equality, omits clean/behind-only proof, or lets a dependent command run after a failed preflight.
 
 ## Success, acceptable degradation, and failure
 
@@ -69,7 +71,7 @@ For a real candidate, replace only the response-set input. Do not edit the case 
 
 ## Adding a case
 
-Add a sanitized case when a failure is observed in an issue, PR, trace, support note, field incident, or review. Prefer exact deterministic criteria. Record both false-positive and false-negative risks. If a judge is genuinely necessary, set `oracle_mode=judge`, pin the rubric version and threshold, and preserve the judge result beside the candidate response. Human review is the last layer, not the default.
+Add a sanitized case when a failure is observed in an issue, PR, trace, support note, field incident, or review. Prefer exact deterministic criteria. Record both false-positive and false-negative risks. When the defect is visible in the generated handoff itself, use `output_text` plus narrowly scoped required/forbidden regex patterns rather than relying only on declared actions. If a judge is genuinely necessary, set `oracle_mode=judge`, pin the rubric version and threshold, and preserve the judge result beside the candidate response. Human review is the last layer, not the default.
 
 ## Proof boundary
 

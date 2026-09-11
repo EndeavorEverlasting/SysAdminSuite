@@ -43,6 +43,9 @@
               }
             }
           },
+          "output_text": {
+            "type": "string"
+          },
           "judge": {
             "type": "object",
             "additionalProperties": false,
