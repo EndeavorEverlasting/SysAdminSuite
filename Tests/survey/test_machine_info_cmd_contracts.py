@@ -40,13 +40,21 @@ def main() -> int:
     for marker in (
         'call "%~dp0sas.cmd" machineinfo %*',
         'scripts\\Invoke-SasNetworkAwareField.ps1" refresh',
-        '%ProgramData%\\SysAdminSuite\\bin\\sas.cmd',
-        '%LOCALAPPDATA%\\SysAdminSuite\\bin\\sas.cmd',
+        'scripts\\Resolve-SasActiveFieldCmd.ps1',
+        'call "!SAS_ACTIVE!" machineinfo %*',
         'set "SAS_MACHINEINFO_OPEN_OUTPUT=1"',
     ):
         assert marker in cmd, f"machine-info CMD missing marker: {marker}"
     stale_direct = 'Invoke-SasNetworkAwareField.ps1" machineinfo %*'
     assert stale_direct not in cmd, "repository/runtime CMD must refresh before installed MachineInfo handoff"
+    resolver = read("scripts/Resolve-SasActiveFieldCmd.ps1")
+    for marker in (
+        "active-sas-cmd.txt",
+        "LastWriteTimeUtc",
+        "Join-Path $root 'bin\\sas.cmd'",
+        "LOCALAPPDATA",
+    ):
+        assert marker in resolver, f"active sas.cmd resolver missing marker: {marker}"
     for forbidden in ("C:\\Users\\", "OneDrive", "WBK333", "ORT04"):
         assert forbidden not in cmd, f"machine-info CMD contains user/site-specific authority: {forbidden}"
 
@@ -108,8 +116,9 @@ def main() -> int:
     for marker in (
         "Test-SasMachineInfoTargetFileForNetworkTransition",
         "Test-SasMachineInfoShapeForNetworkTransition",
-        "Get-Content -LiteralPath $fullPath -TotalCount 501",
-        "$targets.Count -gt 500",
+        "[IO.File]::OpenText($fullPath)",
+        "$targets.Count -ge 500",
+        "DriveType]::Network",
         "@('machineinfo','machine-info')",
         "$intent = 'ProtectedNorthwell'",
         "StartsWith('\\\\',[StringComparison]::Ordinal)",
@@ -125,6 +134,7 @@ def main() -> int:
         "$machineInfoCoreDestination",
         "$machineInfoHtmlHelperDestination",
         "$machineInfoTechnicianCmdDestination",
+        "active-sas-cmd.txt",
         "Get-MachineInfo.cmd",
         "Invoke-SasMachineInfo.ps1",
         "tools\\ConvertTo-SuiteHtml.ps1",

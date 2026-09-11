@@ -157,6 +157,12 @@ endlocal & exit /b %SAS_EXIT%
 '@
 Set-Content -LiteralPath $cmdDestination -Value $cmd -Encoding ASCII
 
+# Persist the installer-selected launcher so source CMD refresh handoff cannot prefer a stale
+# ProgramData sas.cmd after a current-user shim install.
+$activePointer = Join-Path $installedSurfaceRoot 'active-sas-cmd.txt'
+try { Set-Content -LiteralPath $activePointer -Value $cmdDestination -Encoding ASCII -ErrorAction Stop }
+catch { Write-Warning "Active sas.cmd pointer could not be updated; continuing without it: $($_.Exception.Message)" }
+
 $pathScope = if ($machineInstall) { 'Machine' } else { 'User' }
 $currentPath = [Environment]::GetEnvironmentVariable('Path',$pathScope)
 $segments = @($currentPath -split ';' | ForEach-Object { $_.Trim().TrimEnd('\') } | Where-Object { $_ })

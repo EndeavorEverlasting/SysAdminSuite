@@ -46,19 +46,17 @@ if exist "%~dp0scripts\Invoke-SasNetworkAwareField.ps1" (
     set "SAS_EXIT=!ERRORLEVEL!"
     if not "!SAS_EXIT!"=="0" exit /b !SAS_EXIT!
 
-    if exist "%ProgramData%\SysAdminSuite\bin\sas.cmd" (
-        call "%ProgramData%\SysAdminSuite\bin\sas.cmd" machineinfo %*
-        set "SAS_EXIT=!ERRORLEVEL!"
+    rem Prefer the launcher refresh/install actually wrote. When ProgramData is not writable,
+    rem install lands in LOCALAPPDATA while an older ProgramData sas.cmd may still exist.
+    set "SAS_ACTIVE="
+    for /f "usebackq delims=" %%I in (`powershell.exe -NoLogo -NoProfile -ExecutionPolicy Bypass -File "%~dp0scripts\Resolve-SasActiveFieldCmd.ps1"`) do set "SAS_ACTIVE=%%I"
+    if not defined SAS_ACTIVE (
+        echo ERROR: SysAdminSuite refresh completed but no installed sas.cmd launcher was found.
+        set "SAS_EXIT=1"
         exit /b !SAS_EXIT!
     )
-    if defined LOCALAPPDATA if exist "%LOCALAPPDATA%\SysAdminSuite\bin\sas.cmd" (
-        call "%LOCALAPPDATA%\SysAdminSuite\bin\sas.cmd" machineinfo %*
-        set "SAS_EXIT=!ERRORLEVEL!"
-        exit /b !SAS_EXIT!
-    )
-
-    echo ERROR: SysAdminSuite refresh completed but no installed sas.cmd launcher was found.
-    set "SAS_EXIT=1"
+    call "!SAS_ACTIVE!" machineinfo %*
+    set "SAS_EXIT=!ERRORLEVEL!"
     exit /b !SAS_EXIT!
 )
 

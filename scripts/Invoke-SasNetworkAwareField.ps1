@@ -66,16 +66,33 @@ function Test-SasMachineInfoTargetFileForNetworkTransition {
     if ([string]::IsNullOrWhiteSpace($Path)) { return $false }
     try { $fullPath = [IO.Path]::GetFullPath($Path) } catch { return $false }
     if ($fullPath.StartsWith('\\',[StringComparison]::Ordinal)) { return $false }
+    try {
+        $root = [IO.Path]::GetPathRoot($fullPath)
+        if (-not [string]::IsNullOrWhiteSpace($root) -and $root.Length -ge 2 -and $root[1] -eq [char]':') {
+            $drive = New-Object -TypeName System.IO.DriveInfo -ArgumentList @($root.Substring(0,2))
+            if ($drive.DriveType -eq [System.IO.DriveType]::Network) { return $false }
+        }
+    } catch { return $false }
     if (-not (Test-Path -LiteralPath $fullPath -PathType Leaf)) { return $false }
 
+    $targets = New-Object 'System.Collections.Generic.List[string]'
+    $lineCount = 0
     try {
-        $targets = @(Get-Content -LiteralPath $fullPath -TotalCount 501 -ErrorAction Stop |
-            Where-Object { -not [string]::IsNullOrWhiteSpace([string]$_) } |
-            ForEach-Object { ([string]$_).Trim() })
+        $reader = [IO.File]::OpenText($fullPath)
+        try {
+            while ($null -ne ($line = $reader.ReadLine())) {
+                $lineCount++
+                if ($lineCount -gt 2000) { return $false }
+                if ([string]::IsNullOrWhiteSpace($line)) { continue }
+                if ($targets.Count -ge 500) { return $false }
+                [void]$targets.Add(([string]$line).Trim())
+            }
+        }
+        finally { $reader.Dispose() }
     }
     catch { return $false }
 
-    if ($targets.Count -eq 0 -or $targets.Count -gt 500) { return $false }
+    if ($targets.Count -eq 0) { return $false }
     foreach ($target in $targets) {
         if (-not (Test-SasAdHostNameForNetworkTransition -Value $target)) { return $false }
     }
