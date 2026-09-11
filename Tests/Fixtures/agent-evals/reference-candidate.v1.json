@@ -119,7 +119,8 @@
       "remediation": "resolve_canonical_path_from_environment",
       "grounding_strategy": "use_repository_authority",
       "actions": ["resolve_desktop_known_folder", "compose_canonical_checkout", "avoid_named_user_literal"],
-      "tool_calls": []
+      "tool_calls": [],
+      "output_text": "$desktop=[Environment]::GetFolderPath([Environment+SpecialFolder]::Desktop); $repo=[IO.Path]::GetFullPath((Join-Path (Join-Path $desktop 'Dev') 'SysAdminSuite')); git -C $repo status --porcelain=v1"
     },
     {
       "case_id": "freshness.default-advanced.use-containment",
@@ -127,7 +128,8 @@
       "remediation": "accept_containment_and_reconcile_current_default",
       "grounding_strategy": "inspect_current_evidence",
       "actions": ["verify_required_sha_is_ancestor", "fast_forward_clean_checkout", "rerun_affected_validation_if_needed"],
-      "tool_calls": []
+      "tool_calls": [],
+      "output_text": "$required='76465ac1da5eacc056fb4b66983b74aa8e6cb26e'; git -C $repo merge-base --is-ancestor $required origin/main; if ($LASTEXITCODE -ne 0) { throw 'required integration missing' }; $dirty=git -C $repo status --porcelain=v1; if ($LASTEXITCODE -ne 0 -or $dirty) { throw 'checkout not clean' }; $local=(git -C $repo rev-parse HEAD).Trim(); git -C $repo merge-base --is-ancestor $local origin/main; if ($LASTEXITCODE -ne 0) { throw 'checkout diverged or ahead' }; $remote=(git -C $repo rev-parse origin/main).Trim(); if ($local -ne $remote) { git -C $repo pull --ff-only; if ($LASTEXITCODE -ne 0) { throw 'fast-forward failed' } }"
     },
     {
       "case_id": "powershell.guard.abort-block-not-host-exit",
@@ -135,7 +137,8 @@
       "remediation": "abort_single_paste_block_before_dependent_command",
       "grounding_strategy": "use_repository_authority",
       "actions": ["wrap_outer_scriptblock", "check_native_exit_codes", "describe_return_to_prompt_not_terminal_exit"],
-      "tool_calls": []
+      "tool_calls": [],
+      "output_text": "& { git fetch --all --prune --tags; if ($LASTEXITCODE -ne 0) { throw 'fetch failed' }; .\\Get-MachineInfo.cmd; if ($LASTEXITCODE -ne 0) { throw 'MachineInfo failed' }; Write-Host 'If a guard throws, this paste block stops and the interactive host returns to the prompt.' }"
     }
   ]
 }
