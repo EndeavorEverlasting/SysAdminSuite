@@ -2,15 +2,25 @@
 """Static contracts for the CMD-first machine-info field path."""
 from __future__ import annotations
 
+import json
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[2]
+CMD_FIRST_TEST = "Tests/survey/test_field_guide_cmd_first_contracts.py"
+MACHINE_INFO_TEST = "Tests/survey/test_machine_info_cmd_contracts.py"
 
 
 def read(path: str) -> str:
     target = ROOT / path
     assert target.is_file(), f"missing machine-info authority: {path}"
     return target.read_text(encoding="utf-8-sig")
+
+
+def by_id(items: list[dict], item_id: str) -> dict:
+    for item in items:
+        if item.get("id") == item_id:
+            return item
+    raise AssertionError(f"missing manifest owner: {item_id}")
 
 
 def main() -> int:
@@ -21,6 +31,8 @@ def main() -> int:
     installer = read("scripts/Install-SasUniversalFieldLauncher.ps1")
     docs = read("docs/MACHINE_INFO_CMD.md")
     offline = read("tests/survey/run_offline_survey_tests.sh")
+    capability = json.loads(read("harness/api/agent-capability-manifest.json"))
+    routing = json.loads(read("harness/api/agent-routing-manifest.json"))
 
     for marker in (
         'call "%~dp0sas.cmd" machineinfo %*',
@@ -65,14 +77,24 @@ def main() -> int:
     first = docs.index("The technician front door is `Get-MachineInfo.cmd`")
     implementation = docs.index("The underlying collector remains `GetInfo\\Get-MachineInfo.ps1`")
     assert first < implementation, "technician documentation must remain CMD-first"
-    assert "Tests/survey/test_machine_info_cmd_contracts.py" in offline
-    assert "Tests/survey/test_field_guide_cmd_first_contracts.py" in offline
+    assert MACHINE_INFO_TEST in offline
+    assert CMD_FIRST_TEST in offline
+
+    field_design = by_id(capability["capabilities"], "field-command-design")
+    field_skill = by_id(capability["skills"], "field-workflow")
+    field_route = by_id(routing["triggers"], "field-workflow-trigger")
+    for owner in (field_design, field_skill, field_route):
+        validators = owner.get("validators", [])
+        assert CMD_FIRST_TEST in validators, f"CMD-first contract is not registered by {owner['id']}"
+        assert MACHINE_INFO_TEST in validators, f"MachineInfo contract is not registered by {owner['id']}"
+    for signal in ("machine information", "machine inventory", "get machine info"):
+        assert signal in field_route["deterministic_task_signals"], f"missing MachineInfo field-workflow signal: {signal}"
 
     print("[PASS] Machine Info has a repository-owned CMD front door")
     print("[PASS] Installed/source launchers route through the universal network-aware SAS command")
     print("[PASS] Machine Info publishes bounded ProgramData evidence and validates exact target coverage")
     print("[PASS] Machine Info remains read-only and protected-network gated")
-    print("[PASS] CMD-first and Machine Info contracts are registered in the offline survey floor")
+    print("[PASS] CMD-first and Machine Info contracts are registered in offline + field-workflow manifests")
     return 0
 
 

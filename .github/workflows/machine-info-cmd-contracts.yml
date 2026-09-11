@@ -13,6 +13,8 @@ on:
       - 'Tests/survey/test_machine_info_cmd_contracts.py'
       - 'Tests/survey/test_field_guide_cmd_first_contracts.py'
       - 'tests/survey/run_offline_survey_tests.sh'
+      - 'harness/api/agent-capability-manifest.json'
+      - 'harness/api/agent-routing-manifest.json'
       - '.github/workflows/machine-info-cmd-contracts.yml'
   push:
     branches: [main]
@@ -27,6 +29,8 @@ on:
       - 'Tests/survey/test_machine_info_cmd_contracts.py'
       - 'Tests/survey/test_field_guide_cmd_first_contracts.py'
       - 'tests/survey/run_offline_survey_tests.sh'
+      - 'harness/api/agent-capability-manifest.json'
+      - 'harness/api/agent-routing-manifest.json'
       - '.github/workflows/machine-info-cmd-contracts.yml'
 
 permissions:
