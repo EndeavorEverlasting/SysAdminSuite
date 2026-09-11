@@ -44,6 +44,12 @@ function Start-MachineQueryJob {
       } catch { @() }
     }
 
+    function ConvertTo-AdapterFieldValue {
+      param([AllowNull()][object]$Value)
+      if ($null -eq $Value) { return '' }
+      return (([string]$Value).Trim() -replace '\|', '/')
+    }
+
     $timestamp = (Get-Date).ToString("yyyy-MM-dd HH:mm:ss")
 
     # Local machine is always "reachable" — skip Test-Connection
@@ -64,49 +70,69 @@ function Start-MachineQueryJob {
         } else {
           Get-WmiObject -Class Win32_NetworkAdapterConfiguration -ComputerName $Computer -Filter "IPEnabled=TRUE" -ErrorAction SilentlyContinue
         }
-        $ipv4s  = @()
-        $macs   = @()
+        $ipv4s = @()
+        $macs = @()
+        $adapterFacts = @()
         foreach ($n in $nics) {
-          $ip4 = ($n.IPAddress | Where-Object { $_ -match '^\d{1,3}(\.\d{1,3}){3}$' } | Select-Object -First 1)
-          if ($ip4) { $ipv4s += $ip4 }
-          if ($n.MACAddress) { $macs += $n.MACAddress }
+          $adapterIpv4s = @($n.IPAddress | Where-Object { $_ -match '^\d{1,3}(\.\d{1,3}){3}$' })
+          $legacyIpv4 = @($adapterIpv4s | Select-Object -First 1)
+          $mac = ConvertTo-AdapterFieldValue -Value $n.MACAddress
+          $description = ConvertTo-AdapterFieldValue -Value $n.Description
+          $gateways = @($n.DefaultIPGateway | Where-Object { -not [string]::IsNullOrWhiteSpace([string]$_) })
+          $dhcp = if ($n.DHCPEnabled) { 'true' } else { 'false' }
+
+          # IPAddress/MACAddress are retained as legacy aggregate columns for downstream compatibility.
+          # NetworkAdapters is the canonical provenance-bearing identity: never infer interface role
+          # or IP/MAC pairing from position in the aggregate fields.
+          if ($legacyIpv4.Count -gt 0) { $ipv4s += [string]$legacyIpv4[0] }
+          if (-not [string]::IsNullOrWhiteSpace($mac)) { $macs += $mac }
+          $adapterFacts += ('Index={0}|Description={1}|IPv4={2}|MAC={3}|Gateway={4}|DHCP={5}' -f
+            (ConvertTo-AdapterFieldValue -Value $n.Index),
+            $description,
+            ((@($adapterIpv4s | ForEach-Object { ConvertTo-AdapterFieldValue -Value $_ })) -join ','),
+            $mac,
+            ((@($gateways | ForEach-Object { ConvertTo-AdapterFieldValue -Value $_ })) -join ','),
+            $dhcp)
         }
 
         $monSer = Get-MonitorSerials -Computer $Computer -Local $isLocal
 
         [pscustomobject]@{
-          Timestamp      = $timestamp
-          HostName       = $Computer
-          Serial         = $serial
-          IPAddress      = ($ipv4s -join ';')
-          MACAddress     = ($macs  -join ';')
-          MonitorSerials = ($monSer -join ';')
-          Status         = 'OK'
-          ErrorMessage   = ''
+          Timestamp       = $timestamp
+          HostName        = $Computer
+          Serial          = $serial
+          IPAddress       = ($ipv4s -join ';')
+          MACAddress      = ($macs -join ';')
+          NetworkAdapters = ($adapterFacts -join ' || ')
+          MonitorSerials  = ($monSer -join ';')
+          Status          = 'OK'
+          ErrorMessage    = ''
         }
       } catch {
         $errMsg = $_.Exception.Message
         [pscustomobject]@{
-          Timestamp      = $timestamp
-          HostName       = $Computer
-          Serial         = 'Error'
-          IPAddress      = ''
-          MACAddress     = ''
-          MonitorSerials = ''
-          Status         = 'Query Failed'
-          ErrorMessage   = $errMsg
+          Timestamp       = $timestamp
+          HostName        = $Computer
+          Serial          = 'Error'
+          IPAddress       = ''
+          MACAddress      = ''
+          NetworkAdapters = ''
+          MonitorSerials  = ''
+          Status          = 'Query Failed'
+          ErrorMessage    = $errMsg
         }
       }
     } else {
       [pscustomobject]@{
-        Timestamp      = $timestamp
-        HostName       = $Computer
-        Serial         = 'Offline'
-        IPAddress      = ''
-        MACAddress     = ''
-        MonitorSerials = ''
-        Status         = 'Offline'
-        ErrorMessage   = ''
+        Timestamp       = $timestamp
+        HostName        = $Computer
+        Serial          = 'Offline'
+        IPAddress       = ''
+        MACAddress      = ''
+        NetworkAdapters = ''
+        MonitorSerials  = ''
+        Status          = 'Offline'
+        ErrorMessage    = ''
       }
     }
   } -ArgumentList $Computer
@@ -142,7 +168,7 @@ if (Test-Path -LiteralPath $suiteHtmlHelper) {
   . $suiteHtmlHelper
   $htmlPath = [IO.Path]::ChangeExtension($OutputPath, '.html')
   $results | Sort-Object HostName |
-    Select-Object HostName,Serial,IPAddress,MACAddress,MonitorSerials,Status,ErrorMessage |
-    ConvertTo-Html -Fragment -PreContent '<h2>Machine Info</h2>' |
+    Select-Object HostName,Serial,NetworkAdapters,MonitorSerials,Status,ErrorMessage |
+    ConvertTo-Html -Fragment -PreContent '<h2>Machine Info</h2><p><strong>NetworkAdapters:</strong> each <code>||</code>-separated record is one IP-enabled adapter. Aggregate IPAddress/MACAddress columns remain in CSV for compatibility only and do not define primary/secondary roles.</p>' |
     ConvertTo-SuiteHtml -Title 'Machine Info' -Subtitle "$(($results | Select-Object -ExpandProperty HostName -Unique).Count) host(s)" -OutputPath $htmlPath
 }
