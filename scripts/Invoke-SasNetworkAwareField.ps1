@@ -59,6 +59,33 @@ function Test-SasAdHostNameForNetworkTransition {
     return -not [string]::IsNullOrWhiteSpace($Value) -and $Value -match '^[A-Za-z0-9][A-Za-z0-9._-]{0,254}$'
 }
 
+function Test-SasMachineInfoShapeForNetworkTransition {
+    [CmdletBinding()]
+    param([string[]]$Arguments)
+
+    $values = @($Arguments)
+    if ($values.Count -eq 0) { return $false }
+    if (([string]$values[0]).Trim().ToLowerInvariant() -eq 'file') {
+        if ($values.Count -ne 2 -or [string]::IsNullOrWhiteSpace([string]$values[1])) { return $false }
+        try { $inputPath = [IO.Path]::GetFullPath([string]$values[1]) } catch { return $false }
+        if (-not (Test-Path -LiteralPath $inputPath -PathType Leaf)) { return $false }
+        try {
+            $fileTargets = @(Get-Content -LiteralPath $inputPath -ErrorAction Stop |
+                Where-Object { -not [string]::IsNullOrWhiteSpace([string]$_) })
+        } catch { return $false }
+        if ($fileTargets.Count -eq 0 -or $fileTargets.Count -gt 500) { return $false }
+        foreach ($value in $fileTargets) {
+            if (-not (Test-SasAdHostNameForNetworkTransition -Value ([string]$value))) { return $false }
+        }
+        return $true
+    }
+    if ($values.Count -gt 100) { return $false }
+    foreach ($value in $values) {
+        if (-not (Test-SasAdHostNameForNetworkTransition -Value ([string]$value))) { return $false }
+    }
+    return $true
+}
+
 function Test-SasAdManagedOuForNetworkTransition {
     param([AllowNull()][string]$Value)
     if ([string]::IsNullOrWhiteSpace($Value)) { return $false }
@@ -111,6 +138,9 @@ switch ($normalized) {
     }
     'printer' {
         if (Test-SasPrinterShapeForNetworkTransition -Arguments $actualArgs) { $intent = 'ProtectedNorthwell' }
+    }
+    { $_ -in @('machineinfo','machine-info') } {
+        if (Test-SasMachineInfoShapeForNetworkTransition -Arguments $actualArgs) { $intent = 'ProtectedNorthwell' }
     }
     'network' {
         if ($actualArgs.Count -eq 0) { $intent = 'LocalOnly' }

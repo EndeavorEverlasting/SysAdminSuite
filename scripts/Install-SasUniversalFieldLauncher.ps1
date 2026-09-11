@@ -15,12 +15,15 @@ $sourceNetworkGuard = Join-Path $repoRoot 'scripts\SasNetworkGuard.psm1'
 $sourceBoundedNative = Join-Path $repoRoot 'scripts\SasBoundedNative.psm1'
 $sourcePrinterBootstrap = Join-Path $repoRoot 'Bootstrap-SysAdminSuitePrinter.ps1'
 $sourcePrinterTechnicianCmd = Join-Path $repoRoot 'Map-NorthwellPrinter.cmd'
+$sourceMachineInfoRunner = Join-Path $repoRoot 'scripts\Invoke-SasMachineInfo.ps1'
+$sourceMachineInfoCore = Join-Path $repoRoot 'GetInfo\Get-MachineInfo.ps1'
+$sourceMachineInfoTechnicianCmd = Join-Path $repoRoot 'Get-MachineInfo.cmd'
 $sourceNetworkBatchProbe = Join-Path $repoRoot 'survey\sas-network-batch-probe.ps1'
 $sourceNetworkPreflight = Join-Path $repoRoot 'survey\sas-network-preflight.ps1'
 foreach ($required in @(
     $sourceLauncher,$sourceNetworkAwareLauncher,$sourcePlatform,$sourceNetworkIntent,
     $sourceOperatorSession,$sourceNetworkGuard,$sourceBoundedNative,$sourcePrinterBootstrap,
-    $sourceNetworkBatchProbe,$sourceNetworkPreflight
+    $sourceMachineInfoRunner,$sourceMachineInfoCore,$sourceNetworkBatchProbe,$sourceNetworkPreflight
 )) {
     if (-not (Test-Path -LiteralPath $required -PathType Leaf)) { throw "Required universal field file missing: $required" }
     $tokens = $null; $errors = $null
@@ -29,6 +32,9 @@ foreach ($required in @(
 }
 if (-not (Test-Path -LiteralPath $sourcePrinterTechnicianCmd -PathType Leaf)) {
     throw "Required technician printer CMD missing: $sourcePrinterTechnicianCmd"
+}
+if (-not (Test-Path -LiteralPath $sourceMachineInfoTechnicianCmd -PathType Leaf)) {
+    throw "Required technician machine-info CMD missing: $sourceMachineInfoTechnicianCmd"
 }
 Import-Module $sourcePlatform -Force
 
@@ -60,7 +66,10 @@ if ($canonicalReady) {
         'scripts\SasTargetIntake.psm1',
         'scripts\SasLowNoisePolicy.psm1',
         'scripts\SasPortFallbackDecision.psm1',
-        'scripts\Render-SasEnglishReport.ps1'
+        'scripts\Render-SasEnglishReport.ps1',
+        'scripts\Invoke-SasMachineInfo.ps1',
+        'GetInfo\Get-MachineInfo.ps1',
+        'tools\ConvertTo-SuiteHtml.ps1'
     )
     foreach ($relative in $networkProbeRuntimeFiles) {
         if (-not (Test-Path -LiteralPath (Join-Path $canonicalRuntime $relative) -PathType Leaf)) {
@@ -106,6 +115,8 @@ $platformDestination = Join-Path $installRoot 'SasFieldPlatform.psm1'
 $networkIntentDestination = Join-Path $installRoot 'SasNetworkIntent.psm1'
 $printerBootstrapDestination = Join-Path $installRoot 'Bootstrap-SysAdminSuitePrinter.ps1'
 $printerTechnicianCmdDestination = Join-Path $installRoot 'Map-NorthwellPrinter.cmd'
+$machineInfoRunnerDestination = Join-Path $installRoot 'Invoke-SasMachineInfo.ps1'
+$machineInfoTechnicianCmdDestination = Join-Path $installRoot 'Get-MachineInfo.cmd'
 $cmdDestination = Join-Path $installRoot 'sas.cmd'
 Copy-Item -LiteralPath $sourceLauncher -Destination $launcherDestination -Force
 Copy-Item -LiteralPath $sourceNetworkAwareLauncher -Destination $networkAwareLauncherDestination -Force
@@ -113,6 +124,8 @@ Copy-Item -LiteralPath $sourcePlatform -Destination $platformDestination -Force
 Copy-Item -LiteralPath $sourceNetworkIntent -Destination $networkIntentDestination -Force
 Copy-Item -LiteralPath $sourcePrinterBootstrap -Destination $printerBootstrapDestination -Force
 Copy-Item -LiteralPath $sourcePrinterTechnicianCmd -Destination $printerTechnicianCmdDestination -Force
+Copy-Item -LiteralPath $sourceMachineInfoRunner -Destination $machineInfoRunnerDestination -Force
+Copy-Item -LiteralPath $sourceMachineInfoTechnicianCmd -Destination $machineInfoTechnicianCmdDestination -Force
 
 # Machine cache is optional and never points at a user-profile checkout. The trusted installed
 # launcher still resolves C:\SASAL first, and cache write failures cannot break command execution.
@@ -158,6 +171,8 @@ Write-Host "Install scope: $installScope"
 Write-Host "Launcher: $cmdDestination"
 Write-Host "Network-aware launcher: $networkAwareLauncherDestination"
 Write-Host "Network intent module: $networkIntentDestination"
+Write-Host "Machine info technician CMD: $machineInfoTechnicianCmdDestination"
+Write-Host "Machine info runner: $machineInfoRunnerDestination"
 Write-Host "Printer technician CMD: $printerTechnicianCmdDestination"
 Write-Host "Printer bootstrap: $printerBootstrapDestination"
 Write-Host 'Execution resolution: trusted installed shim -> network canary/intent -> validated universal field dispatcher.'
