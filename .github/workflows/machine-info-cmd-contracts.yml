@@ -42,6 +42,7 @@ jobs:
     steps:
       - uses: actions/checkout@v4
         with:
+          fetch-depth: 0
           persist-credentials: false
       - uses: actions/setup-python@v5
         with:
@@ -51,7 +52,7 @@ jobs:
       - name: CMD-first field-guide contract
         run: python Tests/survey/test_field_guide_cmd_first_contracts.py
       - name: Diff whitespace
-        run: git diff --check origin/${{ github.base_ref || 'main' }}...HEAD
+        run: git diff --check "${{ github.event.pull_request.base.sha }}" "${{ github.event.pull_request.head.sha }}"
 
   windows-parse:
     runs-on: windows-latest
