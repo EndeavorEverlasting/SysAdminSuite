@@ -119,7 +119,8 @@
       "remediation": "emit_literal_path",
       "grounding_strategy": "use_repository_authority",
       "actions": ["emit_named_user_literal_path"],
-      "tool_calls": []
+      "tool_calls": [],
+      "output_text": "$repo='C:\\Users\\example.user\\OneDrive - Example Org\\Desktop\\Dev\\SysAdminSuite'; Set-Location $repo"
     },
     {
       "case_id": "freshness.default-advanced.use-containment",
@@ -127,7 +128,8 @@
       "remediation": "abort",
       "grounding_strategy": "inspect_current_evidence",
       "actions": ["require_default_head_equal_old_sha", "abort_on_benign_main_advance"],
-      "tool_calls": []
+      "tool_calls": [],
+      "output_text": "if ((git rev-parse origin/main) -ne '76465ac1da5eacc056fb4b66983b74aa8e6cb26e') { throw 'origin/main moved' }"
     },
     {
       "case_id": "powershell.guard.abort-block-not-host-exit",
@@ -135,7 +137,8 @@
       "remediation": "emit_semicolon_chain",
       "grounding_strategy": "use_repository_authority",
       "actions": ["emit_unscoped_semicolon_chain", "claim_throw_closes_terminal"],
-      "tool_calls": []
+      "tool_calls": [],
+      "output_text": "git fetch --all --prune --tags; if ($LASTEXITCODE -ne 0) { throw 'fetch failed' }; .\\Get-MachineInfo.cmd # throw closes the PowerShell terminal"
     }
   ]
 }
