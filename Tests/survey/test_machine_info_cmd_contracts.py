@@ -25,11 +25,13 @@ def by_id(items: list[dict], item_id: str) -> dict:
 
 def main() -> int:
     cmd = read("Get-MachineInfo.cmd")
+    collector = read("GetInfo/Get-MachineInfo.ps1")
     runner = read("scripts/Invoke-SasMachineInfo.ps1")
     universal = read("scripts/Invoke-SasUniversalField.ps1")
     network = read("scripts/Invoke-SasNetworkAwareField.ps1")
     installer = read("scripts/Install-SasUniversalFieldLauncher.ps1")
     docs = read("docs/MACHINE_INFO_CMD.md")
+    printer_docs = read("START-HERE-NORTHWELL-PRINTER-MAPPING.md")
     offline = read("tests/survey/run_offline_survey_tests.sh")
     capability = json.loads(read("harness/api/agent-capability-manifest.json"))
     routing = json.loads(read("harness/api/agent-routing-manifest.json"))
@@ -42,6 +44,36 @@ def main() -> int:
         assert marker in cmd, f"machine-info CMD missing marker: {marker}"
     for forbidden in ("C:\\Users\\", "OneDrive", "WBK333", "ORT04"):
         assert forbidden not in cmd, f"machine-info CMD contains user/site-specific authority: {forbidden}"
+
+    for marker in (
+        "NetworkAdapters",
+        "Index={0}|Description={1}|IPv4={2}|MAC={3}|Gateway={4}|DHCP={5}",
+        "legacy aggregate columns",
+        "never infer interface role",
+        "Select-Object HostName,Serial,NetworkAdapters,MonitorSerials,Status,ErrorMessage",
+    ):
+        assert marker in collector, f"machine-info collector missing adapter-provenance contract: {marker}"
+    assert "IPAddress       = ($ipv4s -join ';')" in collector, "legacy IPAddress compatibility column was removed"
+    assert "MACAddress      = ($macs -join ';')" in collector, "legacy MACAddress compatibility column was removed"
+    for status in ("Query Failed", "Offline"):
+        status_at = collector.index(f"Status          = '{status}'")
+        shape = collector[max(0, status_at - 500) : status_at + 250]
+        assert "NetworkAdapters = ''" in shape, f"{status} output shape lost NetworkAdapters"
+
+    for marker in (
+        "legacy aggregate columns",
+        "not primary/secondary fields",
+        "NetworkAdapters",
+        'which IP belongs to which interface?',
+        "target PCs are hostnames/FQDNs and printers are shared queue identities",
+        "Printer IP mapping remains forbidden",
+    ):
+        assert marker in docs, f"machine-info docs missing network-identity semantics: {marker}"
+    for marker in (
+        "Target PCs use hostnames/FQDNs, not IP addresses.",
+        "Never map by printer IP address.",
+    ):
+        assert marker in printer_docs, f"printer mapping identity contract regressed: {marker}"
 
     for marker in (
         "'sas-machine-info-run/v1'",
@@ -93,6 +125,8 @@ def main() -> int:
     print("[PASS] Machine Info has a repository-owned CMD front door")
     print("[PASS] Installed/source launchers route through the universal network-aware SAS command")
     print("[PASS] Machine Info publishes bounded ProgramData evidence and validates exact target coverage")
+    print("[PASS] Multi-IP rows carry deterministic per-adapter provenance; legacy aggregates are non-authoritative")
+    print("[PASS] Printer mapping remains hostname/shared-queue based and cannot consume MachineInfo IPs as identity")
     print("[PASS] Machine Info remains read-only and protected-network gated")
     print("[PASS] CMD-first and Machine Info contracts are registered in offline + field-workflow manifests")
     return 0
