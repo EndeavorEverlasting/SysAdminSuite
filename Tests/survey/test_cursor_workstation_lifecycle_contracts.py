@@ -78,9 +78,9 @@ def test_doctrine_explains_quarantine_and_proof_ceiling() -> None:
         "current security principal", "unins000.dat", "Error 32",
         "mutation trust boundary", "registered uninstall executables",
         "REG_EXPAND_SZ", "collision-resistant evidence run IDs",
-        "does not prove a physical workstation repair",
     ):
         assert marker in text, marker
+    assert re.search(r"(?:cannot|does not) prove a physical workstation repair", text, re.IGNORECASE)
 
 
 def test_routing_and_ci_are_registered() -> None:
