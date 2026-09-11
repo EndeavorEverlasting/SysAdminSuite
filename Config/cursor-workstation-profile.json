@@ -1,0 +1,41 @@
+{
+  "schema_version": "sas-cursor-workstation-profile/v1",
+  "schema_path": "schemas/harness/cursor-workstation-profile.schema.json",
+  "application": {
+    "name": "Cursor",
+    "publisher": "Anysphere",
+    "official_download_url": "https://cursor.com/download",
+    "display_name_regex": "^Cursor(?:\\s+\\(User\\)|\\s+\\d+(?:\\.\\d+)*.*)?$",
+    "process_names": ["Cursor.exe"],
+    "expected_executable": "Cursor.exe"
+  },
+  "installation": {
+    "machine_install_roots": [
+      "{PROGRAMFILES}\\Cursor",
+      "{PROGRAMFILESX86}\\Cursor"
+    ],
+    "user_install_roots": [
+      "{LOCALAPPDATA}\\Programs\\cursor"
+    ],
+    "uninstall_registry_roots": [
+      {"scope": "user", "path": "HKCU:\\Software\\Microsoft\\Windows\\CurrentVersion\\Uninstall"},
+      {"scope": "machine64", "path": "HKLM:\\Software\\Microsoft\\Windows\\CurrentVersion\\Uninstall"},
+      {"scope": "machine32", "path": "HKLM:\\Software\\WOW6432Node\\Microsoft\\Windows\\CurrentVersion\\Uninstall"}
+    ],
+    "cli_path_templates": [
+      "{LOCALAPPDATA}\\Programs\\cursor\\resources\\app\\bin",
+      "{PROGRAMFILES}\\Cursor\\resources\\app\\bin",
+      "{PROGRAMFILESX86}\\Cursor\\resources\\app\\bin"
+    ]
+  },
+  "evidence": {
+    "local_output_root": "{LOCALAPPDATA}\\SysAdminSuite\\field-runs\\cursor",
+    "tracked_runtime_evidence_allowed": false
+  },
+  "posture": {
+    "mutation_available": false,
+    "current_security_principal_only": true,
+    "system_verification_requires_registration_and_executable": true,
+    "local_audit_precedes_external_outage_assumption": true
+  }
+}
