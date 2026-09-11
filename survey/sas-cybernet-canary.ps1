@@ -314,7 +314,7 @@ Move-Item -LiteralPath $completionTemp -Destination $completionPath -Force
 
 Write-Host ''
 Write-Host 'Cybernet low-noise identity canary' -ForegroundColor Cyan
-Write-Host 'Terminal contract: invoke through the installed sas command from Windows PowerShell; current directory is irrelevant.'
+Write-Host 'Terminal contract: invoke C:\SASAL\Probe-Cybernet.cmd from Windows CMD; current directory is irrelevant.'
 Write-Host "Targets: $($targets.Count) (hard cap: $MaxTargets)"
 Write-Host "Fresh completed evidence reused without packets: $($summary.fresh_reuse_count)"
 Write-Host "Live bounded canaries: $($summary.live_canary_count)"
