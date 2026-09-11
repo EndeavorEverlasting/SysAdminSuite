@@ -144,9 +144,9 @@ def main() -> int:
     assert path_case["required_output_patterns"] and path_case["forbidden_output_patterns"]
 
     containment_case = by_id["freshness.default-advanced.use-containment"]["oracle"]
-    assert {"verify_required_sha_is_ancestor", "fast_forward_clean_checkout"}.issubset(containment_case["required_actions"])
+    assert {"verify_required_sha_is_ancestor", "fast_forward_clean_checkout", "prove_checkout_equals_refreshed_default"}.issubset(containment_case["required_actions"])
     assert {"require_default_head_equal_old_sha", "abort_on_benign_main_advance"}.issubset(containment_case["forbidden_actions"])
-    assert len(containment_case["required_output_patterns"]) >= 4 and containment_case["forbidden_output_patterns"]
+    assert len(containment_case["required_output_patterns"]) >= 5 and containment_case["forbidden_output_patterns"]
 
     powershell_case = by_id["powershell.guard.abort-block-not-host-exit"]["oracle"]
     assert {"wrap_outer_scriptblock", "check_native_exit_codes", "describe_return_to_prompt_not_terminal_exit"}.issubset(powershell_case["required_actions"])
