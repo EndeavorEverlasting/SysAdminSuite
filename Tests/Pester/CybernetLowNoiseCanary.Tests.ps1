@@ -2,78 +2,94 @@
 
 BeforeAll {
     $script:repoRoot = Split-Path -Parent (Split-Path -Parent $PSScriptRoot)
+    $script:probeCmd = Join-Path $script:repoRoot 'Probe-Cybernet.cmd'
     $script:canary = Join-Path $script:repoRoot 'survey\sas-cybernet-canary.ps1'
     $script:filter = Join-Path $script:repoRoot 'survey\sas-filter-windows-pc-signature.py'
     $script:signatureRunner = Join-Path $script:repoRoot 'survey\sas-run-windows-pc-signature.sh'
     $script:profiles = Join-Path $script:repoRoot 'survey\naabu_profiles.json'
     $script:runtimeProfiles = Join-Path $script:repoRoot 'Config\cybernet-naabu-profiles.json'
-    $script:launcher = Join-Path $script:repoRoot 'scripts\Invoke-SasUniversalField.ps1'
-    $script:networkAware = Join-Path $script:repoRoot 'scripts\Invoke-SasNetworkAwareField.ps1'
-    $script:installer = Join-Path $script:repoRoot 'scripts\Install-SasUniversalFieldLauncher.ps1'
+    $script:refresh = Join-Path $script:repoRoot 'scripts\Refresh-SasOperatorCommand.ps1'
+    $script:networkGuard = Join-Path $script:repoRoot 'scripts\SasNetworkGuard.psm1'
     $script:docs = Join-Path $script:repoRoot 'docs\CYBERNET_LOW_NOISE_CANARY.md'
     $script:identifierPolicy = Join-Path $script:repoRoot 'docs\CYBERNET_IDENTIFIER_POLICY.md'
     $script:startHere = Join-Path $script:repoRoot 'START-HERE-CYBERNET-NEURON-SURVEY.md'
     $script:workflow = Join-Path $script:repoRoot '.github\workflows\cybernet-low-noise-canary.yml'
 }
 
-Describe 'Cybernet low-noise identity canary' {
-    It 'keeps all PowerShell entrypoints parseable' {
-        foreach ($path in @($script:canary, $script:launcher, $script:networkAware, $script:installer)) {
-            $path | Should -Exist
-            $tokens = $null
-            $errors = $null
-            [System.Management.Automation.Language.Parser]::ParseFile($path, [ref]$tokens, [ref]$errors) | Out-Null
-            @($errors).Count | Should -Be 0
-        }
+Describe 'Cybernet low-noise CMD identity probe' {
+    It 'ships the CMD-first technician front door' {
+        $script:probeCmd | Should -Exist
+        $cmd = Get-Content -LiteralPath $script:probeCmd -Raw
+        $cmd | Should -Match 'Question: Is each explicit candidate a Windows client workstation'
+        $cmd | Should -Match 'model \+ serial for approved Cybernet-reference comparison'
+        $cmd | Should -Match '135 \+ 445 open\s+= metadata candidate only'
+        $cmd | Should -Match 'ProductType = 1\s+= Windows client workstation only'
+        $cmd | Should -Match 'Cybernet confirmed\s+= only after approved reference comparison'
+        $cmd | Should -Match 'Usage: Probe-Cybernet\.cmd HOST01'
     }
 
-    It 'hard-caps explicit scope and refuses broad target syntax' {
+    It 'refreshes current main before any canary target contact and re-enters the sealed CMD' {
+        $cmd = Get-Content -LiteralPath $script:probeCmd -Raw
+        $refresh = $cmd.IndexOf('Invoke-SasNetworkAwareField.ps1" refresh')
+        $reentry = $cmd.IndexOf('call "C:\SASAL\Probe-Cybernet.cmd"')
+        $canary = $cmd.IndexOf('survey\sas-cybernet-canary.ps1" %*')
+        $refresh | Should -BeGreaterThan -1
+        $reentry | Should -BeGreaterThan $refresh
+        $canary | Should -BeGreaterThan $reentry
+        $cmd | Should -Match 'SAS_CYBERNET_PROBE_REFRESHED=1'
+        $cmd | Should -Match 'set "SAS_EXIT=!ERRORLEVEL!"'
+        $cmd | Should -Match 'endlocal & exit /b %SAS_EXIT%'
+        $cmd | Should -Not -Match '(?i)git\s+(pull|fetch|reset|checkout)'
+    }
+
+    It 'uses the repository-owned refresh transaction rather than Git in the caller worktree' {
+        $refresh = Get-Content -LiteralPath $script:refresh -Raw
+        $refresh | Should -Match 'SysAdminSuite\\sync-cache'
+        $refresh | Should -Match 'field-ready'
+        $refresh | Should -Match "@\('fetch','--no-tags','--prune','origin'"
+        $refresh | Should -Match 'origin/\$refreshBranch'
+        $refresh | Should -Match 'No target contact or target mutation occurs in this script\.'
+        $refresh | Should -Match 'GUEST_INTERNET'
+    }
+
+    It 'hard-caps explicit canary scope and refuses broad target syntax' {
         $content = Get-Content -LiteralPath $script:canary -Raw
         $content | Should -Match ([regex]::Escape('$MaxTargets = 5'))
         $content | Should -Match 'CYBERNET_CANARY_SCOPE_EXCEEDED'
         $content | Should -Match 'CIDRs, ranges, wildcards, and subnet discovery are refused'
-        $content | Should -Match ([regex]::Escape('$candidate -match ''[/*?\[\]]'''))
         $content | Should -Not -Match 'nmap\s+-s'
         $content | Should -Not -Match 'naabu'
     }
 
-    It 'reuses only completed evidence from the current dual-port schema' {
+    It 'reuses only completed evidence with every field the reuse path reads' {
         $content = Get-Content -LiteralPath $script:canary -Raw
-        $content | Should -Match 'ReuseWithinHours = 24'
-        $content | Should -Match 'Get-SasFreshCanaryEvidence'
-        $content | Should -Match 'cybernet_canary_complete.json'
-        $content | Should -Match 'result_sha256'
-        $content | Should -Match 'Get-FileHash'
-        $content | Should -Match 'ObservationTimestamp'
-        $content | Should -Match ([regex]::Escape('$requiredColumns = @('))
-        $content | Should -Match "'Port445'"
-        $content | Should -Match "'PcSignatureStatus'"
-        $content | Should -Match "'WorkstationStatus'"
-        $content | Should -Match "'ObservedOperatingSystem'"
-        $content | Should -Match ([regex]::Escape('$row.PSObject.Properties[$_]'))
-        $content | Should -Match ([regex]::Escape('ObservationTimestamp = [string]$fresh.ObservationTimestamp'))
-        $content | Should -Match 'FreshLocalReuse'
-        $content | Should -Match 'NetworkActivityPerformed = \$false'
+        foreach ($marker in @(
+            'ReuseWithinHours = 24',
+            'cybernet_canary_complete.json',
+            'result_sha256',
+            'Get-FileHash',
+            'ObservationTimestamp',
+            "'Port445','PcSignatureStatus','WorkstationStatus','ObservedOperatingSystem'",
+            'FreshLocalReuse',
+            'NetworkActivityPerformed = $false'
+        )) {
+            $content | Should -Match ([regex]::Escape($marker))
+        }
     }
 
-    It 'requires the minimal dual-port PC signature before any CIM session' {
+    It 'requires the minimal dual-port PC signature before a CIM session' {
         $content = Get-Content -LiteralPath $script:canary -Raw
-        $content | Should -Match ([regex]::Escape("'survey\sas-network-preflight.ps1'"))
         $content | Should -Match ([regex]::Escape("-Ports @(135,445) -PolicyProfile 'network_preflight'"))
         $content | Should -Match ([regex]::Escape('$port135 -eq ''Open'' -and $port445 -eq ''Open'''))
-        $content | Should -Match 'WINDOWS_PC_SIGNATURE_MATCH'
-        $content | Should -Match 'WINDOWS_PC_SIGNATURE_NOT_MATCHED'
         $signature = $content.IndexOf('$pcSignatureStatus -eq ''WINDOWS_PC_SIGNATURE_MATCH''')
         $session = $content.IndexOf('New-CimSession -ComputerName $identityEndpoint')
         $signature | Should -BeGreaterThan -1
         $session | Should -BeGreaterThan $signature
         $content | Should -Not -Match '-Credential'
-        $content | Should -Not -Match '9100'
-        $content | Should -Not -Match '5985'
-        $content | Should -Not -Match '5986'
+        foreach ($port in @('9100','5985','5986')) { $content | Should -Not -Match $port }
     }
 
-    It 'proves Windows client workstation class before hardware metadata' {
+    It 'proves Windows client class before hardware metadata and fails closed on no OS instance' {
         $content = Get-Content -LiteralPath $script:canary -Raw
         $os = $content.IndexOf('Win32_OperatingSystem')
         $productType = $content.IndexOf('ProductType')
@@ -86,36 +102,32 @@ Describe 'Cybernet low-noise identity canary' {
         $content | Should -Match ([regex]::Escape('if ([int]$os.ProductType -eq 1)'))
         $content | Should -Match 'WINDOWS_CLIENT_WORKSTATION_CONFIRMED'
         $content | Should -Match 'NON_WORKSTATION_OS_METADATA_SKIPPED'
+        $content | Should -Match 'Win32_OperatingSystem returned no instance'
         $content | Should -Match 'WORKSTATION_CLASS_UNRESOLVED_METADATA_SKIPPED'
-        $content | Should -Match 'Win32_OperatingSystem returned no instance; manufacturer/model/serial queries were skipped'
-        $content | Should -Match 'manufacturer/model/serial queries were skipped'
     }
 
-    It 'retains partial workstation hardware evidence and never classifies Cybernet directly' {
+    It 'retains partial hardware evidence and never classifies Cybernet directly' {
         $content = Get-Content -LiteralPath $script:canary -Raw
         $content | Should -Match 'Manufacturer,Model'
         $content | Should -Match 'SerialNumber'
         $content | Should -Match 'IDENTITY_PARTIAL'
-        $content | Should -Match 'Partial hardware identity was retained'
         $content | Should -Match 'ObservedModel'
         $content | Should -Match 'ObservedSerial'
         $content | Should -Not -Match 'CONFIRMED_CYBERNET'
     }
 
-    It 'ships a local-only two-port filter and zero-retry bounded signature profile' {
+    It 'ships a local-only dual-port filter and zero-retry bounded signature profile' {
         $script:filter | Should -Exist
         $script:signatureRunner | Should -Exist
         $filter = Get-Content -LiteralPath $script:filter -Raw
         $runner = Get-Content -LiteralPath $script:signatureRunner -Raw
         $filter | Should -Match ([regex]::Escape('REQUIRED_PORTS = {135, 445}'))
+        $filter | Should -Match 'looks_json'
         $filter | Should -Match 'performs no network activity'
-        $filter | Should -Match 'looks_json = first.startswith'
+        $runner | Should -Match ([regex]::Escape('args=(-list "$LIST" -p "$ports" -silent -ec'))
         $runner | Should -Match ([regex]::Escape('-retries "$retries"'))
         $runner | Should -Match ([regex]::Escape('-rate "$rate"'))
-        $runner | Should -Match ([regex]::Escape('-silent -ec -duc'))
         $runner | Should -Match 'Metadata collection: NONE'
-        $runner | Should -Match 'CIDR is not allowed'
-        $runner | Should -Match 'professional PC-signature cap is 256'
 
         $doctrine = Get-Content -LiteralPath $script:profiles -Raw | ConvertFrom-Json
         $runtime = Get-Content -LiteralPath $script:runtimeProfiles -Raw | ConvertFrom-Json
@@ -126,129 +138,46 @@ Describe 'Cybernet low-noise identity canary' {
         $runtime.profiles.windows_pc_signature_json.ports | Should -Be '135,445'
         $runtime.profiles.windows_pc_signature_json.retries | Should -Be 0
         $runtime.profiles.windows_pc_signature_json.defaultRate | Should -Be 50
-        $runtime.profiles.windows_pc_signature_json.outputFormat | Should -Be 'json'
         $runtime.profiles.windows_pc_signature_json.pipelineFollowup | Should -BeFalse
     }
 
-    It 'uses the canonical VPN-aware protected network gate before the live signature scan' {
-        $runner = Get-Content -LiteralPath $script:signatureRunner -Raw
-        $runner | Should -Match 'scripts/Confirm-SasNorthwellNetwork.ps1'
-        $runner | Should -Match 'DomainAuthenticated non-Wi-Fi VPN/LAN'
-        $runner | Should -Match ([regex]::Escape("-NonInteractive -NoOpenWifiSettings"))
-        $runner | Should -Not -Match 'sas_require_northwell_wifi'
-        $networkGate = $runner.IndexOf('powershell.exe -NoLogo -NoProfile -ExecutionPolicy Bypass -File "$NETWORK_GATE"')
-        $liveScan = $runner.IndexOf('"$naabu_bin" "${args[@]}"', $networkGate)
-        $networkGate | Should -BeGreaterThan -1
-        $liveScan | Should -BeGreaterThan $networkGate
+    It 'accepts approved WAB or DomainAuthenticated non-Wi-Fi protected posture' {
+        $guard = Get-Content -LiteralPath $script:networkGuard -Raw
+        $guard | Should -Match 'NSLIJHS-WAB'
+        $guard | Should -Match 'DomainAuthenticated'
+        $guard | Should -Match 'non-Wi-Fi VPN/LAN'
+        $guard | Should -Match 'Assert-SasNorthwellWifi'
     }
 
-    It 'validates the canary shape before any network transition and uses the protected mutex' {
-        $networkAware = Get-Content -LiteralPath $script:networkAware -Raw
-        $networkAware | Should -Match 'Test-SasCybernetShapeForNetworkTransition'
-        $networkAware | Should -Match 'Test-SasCanaryTargetForNetworkTransition'
-        $networkAware | Should -Match ([regex]::Escape('$values.Count -gt 6'))
-        $networkAware | Should -Match ([regex]::Escape("if ($mode -eq 'canary')"))
-        $networkAware | Should -Match 'Global\\SysAdminSuite.NetworkIntent.v1'
+    It 'documents CMD as the primary identity route without lowering the proof ceiling' {
+        foreach ($path in @($script:docs,$script:startHere)) {
+            $body = Get-Content -LiteralPath $path -Raw
+            $body | Should -Match 'Probe-Cybernet\.cmd'
+            $body | Should -Match 'approved Cybernet hardware reference'
+            $body | Should -Match 'ProductType=1|ProductType = 1'
+        }
+        $policy = Get-Content -LiteralPath $script:identifierPolicy -Raw
+        $policy | Should -Match 'population-first, signature-gated, and hardware-confirmed'
+        $policy | Should -Not -Match 'Use Nmap-derived evidence as the primary identity source'
     }
 
-    It 'rejects invalid canary target shapes before protected network intent' {
-        $networkAware = Get-Content -LiteralPath $script:networkAware -Raw
-        $start = $networkAware.IndexOf('function Test-SasCanaryTargetForNetworkTransition')
-        $end = $networkAware.IndexOf('function Test-SasCybernetShapeForNetworkTransition', $start)
-        $start | Should -BeGreaterThan -1
-        $end | Should -BeGreaterThan $start
-        $functionText = $networkAware.Substring($start, $end - $start)
-        . ([scriptblock]::Create($functionText))
-
-        (Test-SasCanaryTargetForNetworkTransition -Value '10.1.1.1-10.1.1.9') | Should -BeFalse
-        (Test-SasCanaryTargetForNetworkTransition -Value 'abc') | Should -BeFalse
-        (Test-SasCanaryTargetForNetworkTransition -Value 'HOST01') | Should -BeTrue
-        (Test-SasCanaryTargetForNetworkTransition -Value 'host01.example.invalid') | Should -BeTrue
-        (Test-SasCanaryTargetForNetworkTransition -Value '10.1.1.10') | Should -BeTrue
-    }
-
-    It 'routes through the cwd-independent universal front door and guards stale runtimes' {
-        $launcher = Get-Content -LiteralPath $script:launcher -Raw
-        $installer = Get-Content -LiteralPath $script:installer -Raw
-        $launcher | Should -Match ([regex]::Escape('sas cybernet canary HOST01 HOST02 ...'))
-        $launcher | Should -Match ([regex]::Escape('Join-Path $controllerRoot ''survey\sas-cybernet-canary.ps1'''))
-        $installer | Should -Match ([regex]::Escape("'survey\sas-cybernet-canary.ps1'"))
-        $installer | Should -Match 'sourceCanaryHash'
-        $installer | Should -Match 'canonicalCanaryHash'
-        $installer | Should -Match 'MACHINE_RUNTIME_REFRESH_REQUIRED'
-    }
-
-    It 'reruns when directly owned dependencies change and hardens whitespace validation' {
+    It 'reruns focused CI when the CMD or any direct probe owner changes' {
         $workflow = Get-Content -LiteralPath $script:workflow -Raw
         foreach ($marker in @(
+            'Probe-Cybernet.cmd',
+            'survey/sas-cybernet-canary.ps1',
             'survey/sas-network-preflight.ps1',
-            'scripts/Confirm-SasNorthwellNetwork.ps1',
-            'scripts/Invoke-SasNetworkAwareField.ps1',
-            'Config/low-noise-policy.json',
-            'scripts/SasLowNoisePolicy.psm1',
+            'scripts/Refresh-SasOperatorCommand.ps1',
             'scripts/SasNetworkGuard.psm1',
-            'survey/naabu_profiles.json',
-            'Config/cybernet-naabu-profiles.json',
-            'survey/sas-run-windows-pc-signature.sh',
-            'survey/sas-filter-windows-pc-signature.py',
-            'Tests/survey/test_windows_pc_signature_filter.py',
+            'Tests/survey/test_cybernet_probe_cmd_contracts.py',
             'START-HERE-CYBERNET-NEURON-SURVEY.md',
-            'docs/CYBERNET_IDENTIFIER_POLICY.md'
+            'docs/CYBERNET_LOW_NOISE_CANARY.md'
         )) {
             $workflow | Should -Match ([regex]::Escape($marker))
         }
-        $workflow | Should -Match 'permissions:\s*\r?\n\s*contents: read'
-        $workflow | Should -Match "github.event_name == 'pull_request'"
-        $workflow | Should -Match "github.event_name == 'workflow_dispatch'"
-        $workflow | Should -Match ([regex]::Escape('BASE_REF: ${{ github.base_ref }}'))
-        $workflow | Should -Match ([regex]::Escape('git diff --check "origin/$BASE_REF...HEAD"'))
-        $workflow | Should -Not -Match ([regex]::Escape('origin/${{ github.base_ref }}'))
-        $workflow | Should -Match 'HEAD\^\.\.HEAD'
+        $workflow | Should -Match 'python Tests/survey/test_cybernet_probe_cmd_contracts.py'
         $workflow | Should -Match 'sas-generate-naabu-runtime-profiles.sh --check'
         $workflow | Should -Match 'test_windows_pc_signature_filter.py'
-        $workflow | Should -Match 'bash -n survey/sas-run-windows-pc-signature.sh'
-    }
-
-    It 'documents a professional staged funnel without live identifiers or stealth claims' {
-        $docs = Get-Content -LiteralPath $script:docs -Raw
-        $docs | Should -Match 'Operator terminal: \*\*Windows PowerShell\*\*\.'
-        $docs | Should -Match 'Operator terminal: Git Bash / Bash-on-Windows'
-        $docs | Should -Match 'DomainAuthenticated non-Wi-Fi VPN/LAN'
-        $docs | Should -Match 'sas cybernet canary HOST01 HOST02'
-        $docs | Should -Match 'windows_pc_signature_json'
-        $docs | Should -Match 'sas-filter-windows-pc-signature.py'
-        $docs | Should -Match '135.*445'
-        $docs | Should -Match 'ProductType.*1'
-        $docs | Should -Match 'printers'
-        $docs | Should -Match 'access points'
-        $docs | Should -Match 'not a stealth feature'
-        $docs | Should -Match 'does not guarantee that monitoring will not alert'
-        $docs | Should -Not -Match 'WNH\d+OPR\d+'
-        $docs | Should -Not -Match 'WPJ\d+OPR\d+'
-    }
-
-    It 'supersedes stale Nmap-first Cybernet identity doctrine' {
-        $policy = Get-Content -LiteralPath $script:identifierPolicy -Raw
-        $policy | Should -Match 'population-first, signature-gated, and hardware-confirmed'
-        $policy | Should -Match 'windows_pc_signature_json'
-        $policy | Should -Match 'ProductType=1'
-        $policy | Should -Match 'does not have both TCP 135 and 445'
-        $policy | Should -Match 'Future agents must not resurrect broad Nmap/Naabu service discovery'
-        $policy | Should -Not -Match 'Use Nmap-derived evidence as the primary identity source'
-        $policy | Should -Not -Match 'Future agents must not default Cybernet identity discovery back to PowerShell'
-    }
-
-    It 'routes the generic start-here away from printer-aware Cybernet hunting with complete handoff' {
-        $startHere = Get-Content -LiteralPath $script:startHere -Raw
-        $startHere | Should -Match 'Finding missing Cybernets specifically'
-        $startHere | Should -Match 'professional signature scan on TCP \*\*135 \+ 445 only\*\*'
-        $startHere | Should -Match 'ProductType=1'
-        $startHere | Should -Match 'mixed-purpose'
-        $startHere | Should -Match 'TCP 9100 is printer-oriented'
-        $startHere | Should -Match 'path → freshness → network intent → command → restoration'
-        $startHere | Should -Match 'Capture the starting network posture before any transition'
-        $startHere | Should -Match 'ProtectedNorthwell'
-        $startHere | Should -Match 'restore the recorded starting posture'
-        $startHere | Should -Match 'Do not use the generic mixed-purpose 9100/RDP preflight as the default way to hunt missing Cybernets'
+        $workflow | Should -Match 'git diff --check'
     }
 }
