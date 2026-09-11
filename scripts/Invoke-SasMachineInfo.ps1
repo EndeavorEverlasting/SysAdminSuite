@@ -16,6 +16,20 @@ function Resolve-SasMachineInfoCore {
             [void]$candidates.Add((Join-Path $root 'GetInfo\Get-MachineInfo.ps1'))
         }
     }
+
+    # Direct invocation of the installed runner must still resolve only machine-local trusted
+    # controller/runtime authorities; it must not depend on the caller's working directory.
+    [void]$candidates.Add('C:\SASAL\GetInfo\Get-MachineInfo.ps1')
+    $programDataRoot = if (-not [string]::IsNullOrWhiteSpace([string]$env:ProgramData)) { $env:ProgramData } else { 'C:\ProgramData' }
+    $controllerCache = Join-Path $programDataRoot 'SysAdminSuite\repo-root.txt'
+    if (Test-Path -LiteralPath $controllerCache -PathType Leaf) {
+        try {
+            $cachedRoot = ([string](Get-Content -LiteralPath $controllerCache -Raw -ErrorAction Stop)).Trim()
+            if (-not [string]::IsNullOrWhiteSpace($cachedRoot)) {
+                [void]$candidates.Add((Join-Path $cachedRoot 'GetInfo\Get-MachineInfo.ps1'))
+            }
+        } catch { }
+    }
     try {
         [void]$candidates.Add((Join-Path (Resolve-Path -LiteralPath (Join-Path $PSScriptRoot '..')).Path 'GetInfo\Get-MachineInfo.ps1'))
     } catch { }
@@ -68,7 +82,7 @@ if ($targets.Count -gt 500) { throw 'Machine-info target files are limited to 50
 
 $programData = if (-not [string]::IsNullOrWhiteSpace([string]$env:ProgramData)) { $env:ProgramData } else { 'C:\ProgramData' }
 $jobsRoot = Join-Path $programData 'SysAdminSuite\jobs\MachineInfo'
-$runId = (Get-Date).ToString('yyyyMMdd-HHmmss-fff')
+$runId = '{0}-{1}' -f (Get-Date).ToString('yyyyMMdd-HHmmss-fff'),([guid]::NewGuid().ToString('N').Substring(0,8))
 $runRoot = Join-Path $jobsRoot $runId
 New-Item -ItemType Directory -Path $runRoot -Force | Out-Null
 
