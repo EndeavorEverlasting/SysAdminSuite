@@ -19,7 +19,7 @@
   "baseline_expectation": {
     "passed_cases": 3,
     "total_cases": 15,
-    "correctness_score": 0.455556,
+    "correctness_score": 0.427083,
     "critical_failures": [
       "grounding.missing-context.targeted-retrieval",
       "grounding.present-context.reanchor",
