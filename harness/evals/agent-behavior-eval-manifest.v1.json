@@ -1,6 +1,7 @@
 {
   "schema_version": "sas-agent-behavior-eval-manifest/v1",
   "schema_path": "schemas/harness/agent-behavior-eval-manifest.schema.json",
+  "response_schema_path": "schemas/harness/agent-behavior-response-set.schema.json",
   "suite_id": "repository-ai-core",
   "purpose": "Evaluate repository-local agent decisions and remediation before operator or target behavior is shipped.",
   "case_set": "harness/evals/cases/repository-ai-core.v1.json",
@@ -15,10 +16,26 @@
     "baseline_must_fail": true,
     "reference_candidate_must_pass": true
   },
+  "baseline_expectation": {
+    "passed_cases": 3,
+    "total_cases": 12,
+    "correctness_score": 0.486111,
+    "critical_failures": [
+      "grounding.missing-context.targeted-retrieval",
+      "grounding.present-context.reanchor",
+      "tool-signature.exact-operation-and-params",
+      "field-guide.cmd-first.missing-launcher",
+      "tool-response.malformed.fail-closed",
+      "timeout.partial-mutation.registered-recovery",
+      "schema.boolean-string.reject",
+      "identity.candidate-is-not-proof",
+      "freshness.operator-command.unproven"
+    ]
+  },
   "outcome_policy": {
     "success": "All deterministic criteria pass, correctness is 1.0, and there are zero critical failures.",
     "acceptable_degradation": "Style may remain unscored and judge/human layers may remain not applicable when deterministic evidence fully decides the case; this never lowers deterministic correctness.",
-    "failure": "Any failed deterministic criterion, any critical failure, unknown or duplicate response case, baseline polarity inversion, or unauthorized threshold relaxation fails the gate."
+    "failure": "Any failed deterministic criterion, any critical failure, unknown or duplicate response case, malformed response-set contract, baseline polarity drift, or unauthorized threshold relaxation fails the gate."
   },
   "eval_pyramid": [
     {
@@ -48,25 +65,10 @@
     "schema_version": "sas-agent-behavior-eval-result/v1"
   },
   "known_failure_sources": [
-    {
-      "source_id": "PR-406",
-      "failure_class": "repository_freshness_unproven"
-    },
-    {
-      "source_id": "PR-417",
-      "failure_class": "instruction_or_handoff_composition"
-    },
-    {
-      "source_id": "PR-420",
-      "failure_class": "schema_type_mismatch_or_timeout_recovery"
-    },
-    {
-      "source_id": "PR-413/427",
-      "failure_class": "insufficient_identity_evidence"
-    },
-    {
-      "source_id": "PR-428",
-      "failure_class": "missing_cmd_front_door"
-    }
+    {"source_id": "PR-406", "failure_class": "repository_freshness_unproven"},
+    {"source_id": "PR-417", "failure_class": "instruction_or_handoff_composition"},
+    {"source_id": "PR-420", "failure_class": "schema_type_mismatch_or_timeout_recovery"},
+    {"source_id": "PR-413/427", "failure_class": "insufficient_identity_evidence"},
+    {"source_id": "PR-428", "failure_class": "missing_cmd_front_door"}
   ]
 }

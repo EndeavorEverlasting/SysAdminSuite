@@ -1,9 +1,10 @@
 schema_version: sas-agent-behavior-eval-workflow/v1
-operation_id: agent_behavior.eval
+workflow_id: repository-ai-evals
 mode: local_transform
 network_activity: false
 target_mutation: false
 manifest: harness/evals/agent-behavior-eval-manifest.v1.json
+response_schema: schemas/harness/agent-behavior-response-set.schema.json
 threshold_approval_ledger: harness/evals/approved-threshold-changes.v1.json
 validator: harness/validators/validate-agent-behavior-evals.py
 runner: tools/run-agent-behavior-evals.py
@@ -17,11 +18,12 @@ outputs:
 gates:
   deterministic_correctness: 1.0
   critical_failures_allowed: 0
-  baseline_must_fail: true
+  baseline_must_fail_exactly_as_versioned: true
   candidate_must_pass: true
   relaxed_threshold_requires_approved_evidence: true
 execution_order:
   - validate_framework
+  - validate_manifest_and_response_schemas
   - validate_threshold_authority
   - score_known_failure_baseline
   - score_candidate

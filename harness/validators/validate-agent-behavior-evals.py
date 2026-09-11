@@ -9,6 +9,8 @@ import sys
 import tempfile
 from pathlib import Path
 
+from jsonschema import Draft202012Validator
+
 ROOT = Path(__file__).resolve().parents[2]
 MANIFEST = ROOT / "harness/evals/agent-behavior-eval-manifest.v1.json"
 
@@ -35,21 +37,18 @@ def load_runner(path: Path):
     return module
 
 
+def validate_schema(instance: dict, schema: dict, label: str) -> None:
+    Draft202012Validator.check_schema(schema)
+    errors = sorted(Draft202012Validator(schema).iter_errors(instance), key=lambda item: list(item.path))
+    if errors:
+        details = "; ".join(f"{list(error.path)}: {error.message}" for error in errors[:8])
+        raise AssertionError(f"{label} failed schema validation: {details}")
+
+
 def run_candidate(manifest: dict, responses: Path, expect: str, report: Path) -> dict:
     runner = resolve_repo_path(manifest["runner"])
     completed = subprocess.run(
-        [
-            sys.executable,
-            str(runner),
-            "--manifest",
-            str(MANIFEST),
-            "--responses",
-            str(responses),
-            "--expect",
-            expect,
-            "--report",
-            str(report),
-        ],
+        [sys.executable, str(runner), "--manifest", str(MANIFEST), "--responses", str(responses), "--expect", expect, "--report", str(report)],
         cwd=ROOT,
         text=True,
         capture_output=True,
@@ -62,11 +61,13 @@ def run_candidate(manifest: dict, responses: Path, expect: str, report: Path) ->
 
 def main() -> int:
     manifest = load_json(MANIFEST)
-    if manifest.get("schema_version") != "sas-agent-behavior-eval-manifest/v1":
-        raise AssertionError("unexpected eval manifest schema version")
+    schema = load_json(resolve_repo_path(manifest["schema_path"]))
+    validate_schema(manifest, schema, "AI eval manifest")
+    if schema.get("$id") != manifest["schema_version"]:
+        raise AssertionError("manifest/schema identity mismatch")
 
     authorities = {
-        "schema": manifest["schema_path"],
+        "response_schema": manifest["response_schema_path"],
         "cases": manifest["case_set"],
         "runner": manifest["runner"],
         "baseline": manifest["baseline_response_set"],
@@ -79,21 +80,21 @@ def main() -> int:
         if not path.is_file():
             raise AssertionError(f"missing {name} eval authority: {path.relative_to(ROOT)}")
 
-    schema = load_json(resolved["schema"])
+    response_schema = load_json(resolved["response_schema"])
     cases_doc = load_json(resolved["cases"])
     rubric = load_json(resolved["rubric"])
     threshold_ledger = load_json(resolved["threshold_ledger"])
     baseline = load_json(resolved["baseline"])
     reference = load_json(resolved["reference"])
+    validate_schema(baseline, response_schema, "known-failure baseline response set")
+    validate_schema(reference, response_schema, "reference candidate response set")
 
-    if schema.get("$id") != manifest["schema_version"]:
-        raise AssertionError("manifest/schema identity mismatch")
+    if response_schema.get("$id") != "sas-agent-behavior-response-set/v1":
+        raise AssertionError("unexpected response-set schema identity")
     if threshold_ledger.get("schema_version") != "sas-agent-behavior-eval-threshold-approvals/v1":
         raise AssertionError("unexpected threshold approval ledger version")
-    if threshold_ledger.get("suite_id") != manifest["suite_id"]:
-        raise AssertionError("threshold ledger belongs to a different eval suite")
-    if not isinstance(threshold_ledger.get("records"), list):
-        raise AssertionError("threshold approval ledger records must be an array")
+    if threshold_ledger.get("suite_id") != manifest["suite_id"] or not isinstance(threshold_ledger.get("records"), list):
+        raise AssertionError("threshold approval ledger identity/shape mismatch")
 
     outcome_policy = manifest["outcome_policy"]
     for key in ("success", "acceptable_degradation", "failure"):
@@ -101,15 +102,8 @@ def main() -> int:
             raise AssertionError(f"missing eval outcome policy: {key}")
 
     layers = [item["layer"] for item in manifest["eval_pyramid"]]
-    expected_layers = ["deterministic", "synthetic_integration", "model_judge", "human_review"]
-    if layers != expected_layers:
+    if layers != ["deterministic", "synthetic_integration", "model_judge", "human_review"]:
         raise AssertionError(f"eval pyramid order mismatch: {layers}")
-    if manifest["eval_pyramid"][0]["model_tokens_allowed"]:
-        raise AssertionError("deterministic layer must not spend model tokens")
-    if manifest["eval_pyramid"][1]["model_tokens_allowed"]:
-        raise AssertionError("synthetic integration layer must not spend model tokens by default")
-    if not manifest["eval_pyramid"][2]["model_tokens_allowed"]:
-        raise AssertionError("model-judge layer must be the explicit model-token layer")
 
     thresholds = manifest["thresholds"]
     if thresholds["baseline_must_fail"] is not True or thresholds["reference_candidate_must_pass"] is not True:
@@ -133,22 +127,16 @@ def main() -> int:
         raise AssertionError("every eval case must document false-positive and false-negative risk")
 
     paired = [case for case in cases if case.get("pair_id") == "grounding-context-pair"]
-    if len(paired) != 2:
-        raise AssertionError("grounding hallucination diagnosis must remain a paired eval")
     by_truth = {case["context"].get("truth_state"): case for case in paired}
-    if set(by_truth) != {"absent", "present"}:
-        raise AssertionError("grounding pair must contain truth absent and truth present cases")
+    if len(paired) != 2 or set(by_truth) != {"absent", "present"}:
+        raise AssertionError("grounding pair must contain exactly truth absent and truth present")
     if by_truth["absent"]["oracle"]["grounding_strategy"] != "targeted_retrieval":
         raise AssertionError("missing truth must trigger targeted grounding")
-    if by_truth["present"]["oracle"]["grounding_strategy"] != "reanchor_and_compact":
-        raise AssertionError("present-but-ignored truth must trigger re-anchoring/compaction")
-    if by_truth["present"]["oracle"]["exact_tool_calls"] != []:
-        raise AssertionError("present-but-ignored truth must not trigger redundant retrieval")
+    if by_truth["present"]["oracle"]["grounding_strategy"] != "reanchor_and_compact" or by_truth["present"]["oracle"]["exact_tool_calls"] != []:
+        raise AssertionError("present-but-ignored truth must re-anchor without redundant retrieval")
 
-    if rubric.get("correctness_and_style_are_separate") is not True:
-        raise AssertionError("eval rubric must keep correctness separate from style")
-    if "Do not invoke a model judge" not in rubric.get("activation_rule", ""):
-        raise AssertionError("judge rubric must preserve deterministic-first token discipline")
+    if rubric.get("correctness_and_style_are_separate") is not True or "Do not invoke a model judge" not in rubric.get("activation_rule", ""):
+        raise AssertionError("judge rubric weakened deterministic-first scoring")
 
     expected_case_ids = set(case_ids)
     if {item["case_id"] for item in baseline["responses"]} != expected_case_ids:
@@ -161,32 +149,25 @@ def main() -> int:
         baseline_report = run_candidate(manifest, resolved["baseline"], "fail", temp / "baseline.json")
         candidate_report = run_candidate(manifest, resolved["reference"], "pass", temp / "candidate.json")
 
-    if baseline_report["gate_pass"] is not False or not baseline_report["critical_failures"]:
-        raise AssertionError("known-failure baseline was not rejected by the evaluator")
-    if candidate_report["gate_pass"] is not True or candidate_report["correctness_score"] != 1.0:
+    expected_baseline = manifest["baseline_expectation"]
+    for key in ("passed_cases", "total_cases", "correctness_score", "critical_failures"):
+        if baseline_report[key] != expected_baseline[key]:
+            raise AssertionError(f"known-failure baseline drifted for {key}: expected={expected_baseline[key]!r} actual={baseline_report[key]!r}")
+    if baseline_report["gate_pass"] is not False:
+        raise AssertionError("known-failure baseline unexpectedly passed")
+    if candidate_report["gate_pass"] is not True or candidate_report["correctness_score"] != 1.0 or candidate_report["critical_failures"]:
         raise AssertionError("reference candidate did not satisfy the exact deterministic gate")
-    if candidate_report["critical_failures"]:
-        raise AssertionError("reference candidate contains critical eval failures")
     if candidate_report["threshold_relaxation_authorized"] is not True:
         raise AssertionError("current threshold contract was unexpectedly rejected")
-    if candidate_report["correctness_score"] <= baseline_report["correctness_score"]:
-        raise AssertionError("reference candidate does not improve on known-failure baseline")
 
-    print("[PASS] repository AI eval authorities are present, versioned, and repository-contained")
+    print("[PASS] AI eval manifest and response fixtures satisfy their Draft 2020-12 schemas")
+    print("[PASS] repository AI eval authorities are versioned and repository-contained")
     print("[PASS] success, acceptable degradation, and failure criteria are explicit")
     print("[PASS] eval pyramid is deterministic-first and model-judge use is explicitly gated")
     print("[PASS] threshold relaxation requires a versioned approval/evidence ledger")
     print("[PASS] paired hallucination diagnosis distinguishes absent truth from ignored present truth")
-    print(
-        "[PASS] baseline rejected: "
-        f"score={baseline_report['correctness_score']:.6f}; "
-        f"critical_failures={len(baseline_report['critical_failures'])}"
-    )
-    print(
-        "[PASS] reference candidate accepted: "
-        f"score={candidate_report['correctness_score']:.6f}; "
-        f"cases={candidate_report['passed_cases']}/{candidate_report['total_cases']}"
-    )
+    print(f"[PASS] baseline retained exact failures: score={baseline_report['correctness_score']:.6f}; critical={len(baseline_report['critical_failures'])}")
+    print(f"[PASS] reference candidate accepted: score={candidate_report['correctness_score']:.6f}; cases={candidate_report['passed_cases']}/{candidate_report['total_cases']}")
     return 0
 
 

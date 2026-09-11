@@ -5,32 +5,50 @@ permissions:
 
 on:
   push:
-    branches: [main, 'feat/**', 'repair/**', 'harness/**']
+    branches: [main, 'feat/**', 'repair/**', 'refactor/**', 'docs/**', 'harness/**']
     paths:
+      - 'AGENTS.md'
+      - 'CLAUDE.md'
+      - 'CODEBASE_MAP.md'
+      - '.claude/skills/**'
+      - '.claude/capabilities/**'
+      - 'harness/api/**'
       - 'harness/evals/**'
-      - 'harness/validators/validate-agent-behavior-evals.py'
-      - 'harness/workflows/agent-behavior-evals.yaml'
-      - 'schemas/harness/agent-behavior-eval-manifest.schema.json'
+      - 'harness/skills/**'
+      - 'harness/validators/**'
+      - 'harness/workflows/**'
+      - 'schemas/harness/**'
       - 'tools/run-agent-behavior-evals.py'
       - 'Tests/Fixtures/agent-evals/**'
       - 'Tests/survey/test_agent_behavior_eval_framework_contracts.py'
+      - 'Tests/survey/test_field_guide_cmd_first_contracts.py'
+      - 'Tests/survey/test_agent_governance_doctrine_contracts.py'
       - 'docs/AI_EVALS.md'
+      - 'docs/AI_HARNESS_ENTRYPOINT.md'
+      - 'docs/HARNESS_DISCIPLINE.md'
       - '.github/workflows/agent-behavior-evals.yml'
-      - 'AGENTS.md'
-      - '.claude/capabilities/field-command-design.md'
   pull_request:
     paths:
+      - 'AGENTS.md'
+      - 'CLAUDE.md'
+      - 'CODEBASE_MAP.md'
+      - '.claude/skills/**'
+      - '.claude/capabilities/**'
+      - 'harness/api/**'
       - 'harness/evals/**'
-      - 'harness/validators/validate-agent-behavior-evals.py'
-      - 'harness/workflows/agent-behavior-evals.yaml'
-      - 'schemas/harness/agent-behavior-eval-manifest.schema.json'
+      - 'harness/skills/**'
+      - 'harness/validators/**'
+      - 'harness/workflows/**'
+      - 'schemas/harness/**'
       - 'tools/run-agent-behavior-evals.py'
       - 'Tests/Fixtures/agent-evals/**'
       - 'Tests/survey/test_agent_behavior_eval_framework_contracts.py'
+      - 'Tests/survey/test_field_guide_cmd_first_contracts.py'
+      - 'Tests/survey/test_agent_governance_doctrine_contracts.py'
       - 'docs/AI_EVALS.md'
+      - 'docs/AI_HARNESS_ENTRYPOINT.md'
+      - 'docs/HARNESS_DISCIPLINE.md'
       - '.github/workflows/agent-behavior-evals.yml'
-      - 'AGENTS.md'
-      - '.claude/capabilities/field-command-design.md'
 
 jobs:
   repository-ai-evals:
@@ -42,6 +60,8 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: '3.12'
+      - name: Install eval validation dependencies
+        run: python -m pip install jsonschema pyyaml
       - name: Compile eval framework
         run: >-
           python -m py_compile
