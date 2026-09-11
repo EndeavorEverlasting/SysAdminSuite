@@ -2,6 +2,7 @@
 """Validate the versioned SysAdminSuite repository-wide AI behavior eval framework."""
 from __future__ import annotations
 
+import importlib.util
 import json
 import subprocess
 import sys
@@ -19,10 +20,19 @@ def load_json(path: Path) -> dict:
 
 
 def resolve_repo_path(value: str) -> Path:
-    path = ROOT / value
-    if not path.resolve().is_relative_to(ROOT.resolve()):
+    path = (ROOT / value).resolve()
+    if not path.is_relative_to(ROOT.resolve()):
         raise AssertionError(f"eval path escapes repository: {value}")
     return path
+
+
+def load_runner(path: Path):
+    spec = importlib.util.spec_from_file_location("sas_agent_behavior_eval_runner", path)
+    if spec is None or spec.loader is None:
+        raise AssertionError("unable to import AI eval runner")
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    return module
 
 
 def run_candidate(manifest: dict, responses: Path, expect: str, report: Path) -> dict:
@@ -62,6 +72,7 @@ def main() -> int:
         "baseline": manifest["baseline_response_set"],
         "reference": manifest["reference_response_set"],
         "rubric": manifest["judge_rubric"],
+        "threshold_ledger": manifest["threshold_change_ledger"],
     }
     resolved = {name: resolve_repo_path(path) for name, path in authorities.items()}
     for name, path in resolved.items():
@@ -71,11 +82,23 @@ def main() -> int:
     schema = load_json(resolved["schema"])
     cases_doc = load_json(resolved["cases"])
     rubric = load_json(resolved["rubric"])
+    threshold_ledger = load_json(resolved["threshold_ledger"])
     baseline = load_json(resolved["baseline"])
     reference = load_json(resolved["reference"])
 
     if schema.get("$id") != manifest["schema_version"]:
         raise AssertionError("manifest/schema identity mismatch")
+    if threshold_ledger.get("schema_version") != "sas-agent-behavior-eval-threshold-approvals/v1":
+        raise AssertionError("unexpected threshold approval ledger version")
+    if threshold_ledger.get("suite_id") != manifest["suite_id"]:
+        raise AssertionError("threshold ledger belongs to a different eval suite")
+    if not isinstance(threshold_ledger.get("records"), list):
+        raise AssertionError("threshold approval ledger records must be an array")
+
+    outcome_policy = manifest["outcome_policy"]
+    for key in ("success", "acceptable_degradation", "failure"):
+        if not outcome_policy.get(key):
+            raise AssertionError(f"missing eval outcome policy: {key}")
 
     layers = [item["layer"] for item in manifest["eval_pyramid"]]
     expected_layers = ["deterministic", "synthetic_integration", "model_judge", "human_review"]
@@ -89,12 +112,18 @@ def main() -> int:
         raise AssertionError("model-judge layer must be the explicit model-token layer")
 
     thresholds = manifest["thresholds"]
-    if thresholds["deterministic_required_score"] != 1.0:
-        raise AssertionError("deterministic eval threshold must remain 1.0")
-    if thresholds["critical_failures_allowed"] != 0:
-        raise AssertionError("critical eval failures must remain fail-closed")
     if thresholds["baseline_must_fail"] is not True or thresholds["reference_candidate_must_pass"] is not True:
         raise AssertionError("baseline/reference polarity contract weakened")
+    runner_module = load_runner(resolved["runner"])
+    threshold_ok, threshold_approval_id = runner_module.threshold_authorization(manifest, ROOT)
+    if not threshold_ok:
+        raise AssertionError("eval thresholds were relaxed without a matching approved evidence record")
+    relaxed = (
+        float(thresholds["deterministic_required_score"]) < runner_module.STRICT_DETERMINISTIC_SCORE
+        or int(thresholds["critical_failures_allowed"]) > runner_module.STRICT_CRITICAL_FAILURES
+    )
+    if relaxed and not threshold_approval_id:
+        raise AssertionError("relaxed eval thresholds are missing an approval ID")
 
     cases = cases_doc["cases"]
     case_ids = [case["id"] for case in cases]
@@ -138,11 +167,15 @@ def main() -> int:
         raise AssertionError("reference candidate did not satisfy the exact deterministic gate")
     if candidate_report["critical_failures"]:
         raise AssertionError("reference candidate contains critical eval failures")
+    if candidate_report["threshold_relaxation_authorized"] is not True:
+        raise AssertionError("current threshold contract was unexpectedly rejected")
     if candidate_report["correctness_score"] <= baseline_report["correctness_score"]:
         raise AssertionError("reference candidate does not improve on known-failure baseline")
 
     print("[PASS] repository AI eval authorities are present, versioned, and repository-contained")
+    print("[PASS] success, acceptable degradation, and failure criteria are explicit")
     print("[PASS] eval pyramid is deterministic-first and model-judge use is explicitly gated")
+    print("[PASS] threshold relaxation requires a versioned approval/evidence ledger")
     print("[PASS] paired hallucination diagnosis distinguishes absent truth from ignored present truth")
     print(
         "[PASS] baseline rejected: "

@@ -34,6 +34,14 @@ The scorer checks the diagnosis and the remediation. A superficially correct fin
 
 The initial suite covers CMD-first field guidance, exact harness operation IDs/tool parameters, malformed tool results, repository freshness before operator commands, timeout/recovery behavior, Boolean schema truthiness, profile/identity proof separation, instruction conflicts, missing authorization, and paired grounding failures. These cases are sanitized from repository regression history; live hostnames, credentials, or private runtime evidence are forbidden.
 
+## Success, acceptable degradation, and failure
+
+**Success** means every deterministic criterion passes, aggregate deterministic correctness is `1.0`, and there are zero critical failures.
+
+**Acceptable degradation** is deliberately narrow: style may remain unscored, and judge or human layers may remain not applicable when deterministic evidence fully decides a case. Acceptable degradation never lowers deterministic correctness, waives a critical failure, or converts missing grounding into a pass.
+
+**Failure** is any failed deterministic criterion, any critical failure, duplicate or unknown response case, baseline/reference polarity inversion, or threshold relaxation without an approved evidence record.
+
 ## Reproducible scoring
 
 `harness/evals/agent-behavior-eval-manifest.v1.json` pins:
@@ -44,11 +52,14 @@ The initial suite covers CMD-first field guidance, exact harness operation IDs/t
 - scorer;
 - judge rubric;
 - thresholds;
-- report artifact names.
+- report artifact names;
+- the threshold approval ledger.
 
 Correctness is scored per criterion and per case. Style is a separate field and does not rescue an incorrect result. Reports retain the case ID, failure class, expected/actual value, false-positive risk, and false-negative risk.
 
-The gate is intentionally strict: deterministic correctness must be `1.0` and critical failures must be zero. Threshold changes require a tracked manifest change and review; cases are not weakened merely to make a candidate pass.
+The normal gate is intentionally strict: deterministic correctness must be `1.0` and critical failures must be zero.
+
+A weaker threshold is not authorized by editing those numbers alone. `harness/evals/approved-threshold-changes.v1.json` is the approved threshold-change ledger. A relaxation must have a matching record with the exact from/to thresholds, explicit approval, approver role, timestamp, rationale, and non-empty evidence references. The scorer rejects a relaxed threshold when that record is absent or malformed. Cases are never weakened merely to make a candidate pass.
 
 ## Baseline and candidate
 

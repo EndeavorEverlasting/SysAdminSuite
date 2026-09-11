@@ -4,6 +4,7 @@ mode: local_transform
 network_activity: false
 target_mutation: false
 manifest: harness/evals/agent-behavior-eval-manifest.v1.json
+threshold_approval_ledger: harness/evals/approved-threshold-changes.v1.json
 validator: harness/validators/validate-agent-behavior-evals.py
 runner: tools/run-agent-behavior-evals.py
 inputs:
@@ -18,8 +19,10 @@ gates:
   critical_failures_allowed: 0
   baseline_must_fail: true
   candidate_must_pass: true
+  relaxed_threshold_requires_approved_evidence: true
 execution_order:
   - validate_framework
+  - validate_threshold_authority
   - score_known_failure_baseline
   - score_candidate
   - compare_baseline_and_candidate

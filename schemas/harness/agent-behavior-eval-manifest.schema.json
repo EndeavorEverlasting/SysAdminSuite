@@ -14,7 +14,9 @@
     "baseline_response_set",
     "reference_response_set",
     "judge_rubric",
+    "threshold_change_ledger",
     "thresholds",
+    "outcome_policy",
     "eval_pyramid",
     "report_artifacts",
     "known_failure_sources"
@@ -54,6 +56,10 @@
       "type": "string",
       "minLength": 1
     },
+    "threshold_change_ledger": {
+      "type": "string",
+      "minLength": 1
+    },
     "thresholds": {
       "type": "object",
       "additionalProperties": false,
@@ -78,6 +84,29 @@
         },
         "reference_candidate_must_pass": {
           "const": true
+        }
+      }
+    },
+    "outcome_policy": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "success",
+        "acceptable_degradation",
+        "failure"
+      ],
+      "properties": {
+        "success": {
+          "type": "string",
+          "minLength": 1
+        },
+        "acceptable_degradation": {
+          "type": "string",
+          "minLength": 1
+        },
+        "failure": {
+          "type": "string",
+          "minLength": 1
         }
       }
     },

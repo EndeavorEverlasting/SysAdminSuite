@@ -8,11 +8,17 @@
   "baseline_response_set": "Tests/Fixtures/agent-evals/baseline-known-failures.v1.json",
   "reference_response_set": "Tests/Fixtures/agent-evals/reference-candidate.v1.json",
   "judge_rubric": "harness/evals/judges/repository-quality-rubric.v1.json",
+  "threshold_change_ledger": "harness/evals/approved-threshold-changes.v1.json",
   "thresholds": {
     "deterministic_required_score": 1.0,
     "critical_failures_allowed": 0,
     "baseline_must_fail": true,
     "reference_candidate_must_pass": true
+  },
+  "outcome_policy": {
+    "success": "All deterministic criteria pass, correctness is 1.0, and there are zero critical failures.",
+    "acceptable_degradation": "Style may remain unscored and judge/human layers may remain not applicable when deterministic evidence fully decides the case; this never lowers deterministic correctness.",
+    "failure": "Any failed deterministic criterion, any critical failure, unknown or duplicate response case, baseline polarity inversion, or unauthorized threshold relaxation fails the gate."
   },
   "eval_pyramid": [
     {

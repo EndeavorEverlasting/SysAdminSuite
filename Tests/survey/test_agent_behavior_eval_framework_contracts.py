@@ -2,6 +2,8 @@
 """Contracts for the repository-wide agent behavior eval framework."""
 from __future__ import annotations
 
+import copy
+import importlib.util
 import json
 import subprocess
 import sys
@@ -13,6 +15,7 @@ MANIFEST = ROOT / "harness/evals/agent-behavior-eval-manifest.v1.json"
 SCHEMA = ROOT / "schemas/harness/agent-behavior-eval-manifest.schema.json"
 CASES = ROOT / "harness/evals/cases/repository-ai-core.v1.json"
 RUBRIC = ROOT / "harness/evals/judges/repository-quality-rubric.v1.json"
+THRESHOLD_LEDGER = ROOT / "harness/evals/approved-threshold-changes.v1.json"
 WORKFLOW_SPEC = ROOT / "harness/workflows/agent-behavior-evals.yaml"
 VALIDATOR = ROOT / "harness/validators/validate-agent-behavior-evals.py"
 RUNNER = ROOT / "tools/run-agent-behavior-evals.py"
@@ -25,6 +28,14 @@ DOC = ROOT / "docs/AI_EVALS.md"
 def load(path: Path) -> dict:
     assert path.is_file(), f"missing eval authority: {path.relative_to(ROOT)}"
     return json.loads(path.read_text(encoding="utf-8-sig"))
+
+
+def load_runner():
+    spec = importlib.util.spec_from_file_location("sas_agent_behavior_eval_runner_contract", RUNNER)
+    assert spec is not None and spec.loader is not None
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    return module
 
 
 def run_eval(responses: Path, expect: str, report: Path) -> dict:
@@ -55,6 +66,7 @@ def main() -> int:
     schema = load(SCHEMA)
     cases_doc = load(CASES)
     rubric = load(RUBRIC)
+    threshold_ledger = load(THRESHOLD_LEDGER)
     baseline = load(BASELINE)
     reference = load(REFERENCE)
 
@@ -62,10 +74,23 @@ def main() -> int:
     assert WORKFLOW_SPEC.is_file(), "missing harness-owned AI eval workflow spec"
     assert manifest["schema_version"] == "sas-agent-behavior-eval-manifest/v1"
     assert schema["$id"] == manifest["schema_version"]
+    assert manifest["threshold_change_ledger"] == "harness/evals/approved-threshold-changes.v1.json"
+    assert threshold_ledger["schema_version"] == "sas-agent-behavior-eval-threshold-approvals/v1"
+    assert threshold_ledger["suite_id"] == manifest["suite_id"]
+    assert threshold_ledger["records"] == []
     assert manifest["thresholds"]["deterministic_required_score"] == 1.0
     assert manifest["thresholds"]["critical_failures_allowed"] == 0
     assert manifest["thresholds"]["baseline_must_fail"] is True
     assert manifest["thresholds"]["reference_candidate_must_pass"] is True
+    assert set(manifest["outcome_policy"]) == {"success", "acceptable_degradation", "failure"}
+
+    runner_module = load_runner()
+    strict_ok, strict_approval = runner_module.threshold_authorization(manifest, ROOT)
+    assert strict_ok is True and strict_approval is None
+    relaxed = copy.deepcopy(manifest)
+    relaxed["thresholds"]["deterministic_required_score"] = 0.99
+    relaxed_ok, relaxed_approval = runner_module.threshold_authorization(relaxed, ROOT)
+    assert relaxed_ok is False and relaxed_approval is None, "unapproved threshold relaxation must fail closed"
 
     expected_layers = ["deterministic", "synthetic_integration", "model_judge", "human_review"]
     assert [item["layer"] for item in manifest["eval_pyramid"]] == expected_layers
@@ -132,6 +157,8 @@ def main() -> int:
     assert candidate_report["correctness_score"] == 1.0
     assert candidate_report["critical_failures"] == []
     assert candidate_report["style_score"] is None
+    assert candidate_report["threshold_relaxation_authorized"] is True
+    assert candidate_report["threshold_approval_id"] is None
     assert candidate_report["correctness_score"] > baseline_report["correctness_score"]
 
     workflow_spec_text = WORKFLOW_SPEC.read_text(encoding="utf-8-sig")
@@ -141,6 +168,7 @@ def main() -> int:
         "network_activity: false",
         "target_mutation: false",
         "validator: harness/validators/validate-agent-behavior-evals.py",
+        "threshold_approval_ledger: harness/evals/approved-threshold-changes.v1.json",
         "deterministic_correctness: 1.0",
         "critical_failures_allowed: 0",
     ):
@@ -165,6 +193,8 @@ def main() -> int:
         "Correctness is scored per criterion and per case",
         "Style is a separate field",
         "baseline fixture encodes known bad behaviors",
+        "Acceptable degradation",
+        "approved threshold-change ledger",
     ):
         assert marker in doc_text, f"eval documentation missing marker: {marker}"
 
@@ -180,6 +210,7 @@ def main() -> int:
     print("[PASS] Agent eval manifest, schema, pyramid, rubric, workflow, and paths are versioned")
     print("[PASS] Grounding hallucination pair distinguishes absent truth from ignored present truth")
     print("[PASS] Exact operation IDs/tool parameters and CMD-first regressions are deterministic cases")
+    print("[PASS] Unapproved threshold relaxation fails closed through the versioned approval ledger")
     print("[PASS] Known-failure baseline is rejected and reference candidate passes at score 1.0")
     print("[PASS] CI renders attributable baseline/candidate reports and preserves existing governance gates")
     return 0
