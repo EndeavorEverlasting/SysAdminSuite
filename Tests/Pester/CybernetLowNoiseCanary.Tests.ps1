@@ -44,9 +44,9 @@ Describe 'Cybernet low-noise CMD identity probe' {
 
     It 'uses the repository-owned refresh transaction rather than Git in the caller worktree' {
         $refresh = Get-Content -LiteralPath $script:refresh -Raw
-        $refresh | Should -Match "Join-Path \$env:LOCALAPPDATA 'SysAdminSuite'"
-        $refresh | Should -Match "Join-Path \$operatorStateRoot 'sync-cache'"
-        $refresh | Should -Match "Join-Path \$operatorStateRoot 'field-ready'"
+        $refresh | Should -Match ([regex]::Escape('$operatorStateRoot = Join-Path $env:LOCALAPPDATA ''SysAdminSuite'''))
+        $refresh | Should -Match ([regex]::Escape('$syncCache = Join-Path $operatorStateRoot ''sync-cache'''))
+        $refresh | Should -Match ([regex]::Escape('$preferredFieldReady = Join-Path $operatorStateRoot ''field-ready'''))
         $refresh | Should -Match "@\('fetch','--no-tags','--prune','origin'"
         $refresh | Should -Match 'origin/\$refreshBranch'
         $refresh | Should -Match 'No target contact or target mutation occurs in this script\.'
@@ -70,7 +70,8 @@ Describe 'Cybernet low-noise CMD identity probe' {
             'result_sha256',
             'Get-FileHash',
             'ObservationTimestamp',
-            "'Port445','PcSignatureStatus','WorkstationStatus','ObservedOperatingSystem'",
+            "'Port135','Port445'",
+            "'PcSignatureStatus','WorkstationStatus','ObservedOperatingSystem'",
             'FreshLocalReuse',
             'NetworkActivityPerformed = $false'
         )) {
