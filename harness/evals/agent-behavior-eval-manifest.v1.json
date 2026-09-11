@@ -1,0 +1,66 @@
+{
+  "schema_version": "sas-agent-behavior-eval-manifest/v1",
+  "schema_path": "schemas/harness/agent-behavior-eval-manifest.schema.json",
+  "suite_id": "repository-ai-core",
+  "purpose": "Evaluate repository-local agent decisions and remediation before operator or target behavior is shipped.",
+  "case_set": "harness/evals/cases/repository-ai-core.v1.json",
+  "runner": "tools/run-agent-behavior-evals.py",
+  "baseline_response_set": "Tests/Fixtures/agent-evals/baseline-known-failures.v1.json",
+  "reference_response_set": "Tests/Fixtures/agent-evals/reference-candidate.v1.json",
+  "judge_rubric": "harness/evals/judges/repository-quality-rubric.v1.json",
+  "thresholds": {
+    "deterministic_required_score": 1.0,
+    "critical_failures_allowed": 0,
+    "baseline_must_fail": true,
+    "reference_candidate_must_pass": true
+  },
+  "eval_pyramid": [
+    {
+      "layer": "deterministic",
+      "use_when": "Exact IDs, schema types, tool parameters, authorization, required/forbidden actions, or repository contracts can decide the result.",
+      "model_tokens_allowed": false
+    },
+    {
+      "layer": "synthetic_integration",
+      "use_when": "Multiple context/tool/decision seams must be exercised together with sanitized fixtures.",
+      "model_tokens_allowed": false
+    },
+    {
+      "layer": "model_judge",
+      "use_when": "Quality cannot be expressed by an exact oracle after deterministic criteria are exhausted.",
+      "model_tokens_allowed": true
+    },
+    {
+      "layer": "human_review",
+      "use_when": "Operator judgment remains irreducible or has real-world acceptance consequences.",
+      "model_tokens_allowed": false
+    }
+  ],
+  "report_artifacts": {
+    "baseline": "artifacts/ai-evals/baseline-result.json",
+    "candidate": "artifacts/ai-evals/reference-candidate-result.json",
+    "schema_version": "sas-agent-behavior-eval-result/v1"
+  },
+  "known_failure_sources": [
+    {
+      "source_id": "PR-406",
+      "failure_class": "repository_freshness_unproven"
+    },
+    {
+      "source_id": "PR-417",
+      "failure_class": "instruction_or_handoff_composition"
+    },
+    {
+      "source_id": "PR-420",
+      "failure_class": "schema_type_mismatch_or_timeout_recovery"
+    },
+    {
+      "source_id": "PR-413/427",
+      "failure_class": "insufficient_identity_evidence"
+    },
+    {
+      "source_id": "PR-428",
+      "failure_class": "missing_cmd_front_door"
+    }
+  ]
+}

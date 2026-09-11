@@ -1,0 +1,88 @@
+name: Agent behavior evals
+
+permissions:
+  contents: read
+
+on:
+  push:
+    branches: [main, 'feat/**', 'repair/**', 'harness/**']
+    paths:
+      - 'harness/evals/**'
+      - 'harness/validators/validate-agent-behavior-evals.py'
+      - 'harness/workflows/agent-behavior-evals.yaml'
+      - 'schemas/harness/agent-behavior-eval-manifest.schema.json'
+      - 'tools/run-agent-behavior-evals.py'
+      - 'Tests/Fixtures/agent-evals/**'
+      - 'Tests/survey/test_agent_behavior_eval_framework_contracts.py'
+      - 'docs/AI_EVALS.md'
+      - '.github/workflows/agent-behavior-evals.yml'
+      - 'AGENTS.md'
+      - '.claude/capabilities/field-command-design.md'
+  pull_request:
+    paths:
+      - 'harness/evals/**'
+      - 'harness/validators/validate-agent-behavior-evals.py'
+      - 'harness/workflows/agent-behavior-evals.yaml'
+      - 'schemas/harness/agent-behavior-eval-manifest.schema.json'
+      - 'tools/run-agent-behavior-evals.py'
+      - 'Tests/Fixtures/agent-evals/**'
+      - 'Tests/survey/test_agent_behavior_eval_framework_contracts.py'
+      - 'docs/AI_EVALS.md'
+      - '.github/workflows/agent-behavior-evals.yml'
+      - 'AGENTS.md'
+      - '.claude/capabilities/field-command-design.md'
+
+jobs:
+  repository-ai-evals:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Compile eval framework
+        run: >-
+          python -m py_compile
+          tools/run-agent-behavior-evals.py
+          harness/validators/validate-agent-behavior-evals.py
+          Tests/survey/test_agent_behavior_eval_framework_contracts.py
+      - name: Validate framework and baseline polarity
+        run: python harness/validators/validate-agent-behavior-evals.py
+      - name: Run eval framework contracts
+        run: python Tests/survey/test_agent_behavior_eval_framework_contracts.py
+      - name: Render known-failure baseline report
+        run: >-
+          python tools/run-agent-behavior-evals.py
+          --manifest harness/evals/agent-behavior-eval-manifest.v1.json
+          --responses Tests/Fixtures/agent-evals/baseline-known-failures.v1.json
+          --expect fail
+          --report artifacts/ai-evals/baseline-result.json
+      - name: Render reference candidate report
+        run: >-
+          python tools/run-agent-behavior-evals.py
+          --manifest harness/evals/agent-behavior-eval-manifest.v1.json
+          --responses Tests/Fixtures/agent-evals/reference-candidate.v1.json
+          --expect pass
+          --report artifacts/ai-evals/reference-candidate-result.json
+      - name: Preserve CMD-first and governance contracts
+        run: |
+          python Tests/survey/test_field_guide_cmd_first_contracts.py
+          python Tests/survey/test_agent_governance_doctrine_contracts.py
+      - name: Check pull-request patch whitespace
+        if: github.event_name == 'pull_request'
+        run: |
+          git fetch origin "${{ github.event.pull_request.base.sha }}" "${{ github.event.pull_request.head.sha }}" --depth=1
+          git diff --check "${{ github.event.pull_request.base.sha }}" "${{ github.event.pull_request.head.sha }}"
+      - name: Check pushed commit whitespace
+        if: github.event_name != 'pull_request'
+        run: git show --check --oneline --no-renames HEAD
+      - name: Upload attributable eval reports
+        uses: actions/upload-artifact@v4
+        with:
+          name: agent-behavior-eval-reports
+          path: |
+            artifacts/ai-evals/baseline-result.json
+            artifacts/ai-evals/reference-candidate-result.json
+          if-no-files-found: error
