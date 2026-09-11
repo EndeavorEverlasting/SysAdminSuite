@@ -44,8 +44,9 @@ Describe 'Cybernet low-noise CMD identity probe' {
 
     It 'uses the repository-owned refresh transaction rather than Git in the caller worktree' {
         $refresh = Get-Content -LiteralPath $script:refresh -Raw
-        $refresh | Should -Match 'SysAdminSuite\\sync-cache'
-        $refresh | Should -Match 'field-ready'
+        $refresh | Should -Match "Join-Path \$env:LOCALAPPDATA 'SysAdminSuite'"
+        $refresh | Should -Match "Join-Path \$operatorStateRoot 'sync-cache'"
+        $refresh | Should -Match "Join-Path \$operatorStateRoot 'field-ready'"
         $refresh | Should -Match "@\('fetch','--no-tags','--prune','origin'"
         $refresh | Should -Match 'origin/\$refreshBranch'
         $refresh | Should -Match 'No target contact or target mutation occurs in this script\.'
