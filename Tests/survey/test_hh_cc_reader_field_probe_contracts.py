@@ -2,7 +2,9 @@
 """Contracts for the H&H CC-reader read-only field probe."""
 from __future__ import annotations
 
+import ipaddress
 import json
+import re
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[2]
@@ -21,7 +23,7 @@ def main() -> int:
     registry = json.loads(read("harness/api/harness-command-registry.json"))
 
     for marker in (
-        "Invoke-SasNetworkAwareField.ps1\" refresh",
+        'Invoke-SasNetworkAwareField.ps1" refresh',
         "C:\\SASAL\\Probe-HHCCReader.cmd",
         "Invoke-SasHhCcReaderProbe.ps1",
         "Probe-HHCCReader.cmd IPV4 [EXPECTED-MAC]",
@@ -58,14 +60,21 @@ def main() -> int:
     for marker in forbidden_mutation:
         assert marker.lower() not in lowered, f"read-only probe contains forbidden mutation marker: {marker}"
 
-    private_markers = (
-        "10.217.101.192",
-        "C8:40:52:3C:54:B6",
-        "2942",
-    )
     joined = "\n".join((launcher, script, docs))
-    for marker in private_markers:
-        assert marker not in joined, f"live/private H&H value leaked into tracked field probe: {marker}"
+    ipv4_literals = set(re.findall(r"(?<!\d)(?:\d{1,3}\.){3}\d{1,3}(?!\d)", joined))
+    documentation_network = ipaddress.ip_network("192.0.2.0/24")
+    for literal in ipv4_literals:
+        address = ipaddress.ip_address(literal)
+        assert address in documentation_network, (
+            f"tracked field probe contains non-TEST-NET IPv4 literal: {literal}"
+        )
+
+    mac_literals = set(
+        re.findall(r"(?i)\b(?:[0-9a-f]{2}[-:]){5}[0-9a-f]{2}\b", joined)
+    )
+    assert mac_literals <= {"AA-BB-CC-DD-EE-FF"}, (
+        f"tracked field probe contains non-synthetic MAC literal(s): {sorted(mac_literals)}"
+    )
 
     assert "private H&H Google Drive technician instructions remain authoritative" in docs
     assert "1D Code 128" in docs
@@ -80,7 +89,7 @@ def main() -> int:
 
     print("[PASS] H&H CC-reader workflow has a tracked CMD front door")
     print("[PASS] Probe is one-target, network-gated, optional-MAC-gated, and read-only")
-    print("[PASS] Live H&H IP/MAC/credential values are excluded from tracked artifacts")
+    print("[PASS] Tracked artifacts contain only TEST-NET IPv4 and synthetic MAC examples")
     print("[PASS] Drive remains field authority and barcode-generator work is deferred")
     return 0
 
