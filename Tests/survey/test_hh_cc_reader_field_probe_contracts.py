@@ -20,6 +20,7 @@ def main() -> int:
     launcher = read("Probe-HHCCReader.cmd")
     script = read("scripts/Invoke-SasHhCcReaderProbe.ps1")
     docs = read("docs/HH_CC_READER_FIELD_PROBE.md")
+    external_evidence = read("docs/EXTERNAL_FIELD_EVIDENCE.md")
     registry = json.loads(read("harness/api/harness-command-registry.json"))
 
     for marker in (
@@ -76,9 +77,24 @@ def main() -> int:
         f"tracked field probe contains non-synthetic MAC literal(s): {sorted(mac_literals)}"
     )
 
-    assert "private H&H Google Drive technician instructions remain authoritative" in docs
+    assert "operator-managed external technician instructions remain authoritative" in docs
+    assert "EXTERNAL_FIELD_EVIDENCE.md" in docs
+    assert "runtime dependencies" in docs
     assert "1D Code 128" in docs
     assert "reusable barcode generator is explicitly deferred" in docs
+
+    provider_neutral = "\n".join((docs, external_evidence))
+    for provider_marker in ("Google Drive", "drive.google.com", "OneDrive", "Dropbox"):
+        assert provider_marker not in provider_neutral, (
+            f"provider-specific external evidence leaked into tracked field docs: {provider_marker}"
+        )
+    for marker in (
+        "not a repository dependency",
+        "must not require, discover, authenticate to, crawl, mount, synchronize",
+        "external evidence is available",
+        "personal cloud-account identifiers",
+    ):
+        assert marker in external_evidence, f"external evidence boundary missing marker: {marker}"
 
     entries = {entry["id"]: entry for entry in registry["commands"]}
     assert "hh-cc-reader-probe" in entries, "command registry missing hh-cc-reader-probe"
@@ -90,7 +106,7 @@ def main() -> int:
     print("[PASS] H&H CC-reader workflow has a tracked CMD front door")
     print("[PASS] Probe is one-target, network-gated, optional-MAC-gated, and read-only")
     print("[PASS] Tracked artifacts contain only TEST-NET IPv4 and synthetic MAC examples")
-    print("[PASS] Drive remains field authority and barcode-generator work is deferred")
+    print("[PASS] External field evidence is provider-neutral and barcode-generator work is deferred")
     return 0
 
 
