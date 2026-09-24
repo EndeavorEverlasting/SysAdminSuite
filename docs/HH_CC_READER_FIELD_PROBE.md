@@ -2,7 +2,7 @@
 
 ## Status
 
-**Repository lane:** implementation under issue #436.  
+**Repository lane:** implementation under issue #436.
 **Current field authority:** the private H&H Google Drive technician instructions remain authoritative until this repository path is merged and separately field-accepted.
 
 This document intentionally contains no live H&H target IP, MAC, credential, screenshot, or raw probe output.
