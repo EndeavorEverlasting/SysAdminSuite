@@ -55,6 +55,7 @@ python3 Tests/survey/test_software_deployment_input_invalidation_contracts.py
 python3 Tests/survey/test_checkpoint_discipline_contracts.py
 python3 Tests/survey/test_agent_instruction_factoring_contracts.py
 python3 Tests/survey/test_field_guide_cmd_first_contracts.py
+python3 Tests/survey/test_hh_cc_reader_field_probe_contracts.py
 python3 Tests/survey/test_machine_info_cmd_contracts.py
 python3 Tests/survey/test_agent_capability_manifest_contracts.py
 python3 Tests/survey/test_agent_routing_manifest_contracts.py
