@@ -2,10 +2,10 @@
 
 ## Status
 
-**Repository lane:** implementation under issue #436.
-**Current field authority:** the private H&H Google Drive technician instructions remain authoritative until this repository path is merged and separately field-accepted.
+**Repository lane:** merged implementation with field acceptance tracked by issue #436.
+**Current field authority:** operator-managed external technician instructions remain authoritative until the merged repository workflow is separately field-accepted.
 
-This document intentionally contains no live H&H target IP, MAC, credential, screenshot, or raw probe output.
+SysAdminSuite does not know or require the provider, account, folder hierarchy, file ID, or URL behind that external field material. This document intentionally contains no live H&H target IP, MAC, credential, screenshot, private external-workspace identifier, or raw probe output.
 
 ## Technician front door
 
@@ -73,9 +73,15 @@ This lane must not:
 - scan a subnet, range, or broad port set;
 - inherit Northwell network/authentication behavior.
 
+## External field evidence boundary
+
+Human reviewers may use operator-managed external tutorials, screenshots, meeting notes, or other cloud-hosted evidence alongside issue #436 or a related PR. Those materials are optional human evidence, not runtime dependencies.
+
+The provider-neutral contract is documented in [EXTERNAL_FIELD_EVIDENCE.md](EXTERNAL_FIELD_EVIDENCE.md). SysAdminSuite must not discover, authenticate to, crawl, mount, synchronize, or require a personal cloud account or provider-specific document.
+
 ## Barcode boundary
 
-The current H&H technician uses private Drive-hosted **1D Code 128** scan cards for the immediate four-command field tranche. A reusable barcode generator is explicitly deferred; this PR does not implement one.
+The current H&H technician may use operator-managed external **1D Code 128** scan cards for the immediate four-command field tranche. A reusable barcode generator is explicitly deferred; this repository path does not implement one.
 
 ## Proof ceiling
 
