@@ -51,7 +51,7 @@ function Test-SasSameIPv4Subnet {
         if ($leftBytes[$i] -ne $rightBytes[$i]) { return $false }
     }
     if ($remainder -gt 0) {
-        $mask = [byte](0xFF -shl (8 - $remainder))
+        $mask = [byte](0xFF -band (0xFF -shl (8 - $remainder)))
         if (($leftBytes[$fullBytes] -band $mask) -ne ($rightBytes[$fullBytes] -band $mask)) {
             return $false
         }
@@ -61,7 +61,7 @@ function Test-SasSameIPv4Subnet {
 
 function Write-SasProbeResult {
     param(
-        [Parameter(Mandatory=$true)][hashtable]$Result,
+        [Parameter(Mandatory=$true)][System.Collections.IDictionary]$Result,
         [Parameter(Mandatory=$true)][string]$RepoRoot
     )
 
