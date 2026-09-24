@@ -207,6 +207,11 @@ def main() -> int:
     assert {"main", "feat/**", "repair/**", "refactor/**", "docs/**", "harness/**"}.issubset(set(push["branches"]))
     assert {"harness/api/**", "harness/evals/**", ".claude/skills/**", ".claude/capabilities/**", "AGENTS.md", "CLAUDE.md"}.issubset(set(push["paths"]))
     steps = workflow["jobs"]["repository-ai-evals"]["steps"]
+    checkout_steps = [step for step in steps if isinstance(step, dict) and step.get("uses") == "actions/checkout@v4"]
+    assert len(checkout_steps) == 1
+    assert checkout_steps[0].get("with", {}).get("fetch-depth") == "2", (
+        "push whitespace validation needs HEAD's parent in the checkout"
+    )
     run_commands = "\n".join(step.get("run", "") for step in steps if isinstance(step, dict))
     assert "python harness/validators/validate-agent-behavior-evals.py" in run_commands
     assert "--expect fail" in run_commands and "--expect pass" in run_commands
