@@ -40,6 +40,10 @@ def main() -> int:
         "REMOTE_ENDPOINT_TEST_ERROR",
         "ApprovalRef",
         "approval_reference_supplied = $true",
+        "ValidateOnly",
+        "ENDPOINT_INPUT_VALID",
+        "[Guid]::NewGuid()",
+        "yyyyMMdd-HHmmss-fff",
         "survey\\output\\hh-cc-reader",
         "ownership_proven = $false",
     ):
@@ -63,7 +67,8 @@ def main() -> int:
     for marker in forbidden:
         assert marker.lower() not in lowered, f"endpoint probe contains forbidden marker: {marker}"
 
-    assert "CIDRs, ranges, wildcards" in launcher
+    normalized_launcher = re.sub(r"\\s+", " ", launcher)
+    assert "CIDRs, ranges, wildcards" in normalized_launcher
     assert "CIDRs, ranges, wildcards" in script
     assert "ApprovalRef must be a non-secret" in script
     assert "one observed REMOTE_ENDPOINT + one explicit PORT + one APPROVAL_REF" in docs
@@ -98,6 +103,7 @@ def main() -> int:
     assert "hh-cc-reader-endpoint-probe-result" in artifacts
     assert artifacts["hh-cc-reader-endpoint-probe-result"]["tracked"] is False
     assert artifacts["hh-cc-reader-endpoint-probe-result"]["contains_live_data"] is True
+    assert "<timestamp>-<8hex>.json" in artifacts["hh-cc-reader-endpoint-probe-result"]["path"]
 
     outcomes = {entry["command_id"]: entry for entry in outcome_registry["contracts"]}
     assert "hh-cc-reader-endpoint-probe" in outcomes
