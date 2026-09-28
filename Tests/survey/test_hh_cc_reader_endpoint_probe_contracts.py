@@ -29,7 +29,7 @@ def main() -> int:
         "C:\\SASAL\\Probe-HHCCReaderEndpoint.cmd",
         "Probe-HHCCReader.cmd",
         "Invoke-SasHhCcReaderEndpointProbe.ps1",
-        "READER_IPV4 REMOTE_ENDPOINT [PORT] [EXPECTED-MAC]",
+        "READER_IPV4 REMOTE_ENDPOINT PORT APPROVAL_REF [EXPECTED-MAC]",
     ):
         assert marker in launcher, f"endpoint launcher missing marker: {marker}"
 
@@ -38,6 +38,8 @@ def main() -> int:
         "Test-NetConnection",
         "REMOTE_ENDPOINT_CORRELATION_COMPLETE",
         "REMOTE_ENDPOINT_TEST_ERROR",
+        "ApprovalRef",
+        "approval_reference_supplied = $true",
         "survey\\output\\hh-cc-reader",
         "ownership_proven = $false",
     ):
@@ -63,7 +65,9 @@ def main() -> int:
 
     assert "CIDRs, ranges, wildcards" in launcher
     assert "CIDRs, ranges, wildcards" in script
-    assert "one observed-and-approved REMOTE_ENDPOINT + one PORT" in docs
+    assert "ApprovalRef must be a non-secret" in script
+    assert "one observed REMOTE_ENDPOINT + one explicit PORT + one APPROVAL_REF" in docs
+    assert "cannot independently validate the external human approval source" in docs
     assert "CC-reader software/firmware deployment" in docs
     assert "remains blocked" in docs
 
