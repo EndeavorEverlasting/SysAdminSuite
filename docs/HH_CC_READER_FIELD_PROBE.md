@@ -51,6 +51,25 @@ The PowerShell implementation:
 10. tests one explicit TCP port (default 443);
 11. writes a JSON receipt only under the ignored local `survey/output/hh-cc-reader/` evidence root.
 
+## 2026-09-28 Netstat continuation
+
+The field investigation now has a reusable Netstat phase contract rather than a one-screenshot observation.
+
+The full contract is in [HH_CC_READER_NETSTAT_BASELINE.md](HH_CC_READER_NETSTAT_BASELINE.md). It preserves:
+
+- complete Netstat `BASELINE` before `START_TEST`;
+- immediate `START_TEST` capture;
+- optional `DURING_TEST` evidence only during an approved controlled diagnostic;
+- complete `POST_TEST` capture;
+- overlapping ordered frames for scrolling output;
+- paired workstation evidence from this existing launcher;
+- a four-part identity/software/network/management baseline before firmware configuration;
+- an explicit rule that network/control-plane evidence does not itself authorize firmware.
+
+Current field evidence has also surfaced device-labeled Connectivity Test checks including **PAX Store Push Service Primary (443)**. That label is a correlation candidate only; it does not prove that a corresponding Netstat session is visible or that PAX Store owns the firmware path for this estate.
+
+The next one-endpoint workstation correlation helper is specified in the Netstat baseline contract but is not yet a repository-owned technician launcher. Do not replace that missing launcher with a hand-built technician PowerShell sequence.
+
 ## Interpretation
 
 - Same-subnet proof is network-placement evidence, not device identity.
@@ -58,6 +77,7 @@ The PowerShell implementation:
 - Ping failure alone does not prove a reader is offline.
 - TCP/443 success proves only TCP/443 reachability.
 - No result from this workflow identifies AxiaMed, Bank of America, PAXSTORE, Payment Fusion, or a firmware-management service by itself.
+- A Netstat or Connectivity Test observation is not a firmware-update procedure.
 
 ## Forbidden scope
 
@@ -85,4 +105,4 @@ The current H&H technician may use operator-managed external **1D Code 128** sca
 
 ## Proof ceiling
 
-Repository tests can prove command shape, fail-closed input/network/device gates, absence of live H&H values, and read-only implementation posture. They cannot prove the technician's scanner behavior, H&H network placement, target reachability, device identity, service ownership, or firmware update success. Those remain field evidence.
+Repository tests can prove command shape, fail-closed input/network/device gates, absence of live H&H values, read-only implementation posture, and the documented Netstat/baseline decision contract. They cannot prove the technician's scanner behavior, H&H network placement, target reachability, device identity, service ownership, current/target firmware, or firmware update success. Those remain field evidence.
