@@ -80,6 +80,7 @@ if not "!SAS_EXIT!"=="0" (
     echo   Probe-HHCCReaderEndpoint.cmd READER_IPV4 REMOTE_ENDPOINT PORT APPROVAL_REF [EXPECTED-MAC]
     echo Documentation-only example:
     echo   Probe-HHCCReaderEndpoint.cmd 192.0.2.10 service.example.invalid 443 EVIDENCE-REF-001 AA-BB-CC-DD-EE-FF
+    echo CIDRs, ranges, wildcards, port sweeps, and host discovery are refused.
     echo No failed stage may be promoted to endpoint reachability or ownership proof.
 )
 endlocal & exit /b %SAS_EXIT%
