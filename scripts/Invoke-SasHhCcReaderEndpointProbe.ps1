@@ -7,9 +7,12 @@ param(
     [Parameter(Mandatory=$true, Position=1)]
     [string]$RemoteEndpoint,
 
-    [Parameter(Position=2)]
+    [Parameter(Mandatory=$true, Position=2)]
     [ValidateRange(1,65535)]
-    [int]$RemotePort = 443
+    [int]$RemotePort,
+
+    [Parameter(Mandatory=$true, Position=3)]
+    [string]$ApprovalRef
 )
 
 Set-StrictMode -Version 2.0
@@ -37,12 +40,17 @@ if (-not [System.Net.IPAddress]::TryParse($ReaderIPAddress, [ref]$reader) -or
 
 $endpoint = $RemoteEndpoint.Trim()
 if ([string]::IsNullOrWhiteSpace($endpoint)) {
-    throw 'RemoteEndpoint must be one observed-and-approved hostname or IPv4 address.'
+    throw 'RemoteEndpoint must be one observed hostname or IPv4 address.'
 }
 $hostKind = [System.Uri]::CheckHostName($endpoint)
 if ($hostKind -ne [System.UriHostNameType]::Dns -and
     $hostKind -ne [System.UriHostNameType]::IPv4) {
     throw 'RemoteEndpoint must be one DNS hostname or IPv4 address. CIDRs, ranges, wildcards, whitespace lists, and IPv6 are refused in this lane.'
+}
+
+$approval = $ApprovalRef.Trim()
+if ($approval -notmatch '^[A-Za-z0-9][A-Za-z0-9._:@-]{1,127}$') {
+    throw 'ApprovalRef must be a non-secret 2-128 character evidence/ticket token using only letters, numbers, dot, underscore, colon, at-sign, or hyphen.'
 }
 
 $repoRoot = (Resolve-Path -LiteralPath (Join-Path $PSScriptRoot '..')).Path
@@ -54,6 +62,8 @@ $result = [ordered]@{
     reader_ip = $reader.ToString()
     remote_endpoint = $endpoint
     remote_port = $RemotePort
+    approval_ref = $approval
+    approval_reference_supplied = $true
     remote_address = $null
     name_resolution_results = @()
     interface_alias = $null
@@ -61,6 +71,7 @@ $result = [ordered]@{
     tcp_test_succeeded = $false
     classification = 'STARTED'
     ownership_proven = $false
+    approval_proven = $false
     error = $null
 }
 
@@ -68,6 +79,8 @@ Write-Host '=== H&H CC READER REMOTE ENDPOINT CORRELATION ==='
 Write-Host ("READER={0}" -f $reader)
 Write-Host ("REMOTE_ENDPOINT={0}" -f $endpoint)
 Write-Host ("REMOTE_PORT={0}" -f $RemotePort)
+Write-Host ("APPROVAL_REF={0}" -f $approval)
+Write-Host 'NOTE: ApprovalRef records the operator-provided evidence reference; this command does not independently validate the external approval source.'
 
 try {
     $probe = Test-NetConnection -ComputerName $endpoint -Port $RemotePort -InformationLevel Detailed -WarningAction SilentlyContinue
