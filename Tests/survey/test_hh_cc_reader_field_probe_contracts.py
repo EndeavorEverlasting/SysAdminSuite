@@ -88,10 +88,6 @@ def main() -> int:
 
     for marker in (
         "Active Internet connections (w/o servers)",
-        "BASELINE",
-        "START_TEST",
-        "DURING_TEST",
-        "POST_TEST",
         "PAX Store Push Service Primary (443)",
         "scripts/Invoke-SasHhCcReaderProbe.ps1",
         "four linked baselines",
@@ -100,6 +96,23 @@ def main() -> int:
         "Issue #436 remains the field-acceptance ledger",
     ):
         assert marker in netstat_docs, f"Netstat baseline contract missing marker: {marker}"
+
+    phase_section = netstat_docs.split("## Canonical Netstat evidence phases", 1)[1].split(
+        "## Workstation correlation lane", 1
+    )[0]
+    phase_order = re.findall(
+        r"(?m)^\d+\. \*\*(Identity gate|BASELINE|START_TEST|DURING_TEST|POST_TEST)\*\*",
+        phase_section,
+    )
+    assert phase_order == [
+        "Identity gate",
+        "BASELINE",
+        "START_TEST",
+        "DURING_TEST",
+        "POST_TEST",
+    ], f"Netstat phase order changed or duplicated: {phase_order}"
+    assert "before pressing Netstat `START TEST`" in phase_section
+    assert "immediately after the controlled action" in phase_section
 
     provider_neutral = "\n".join((docs, netstat_docs, external_evidence))
     for provider_marker in ("Google Drive", "drive.google.com", "OneDrive", "Dropbox"):
