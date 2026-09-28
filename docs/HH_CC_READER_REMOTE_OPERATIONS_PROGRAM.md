@@ -42,13 +42,13 @@ Do not create a second reader-probe engine.
 Prototype front door:
 
 ```text
-Probe-HHCCReaderEndpoint.cmd READER_IPV4 REMOTE_ENDPOINT [PORT] [EXPECTED-MAC]
+Probe-HHCCReaderEndpoint.cmd READER_IPV4 REMOTE_ENDPOINT PORT APPROVAL_REF [EXPECTED-MAC]
 ```
 
 Documentation-only example:
 
 ```text
-Probe-HHCCReaderEndpoint.cmd 192.0.2.10 service.example.invalid 443 AA-BB-CC-DD-EE-FF
+Probe-HHCCReaderEndpoint.cmd 192.0.2.10 service.example.invalid 443 EVIDENCE-REF-001 AA-BB-CC-DD-EE-FF
 ```
 
 Call stack:
@@ -57,13 +57,13 @@ Call stack:
 technician
   -> refresh current SysAdminSuite
   -> canonical Probe-HHCCReader reader same-subnet/device gate
-  -> one observed-and-approved REMOTE_ENDPOINT + one PORT
+  -> one observed REMOTE_ENDPOINT + one explicit PORT + one APPROVAL_REF
   -> Test-NetConnection
   -> ignored local endpoint JSON receipt
   -> terminal classification
 ```
 
-The endpoint probe accepts one DNS hostname or IPv4 address only. It refuses CIDR/ranges/wildcards and does not scan.
+The endpoint probe accepts one DNS hostname or IPv4 address, one explicit TCP port, and one non-secret approval/evidence reference token. It refuses CIDR/ranges/wildcards and does not scan. The approval reference is recorded for auditability; the launcher cannot independently validate the external human approval source.
 
 TCP success proves only that the technician workstation reached that endpoint/port. It never proves PAX, AxiaMed, Bank of America, Payment Fusion, firmware ownership, or management authority.
 
@@ -71,7 +71,7 @@ TCP success proves only that the technician workstation reached that endpoint/po
 
 ```text
 reader evidence exposes endpoint + port
--> human approval
+-> human approval + non-secret approval/evidence reference
 -> reader same-subnet/device gate passes
 -> bounded endpoint test completes
 -> REMOTE_ENDPOINT_CORRELATION_COMPLETE
