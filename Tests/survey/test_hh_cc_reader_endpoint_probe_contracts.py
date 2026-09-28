@@ -67,7 +67,7 @@ def main() -> int:
     for marker in forbidden:
         assert marker.lower() not in lowered, f"endpoint probe contains forbidden marker: {marker}"
 
-    normalized_launcher = re.sub(r"\\s+", " ", launcher)
+    normalized_launcher = re.sub(r"\s+", " ", launcher)
     assert "CIDRs, ranges, wildcards" in normalized_launcher
     assert "CIDRs, ranges, wildcards" in script
     assert "ApprovalRef must be a non-secret" in script
