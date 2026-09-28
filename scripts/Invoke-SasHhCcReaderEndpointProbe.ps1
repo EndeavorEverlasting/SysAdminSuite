@@ -12,7 +12,9 @@ param(
     [int]$RemotePort,
 
     [Parameter(Mandatory=$true, Position=3)]
-    [string]$ApprovalRef
+    [string]$ApprovalRef,
+
+    [switch]$ValidateOnly
 )
 
 Set-StrictMode -Version 2.0
@@ -26,8 +28,9 @@ function Write-SasEndpointResult {
 
     $outputRoot = Join-Path $RepoRoot 'survey\output\hh-cc-reader'
     [void](New-Item -ItemType Directory -Force -Path $outputRoot)
-    $stamp = [DateTimeOffset]::Now.ToString('yyyyMMdd-HHmmss')
-    $path = Join-Path $outputRoot ("hh-cc-reader-endpoint-{0}.json" -f $stamp)
+    $stamp = [DateTimeOffset]::Now.ToString('yyyyMMdd-HHmmss-fff')
+    $nonce = [Guid]::NewGuid().ToString('N').Substring(0,8)
+    $path = Join-Path $outputRoot ("hh-cc-reader-endpoint-{0}-{1}.json" -f $stamp,$nonce)
     $Result | ConvertTo-Json -Depth 8 | Set-Content -LiteralPath $path -Encoding UTF8
     Write-Host ("EVIDENCE={0}" -f $path)
 }
@@ -51,6 +54,11 @@ if ($hostKind -ne [System.UriHostNameType]::Dns -and
 $approval = $ApprovalRef.Trim()
 if ($approval -notmatch '^[A-Za-z0-9][A-Za-z0-9._:@-]{1,127}$') {
     throw 'ApprovalRef must be a non-secret 2-128 character evidence/ticket token using only letters, numbers, dot, underscore, colon, at-sign, or hyphen.'
+}
+
+if ($ValidateOnly) {
+    Write-Host 'CLASSIFICATION=ENDPOINT_INPUT_VALID'
+    exit 0
 }
 
 $repoRoot = (Resolve-Path -LiteralPath (Join-Path $PSScriptRoot '..')).Path
@@ -82,6 +90,7 @@ Write-Host ("REMOTE_PORT={0}" -f $RemotePort)
 Write-Host ("APPROVAL_REF={0}" -f $approval)
 Write-Host 'NOTE: ApprovalRef records the operator-provided evidence reference; this command does not independently validate the external approval source.'
 
+$exitCode = 0
 try {
     $probe = Test-NetConnection -ComputerName $endpoint -Port $RemotePort -InformationLevel Detailed -WarningAction SilentlyContinue
     $result.remote_address = [string]$probe.RemoteAddress
@@ -97,14 +106,21 @@ try {
     Write-Host ("TCP_{0}={1}" -f $RemotePort,$result.tcp_test_succeeded)
     Write-Host 'CLASSIFICATION=REMOTE_ENDPOINT_CORRELATION_COMPLETE'
     Write-Host 'NOTE: endpoint reachability does not identify service ownership or prove a firmware-management path.'
-    Write-SasEndpointResult -Result $result -RepoRoot $repoRoot
-    exit 0
 }
 catch {
     $result.classification = 'REMOTE_ENDPOINT_TEST_ERROR'
     $result.error = $_.Exception.Message
+    $exitCode = 7
     Write-Host 'CLASSIFICATION=REMOTE_ENDPOINT_TEST_ERROR'
     Write-Host ("ERROR={0}" -f $result.error)
-    Write-SasEndpointResult -Result $result -RepoRoot $repoRoot
-    exit 7
 }
+
+try {
+    Write-SasEndpointResult -Result $result -RepoRoot $repoRoot
+}
+catch {
+    Write-Error ("Endpoint correlation evidence could not be persisted: {0}" -f $_.Exception.Message)
+    exit 8
+}
+
+exit $exitCode
