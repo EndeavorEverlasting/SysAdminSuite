@@ -1,7 +1,7 @@
 # H&H CC Reader Remote Operations Program
 
-Date: 2026-09-28  
-Status: P04 architecture + bounded endpoint-correlation prototype  
+Date: 2026-09-28
+Status: P04 architecture + bounded endpoint-correlation prototype
 Repository: `EndeavorEverlasting/SysAdminSuite`
 
 ## Program boundary
