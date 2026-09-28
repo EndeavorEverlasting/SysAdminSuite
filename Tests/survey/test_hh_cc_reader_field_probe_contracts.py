@@ -20,6 +20,7 @@ def main() -> int:
     launcher = read("Probe-HHCCReader.cmd")
     script = read("scripts/Invoke-SasHhCcReaderProbe.ps1")
     docs = read("docs/HH_CC_READER_FIELD_PROBE.md")
+    netstat_docs = read("docs/HH_CC_READER_NETSTAT_BASELINE.md")
     external_evidence = read("docs/EXTERNAL_FIELD_EVIDENCE.md")
     registry = json.loads(read("harness/api/harness-command-registry.json"))
 
@@ -61,7 +62,7 @@ def main() -> int:
     for marker in forbidden_mutation:
         assert marker.lower() not in lowered, f"read-only probe contains forbidden mutation marker: {marker}"
 
-    joined = "\n".join((launcher, script, docs))
+    joined = "\n".join((launcher, script, docs, netstat_docs))
     ipv4_literals = set(re.findall(r"(?<!\d)(?:\d{1,3}\.){3}\d{1,3}(?!\d)", joined))
     documentation_network = ipaddress.ip_network("192.0.2.0/24")
     for literal in ipv4_literals:
@@ -78,12 +79,29 @@ def main() -> int:
     )
 
     assert "operator-managed external technician instructions remain authoritative" in docs
+    assert "HH_CC_READER_NETSTAT_BASELINE.md" in docs
+    assert "PAX Store Push Service Primary (443)" in docs
     assert "EXTERNAL_FIELD_EVIDENCE.md" in docs
     assert "runtime dependencies" in docs
     assert "1D Code 128" in docs
     assert "reusable barcode generator is explicitly deferred" in docs
 
-    provider_neutral = "\n".join((docs, external_evidence))
+    for marker in (
+        "Active Internet connections (w/o servers)",
+        "BASELINE",
+        "START_TEST",
+        "DURING_TEST",
+        "POST_TEST",
+        "PAX Store Push Service Primary (443)",
+        "scripts/Invoke-SasHhCcReaderProbe.ps1",
+        "four linked baselines",
+        "Firmware configuration gate",
+        "not yet implemented",
+        "Issue #436 remains the field-acceptance ledger",
+    ):
+        assert marker in netstat_docs, f"Netstat baseline contract missing marker: {marker}"
+
+    provider_neutral = "\n".join((docs, netstat_docs, external_evidence))
     for provider_marker in ("Google Drive", "drive.google.com", "OneDrive", "Dropbox"):
         assert provider_marker not in provider_neutral, (
             f"provider-specific external evidence leaked into tracked field docs: {provider_marker}"
@@ -106,6 +124,7 @@ def main() -> int:
     print("[PASS] H&H CC-reader workflow has a tracked CMD front door")
     print("[PASS] Probe is one-target, network-gated, optional-MAC-gated, and read-only")
     print("[PASS] Tracked artifacts contain only TEST-NET IPv4 and synthetic MAC examples")
+    print("[PASS] Netstat baseline and firmware decision gate remain read-only and provider-neutral")
     print("[PASS] External field evidence is provider-neutral and barcode-generator work is deferred")
     return 0
 
