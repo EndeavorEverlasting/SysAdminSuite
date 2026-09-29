@@ -68,7 +68,7 @@ Preserve existing work and keep mutation inside owned scope. Checkpoint coherent
 - If the canonical Python startup authority is absent or cannot be proven, report that exact gap; do not fabricate a launcher.
 
 ## Universal invariants
-- Treat repository and current Git evidence as authoritative over remembered conversation context.
+- Treat repository and current Git evidence as authoritative over remembered conversation context. **Commitment boundary:** external commitments must not be stronger than current evidence and operator control; internal targets and contingency buffers are not external promises without explicit operator intent. Machine-readable authority: `harness/api/operator-communication-semantics.json`.
 - Never commit secrets, credentials, personal data, live targets, machine-local paths, raw runtime evidence, generated logs, or local reference material.
 - Survey and dashboard probe lanes are read-only toward targets; deployment or repair mutation requires explicit authorization and its lane-specific gate.
 - Do not claim a higher proof level than the evidence supports. Static checks, launcher success, command acknowledgment, observed behavior, and live runtime proof are distinct.
@@ -96,7 +96,7 @@ Preserve existing work and keep mutation inside owned scope. Checkpoint coherent
 - `docs/END_TO_END_TESTING_POSTURE.md` — validation and merge/release proof posture.
 - `docs/VM_DRY_RUN_READINESS.md` and `docs/PACKAGE_VM_QUALIFICATION_PROFILES.md` — current VM safety and proof ceilings.
 - `Config/operational-posture.json`, `Config/cybernet-client-preferences.json`, and `docs/OPERATIONAL_POSTURE.md` — lane, mutation, and current Cybernet profile authority.
-- `harness/api/agent-capability-manifest.json` and `harness/api/agent-routing-manifest.json` — machine-readable capability and routing authority.
+- `harness/api/agent-capability-manifest.json`, `harness/api/agent-routing-manifest.json`, `harness/api/operator-communication-semantics.json`, and `schemas/harness/operator-communication-semantics.schema.json` — machine-readable capability, routing, and communication-semantic authority.
 - `harness/workflows/agent-sprint-capsule.yaml` and `tools/New-SasSprintCapsule.ps1` — final handoff compression.
 - `tools/validate-ai-layer.ps1` and `Tests/survey/test_agent_governance_doctrine_contracts.py` — instruction and governance enforcement.
 

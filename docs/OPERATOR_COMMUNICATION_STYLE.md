@@ -95,6 +95,32 @@ Prefer literal state words such as:
 
 Use stronger completion language only when the supporting evidence permits it.
 
+## Commitment boundary principle
+
+Internal targets may be stricter than external commitments. Never convert an internal planning target or contingency buffer into an external promise without explicit operator intent and enough operational control to support it.
+
+Canonical rule:
+
+`COMMITMENT_STRENGTH <= EVIDENCE_STRENGTH AND OPERATOR_CONTROL`
+
+Classify the underlying statement before drafting:
+
+- `confirmed_fact`: externally usable as a literal fact when current evidence supports it;
+- `expected_outcome`: externally usable only with uncertainty language;
+- `internal_target`: an internal coordination target, not an external commitment;
+- `contingency_buffer`: an internal hedge or safety margin, omitted externally unless it is genuinely relevant;
+- `external_commitment`: permitted only when evidence supports it, operational control is sufficient, and the operator intends to make that promise.
+
+Do not collapse a stricter internal plan into stronger client-facing language merely because the internal plan exists.
+
+### Delivery-buffer regression
+
+Internal plan: technicians target 11:00 AM so they have buffer before a delivery expected between 11:30 AM and 12:00 PM.
+
+Client-safe wording may state the delivery window and that the technicians will "assemble on-site during delivery." It must not promise that technicians will be onsite by 11:00 AM or rewrite the hedge as "ahead of the delivery" unless the operator explicitly authorizes that stronger commitment.
+
+The machine-readable authority is `harness/api/operator-communication-semantics.json`, validated by `schemas/harness/operator-communication-semantics.schema.json`.
+
 ## Audience patterns
 
 ### Internal team direction

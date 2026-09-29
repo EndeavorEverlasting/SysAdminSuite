@@ -1,0 +1,51 @@
+{
+  "schema_version": "sas-operator-communication-semantics/v1",
+  "schema_path": "schemas/harness/operator-communication-semantics.schema.json",
+  "authority": {
+    "governance": "AGENTS.md",
+    "style_contract": "docs/OPERATOR_COMMUNICATION_STYLE.md"
+  },
+  "commitment_boundary": {
+    "formula": "COMMITMENT_STRENGTH <= EVIDENCE_STRENGTH AND OPERATOR_CONTROL",
+    "classes": {
+      "confirmed_fact": {
+        "external_mode": "allowed"
+      },
+      "expected_outcome": {
+        "external_mode": "allowed_with_uncertainty"
+      },
+      "internal_target": {
+        "external_mode": "not_as_commitment"
+      },
+      "contingency_buffer": {
+        "external_mode": "omit_unless_relevant"
+      },
+      "external_commitment": {
+        "external_mode": "gated",
+        "requires": [
+          "evidence_support",
+          "sufficient_operational_control",
+          "explicit_operator_intent"
+        ]
+      }
+    }
+  },
+  "regressions": [
+    {
+      "id": "south-brooklyn-delivery-buffer",
+      "facts": {
+        "delivery_window": "11:30 AM to 12:00 PM",
+        "internal_technician_target": "11:00 AM"
+      },
+      "client_allowed": [
+        "We expect delivery between 11:30 AM and 12:00 PM tomorrow.",
+        "Our technicians will assemble on-site during delivery."
+      ],
+      "client_forbidden": [
+        "Our technicians will be onsite by 11:00 AM.",
+        "Our technicians will be onsite ahead of the delivery."
+      ],
+      "rationale": "The earlier technician target is an internal contingency buffer and must not be promoted into a stronger client commitment without explicit operator intent."
+    }
+  ]
+}
