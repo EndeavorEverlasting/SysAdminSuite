@@ -6,7 +6,7 @@
 3. Use `CODEBASE_MAP.md` to locate the smallest relevant surface.
 4. Use `harness/api/agent-routing-manifest.json` for exact task signals; unknown or conflicting signals fail closed to the repository-sprint skill.
 5. Load only the selected skill and its declared capability dependencies.
-6. Read deeper product or harness documentation only when the selected route points to it.
+6. Read deeper product or harness documentation only when the selected route points to it. For operator-authored communication, load `docs/OPERATOR_COMMUNICATION_STYLE.md` and `harness/api/operator-communication-semantics.json` before drafting.
 
 Triggers route work only. They never authorize network activity, target mutation, destructive Git operations, secret handling, or proof claims. Progressive disclosure is a repository requirement; do not preload every skill, capability, plan, or handoff.
 ## Agent operating principles
@@ -96,7 +96,7 @@ Preserve existing work and keep mutation inside owned scope. Checkpoint coherent
 - `docs/END_TO_END_TESTING_POSTURE.md` — validation and merge/release proof posture.
 - `docs/VM_DRY_RUN_READINESS.md` and `docs/PACKAGE_VM_QUALIFICATION_PROFILES.md` — current VM safety and proof ceilings.
 - `Config/operational-posture.json`, `Config/cybernet-client-preferences.json`, and `docs/OPERATIONAL_POSTURE.md` — lane, mutation, and current Cybernet profile authority.
-- `harness/api/agent-capability-manifest.json`, `harness/api/agent-routing-manifest.json`, `harness/api/operator-communication-semantics.json`, and `schemas/harness/operator-communication-semantics.schema.json` — machine-readable capability, routing, and communication-semantic authority.
+- `harness/api/agent-capability-manifest.json`, `harness/api/agent-routing-manifest.json`, `harness/api/operator-communication-semantics.json`, `schemas/harness/operator-communication-semantics.schema.json`, and `harness/validators/validate-operator-communication-semantics.py` — machine-readable capability, routing, communication-semantic authority, and relational validation.
 - `harness/workflows/agent-sprint-capsule.yaml` and `tools/New-SasSprintCapsule.ps1` — final handoff compression.
 - `tools/validate-ai-layer.ps1` and `Tests/survey/test_agent_governance_doctrine_contracts.py` — instruction and governance enforcement.
 

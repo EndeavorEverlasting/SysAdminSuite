@@ -47,5 +47,6 @@
       ],
       "rationale": "The earlier technician target is an internal contingency buffer and must not be promoted into a stronger client commitment without explicit operator intent."
     }
-  ]
+  ],
+  "validator_path": "harness/validators/validate-operator-communication-semantics.py"
 }

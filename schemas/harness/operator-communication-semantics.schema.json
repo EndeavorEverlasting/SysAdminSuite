@@ -7,6 +7,7 @@
   "required": [
     "schema_version",
     "schema_path",
+    "validator_path",
     "authority",
     "commitment_boundary",
     "regressions"
@@ -209,6 +210,9 @@
           }
         }
       }
+    },
+    "validator_path": {
+      "const": "harness/validators/validate-operator-communication-semantics.py"
     }
   }
 }
