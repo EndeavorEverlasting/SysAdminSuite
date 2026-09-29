@@ -41,6 +41,17 @@ Use explicit state:
 
 A resolved location gate does not prove delivery completion.
 
+### Field-completion transition rule
+
+`FIELD_COMPLETION=PROVED` may be set only by the coordinator after authoritative field/ticket evidence proves, at minimum:
+
+- actual arrival/receipt at the confirmed destination;
+- device placement/install completion for the requested quantity;
+- the required functional validation result or an explicit exception/blocker;
+- the evidence reference used for closure.
+
+Client location confirmation, delivery ETA, or a technician message alone cannot transition field completion to `PROVED`.
+
 ## Recommended execution order
 
 1. **Acknowledge the client**
@@ -108,6 +119,16 @@ A resolved location gate does not prove delivery completion.
 > Delivery ETA: <OPEN | CONFIRMED WINDOW>
 >
 > Use this destination for field routing and installation unless a newer authoritative client update supersedes it.
+
+### Superseding-location rule
+
+If a newer authoritative client update changes the destination or placement after any handoff was sent:
+
+1. mark the prior relay `SUPERSEDED — DO NOT USE`;
+2. immediately retransmit the corrected destination to the delivery lead and every technician who received the earlier handoff;
+3. obtain acknowledgement from the delivery lead and active field owner before dispatch/install continues;
+4. send the client a confirmation only after internal recipients are aligned;
+5. retain both versions in private evidence with timestamps so the current location authority is unambiguous.
 
 ## ETA follow-up template
 
