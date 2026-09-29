@@ -80,43 +80,43 @@ Client location confirmation, delivery ETA, or a technician message alone cannot
 
 ## Client acknowledgement template
 
-> Hi <CLIENT_NAME>,
+> Hi [CLIENT_NAME],
 >
 > Thank you — this is exactly what we needed.
 >
-> I have the installation location noted as <ADDRESS / DESTINATION>, with <QUANTITY / PLACEMENT>. I also noted <ACCESS NOTES>.
+> I have the installation location noted as [ADDRESS / DESTINATION], with [QUANTITY / PLACEMENT]. I also noted [ACCESS NOTES].
 >
 > I’m coordinating the delivery timing with our delivery team now and will follow up with the approximate arrival time as soon as I have it confirmed.
 >
 > Thank you again,  
-> <COORDINATOR_NAME>
+> [COORDINATOR_NAME]
 
 ## Delivery-lead handoff template
 
-> Hi <DELIVERY_LEAD> — client location is confirmed for <REQUEST_ID>.
+> Hi [DELIVERY_LEAD] — client location is confirmed for [REQUEST_ID].
 >
 > Delivery/install destination:  
-> <ADDRESS>  
-> <CROSS-STREET / FACILITY CONTEXT>
+> [ADDRESS]  
+> [CROSS-STREET / FACILITY CONTEXT]
 >
-> Placement: <PLACEMENT>  
-> Access: <ACCESS NOTES>
+> Placement: [PLACEMENT]  
+> Access: [ACCESS NOTES]
 >
-> The client is asking for an approximate arrival time. Can you confirm the expected delivery window/ETA so I can reply to them?
+> If the client requested an approximate arrival time, can you confirm the expected delivery window/ETA so I can reply to them?
 
 ## Technician handoff template
 
-> <SITE / REQUEST_ID> — location confirmed.
+> [SITE / REQUEST_ID] — location confirmed.
 >
-> Address: <ADDRESS>  
-> Install location: <FLOOR / ROOM / LOBBY / DEPARTMENT>  
-> Quantity: <QUANTITY>  
-> Placement: <PLACEMENT>  
-> Access: <ACCESS NOTES>
+> Address: [ADDRESS]  
+> Install location: [FLOOR / ROOM / LOBBY / DEPARTMENT]  
+> Quantity: [QUANTITY]  
+> Placement: [PLACEMENT]  
+> Access: [ACCESS NOTES]
 >
-> <ROOM-NUMBER RULE, if applicable>
+> [ROOM-NUMBER RULE, if applicable]
 >
-> Delivery ETA: <OPEN | CONFIRMED WINDOW>
+> Delivery ETA: [OPEN | CONFIRMED WINDOW]
 >
 > Use this destination for field routing and installation unless a newer authoritative client update supersedes it.
 
@@ -132,12 +132,12 @@ If a newer authoritative client update changes the destination or placement afte
 
 ## ETA follow-up template
 
-> Hi <CLIENT_NAME>,
+> Hi [CLIENT_NAME],
 >
-> Our delivery team has confirmed an approximate arrival window of <ETA / WINDOW>. We’ll plan for the equipment to be delivered and installed at the confirmed destination.
+> Our delivery team has confirmed an approximate delivery arrival window of [ETA / WINDOW]. We’ll plan for the equipment to be delivered to the confirmed destination. Installation timing remains governed by the separately confirmed field plan.
 >
 > Thank you,  
-> <COORDINATOR_NAME>
+> [COORDINATOR_NAME]
 
 ## Proof ceiling
 
