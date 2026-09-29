@@ -14,10 +14,13 @@
   ],
   "properties": {
     "schema_version": {
-      "const": "sas-operator-communication-semantics/v1"
+      "const": "sas-operator-communication-semantics/v2"
     },
     "schema_path": {
       "const": "schemas/harness/operator-communication-semantics.schema.json"
+    },
+    "validator_path": {
+      "const": "harness/validators/validate-operator-communication-semantics.py"
     },
     "authority": {
       "type": "object",
@@ -160,6 +163,7 @@
         "additionalProperties": false,
         "required": [
           "id",
+          "fixture_scope",
           "facts",
           "client_allowed",
           "client_forbidden",
@@ -168,23 +172,39 @@
         "properties": {
           "id": {
             "type": "string",
-            "minLength": 1
+            "pattern": "^synthetic-[a-z0-9-]+$"
+          },
+          "fixture_scope": {
+            "const": "synthetic_provider_neutral"
           },
           "facts": {
-            "type": "object",
-            "additionalProperties": false,
-            "required": [
-              "delivery_window",
-              "internal_technician_target"
-            ],
-            "properties": {
-              "delivery_window": {
-                "type": "string",
-                "minLength": 1
-              },
-              "internal_technician_target": {
-                "type": "string",
-                "minLength": 1
+            "type": "array",
+            "minItems": 1,
+            "items": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "key",
+                "classification",
+                "value"
+              ],
+              "properties": {
+                "key": {
+                  "type": "string",
+                  "pattern": "^[a-z][a-z0-9_]*$"
+                },
+                "classification": {
+                  "enum": [
+                    "confirmed_fact",
+                    "expected_outcome",
+                    "internal_target",
+                    "contingency_buffer"
+                  ]
+                },
+                "value": {
+                  "type": "string",
+                  "minLength": 1
+                }
               }
             }
           },
@@ -192,13 +212,85 @@
             "type": "array",
             "minItems": 1,
             "items": {
-              "type": "string",
-              "minLength": 1
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "text",
+                "statement_class"
+              ],
+              "properties": {
+                "text": {
+                  "type": "string",
+                  "minLength": 1
+                },
+                "statement_class": {
+                  "enum": [
+                    "confirmed_fact",
+                    "expected_outcome",
+                    "external_commitment"
+                  ]
+                },
+                "gate": {
+                  "type": "object",
+                  "additionalProperties": false,
+                  "required": [
+                    "evidence_support",
+                    "sufficient_operational_control",
+                    "explicit_operator_intent"
+                  ],
+                  "properties": {
+                    "evidence_support": {
+                      "type": "boolean"
+                    },
+                    "sufficient_operational_control": {
+                      "type": "boolean"
+                    },
+                    "explicit_operator_intent": {
+                      "type": "boolean"
+                    }
+                  }
+                }
+              },
+              "allOf": [
+                {
+                  "if": {
+                    "properties": {
+                      "statement_class": {
+                        "const": "external_commitment"
+                      }
+                    },
+                    "required": [
+                      "statement_class"
+                    ]
+                  },
+                  "then": {
+                    "required": [
+                      "gate"
+                    ],
+                    "properties": {
+                      "gate": {
+                        "properties": {
+                          "evidence_support": {
+                            "const": true
+                          },
+                          "sufficient_operational_control": {
+                            "const": true
+                          },
+                          "explicit_operator_intent": {
+                            "const": true
+                          }
+                        }
+                      }
+                    }
+                  }
+                }
+              ]
             }
           },
           "client_forbidden": {
             "type": "array",
             "minItems": 1,
+            "uniqueItems": true,
             "items": {
               "type": "string",
               "minLength": 1
@@ -210,9 +302,6 @@
           }
         }
       }
-    },
-    "validator_path": {
-      "const": "harness/validators/validate-operator-communication-semantics.py"
     }
   }
 }

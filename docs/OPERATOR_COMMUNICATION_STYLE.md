@@ -115,11 +115,11 @@ Do not collapse a stricter internal plan into stronger client-facing language me
 
 ### Delivery-buffer regression
 
-Internal plan: technicians target 11:00 AM so they have buffer before a delivery expected between 11:30 AM and 12:00 PM.
+Use provider-neutral synthetic fixtures in tracked source. Project names, live schedules, client details, and internal operational timings belong only in approved private sources.
 
-Client-safe wording may state the delivery window and that the technicians will "assemble on-site during delivery." It must not promise that technicians will be onsite by 11:00 AM or rewrite the hedge as "ahead of the delivery" unless the operator explicitly authorizes that stronger commitment.
+The protected behavior is semantic: an internal arrival target may be earlier than an expected delivery window without becoming a client-facing promise. Expected timing must retain uncertainty language. The sentence "Our technicians will assemble on-site during delivery." is an `external_commitment` and is allowed only when evidence support, sufficient operational control, and explicit operator intent are all proven for the actual message. Never expose the internal target or rewrite the buffer as "ahead of the delivery" merely because the earlier target exists.
 
-The machine-readable authority is `harness/api/operator-communication-semantics.json`, validated by `schemas/harness/operator-communication-semantics.schema.json`.
+The machine-readable authority is `harness/api/operator-communication-semantics.json`, validated by `schemas/harness/operator-communication-semantics.schema.json` and `harness/validators/validate-operator-communication-semantics.py`.
 
 ## Audience patterns
 

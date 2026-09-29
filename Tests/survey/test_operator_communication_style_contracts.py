@@ -33,6 +33,7 @@ def test_operator_style_contract_captures_confirmed_preferences() -> None:
         "Commitment boundary principle",
         "COMMITMENT_STRENGTH <= EVIDENCE_STRENGTH AND OPERATOR_CONTROL",
         "assemble on-site during delivery",
+        "provider-neutral synthetic fixtures",
     ]
 
     for marker in required:
@@ -54,7 +55,7 @@ def test_commitment_semantics_schema_governance_and_validator_wiring() -> None:
     schema = load_json(SCHEMA)
     governance = GOVERNANCE.read_text(encoding="utf-8")
 
-    assert semantics["schema_version"] == "sas-operator-communication-semantics/v1"
+    assert semantics["schema_version"] == "sas-operator-communication-semantics/v2"
     assert semantics["schema_path"] == schema["$id"]
     assert semantics["validator_path"] == "harness/validators/validate-operator-communication-semantics.py"
     assert schema["additionalProperties"] is False
@@ -98,34 +99,69 @@ def test_all_regression_contracts_are_semantically_consistent() -> None:
     assert len(ids) == len(set(ids)), "regression ids must be unique"
 
     for case in cases:
-        allowed = {normalize(item) for item in case["client_allowed"]}
+        assert case["fixture_scope"] == "synthetic_provider_neutral"
+        assert case["id"].startswith("synthetic-")
+
+        fact_keys = [fact["key"] for fact in case["facts"]]
+        assert len(fact_keys) == len(set(fact_keys)), (
+            f'{case["id"]}: fact keys must be unique'
+        )
+
+        internal_values = {
+            normalize(fact["value"])
+            for fact in case["facts"]
+            if fact["classification"] in {"internal_target", "contingency_buffer"}
+        }
+        allowed = {normalize(item["text"]) for item in case["client_allowed"]}
         forbidden = {normalize(item) for item in case["client_forbidden"]}
         assert allowed.isdisjoint(forbidden), (
             f'{case["id"]}: allowed and forbidden wording must be disjoint'
         )
-        internal_target = normalize(case["facts"]["internal_technician_target"])
-        assert all(internal_target not in item for item in allowed), (
-            f'{case["id"]}: internal target leaked into allowed client wording'
-        )
+        for item in case["client_allowed"]:
+            normalized_text = normalize(item["text"])
+            assert all(value not in normalized_text for value in internal_values), (
+                f'{case["id"]}: internal planning value leaked into client wording'
+            )
+            if item["statement_class"] == "external_commitment":
+                assert item["gate"] == {
+                    "evidence_support": True,
+                    "sufficient_operational_control": True,
+                    "explicit_operator_intent": True,
+                }
 
 
-def test_internal_delivery_buffer_never_becomes_client_promise() -> None:
+def test_synthetic_delivery_buffer_preserves_the_behavior_not_live_details() -> None:
     case = next(
         item
         for item in load_json(SEMANTICS)["regressions"]
-        if item["id"] == "south-brooklyn-delivery-buffer"
+        if item["id"] == "synthetic-delivery-buffer"
     )
 
-    assert case["facts"]["delivery_window"] == "11:30 AM to 12:00 PM"
-    assert case["facts"]["internal_technician_target"] == "11:00 AM"
+    expected = next(
+        fact for fact in case["facts"]
+        if fact["classification"] == "expected_outcome"
+    )
+    internal = next(
+        fact for fact in case["facts"]
+        if fact["classification"] == "internal_target"
+    )
+    assert expected["key"] == "delivery_window"
+    assert internal["key"] == "technician_arrival_target"
 
-    allowed = " ".join(case["client_allowed"]).lower()
-    forbidden = " ".join(case["client_forbidden"]).lower()
+    external_commitment = next(
+        item for item in case["client_allowed"]
+        if item["statement_class"] == "external_commitment"
+    )
+    assert external_commitment["text"] == (
+        "Our technicians will assemble on-site during delivery."
+    )
+    assert all(external_commitment["gate"].values())
 
-    assert "11:00 am" not in allowed
-    assert "assemble on-site during delivery" in allowed
-    assert "11:00 am" in forbidden
-    assert "ahead of the delivery" in forbidden
+    allowed_text = " ".join(item["text"] for item in case["client_allowed"]).lower()
+    forbidden_text = " ".join(case["client_forbidden"]).lower()
+    assert internal["value"].lower() not in allowed_text
+    assert internal["value"].lower() in forbidden_text
+    assert "ahead of the delivery" in forbidden_text
 
 
 def main() -> int:
@@ -133,10 +169,10 @@ def main() -> int:
     test_hh_handoff_uses_operator_style_contract()
     test_commitment_semantics_schema_governance_and_validator_wiring()
     test_all_regression_contracts_are_semantically_consistent()
-    test_internal_delivery_buffer_never_becomes_client_promise()
+    test_synthetic_delivery_buffer_preserves_the_behavior_not_live_details()
     print("[PASS] Operator communication style and commitment-boundary semantics are enforced")
-    print("[PASS] Every registered regression is checked for semantic contradictions")
-    print("[PASS] Internal delivery buffers cannot become stronger client commitments")
+    print("[PASS] Every registered regression is synthetic, typed, and semantically checked")
+    print("[PASS] External attendance promises are gated; internal buffers remain internal")
     return 0
 
 
