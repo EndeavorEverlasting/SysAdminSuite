@@ -1,3 +1,5 @@
+import copy
+import importlib.util
 import json
 import subprocess
 import sys
@@ -130,6 +132,46 @@ def test_all_regression_contracts_are_semantically_consistent() -> None:
                 }
 
 
+def load_validator_module():
+    spec = importlib.util.spec_from_file_location(
+        "operator_communication_semantics_validator",
+        VALIDATOR,
+    )
+    if spec is None or spec.loader is None:
+        raise RuntimeError("unable to load operator communication validator")
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    return module
+
+
+def test_runtime_validator_survives_python_optimization_and_rejects_bad_data() -> None:
+    source = VALIDATOR.read_text(encoding="utf-8")
+    assert "assert " not in source
+
+    optimized = subprocess.run(
+        [sys.executable, "-O", str(VALIDATOR)],
+        cwd=ROOT,
+        text=True,
+        capture_output=True,
+        check=False,
+    )
+    assert optimized.returncode == 0, optimized.stdout + optimized.stderr
+
+    semantics = load_json(SEMANTICS)
+    schema = load_json(SCHEMA)
+    invalid = copy.deepcopy(semantics)
+    case = invalid["regressions"][0]
+    case["client_allowed"][0]["text"] = case["client_forbidden"][0]
+
+    validator = load_validator_module()
+    try:
+        validator.validate_document(invalid, schema)
+    except ValueError as exc:
+        assert "overlap" in str(exc)
+    else:
+        raise AssertionError("validator accepted contradictory allowed/forbidden wording")
+
+
 def test_synthetic_delivery_buffer_preserves_the_behavior_not_live_details() -> None:
     case = next(
         item
@@ -169,9 +211,11 @@ def main() -> int:
     test_hh_handoff_uses_operator_style_contract()
     test_commitment_semantics_schema_governance_and_validator_wiring()
     test_all_regression_contracts_are_semantically_consistent()
+    test_runtime_validator_survives_python_optimization_and_rejects_bad_data()
     test_synthetic_delivery_buffer_preserves_the_behavior_not_live_details()
     print("[PASS] Operator communication style and commitment-boundary semantics are enforced")
     print("[PASS] Every registered regression is synthetic, typed, and semantically checked")
+    print("[PASS] Runtime validation remains active under Python optimization and rejects contradictions")
     print("[PASS] External attendance promises are gated; internal buffers remain internal")
     return 0
 
