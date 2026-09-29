@@ -1,6 +1,6 @@
 # Operator Communication Style Contract
 
-Status: canonical prose reference for coordinator-authored operational communication  
+Status: canonical prose reference for coordinator-authored operational communication
 Scope: internal team messages, client emails, manager updates, technician directions, and operational handoffs
 
 ## Purpose
