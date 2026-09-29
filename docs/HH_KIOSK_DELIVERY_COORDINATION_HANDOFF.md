@@ -3,6 +3,7 @@
 Status: reusable provider-neutral coordination contract  
 Scope: technician / delivery-team / client communication only  
 Live H&H addresses, names, phone numbers, ticket screenshots, and private evidence remain outside Git.
+Writing style authority: `docs/OPERATOR_COMMUNICATION_STYLE.md`
 
 ## Purpose
 
@@ -82,7 +83,7 @@ Client location confirmation, delivery ETA, or a technician message alone cannot
 
 > Hi [CLIENT_NAME],
 >
-> Thank you — this is exactly what we needed.
+> Thank you: this is exactly what we needed.
 >
 > I have the installation location noted as [ADDRESS / DESTINATION], with [QUANTITY / PLACEMENT]. I also noted [ACCESS NOTES].
 >
@@ -93,7 +94,7 @@ Client location confirmation, delivery ETA, or a technician message alone cannot
 
 ## Delivery-lead handoff template
 
-> Hi [DELIVERY_LEAD] — client location is confirmed for [REQUEST_ID].
+> Hi [DELIVERY_LEAD]: client location is confirmed for [REQUEST_ID].
 >
 > Delivery/install destination:  
 > [ADDRESS]  
@@ -106,7 +107,7 @@ Client location confirmation, delivery ETA, or a technician message alone cannot
 
 ## Technician handoff template
 
-> [SITE / REQUEST_ID] — location confirmed.
+> [SITE / REQUEST_ID]: location confirmed.
 >
 > Address: [ADDRESS]  
 > Install location: [FLOOR / ROOM / LOBBY / DEPARTMENT]  
@@ -124,11 +125,23 @@ Client location confirmation, delivery ETA, or a technician message alone cannot
 
 If a newer authoritative client update changes the destination or placement after any handoff was sent:
 
-1. mark the prior relay `SUPERSEDED — DO NOT USE`;
+1. mark the prior relay `SUPERSEDED: DO NOT USE`;
 2. immediately retransmit the corrected destination to the delivery lead and every technician who received the earlier handoff;
 3. obtain acknowledgement from the delivery lead and active field owner before dispatch/install continues;
 4. send the client a confirmation only after internal recipients are aligned;
 5. retain both versions in private evidence with timestamps so the current location authority is unambiguous.
+
+## Internal team install directive template
+
+> Team, [SITE] kiosk install is confirmed for [DATE].
+>
+> We have [QUANTITY] kiosks going to [ADDRESS], with installation in [INSTALL LOCATION].
+>
+> Plan to be onsite [DATE] for the install. I'm confirming the delivery ETA with [DELIVERY OWNER] now and will send the arrival window once I have it.
+>
+> [ACCESS SUMMARY.]
+
+Use directive language here because technician attendance is an established assignment, not a request. Keep the ETA separate when it is still open.
 
 ## ETA follow-up template
 
