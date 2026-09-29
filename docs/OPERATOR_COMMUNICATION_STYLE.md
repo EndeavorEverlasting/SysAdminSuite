@@ -1,6 +1,6 @@
 # Operator Communication Style Contract
 
-Status: canonical prose reference for coordinator-authored operational communication  
+Status: canonical prose reference for coordinator-authored operational communication
 Scope: internal team messages, client emails, manager updates, technician directions, and operational handoffs
 
 ## Purpose
@@ -94,6 +94,32 @@ Prefer literal state words such as:
 - blocked.
 
 Use stronger completion language only when the supporting evidence permits it.
+
+## Commitment boundary principle
+
+Internal targets may be stricter than external commitments. Never convert an internal planning target or contingency buffer into an external promise without explicit operator intent and enough operational control to support it.
+
+Canonical rule:
+
+`COMMITMENT_STRENGTH <= EVIDENCE_STRENGTH AND OPERATOR_CONTROL`
+
+Classify the underlying statement before drafting:
+
+- `confirmed_fact`: externally usable as a literal fact when current evidence supports it;
+- `expected_outcome`: externally usable only with uncertainty language;
+- `internal_target`: an internal coordination target, not an external commitment;
+- `contingency_buffer`: an internal hedge or safety margin, omitted externally unless it is genuinely relevant;
+- `external_commitment`: permitted only when evidence supports it, operational control is sufficient, and the operator intends to make that promise.
+
+Do not collapse a stricter internal plan into stronger client-facing language merely because the internal plan exists.
+
+### Delivery-buffer regression
+
+Use provider-neutral synthetic fixtures in tracked source. Project names, live schedules, client details, and internal operational timings belong only in approved private sources.
+
+The protected behavior is semantic: an internal arrival target may be earlier than an expected delivery window without becoming a client-facing promise. Expected timing must retain uncertainty language. The sentence "Our technicians will assemble on-site during delivery." is an `external_commitment` and is allowed only when evidence support, sufficient operational control, and explicit operator intent are all proven for the actual message. Never expose the internal target or rewrite the buffer as "ahead of the delivery" merely because the earlier target exists.
+
+The machine-readable authority is `harness/api/operator-communication-semantics.json`, validated by `schemas/harness/operator-communication-semantics.schema.json` and `harness/validators/validate-operator-communication-semantics.py`.
 
 ## Audience patterns
 

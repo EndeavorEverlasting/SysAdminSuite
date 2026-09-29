@@ -6,7 +6,7 @@
 3. Use `CODEBASE_MAP.md` to locate the smallest relevant surface.
 4. Use `harness/api/agent-routing-manifest.json` for exact task signals; unknown or conflicting signals fail closed to the repository-sprint skill.
 5. Load only the selected skill and its declared capability dependencies.
-6. Read deeper product or harness documentation only when the selected route points to it.
+6. Read deeper product or harness documentation only when the selected route points to it. For operator-authored communication, load `docs/OPERATOR_COMMUNICATION_STYLE.md` and `harness/api/operator-communication-semantics.json` before drafting.
 
 Triggers route work only. They never authorize network activity, target mutation, destructive Git operations, secret handling, or proof claims. Progressive disclosure is a repository requirement; do not preload every skill, capability, plan, or handoff.
 ## Agent operating principles
@@ -68,7 +68,7 @@ Preserve existing work and keep mutation inside owned scope. Checkpoint coherent
 - If the canonical Python startup authority is absent or cannot be proven, report that exact gap; do not fabricate a launcher.
 
 ## Universal invariants
-- Treat repository and current Git evidence as authoritative over remembered conversation context.
+- Treat repository and current Git evidence as authoritative over remembered conversation context. **Commitment boundary:** external commitments must not be stronger than current evidence and operator control; internal targets and contingency buffers are not external promises without explicit operator intent. Machine-readable authority: `harness/api/operator-communication-semantics.json`.
 - Never commit secrets, credentials, personal data, live targets, machine-local paths, raw runtime evidence, generated logs, or local reference material.
 - Survey and dashboard probe lanes are read-only toward targets; deployment or repair mutation requires explicit authorization and its lane-specific gate.
 - Do not claim a higher proof level than the evidence supports. Static checks, launcher success, command acknowledgment, observed behavior, and live runtime proof are distinct.
@@ -96,7 +96,7 @@ Preserve existing work and keep mutation inside owned scope. Checkpoint coherent
 - `docs/END_TO_END_TESTING_POSTURE.md` — validation and merge/release proof posture.
 - `docs/VM_DRY_RUN_READINESS.md` and `docs/PACKAGE_VM_QUALIFICATION_PROFILES.md` — current VM safety and proof ceilings.
 - `Config/operational-posture.json`, `Config/cybernet-client-preferences.json`, and `docs/OPERATIONAL_POSTURE.md` — lane, mutation, and current Cybernet profile authority.
-- `harness/api/agent-capability-manifest.json` and `harness/api/agent-routing-manifest.json` — machine-readable capability and routing authority.
+- `harness/api/agent-capability-manifest.json`, `harness/api/agent-routing-manifest.json`, `harness/api/operator-communication-semantics.json`, `schemas/harness/operator-communication-semantics.schema.json`, and `harness/validators/validate-operator-communication-semantics.py` — machine-readable capability, routing, communication-semantic authority, and relational validation.
 - `harness/workflows/agent-sprint-capsule.yaml` and `tools/New-SasSprintCapsule.ps1` — final handoff compression.
 - `tools/validate-ai-layer.ps1` and `Tests/survey/test_agent_governance_doctrine_contracts.py` — instruction and governance enforcement.
 

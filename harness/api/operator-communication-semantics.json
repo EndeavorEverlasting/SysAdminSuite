@@ -1,0 +1,72 @@
+{
+  "schema_version": "sas-operator-communication-semantics/v2",
+  "schema_path": "schemas/harness/operator-communication-semantics.schema.json",
+  "validator_path": "harness/validators/validate-operator-communication-semantics.py",
+  "authority": {
+    "governance": "AGENTS.md",
+    "style_contract": "docs/OPERATOR_COMMUNICATION_STYLE.md"
+  },
+  "commitment_boundary": {
+    "formula": "COMMITMENT_STRENGTH <= EVIDENCE_STRENGTH AND OPERATOR_CONTROL",
+    "classes": {
+      "confirmed_fact": {
+        "external_mode": "allowed"
+      },
+      "expected_outcome": {
+        "external_mode": "allowed_with_uncertainty"
+      },
+      "internal_target": {
+        "external_mode": "not_as_commitment"
+      },
+      "contingency_buffer": {
+        "external_mode": "omit_unless_relevant"
+      },
+      "external_commitment": {
+        "external_mode": "gated",
+        "requires": [
+          "evidence_support",
+          "sufficient_operational_control",
+          "explicit_operator_intent"
+        ]
+      }
+    }
+  },
+  "regressions": [
+    {
+      "id": "synthetic-delivery-buffer",
+      "fixture_scope": "synthetic_provider_neutral",
+      "facts": [
+        {
+          "key": "delivery_window",
+          "classification": "expected_outcome",
+          "value": "2:30 PM to 3:00 PM"
+        },
+        {
+          "key": "technician_arrival_target",
+          "classification": "internal_target",
+          "value": "2:00 PM"
+        }
+      ],
+      "client_allowed": [
+        {
+          "text": "We expect delivery between 2:30 PM and 3:00 PM.",
+          "statement_class": "expected_outcome"
+        },
+        {
+          "text": "Our technicians will assemble on-site during delivery.",
+          "statement_class": "external_commitment",
+          "gate": {
+            "evidence_support": true,
+            "sufficient_operational_control": true,
+            "explicit_operator_intent": true
+          }
+        }
+      ],
+      "client_forbidden": [
+        "Our technicians will be onsite by 2:00 PM.",
+        "Our technicians will be onsite ahead of the delivery."
+      ],
+      "rationale": "A stricter internal arrival target is a contingency buffer, not an external promise. Any separate attendance commitment remains gated by evidence, operational control, and explicit operator intent."
+    }
+  ]
+}

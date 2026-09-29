@@ -1,0 +1,307 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "schemas/harness/operator-communication-semantics.schema.json",
+  "title": "SysAdminSuite operator communication semantics",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "schema_path",
+    "validator_path",
+    "authority",
+    "commitment_boundary",
+    "regressions"
+  ],
+  "properties": {
+    "schema_version": {
+      "const": "sas-operator-communication-semantics/v2"
+    },
+    "schema_path": {
+      "const": "schemas/harness/operator-communication-semantics.schema.json"
+    },
+    "validator_path": {
+      "const": "harness/validators/validate-operator-communication-semantics.py"
+    },
+    "authority": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "governance",
+        "style_contract"
+      ],
+      "properties": {
+        "governance": {
+          "const": "AGENTS.md"
+        },
+        "style_contract": {
+          "const": "docs/OPERATOR_COMMUNICATION_STYLE.md"
+        }
+      }
+    },
+    "commitment_boundary": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "formula",
+        "classes"
+      ],
+      "properties": {
+        "formula": {
+          "const": "COMMITMENT_STRENGTH <= EVIDENCE_STRENGTH AND OPERATOR_CONTROL"
+        },
+        "classes": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "confirmed_fact",
+            "expected_outcome",
+            "internal_target",
+            "contingency_buffer",
+            "external_commitment"
+          ],
+          "properties": {
+            "confirmed_fact": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "external_mode"
+              ],
+              "properties": {
+                "external_mode": {
+                  "const": "allowed"
+                }
+              }
+            },
+            "expected_outcome": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "external_mode"
+              ],
+              "properties": {
+                "external_mode": {
+                  "const": "allowed_with_uncertainty"
+                }
+              }
+            },
+            "internal_target": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "external_mode"
+              ],
+              "properties": {
+                "external_mode": {
+                  "const": "not_as_commitment"
+                }
+              }
+            },
+            "contingency_buffer": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "external_mode"
+              ],
+              "properties": {
+                "external_mode": {
+                  "const": "omit_unless_relevant"
+                }
+              }
+            },
+            "external_commitment": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "external_mode",
+                "requires"
+              ],
+              "properties": {
+                "external_mode": {
+                  "const": "gated"
+                },
+                "requires": {
+                  "type": "array",
+                  "uniqueItems": true,
+                  "minItems": 3,
+                  "maxItems": 3,
+                  "items": {
+                    "enum": [
+                      "evidence_support",
+                      "sufficient_operational_control",
+                      "explicit_operator_intent"
+                    ]
+                  },
+                  "allOf": [
+                    {
+                      "contains": {
+                        "const": "evidence_support"
+                      }
+                    },
+                    {
+                      "contains": {
+                        "const": "sufficient_operational_control"
+                      }
+                    },
+                    {
+                      "contains": {
+                        "const": "explicit_operator_intent"
+                      }
+                    }
+                  ]
+                }
+              }
+            }
+          }
+        }
+      }
+    },
+    "regressions": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "id",
+          "fixture_scope",
+          "facts",
+          "client_allowed",
+          "client_forbidden",
+          "rationale"
+        ],
+        "properties": {
+          "id": {
+            "type": "string",
+            "pattern": "^synthetic-[a-z0-9-]+$"
+          },
+          "fixture_scope": {
+            "const": "synthetic_provider_neutral"
+          },
+          "facts": {
+            "type": "array",
+            "minItems": 1,
+            "items": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "key",
+                "classification",
+                "value"
+              ],
+              "properties": {
+                "key": {
+                  "type": "string",
+                  "pattern": "^[a-z][a-z0-9_]*$"
+                },
+                "classification": {
+                  "enum": [
+                    "confirmed_fact",
+                    "expected_outcome",
+                    "internal_target",
+                    "contingency_buffer"
+                  ]
+                },
+                "value": {
+                  "type": "string",
+                  "minLength": 1
+                }
+              }
+            }
+          },
+          "client_allowed": {
+            "type": "array",
+            "minItems": 1,
+            "items": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "text",
+                "statement_class"
+              ],
+              "properties": {
+                "text": {
+                  "type": "string",
+                  "minLength": 1
+                },
+                "statement_class": {
+                  "enum": [
+                    "confirmed_fact",
+                    "expected_outcome",
+                    "external_commitment"
+                  ]
+                },
+                "gate": {
+                  "type": "object",
+                  "additionalProperties": false,
+                  "required": [
+                    "evidence_support",
+                    "sufficient_operational_control",
+                    "explicit_operator_intent"
+                  ],
+                  "properties": {
+                    "evidence_support": {
+                      "type": "boolean"
+                    },
+                    "sufficient_operational_control": {
+                      "type": "boolean"
+                    },
+                    "explicit_operator_intent": {
+                      "type": "boolean"
+                    }
+                  }
+                }
+              },
+              "allOf": [
+                {
+                  "if": {
+                    "properties": {
+                      "statement_class": {
+                        "const": "external_commitment"
+                      }
+                    },
+                    "required": [
+                      "statement_class"
+                    ]
+                  },
+                  "then": {
+                    "required": [
+                      "gate"
+                    ],
+                    "properties": {
+                      "gate": {
+                        "properties": {
+                          "evidence_support": {
+                            "const": true
+                          },
+                          "sufficient_operational_control": {
+                            "const": true
+                          },
+                          "explicit_operator_intent": {
+                            "const": true
+                          }
+                        }
+                      }
+                    }
+                  }
+                }
+              ]
+            }
+          },
+          "client_forbidden": {
+            "type": "array",
+            "minItems": 1,
+            "uniqueItems": true,
+            "items": {
+              "type": "string",
+              "minLength": 1
+            }
+          },
+          "rationale": {
+            "type": "string",
+            "minLength": 1
+          }
+        }
+      }
+    }
+  }
+}

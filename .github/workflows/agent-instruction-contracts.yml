@@ -16,21 +16,27 @@ on:
       - '.claude/capabilities/**'
       - 'docs/AI_LAYER.md'
       - 'docs/AI_HARNESS_ENTRYPOINT.md'
+      - 'docs/OPERATOR_COMMUNICATION_STYLE.md'
+      - 'docs/HH_KIOSK_DELIVERY_COORDINATION_HANDOFF.md'
       - 'docs/END_TO_END_TESTING_POSTURE.md'
       - 'harness/api/agent-capability-manifest.json'
       - 'harness/api/agent-routing-manifest.json'
+      - 'harness/api/operator-communication-semantics.json'
+      - 'harness/validators/validate-operator-communication-semantics.py'
       - 'harness/api/sas-harness-api.json'
       - 'harness/api/developer-workstation-agent-routing.json'
       - 'harness/workflows/agent-sprint-capsule.yaml'
       - 'harness/e2e/**'
       - 'schemas/harness/agent-capability-manifest.schema.json'
       - 'schemas/harness/agent-routing-manifest.schema.json'
+      - 'schemas/harness/operator-communication-semantics.schema.json'
       - 'schemas/harness/agent-sprint-capsule.schema.json'
       - 'schemas/harness/developer-workstation-agent-routing.schema.json'
       - 'schemas/harness/e2e-validation-profiles.schema.json'
       - 'Tests/Fixtures/capsules/**'
       - 'Tests/Pester/SprintCapsule.Tests.ps1'
       - 'Tests/survey/test_agent_governance_doctrine_contracts.py'
+      - 'Tests/survey/test_operator_communication_style_contracts.py'
       - 'Tests/survey/test_agent_instruction_factoring_contracts.py'
       - 'Tests/survey/test_agent_capability_manifest_contracts.py'
       - 'Tests/survey/test_agent_routing_manifest_contracts.py'
@@ -56,21 +62,27 @@ on:
       - '.claude/capabilities/**'
       - 'docs/AI_LAYER.md'
       - 'docs/AI_HARNESS_ENTRYPOINT.md'
+      - 'docs/OPERATOR_COMMUNICATION_STYLE.md'
+      - 'docs/HH_KIOSK_DELIVERY_COORDINATION_HANDOFF.md'
       - 'docs/END_TO_END_TESTING_POSTURE.md'
       - 'harness/api/agent-capability-manifest.json'
       - 'harness/api/agent-routing-manifest.json'
+      - 'harness/api/operator-communication-semantics.json'
+      - 'harness/validators/validate-operator-communication-semantics.py'
       - 'harness/api/sas-harness-api.json'
       - 'harness/api/developer-workstation-agent-routing.json'
       - 'harness/workflows/agent-sprint-capsule.yaml'
       - 'harness/e2e/**'
       - 'schemas/harness/agent-capability-manifest.schema.json'
       - 'schemas/harness/agent-routing-manifest.schema.json'
+      - 'schemas/harness/operator-communication-semantics.schema.json'
       - 'schemas/harness/agent-sprint-capsule.schema.json'
       - 'schemas/harness/developer-workstation-agent-routing.schema.json'
       - 'schemas/harness/e2e-validation-profiles.schema.json'
       - 'Tests/Fixtures/capsules/**'
       - 'Tests/Pester/SprintCapsule.Tests.ps1'
       - 'Tests/survey/test_agent_governance_doctrine_contracts.py'
+      - 'Tests/survey/test_operator_communication_style_contracts.py'
       - 'Tests/survey/test_agent_instruction_factoring_contracts.py'
       - 'Tests/survey/test_agent_capability_manifest_contracts.py'
       - 'Tests/survey/test_agent_routing_manifest_contracts.py'
@@ -102,6 +114,8 @@ jobs:
         run: >-
           python -m py_compile
           Tests/survey/test_agent_governance_doctrine_contracts.py
+          Tests/survey/test_operator_communication_style_contracts.py
+          harness/validators/validate-operator-communication-semantics.py
           Tests/survey/test_agent_instruction_factoring_contracts.py
           Tests/survey/test_agent_capability_manifest_contracts.py
           Tests/survey/test_agent_routing_manifest_contracts.py
@@ -111,6 +125,8 @@ jobs:
       - name: Skill, capability, routing, and handoff contracts
         run: |
           python3 Tests/survey/test_agent_governance_doctrine_contracts.py
+          python3 harness/validators/validate-operator-communication-semantics.py
+          python3 Tests/survey/test_operator_communication_style_contracts.py
           python3 Tests/survey/test_agent_instruction_factoring_contracts.py
           python3 Tests/survey/test_agent_capability_manifest_contracts.py
           python3 Tests/survey/test_agent_routing_manifest_contracts.py
