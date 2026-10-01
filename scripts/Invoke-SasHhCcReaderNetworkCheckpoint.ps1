@@ -46,7 +46,8 @@ $outputRoot = Join-Path $repoRoot 'survey\output\hh-cc-reader'
 $stateRootBase = if ([string]::IsNullOrWhiteSpace($env:ProgramData)) { $env:TEMP } else { $env:ProgramData }
 $stateRoot = Join-Path $stateRootBase 'SysAdminSuite\hh-cc-reader'
 [void](New-Item -ItemType Directory -Force -Path $stateRoot)
-$statePath = Join-Path $stateRoot 'home-lab-state.json'
+$safeRunId = ($RunId -replace '[^A-Za-z0-9_.-]','_')
+$statePath = Join-Path $stateRoot ("home-lab-state-{0}.json" -f $safeRunId)
 
 $configs = @()
 try {
