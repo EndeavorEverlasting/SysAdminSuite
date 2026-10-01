@@ -20,6 +20,7 @@ def main() -> int:
     launcher = read("Probe-HHCCReaderEndpoint.cmd")
     script = read("scripts/Invoke-SasHhCcReaderEndpointProbe.ps1")
     docs = read("docs/HH_CC_READER_REMOTE_OPERATIONS_PROGRAM.md")
+    qr_plan = read("docs/HH_CC_READER_QR_BASELINE_PLAN.md")
     command_registry = json.loads(read("harness/api/harness-command-registry.json"))
     artifact_registry = json.loads(read("harness/api/harness-artifact-registry.json"))
     outcome_registry = json.loads(read("harness/api/harness-outcome-registry.json"))
@@ -85,8 +86,14 @@ def main() -> int:
     assert "cannot independently validate the external human approval source" in docs
     assert "CC-reader software/firmware deployment" in docs
     assert "remains blocked" in docs
+    assert "Probe-HHCCReaderEndpoint.cmd READER_IPV4 REMOTE_ENDPOINT PORT APPROVAL_REF [EXPECTED-MAC]" in qr_plan
+    assert "QR-eligible but not yet scanner-ready" in qr_plan
+    assert "Raw `Test-NetConnection` snippets are component diagnostics only" in qr_plan
+    assert "blocked until endpoint CMD exists" not in qr_plan
+    assert "Probe-HHCCReaderEndpoint.cmd APPROVED_REMOTE_HOST_OR_IP [PORT]" not in qr_plan
+    assert "Google Drive" not in qr_plan
 
-    joined = "\n".join((launcher, script, docs))
+    joined = "\n".join((launcher, script, docs, qr_plan))
     ipv4_literals = set(re.findall(r"(?<!\d)(?:\d{1,3}\.){3}\d{1,3}(?!\d)", joined))
     allowed_networks = (
         ipaddress.ip_network("192.0.2.0/24"),
