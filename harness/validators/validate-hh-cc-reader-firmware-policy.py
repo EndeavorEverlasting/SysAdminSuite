@@ -83,6 +83,11 @@ def test_schema_and_scope() -> None:
     assert policy["scope"]["organization"] == "NYC Health + Hospitals"
     assert policy["scope"]["device_family"] == "PAX A80"
     assert policy["scope"]["source_field"] == "Active Outdated"
+    site = policy["site_resolution"]
+    assert site["fleet_planning_scope"] == "organization-wide candidate only"
+    assert site["default_site_state"] == "DISCOVERY_REQUIRED"
+    assert site["execution_target_state"] == "UNRESOLVED_UNTIL_SITE_AND_MANAGEMENT_AUTHORITY"
+    assert all(value is True for value in site["rules"].values())
     try:
         import jsonschema  # type: ignore
     except ImportError:
@@ -116,6 +121,7 @@ def test_candidate_set_and_default_selection() -> None:
     assert all("Active Outdated is No" in item["basis"] for item in candidates)
     default_target = policy["selection"]["default_target"]
     assert policy["selection"]["rule"] == "highest_numeric_observed_client_accepted_candidate"
+    assert policy["selection"]["scope"] == "fleet_planning_candidate_only"
     assert default_target == max(versions, key=version_key)
     default_rows = [item for item in candidates if item["status"] == "default_target_candidate"]
     assert len(default_rows) == 1
@@ -144,6 +150,8 @@ def test_mutation_and_supersession_gates() -> None:
         assert marker in joined, f"supersession gate missing: {marker}"
     assert policy["gates"]["do_not_treat_active_outdated_no_as_vendor_latest"] is True
     assert policy["gates"]["do_not_silently_substitute_target"] is True
+    assert policy["gates"]["site_context_required_before_firmware_mutation"] is True
+    assert policy["gates"]["fleet_default_is_not_site_execution_authority"] is True
     assert policy["gates"]["authoritative_package_mapping_required_before_firmware_mutation"] is True
     assert policy["gates"]["supported_update_method_required_before_firmware_mutation"] is True
     assert policy["gates"]["controlled_pilot_required_before_repeatable_rollout"] is True
@@ -161,6 +169,7 @@ def test_bindings_and_agent_guidance() -> None:
     section = skill.split("## H&H CC-reader firmware decision gate", 1)[1].split("## ", 1)[0]
     assert "harness/api/hh-cc-reader-firmware-policy.json" in section
     assert "Active Outdated" in section
+    assert "site/hospital" in section
     for candidate in policy["observed_client_accepted_candidates"]:
         assert candidate["version"] not in section, "field skill must not duplicate current firmware values"
     assert policy["selection"]["default_target"] not in section, "field skill must read target from policy"
