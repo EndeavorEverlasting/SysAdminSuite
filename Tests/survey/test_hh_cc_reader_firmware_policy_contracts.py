@@ -77,14 +77,23 @@ def test_docs_and_agent_lane_point_back_to_machine_policy() -> None:
     skill = read(FIELD_SKILL)
     for marker in ("Active Outdated", "2.0.14.221110", "2.0.15.260522", "harness/api/hh-cc-reader-firmware-policy.json"):
         assert marker in doc, f"CC-reader baseline lost marker: {marker}"
-    for marker in ("H&H CC-reader firmware decision gate", "Active Outdated", "2.0.15.260522", "harness/api/hh-cc-reader-firmware-policy.json"):
+    for marker in ("H&H CC-reader firmware decision gate", "Active Outdated", "machine policy is the source of truth", "harness/api/hh-cc-reader-firmware-policy.json"):
         assert marker in skill, f"field workflow lost marker: {marker}"
+    section = skill.split("## H&H CC-reader firmware decision gate", 1)[1].split("## ", 1)[0]
+    policy = load(POLICY)
+    for candidate in policy["observed_client_accepted_candidates"]:
+        assert candidate["version"] not in section, "field workflow duplicated a policy-owned firmware value"
 
 
 def test_schema_matches_policy_version() -> None:
     policy = load(POLICY)
     schema = load(SCHEMA)
     assert schema["properties"]["schema_version"]["const"] == policy["schema_version"]
+    assert schema["additionalProperties"] is False
+    assert schema["properties"]["scope"]["properties"]["source_field"]["const"] == "Active Outdated"
+    assert schema["properties"]["selection"]["properties"]["rule"]["const"] == policy["selection"]["rule"]
+    assert set(schema["properties"]["gates"]["properties"]) == set(policy["gates"])
+    assert all(item["const"] is True for item in schema["properties"]["gates"]["properties"].values())
     try:
         import jsonschema  # type: ignore
     except ImportError:
