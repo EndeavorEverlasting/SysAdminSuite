@@ -6,7 +6,7 @@ without promoting it beyond its evidence ceiling. It preserves the two observed
 client-accepted firmware candidates, selects the highest numeric accepted
 candidate as the default planning target, keeps the older accepted version's
 ambiguity open, and blocks silent target substitution or firmware mutation
-without authoritative estate-specific package/update evidence.
+without authoritative estate-specific package/update evidence. It also prevents a recurring discovery defect: unknown ownership must not terminate investigation before the supported update-mechanism families are dispositioned.
 """
 from __future__ import annotations
 
@@ -80,6 +80,10 @@ def test_schema_and_scope() -> None:
     assert set(gate_schema) == set(policy["gates"])
     assert all(item.get("const") is True for item in gate_schema.values())
     assert set(schema["required"]) <= set(policy)
+    mechanism_schema = schema["properties"]["mechanism_discovery"]
+    assert mechanism_schema["properties"]["strategy"]["const"] == "mechanism_first_before_human_escalation"
+    assert set(mechanism_schema["properties"]["rules"]["properties"]) == set(policy["mechanism_discovery"]["rules"])
+    assert all(item.get("const") is True for item in mechanism_schema["properties"]["rules"]["properties"].values())
     assert policy["scope"]["organization"] == "NYC Health + Hospitals"
     assert policy["scope"]["device_family"] == "PAX A80"
     assert policy["scope"]["source_field"] == "Active Outdated"
@@ -156,6 +160,40 @@ def test_mutation_and_supersession_gates() -> None:
     assert policy["gates"]["supported_update_method_required_before_firmware_mutation"] is True
     assert policy["gates"]["controlled_pilot_required_before_repeatable_rollout"] is True
 
+
+
+def test_mechanism_first_update_path_exhaustion() -> None:
+    policy = load(POLICY)
+    mechanism = policy["mechanism_discovery"]
+    assert mechanism["strategy"] == "mechanism_first_before_human_escalation"
+    assert mechanism["human_escalation"].startswith("fallback_only_after_supported_mechanisms")
+    assert mechanism["required_dispositions"] == [
+        "PROVEN_PATH",
+        "NOT_APPLICABLE",
+        "CREDENTIAL_GATE",
+        "EVIDENCE_GAP",
+    ]
+    candidates = mechanism["candidate_order"]
+    assert [item["id"] for item in candidates] == [
+        "payment-fusion-control-center",
+        "paxstore-ota-push",
+        "terminal-tms-pull",
+        "provider-auto-update",
+    ]
+    assert [item["priority"] for item in candidates] == [1, 2, 3, 4]
+    assert candidates[0]["state"] == "STRONGEST_ESTATE_MATCH"
+    assert candidates[1]["state"] == "STRONGEST_DELIVERY_MATCH"
+    assert candidates[1]["role"] == "firmware_delivery_mechanism"
+    joined = "\n".join(item["next_discriminator"] for item in candidates)
+    for marker in ("CREDENTIAL_GATE", "PAXSTORE", "NTMS", "automatic update"):
+        assert marker in joined, f"mechanism-first discriminator lost marker: {marker}"
+    rules = mechanism["rules"]
+    assert all(rules.values())
+    assert rules["management_surface_and_delivery_mechanism_are_separate_discriminators"] is True
+    assert rules["exhaust_supported_mechanisms_before_human_escalation"] is True
+    assert rules["human_owner_confirmation_is_not_a_primary_discriminator"] is True
+    assert rules["credential_gate_names_exact_surface_and_missing_access"] is True
+    assert rules["do_not_mutate_reader_to_discover_management_path"] is True
 
 def test_bindings_and_agent_guidance() -> None:
     policy = load(POLICY)

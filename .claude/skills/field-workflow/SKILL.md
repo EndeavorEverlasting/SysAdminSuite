@@ -37,6 +37,15 @@ For NYC Health + Hospitals PAX A80 firmware planning, load `harness/api/hh-cc-re
 
 Do not restate current firmware values or candidate lists in this skill. Read them from the policy at execution time so a policy update cannot leave field guidance stale. If the policy and any prose disagree, stop and surface the conflict rather than choosing a convenient value.
 
+
+### Mechanism-first update-path exhaustion
+
+Before escalating to a client, coworker, relationship owner, reseller, vendor owner, or support contact merely to ask **who owns the terminal**, exhaust the mechanism classes in `policy["mechanism_discovery"]`. Management surface and firmware-delivery mechanism are separate discriminators. Use repository evidence, current vendor/public documentation, operator-managed field evidence, and already-authorized access surfaces first.
+
+Every mechanism candidate must be dispositioned as `PROVEN_PATH`, `NOT_APPLICABLE`, `CREDENTIAL_GATE`, or `EVIDENCE_GAP`. A `CREDENTIAL_GATE` must name the exact surface and missing access/permission; do not broaden it into a generic "find the owner" request. Human escalation is a fallback only after mechanism exhaustion or when a named surface has a concrete credential/support gate unavailable to automation.
+
+Do not reset a reader, erase settings, change networking/TMS endpoints, sideload firmware, or perform a firmware push merely to discover which management path exists. Discovery remains read-only until the machine policy's pre-mutation gates and separately authorized pilot gate are satisfied.
+
 ## Operator command composition gate
 
 Before this skill emits, executes, or asks a technician to run **any SysAdminSuite-owned command or snippet**, load `harness/skills/operator-command-handoff/SKILL.md` and satisfy its transaction in order:

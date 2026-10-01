@@ -13,6 +13,7 @@
     "observed_client_accepted_candidates",
     "selection",
     "ambiguities",
+    "mechanism_discovery",
     "gates",
     "bindings",
     "proof_ceiling"
@@ -186,6 +187,118 @@
           "handling": {
             "type": "string",
             "minLength": 24
+          }
+        }
+      }
+    },
+    "mechanism_discovery": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "strategy",
+        "human_escalation",
+        "required_dispositions",
+        "candidate_order",
+        "rules"
+      ],
+      "properties": {
+        "strategy": {
+          "const": "mechanism_first_before_human_escalation"
+        },
+        "human_escalation": {
+          "type": "string",
+          "minLength": 32
+        },
+        "required_dispositions": {
+          "type": "array",
+          "minItems": 4,
+          "uniqueItems": true,
+          "items": {
+            "enum": [
+              "PROVEN_PATH",
+              "NOT_APPLICABLE",
+              "CREDENTIAL_GATE",
+              "EVIDENCE_GAP"
+            ]
+          }
+        },
+        "candidate_order": {
+          "type": "array",
+          "minItems": 4,
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "id",
+              "role",
+              "priority",
+              "state",
+              "evidence_basis",
+              "next_discriminator"
+            ],
+            "properties": {
+              "id": {
+                "type": "string",
+                "pattern": "^[a-z0-9][a-z0-9._-]+$"
+              },
+              "role": {
+                "enum": [
+                  "estate_management_surface",
+                  "firmware_delivery_mechanism",
+                  "provider_specific_fallback"
+                ]
+              },
+              "priority": {
+                "type": "integer",
+                "minimum": 1
+              },
+              "state": {
+                "enum": [
+                  "STRONGEST_ESTATE_MATCH",
+                  "STRONGEST_DELIVERY_MATCH",
+                  "EVIDENCE_GAP",
+                  "PROVEN_PATH",
+                  "NOT_APPLICABLE",
+                  "CREDENTIAL_GATE"
+                ]
+              },
+              "evidence_basis": {
+                "type": "string",
+                "minLength": 32
+              },
+              "next_discriminator": {
+                "type": "string",
+                "minLength": 32
+              }
+            }
+          }
+        },
+        "rules": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "management_surface_and_delivery_mechanism_are_separate_discriminators",
+            "exhaust_supported_mechanisms_before_human_escalation",
+            "human_owner_confirmation_is_not_a_primary_discriminator",
+            "credential_gate_names_exact_surface_and_missing_access",
+            "do_not_mutate_reader_to_discover_management_path"
+          ],
+          "properties": {
+            "management_surface_and_delivery_mechanism_are_separate_discriminators": {
+              "const": true
+            },
+            "exhaust_supported_mechanisms_before_human_escalation": {
+              "const": true
+            },
+            "human_owner_confirmation_is_not_a_primary_discriminator": {
+              "const": true
+            },
+            "credential_gate_names_exact_surface_and_missing_access": {
+              "const": true
+            },
+            "do_not_mutate_reader_to_discover_management_path": {
+              "const": true
+            }
           }
         }
       }
