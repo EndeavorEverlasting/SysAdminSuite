@@ -24,7 +24,7 @@ No subnet/range discovery is authorized by that command.
 
 Use the network-switch and bounded local-discovery workflow in this document.
 
-The home-lab lane is allowed to generate one bounded host-presence pass across the workstation's current **private local subnet**, subject to a hard host-count ceiling, solely to populate local neighbor state and recover an exact approved MAC. It does not perform broad port scanning.
+The home-lab lane requires an explicit `CONFIRM_CONSUMER_LAB` token, a prepared sealed runtime, and the repository network classifier to report `GUEST_INTERNET` before any active discovery. The home-lab lane is allowed to generate one bounded host-presence pass across the workstation's current **private local subnet**, subject to a hard host-count ceiling, solely to populate local neighbor state and recover an exact approved MAC. It does not perform broad port scanning.
 
 ## Canonical command flow
 
