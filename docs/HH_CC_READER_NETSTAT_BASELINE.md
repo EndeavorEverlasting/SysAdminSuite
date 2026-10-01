@@ -21,6 +21,38 @@ Current field evidence establishes:
 - The device-side Connectivity Test separately exposes service checks that include terminal-management/transaction/polling functions, Payment gateway, Diagnostic service, PAX Store, and **PAX Store Push Service Primary (443)** plus another truncated PAX push entry.
 - A Connectivity Test label is a correlation candidate, not proof that the same endpoint is visible in Netstat or that the service owns firmware for this estate.
 
+## Public PAXSTORE capability evidence (does not close the H&H management baseline)
+
+Public PAX Technology documentation materially narrows the control-plane hypothesis:
+
+- PAX describes PAXSTORE as a cloud platform for managing payment devices, including remote application and firmware updates.
+- The PAXSTORE Reseller Admin Guide states that terminals communicate with PAXSTORE through the internet, that firmware updates may be pushed to selected terminals, and that reseller administrators can push firmware.
+- The same guide exposes a Firmware List containing A80-compatible firmware packages, confirming that A80 firmware is represented in the PAXSTORE management plane.
+- PAX North America support guidance also routes customer firmware-update requests through Technical Support. That support-mediated path can coexist with reseller/administrator firmware controls; it is evidence that entitlement and role matter, not evidence that every terminal owner has self-service firmware authority.
+
+Public references:
+
+- https://www.pax.us/marketplace/
+- https://www.pax.us/paxstore-knowledge-base/
+- https://faqs.pax.us/wp-content/uploads/2020/05/PAXSTORE-Reseller-Admin-Guide_v1.0.pdf
+- https://www.pax.us/support/faq/
+
+### Decision consequence
+
+The observed device-side label **PAX Store Push Service Primary (443)** is therefore materially consistent with a PAXSTORE phone-home/control-plane path. It is still only a correlation candidate for this H&H estate.
+
+This evidence does **not** prove:
+
+- which PAXSTORE reseller/merchant/processor tenant owns these readers;
+- whether the H&H deployment is enrolled for firmware management;
+- which operator or support organization has the required role/entitlement;
+- the authoritative current or target firmware package/version;
+- that the observed push-service check is the exact transport used for a firmware task on this estate.
+
+The next controlled reader window should therefore preserve the existing Netstat/Connectivity-Test phase contract and look only for a concrete endpoint/port that appears during the built-in test. If one is observed, use the existing one-endpoint correlation launcher. If none is observed, retain `NO_CONCRETE_ENDPOINT_OBSERVED` rather than broadening discovery.
+
+The management baseline can be closed only by authoritative estate-specific evidence such as the applicable PAXSTORE/processor/reseller terminal record, an approved support case or owner confirmation, or another supported management plane that directly identifies the reader and the allowed firmware task. Coworker anecdote, generic PAXSTORE capability, or a successful Connectivity Test is not sufficient.
+
 ## Evidence linkage contract
 
 Every controlled evidence window must have one non-secret `RUN_ID` assigned **before** the Identity gate. The operator-managed evidence index must bind that `RUN_ID` to exactly one reader identity and record the window start/end timestamps.
