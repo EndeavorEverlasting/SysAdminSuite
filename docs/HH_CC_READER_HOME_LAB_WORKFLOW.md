@@ -117,10 +117,10 @@ The repository intentionally does **not** store a live/default administrative pa
 
 ### Deterministic keypad planner
 
-For an authorized string supplied at runtime:
+For authorized text entered interactively at runtime (hidden input; the supplied text is not persisted):
 
 ```text
-Plan-HHCCReaderAlphaInput.cmd TEXT
+Plan-HHCCReaderAlphaInput.cmd
 ```
 
 The helper codifies documented PAX-family behavior:
