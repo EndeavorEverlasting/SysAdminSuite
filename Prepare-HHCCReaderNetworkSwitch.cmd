@@ -8,16 +8,20 @@ set "RUN_ID=%~1"
 set "EXPECTED_MAC=%~2"
 set "SAS_EXIT=1"
 
+>nul 2>&1 echo(!RUN_ID!| "%SystemRoot%\System32\findstr.exe" /R /X "[A-Za-z0-9_.:-][A-Za-z0-9_.:-]*"
+if errorlevel 1 goto usage
+if not "!EXPECTED_MAC!"=="" (
+  >nul 2>&1 echo(!EXPECTED_MAC!| "%SystemRoot%\System32\findstr.exe" /R /X "[0-9A-Fa-f:-][0-9A-Fa-f:-]*"
+  if errorlevel 1 goto usage
+)
+
 echo ================================================================
 echo  SYSADMINSUITE H^&H CC READER NETWORK-SWITCH PREPARE
 echo ================================================================
-echo  Run ID: %RUN_ID%
-if not "%EXPECTED_MAC%"=="" echo  Expected MAC supplied: yes
-echo.
 echo  Purpose:
 echo    1. refresh and seal current SysAdminSuite to C:\SASAL
 echo    2. capture the current workstation network as BEFORE_SWITCH
-echo    3. preserve a machine-local state file for the after-switch lane
+echo    3. preserve machine-local continuation state for this RUN_ID
 echo.
 echo  This command does NOT change the reader or choose the next network.
 echo ================================================================
@@ -40,29 +44,25 @@ if not exist "C:\SASAL\Checkpoint-HHCCReaderNetwork.cmd" (
   goto finish
 )
 
-if "%EXPECTED_MAC%"=="" (
-  call "C:\SASAL\Checkpoint-HHCCReaderNetwork.cmd" BEFORE_SWITCH "%RUN_ID%"
+if "!EXPECTED_MAC!"=="" (
+  call "C:\SASAL\Checkpoint-HHCCReaderNetwork.cmd" BEFORE_SWITCH "!RUN_ID!"
 ) else (
-  call "C:\SASAL\Checkpoint-HHCCReaderNetwork.cmd" BEFORE_SWITCH "%RUN_ID%" "%EXPECTED_MAC%"
+  call "C:\SASAL\Checkpoint-HHCCReaderNetwork.cmd" BEFORE_SWITCH "!RUN_ID!" "!EXPECTED_MAC!"
 )
 set "SAS_EXIT=!ERRORLEVEL!"
 if not "!SAS_EXIT!"=="0" goto finish
 
 echo.
 echo PREPARE_COMPLETE
-echo After the network switch, run:
-echo   C:\SASAL\Discover-HHCCReaderHomeLab.cmd "%RUN_ID%" CONFIRM_CONSUMER_LAB
-echo.
-echo Optional explicit after-switch checkpoint only:
-echo   C:\SASAL\Checkpoint-HHCCReaderNetwork.cmd AFTER_SWITCH "%RUN_ID%"
+echo After the operator intentionally switches to the authorized consumer-lab network, run:
+echo   C:\SASAL\Discover-HHCCReaderHomeLab.cmd "!RUN_ID!" CONFIRM_CONSUMER_LAB
 goto finish
 
 :usage
 echo Usage:
 echo   Prepare-HHCCReaderNetworkSwitch.cmd RUN_ID [EXPECTED_MAC]
 echo.
-echo Documentation-only example:
-echo   Prepare-HHCCReaderNetworkSwitch.cmd DEMO-RUN AA-BB-CC-DD-EE-FF
+echo RUN_ID accepts letters, numbers, dot, underscore, colon, and hyphen only.
 set "SAS_EXIT=2"
 
 :finish
