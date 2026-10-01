@@ -55,6 +55,12 @@ def main() -> int:
         "SEALED_RUNTIME_REQUIRED",
         "HOME_LAB_NETWORK_AUTHORITY_REJECTED",
         "prepared_commit_verified",
+        "MaxPresencePasses = 2",
+        "NeighborSettleMs = 1000",
+        "presence_passes_run",
+        "reacquisition_exhausted",
+        "HOME_LAB_EXACT_MAC_NOT_FOUND_AFTER_REACQUISITION",
+        "if ($null -ne $selectedConfig.NetProfile)",
     ):
         assert marker in discover_cmd + discover_ps, f"home-lab discovery missing marker: {marker}"
 
@@ -125,6 +131,15 @@ def main() -> int:
     assert "PROTECTED_ENTERPRISE" in docs
     assert "AUTHORIZED_CONSUMER_LAB" in docs
     assert "does **not** weaken" in docs
+    assert "C:\\SASAL\\Discover-HHCCReaderHomeLab.cmd RUN_ID CONFIRM_CONSUMER_LAB [EXPECTED_MAC]" in docs
+    assert "Known approved IPv4" in docs
+    assert "do not throw it away and start subnet discovery" in docs
+    assert "at most two bounded presence attempts per local host" in docs
+    assert "HOME_LAB_EXACT_MAC_NOT_FOUND_AFTER_REACQUISITION" in docs
+    assert "C:\\SASAL\\Discover-HHCCReaderHomeLab.cmd RUN_ID\n" not in docs
+    assert "for ($pass = 1; $pass -le $MaxPresencePasses; $pass++)" in discover_ps
+    assert "Start-Sleep -Milliseconds $NeighborSettleMs" in discover_ps
+    assert "network_profile = $networkProfileName" in discover_ps
     assert "merchanthelp.bankofamerica.com/Pax-Terminal-Configuration" in docs
 
     print("[PASS] H&H network-switch checkpoint is a tracked CMD workflow")
