@@ -158,20 +158,23 @@ Current state:
 - public/package search for exact build `2.0.15.260522` is exhausted without an authoritative mapping;
 - H&H public Board material now identifies **Experian as the merchant-services vendor and credit-card-terminal provider as of September 2023**; current 2026 continuity is not yet proved;
 - PAX public material links AxiaMed to A80 devices, remote Control Center management/update, and Payment Fusion; Bank of America acquired AxiaMed in 2021, making those names one downstream vendor-chain hypothesis rather than separate owners;
-- every credentialed management surface remains `ACCESS_NOT_PROVEN`;
-- strongest next gate is confirmation from the current H&H Experian merchant-services relationship owner (or corresponding Experian account/support owner) of the representative A80's actual management plane and package exposure;
-- the exact reopen artifact is the **Estate-authority evidence packet** defined in `docs/HH_CC_READER_NETSTAT_BASELINE.md`;
-- the firmware lane stays quiescent until that packet is COMPLETE — no additional reader diagnostics or public package archaeology.
+- mechanism discovery is now governed by `harness/api/hh-cc-reader-firmware-policy.json`; **management owner is an output, not a prerequisite supplied by a client or coworker**;
+- **Payment Fusion Control Center / Healthcare Omni-Channel** is the strongest estate-facing management-surface match and is currently `CREDENTIAL_GATE`: the named surface is known, but this execution environment has no authorized H&H/AxiaMed/Payment Fusion account or API role;
+- **PAXSTORE OTA firmware push** is the strongest firmware-delivery match and is currently `CREDENTIAL_GATE`: the observed public account reaches Marketplace/App Store but lacks estate Terminal Management / reseller-admin scope;
+- the exposed local AxiaMed **TMS/NTMS/update** lane is `NOT_APPLICABLE`: the captured unlocked menu and Diagnostic exploration expose no local firmware/update control and must not be restaged;
+- provider-managed automatic update remains `EVIDENCE_GAP`;
+- the exact reopen artifact remains the **Estate-authority evidence packet** defined in `docs/HH_CC_READER_NETSTAT_BASELINE.md`, but its `SOURCE_SURFACE` and `MANAGEMENT_OWNER` fields are populated from mechanism discovery rather than by asking a human to identify the owner;
+- no additional reader diagnostics, owner-identification requests, or generic public package archaeology are required for P5.
 
 Required outputs before P6:
 
-- current H&H owner of the Experian merchant-services/terminal relationship, or evidence that the relationship has been superseded;
-- actual management owner/control plane for the representative A80 (PAXSTORE, AxiaMed/Bank of America Control Center/Gateway, or another supported plane);
-- entitlement;
-- authoritative current firmware;
-- target package/version (`2.0.15.260522` unless stronger estate authority supersedes it);
-- supported remote update method;
-- validation/rollback contract.
+- one named management surface advances from `CREDENTIAL_GATE` to authorized read access for the representative A80, or new estate-specific evidence proves the automatic-update lane;
+- representative-terminal record and authoritative current firmware;
+- exact package/release mapping for target `2.0.15.260522` (or a surfaced conflict; do not silently substitute another build);
+- supported remote assignment/update method;
+- reboot/reconnect behavior;
+- rollback/exception path;
+- post-update acceptance contract.
 
 
 ### P6 — one-reader deployment pilot
