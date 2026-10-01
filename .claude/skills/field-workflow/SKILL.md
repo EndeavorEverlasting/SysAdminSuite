@@ -33,15 +33,9 @@ Load only the references that match the selected field lane:
 
 ## H&H CC-reader firmware decision gate
 
-For NYC Health + Hospitals PAX A80 firmware planning, read `harness/api/hh-cc-reader-firmware-policy.json` before proposing, changing, or describing the target firmware.
+For NYC Health + Hospitals PAX A80 firmware planning, load `harness/api/hh-cc-reader-firmware-policy.json` before proposing, changing, or describing the target firmware. The machine policy is the source of truth for the current `Active Outdated` interpretation, accepted-candidate set, default-target selection rule, open ambiguities, supersession conditions, and pre-mutation gates.
 
-1. Treat `Active Outdated` as a **client inventory classification signal**. `Yes` means the client marks the row active-outdated; `No` means the client does not presently classify the row that way.
-2. Firmware observed where `Active Outdated = No` is **client-accepted baseline evidence**. The current observed candidates are `2.0.14.221110` and `2.0.15.260522`.
-3. Use `2.0.15.260522` as the current default planning target because it is the highest numeric observed client-accepted candidate under the registered rule.
-4. Preserve the `2.0.14.221110` discrepancy as an open ambiguity. Do not discard it, automatically relabel it outdated, or invent a reason the client accepts it.
-5. Do not collapse `Active Outdated = No` into vendor-global latest firmware. It does not prove PAX/PAXSTORE release authority, package availability, entitlement, or update authorization.
-6. Do not silently substitute another target. Supersession requires stronger H&H estate-specific management/owner evidence, a revised client source that changes the accepted candidate set, or an explicit operator target change.
-7. Firmware mutation remains blocked until the applicable management plane identifies the authoritative package and supported update method, followed by one controlled pilot before repeatable rollout.
+Do not restate current firmware values or candidate lists in this skill. Read them from the policy at execution time so a policy update cannot leave field guidance stale. If the policy and any prose disagree, stop and surface the conflict rather than choosing a convenient value.
 
 ## Operator command composition gate
 
