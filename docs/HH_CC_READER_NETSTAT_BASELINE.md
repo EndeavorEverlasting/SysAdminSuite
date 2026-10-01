@@ -21,6 +21,20 @@ Current field evidence establishes:
 - The device-side Connectivity Test separately exposes service checks that include terminal-management/transaction/polling functions, Payment gateway, Diagnostic service, PAX Store, and **PAX Store Push Service Primary (443)** plus another truncated PAX push entry.
 - A Connectivity Test label is a correlation candidate, not proof that the same endpoint is visible in Netstat or that the service owns firmware for this estate.
 
+## Evidence linkage contract
+
+Every controlled evidence window must have one non-secret `RUN_ID` assigned **before** the Identity gate. The operator-managed evidence index must bind that `RUN_ID` to exactly one reader identity and record the window start/end timestamps.
+
+The same `RUN_ID` must label or index:
+
+- every Netstat BASELINE / START_TEST / DURING_TEST / POST_TEST frame from that window;
+- the paired Connectivity Test capture;
+- the canonical workstation probe receipt **path and receipt timestamp**;
+- any bounded endpoint-correlation receipt path produced from evidence in that window;
+- operator notes that interpret a delta or unknown.
+
+Do not combine artifacts under one `RUN_ID` when the reader identity changes, a later diagnostic window starts, or provenance cannot be established. Start a new `RUN_ID` instead. Existing launcher receipt schemas do not need to be mutated merely to carry this external linkage; the evidence index owns the association.
+
 ## Canonical Netstat evidence phases
 
 One authorized reader run uses this order:
