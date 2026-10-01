@@ -146,7 +146,7 @@ Ignored local artifacts:
 
 - `survey/output/hh-cc-reader/hh-cc-reader-network-checkpoint-<timestamp>-<phase>.json`
 - `survey/output/hh-cc-reader/hh-cc-reader-home-lab-discovery-<timestamp>.json`
-- existing canonical probe receipts under `survey/output/hh-cc-reader/`
+- `survey/output/hh-cc-reader/hh-cc-reader-alpha-input-plan-<timestamp>.json` (metadata only; supplied text is not persisted)\n- existing canonical probe receipts under `survey/output/hh-cc-reader/`
 
 Machine-local continuation state:
 
