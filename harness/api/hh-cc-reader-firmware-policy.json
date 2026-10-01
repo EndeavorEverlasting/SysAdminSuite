@@ -35,7 +35,8 @@
       "stronger H&H estate-specific management-plane or owner evidence",
       "a client source revision that changes the accepted candidate set",
       "an explicit operator target change"
-    ]
+    ],
+    "scope": "fleet_planning_candidate_only"
   },
   "ambiguities": [
     {
@@ -51,7 +52,9 @@
     "do_not_silently_substitute_target": true,
     "authoritative_package_mapping_required_before_firmware_mutation": true,
     "supported_update_method_required_before_firmware_mutation": true,
-    "controlled_pilot_required_before_repeatable_rollout": true
+    "controlled_pilot_required_before_repeatable_rollout": true,
+    "site_context_required_before_firmware_mutation": true,
+    "fleet_default_is_not_site_execution_authority": true
   },
   "bindings": [
     {
@@ -73,5 +76,20 @@
       ]
     }
   ],
-  "proof_ceiling": "Repository policy proves how client inventory evidence is interpreted and how the default target candidate is selected. It does not prove vendor-global latest firmware, package entitlement, supported assignment, a successful update, or production rollout acceptance."
+  "proof_ceiling": "Repository policy proves how client inventory evidence is interpreted and how the fleet-level default planning candidate is selected. It does not prove a site-authorized execution target, vendor-global latest firmware, package entitlement, supported assignment, a successful update, or production rollout acceptance.",
+  "site_resolution": {
+    "fleet_planning_scope": "organization-wide candidate only",
+    "default_site_state": "DISCOVERY_REQUIRED",
+    "execution_target_state": "UNRESOLVED_UNTIL_SITE_AND_MANAGEMENT_AUTHORITY",
+    "rules": {
+      "organization_default_is_not_site_execution_authority": true,
+      "site_or_hospital_context_required_before_mutation_behavior": true,
+      "independently_operated_or_unproved_site_requires_explicit_site_evidence": true,
+      "unknown_ambiguous_conflicting_or_unsupported_site_fails_closed": true
+    },
+    "resolution_evidence": [
+      "authoritative H&H site/hospital owner or management-plane evidence",
+      "an explicit registered site override when the site operates independently or differs from the organization baseline"
+    ]
+  }
 }
