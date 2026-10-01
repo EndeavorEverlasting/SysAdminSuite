@@ -72,7 +72,14 @@ def test_schema_and_scope() -> None:
     assert policy["schema_version"] == "sas-hh-cc-reader-firmware-policy/v1"
     assert policy["repository"] == "EndeavorEverlasting/SysAdminSuite"
     assert schema["$schema"].endswith("draft/2020-12/schema")
+    assert schema["additionalProperties"] is False
     assert schema["properties"]["schema_version"]["const"] == policy["schema_version"]
+    assert schema["properties"]["scope"]["properties"]["source_field"]["const"] == "Active Outdated"
+    assert schema["properties"]["selection"]["properties"]["rule"]["const"] == "highest_numeric_observed_client_accepted_candidate"
+    gate_schema = schema["properties"]["gates"]["properties"]
+    assert set(gate_schema) == set(policy["gates"])
+    assert all(item.get("const") is True for item in gate_schema.values())
+    assert set(schema["required"]) <= set(policy)
     assert policy["scope"]["organization"] == "NYC Health + Hospitals"
     assert policy["scope"]["device_family"] == "PAX A80"
     assert policy["scope"]["source_field"] == "Active Outdated"
@@ -150,7 +157,13 @@ def test_bindings_and_agent_guidance() -> None:
             assert marker in text, f"binding {binding['path']} lost marker: {marker}"
     skill = read(FIELD_SKILL)
     assert "## H&H CC-reader firmware decision gate" in skill
-    assert "Do not collapse `Active Outdated = No` into vendor-global latest firmware." in skill
+    assert "machine policy is the source of truth" in skill
+    section = skill.split("## H&H CC-reader firmware decision gate", 1)[1].split("## ", 1)[0]
+    assert "harness/api/hh-cc-reader-firmware-policy.json" in section
+    assert "Active Outdated" in section
+    for candidate in policy["observed_client_accepted_candidates"]:
+        assert candidate["version"] not in section, "field skill must not duplicate current firmware values"
+    assert policy["selection"]["default_target"] not in section, "field skill must read target from policy"
     doc = read(HH_DOC)
     assert "## Client inventory firmware evidence" in doc
     assert "2.0.14.221110" in doc
