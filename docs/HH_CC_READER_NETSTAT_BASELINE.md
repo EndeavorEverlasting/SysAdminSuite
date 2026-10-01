@@ -132,7 +132,58 @@ Evidence consequence:
 - Gordon mentioned erasing settings and returning networking to DHCP as a way to make a reader use the available network. Treat that as an SME-described behavior, **not authorization** to wipe/reset/change environment or networking on an H&H reader. Existing no-mutation and estate-authority gates remain controlling.
 - This evidence therefore does **not** set `ACCESS_STATE=PROVEN_ACCESS`, does not fill the seven-field estate-authority packet, and does not authorize P6 or fleet mutation.
 
-**Bounded follow-up discriminator:** ask the successful updater what action actually initiated the home update, what portal/tool/account or support path (if any) showed the terminal and job, what firmware version/package was selected or observed, and what proved success. A named management surface/owner answer can populate the estate-authority packet; an anecdotal "it updated" answer cannot.
+**Mechanism consequence:** Gordon's successful home updates prove that at least one remote update mechanism works outside the H&H site network. Treat that as evidence input to the mechanism ladder below, not as a requirement to ask Gordon or the client to identify the owner. The mechanism still has to be identified from management surfaces, device/service evidence, or a concrete credential boundary.
+
+
+## Mechanism-first firmware update discovery (P13 recurrence fix)
+
+The recurring failure mode was treating **"management owner unknown"** as a terminal blocker and handing the discovery problem back to the operator, coworker, or client. That is no longer the controlling workflow.
+
+**Management surface** and **firmware delivery mechanism** are different questions. Exhaust the supported mechanism classes with available evidence and already-authorized access first. Human escalation is a fallback only after those lanes are dispositioned or a concrete named credential/support gate is reached.
+
+### Ranked mechanism ladder
+
+1. **Payment Fusion Control Center / Bank of America Healthcare Omni-Channel — strongest estate-facing management-surface match.**
+   - PAX's AxiaMed partnership material states that AxiaMed's Control Center manages PAX Android payment devices from a cloud system and supports remote updates.
+   - Current Bank of America Payment Fusion documentation exposes terminal inventory plus terminal settings/application management through Payment Fusion Control Center.
+   - Experian Health public implementation material for other healthcare customers explicitly bundles **PAX A80 with Control Center**, reinforcing that this is a real deployed healthcare stack rather than a naming coincidence.
+   - **Next discriminator:** use any already-authorized Control Center / Payment Fusion surface to search one representative terminal and inspect its software/update controls. If access is denied, classify **CREDENTIAL_GATE: PAYMENT_FUSION_CONTROL_CENTER**. Do not replace that concrete gate with "ask who owns it."
+
+2. **PAXSTORE OTA firmware push — strongest firmware-delivery match.**
+   - The H&H device-side Connectivity Test already exposes **PAX Store Push Service Primary (443)**.
+   - PAX states that PAXSTORE pushes firmware and application updates over the air, including batch operations.
+   - PAX reseller documentation exposes **Push Firmware** tasks for terminals/groups.
+   - A public PAX deployment implementation guide gives the practical sequence: **PAXSTORE -> Terminal Management -> select terminal -> Push Task -> Firmware -> choose firmware -> Activate**.
+   - **Next discriminator:** with already-authorized PAXSTORE access, locate the representative terminal and inspect **App & Firmware / Push Firmware** for the selected planning-target package. If access is denied, classify **CREDENTIAL_GATE: PAXSTORE**. Do not push anything during discovery.
+
+3. **Terminal-initiated TMS/NTMS pull — provider-specific fallback.**
+   - Public A80 deployments show that some providers expose local **Update / Firmware** or **NTMS Agent -> Update Application** flows that contact a configured TMS.
+   - No equivalent H&H/AxiaMed local update control is currently proven.
+   - **Next discriminator:** inspect only already-exposed read-only AxiaMed/admin surfaces for **NTMS**, **TMS**, **Update**, or **Firmware**. Do not alter TMS endpoints, erase settings, reset the reader, or import another provider's configuration.
+
+4. **Provider-managed automatic update — provider-specific fallback.**
+   - Some managed PAX estates update automatically after check-in/restart.
+   - No H&H-specific automatic-update contract is proven.
+   - **Next discriminator:** accept this mechanism only when estate management evidence or directly observed representative-reader behavior proves it.
+
+### Mechanism exit states
+
+Every lane must end as exactly one of:
+
+- **PROVEN_PATH** — the representative reader and update operation are directly bound to the mechanism;
+- **NOT_APPLICABLE** — evidence rules the mechanism out for this estate;
+- **CREDENTIAL_GATE** — the exact management surface is identified but this execution lacks the required login/role/support permission;
+- **EVIDENCE_GAP** — the mechanism remains plausible but current read-only evidence cannot yet discriminate it.
+
+**Mechanism exhaustion rule:** `EVIDENCE_GAP` is not permission to jump immediately to "ask the client." Continue through the next independent mechanism lane. Human escalation becomes legitimate only after the mechanism ladder is exhausted or one exact surface has reached a concrete `CREDENTIAL_GATE`.
+
+Public mechanism references:
+
+- https://www.pax.us/about/press-room/pax-technology-inc-and-axiamed-partner-to-provide-optimal-healthcare-payment-experience-with-android-based-a920-a80/
+- https://developer.merchant-services.bankofamerica.com/healthcareomnichannel/api?apiDef=settings
+- https://www.pax.us/marketplace/
+- https://faqs.pax.us/wp-content/uploads/2020/05/PAXSTORE-Reseller-Admin-Guide_v1.0.pdf
+- https://bridgepaynetwork.atlassian.net/wiki/spaces/DC/pages/215744615/PAX%2BA-Series%2BDeployment%2BInstructions
 
 ## Management-plane candidate disposition (2026-10-01)
 
@@ -157,9 +208,9 @@ Current dispositions from exhausted provider-neutral evidence:
 - **Device Connectivity Test / Netstat alone** — Kiosk4 discriminators are closed by prior provenance (`START_TEST` / Connectivity / `REMOTE_ENDPOINT_CANDIDATE=NONE`). Access: `NOT_APPLICABLE` for package/entitlement resolution. Do not restage another reader window for this gap.
 - **Generic public search for exact build `2.0.15.260522`** — exhausted on 2026-10-01 with no authoritative public PAX package/release mapping. Access: `NOT_APPLICABLE`. Cannot close the estate package gate.
 
-**Strongest next authority gate:** first convert Gordon's source-level home-update evidence into a named management surface/owner if he can identify what actually initiated and observed those successful updates; if that does not resolve the surface, confirm whether Experian still owns the H&H merchant-services/terminal relationship in 2026 and, through the H&H relationship owner or Experian account/support owner, identify the exact management surface holding the representative A80 record. Then determine whether that surface is PAXSTORE, AxiaMed/Bank of America Control Center/Gateway, or another plane and whether it exposes the exact package/release corresponding to `2.0.15.260522`, plus the supported assignment/update method, expected reboot/reconnect behavior, rollback/exception procedure, and post-update acceptance checks.
+**Strongest next mechanism gate:** start with the ranked mechanism ladder above. First attempt to bind a representative terminal to Payment Fusion Control Center / Healthcare Omni-Channel using already-authorized access; in parallel, treat PAXSTORE as the strongest firmware-delivery path because the reader exposes the PAX Store push-service check and PAX documents A80-capable OTA firmware distribution. Only if a named surface is reached but cannot be entered should the state become a concrete `CREDENTIAL_GATE`. Unknown ownership by itself is no longer a terminal blocker.
 
-That confirmation must come from the applicable PAXSTORE/processor/reseller terminal record, an approved support case, or named owner confirmation. Until that gate is crossed, leave every credentialed surface at `ACCESS_NOT_PROVEN` and do not assign, push, sideload, or otherwise mutate firmware.
+Until one mechanism reaches `PROVEN_PATH` and the exact package/release mapping plus supported update method are established, leave firmware mutation unauthorized: do not assign, push, sideload, reset, or change reader/TMS/network configuration.
 
 When an exact management surface is identified and the next operation genuinely requires an operator credential or login, stop at that precise boundary and record: exact surface, why it is the strongest candidate, exact evidence needed after login, smallest operator action required, and expected artifact/proof.
 
@@ -167,7 +218,7 @@ When an exact management surface is identified and the next operation genuinely 
 
 The H&H firmware lane is **quiescent** at an external authority boundary. Do not manufacture more repository archaeology, public PAX searching, OpenCode probing, Netstat/START TEST restaging, Connectivity restaging, or endpoint hunting for this gap.
 
-The first authority request should target the **H&H owner of the Experian merchant-services/terminal relationship or the corresponding Experian account/support owner** (strongest documented owner-contact candidate as of the September 2023 Board evidence; 2026 continuity still unproved). That contact is how the packet's `SOURCE_SURFACE` and `MANAGEMENT_OWNER` fields get filled — it is not itself a firmware-mutation authorization.
+The packet's `SOURCE_SURFACE` and `MANAGEMENT_OWNER` are **outputs of mechanism discovery**, not prerequisites that must be supplied by the client. Populate them from the first mechanism that reaches `PROVEN_PATH` or from a named surface that reaches `CREDENTIAL_GATE`. A relationship owner, reseller, vendor, or support contact is a fallback only when the mechanism ladder has identified the exact surface or exhausted the independent evidence paths; do not begin the workflow by asking a human to name the owner.
 
 The lane reopens only when one estate-specific evidence packet is captured in the operator-managed external evidence workspace and indexed to a non-secret `AUTHORITY_PACKET_ID`. Live terminal IDs, credentials, portal URLs with session tokens, screenshots containing restricted data, and private workspace identifiers stay external. Tracked source records only the packet schema, discriminator outcomes, and sanitized classifications.
 
