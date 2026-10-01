@@ -103,7 +103,7 @@ def main() -> int:
         "hh-cc-reader-network-switch-prepare": ("Prepare-HHCCReaderNetworkSwitch.cmd RUN_ID [EXPECTED_MAC]", True),
         "hh-cc-reader-network-checkpoint": ("Checkpoint-HHCCReaderNetwork.cmd PHASE RUN_ID [EXPECTED_MAC] [LABEL]", False),
         "hh-cc-reader-home-lab-discovery": ("Discover-HHCCReaderHomeLab.cmd RUN_ID CONFIRM_CONSUMER_LAB [EXPECTED_MAC]", True),
-        "hh-cc-reader-alpha-input-plan": ("Plan-HHCCReaderAlphaInput.cmd TEXT", False),
+        "hh-cc-reader-alpha-input-plan": ("Plan-HHCCReaderAlphaInput.cmd", False),
     }
     for command_id, (command, network) in expected_commands.items():
         assert command_id in entries, f"command registry missing {command_id}"
