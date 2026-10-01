@@ -87,10 +87,10 @@ When the technician is deliberately reproducing the reader on an authorized priv
 
 ```text
 Prepare-HHCCReaderNetworkSwitch.cmd RUN_ID [EXPECTED_MAC]
-C:\SASAL\Discover-HHCCReaderHomeLab.cmd RUN_ID
+C:\SASAL\Discover-HHCCReaderHomeLab.cmd RUN_ID CONFIRM_CONSUMER_LAB [EXPECTED_MAC]
 ```
 
-That lane captures before/after workstation network context, performs a bounded private-subnet host-presence pass under a hard host-count ceiling, promotes only one exact expected-MAC match, and then delegates to the existing canonical probe. It is not portable to H&H protected-enterprise networks.
+When an authoritative approved reader IPv4 is already known, keep it and use the canonical one-target probe instead of rediscovering the subnet. When the IPv4 is genuinely unknown, the home-lab lane captures before/after workstation network context, performs at most two bounded private-subnet host-presence passes under a hard host-count ceiling, stops early on an exact expected-MAC match, and then delegates to the existing canonical probe. It is not portable to H&H protected-enterprise networks.
 
 See [HH_CC_READER_HOME_LAB_WORKFLOW.md](HH_CC_READER_HOME_LAB_WORKFLOW.md).
 

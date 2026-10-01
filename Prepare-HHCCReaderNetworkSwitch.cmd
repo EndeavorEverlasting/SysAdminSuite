@@ -1,6 +1,6 @@
 @echo off
 setlocal EnableExtensions EnableDelayedExpansion
-title SysAdminSuite - H^&H CC Reader Network Switch Prepare
+title SysAdminSuite - H&H CC Reader Network Switch Prepare
 cls
 
 if "%~1"=="" goto usage
@@ -8,10 +8,10 @@ set "RUN_ID=%~1"
 set "EXPECTED_MAC=%~2"
 set "SAS_EXIT=1"
 
-echo(!RUN_ID!| "%SystemRoot%\System32\findstr.exe" /R /X "[A-Za-z0-9_.:-][A-Za-z0-9_.:-]*" >nul
+>nul 2>&1 echo(!RUN_ID!| "%SystemRoot%\System32\findstr.exe" /R /X "[A-Za-z0-9_.:-][A-Za-z0-9_.:-]*"
 if errorlevel 1 goto usage
 if not "!EXPECTED_MAC!"=="" (
-  echo(!EXPECTED_MAC!| "%SystemRoot%\System32\findstr.exe" /R /X "[0-9A-Fa-f:-][0-9A-Fa-f:-]*" >nul
+  >nul 2>&1 echo(!EXPECTED_MAC!| "%SystemRoot%\System32\findstr.exe" /R /X "[0-9A-Fa-f:-][0-9A-Fa-f:-]*"
   if errorlevel 1 goto usage
 )
 

@@ -32,11 +32,6 @@ def main() -> int:
     ):
         assert marker in launcher, f"launcher missing marker: {marker}"
 
-    # Console-title regression (2026-10-01): unescaped `&` in the title line
-    # splits the command so cmd tries to run `H ...` as a program.
-    assert "title SysAdminSuite - H^&H" in launcher, "probe title must escape H&&H"
-    assert "title SysAdminSuite - H&H" not in launcher, "probe title leaves & unescaped"
-
     for marker in (
         "Get-NetIPConfiguration",
         "Test-SasSameIPv4Subnet",

@@ -66,10 +66,10 @@ try {
             $configs += [ordered]@{
                 interface_alias = [string]$config.InterfaceAlias
                 interface_index = [int]$config.InterfaceIndex
-                network_profile = $(if ($null -ne $config.NetProfile) { [string]$config.NetProfile.Name } else { '' })
+                network_profile = [string]$config.NetProfile.Name
                 ipv4 = [string]$address.IPAddress
                 prefix_length = [int]$address.PrefixLength
-                default_gateway = @($config.IPv4DefaultGateway | Where-Object { $null -ne $_ } | ForEach-Object { [string]$_.NextHop })
+                default_gateway = @($config.IPv4DefaultGateway | ForEach-Object { [string]$_.NextHop })
                 dns_servers = $dns
             }
         }
@@ -90,7 +90,7 @@ try {
                 interface_index = [int]$_.InterfaceIndex
                 next_hop = [string]$_.NextHop
                 route_metric = [int]$_.RouteMetric
-                policy_store = $(if ($null -ne $_.PSObject.Properties['PolicyStore']) { [string]$_.PolicyStore } else { '' })
+                policy_store = [string]$_.PolicyStore
             }
         })
 } catch {

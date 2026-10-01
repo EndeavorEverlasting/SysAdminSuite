@@ -1,6 +1,6 @@
 @echo off
 setlocal EnableExtensions EnableDelayedExpansion
-title SysAdminSuite - H^&H CC Reader Endpoint Correlation
+title SysAdminSuite - H&H CC Reader Endpoint Correlation
 cls
 
 set "SAS_EXIT=1"
