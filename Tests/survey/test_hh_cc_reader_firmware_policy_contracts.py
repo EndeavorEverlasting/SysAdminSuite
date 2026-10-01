@@ -87,6 +87,30 @@ def test_target_substitution_and_mutation_fail_closed() -> None:
     assert "explicit operator target change" in joined
 
 
+
+def test_mechanism_discovery_must_precede_human_escalation() -> None:
+    policy = load(POLICY)
+    mechanism = policy["mechanism_discovery"]
+    assert mechanism["strategy"] == "mechanism_first_before_human_escalation"
+    assert mechanism["required_dispositions"] == [
+        "PROVEN_PATH",
+        "NOT_APPLICABLE",
+        "CREDENTIAL_GATE",
+        "EVIDENCE_GAP",
+    ]
+    assert [item["id"] for item in mechanism["candidate_order"]] == [
+        "payment-fusion-control-center",
+        "paxstore-ota-push",
+        "terminal-tms-pull",
+        "provider-auto-update",
+    ]
+    assert mechanism["candidate_order"][0]["state"] == "STRONGEST_ESTATE_MATCH"
+    assert mechanism["candidate_order"][1]["state"] == "STRONGEST_DELIVERY_MATCH"
+    assert all(mechanism["rules"].values())
+    assert mechanism["rules"]["exhaust_supported_mechanisms_before_human_escalation"] is True
+    assert mechanism["rules"]["human_owner_confirmation_is_not_a_primary_discriminator"] is True
+    assert "generic owner-identification request" in mechanism["candidate_order"][0]["next_discriminator"]
+
 def test_docs_and_agent_lane_point_back_to_machine_policy() -> None:
     doc = read(DOC)
     skill = read(FIELD_SKILL)
