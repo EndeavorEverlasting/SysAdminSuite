@@ -1,6 +1,6 @@
 @echo off
 setlocal EnableExtensions EnableDelayedExpansion
-title SysAdminSuite - H&H CC Reader Network Checkpoint
+title SysAdminSuite - H^&H CC Reader Network Checkpoint
 cls
 
 if "%~1"=="" goto usage
@@ -16,10 +16,10 @@ if /I "!PHASE!"=="MANUAL" goto phase_ok
 goto usage
 
 :phase_ok
->nul 2>&1 echo(!RUN_ID!| "%SystemRoot%\System32\findstr.exe" /R /X "[A-Za-z0-9_.:-][A-Za-z0-9_.:-]*"
+echo(!RUN_ID!| "%SystemRoot%\System32\findstr.exe" /R /X "[A-Za-z0-9_.:-][A-Za-z0-9_.:-]*" >nul
 if errorlevel 1 goto usage
 if not "!EXPECTED_MAC!"=="" (
-  >nul 2>&1 echo(!EXPECTED_MAC!| "%SystemRoot%\System32\findstr.exe" /R /X "[0-9A-Fa-f:-][0-9A-Fa-f:-]*"
+  echo(!EXPECTED_MAC!| "%SystemRoot%\System32\findstr.exe" /R /X "[0-9A-Fa-f:-][0-9A-Fa-f:-]*" >nul
   if errorlevel 1 goto usage
 )
 

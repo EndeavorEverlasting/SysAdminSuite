@@ -82,6 +82,30 @@ def main() -> int:
     ):
         assert marker.lower() in (alpha_cmd + alpha_ps + docs).lower(), f"alpha plan missing marker: {marker}"
 
+    # Launcher-gate regression (2026-10-01): a left-side `>nul 2>&1` redirect
+    # sends the echoed gate value to nul instead of the pipe, so findstr always
+    # fails and every valid RUN_ID/MAC wrongly falls through to :usage. Silence
+    # belongs on the findstr side of the pipe.
+    for name, text in (
+        ("Prepare-HHCCReaderNetworkSwitch.cmd", prepare),
+        ("Checkpoint-HHCCReaderNetwork.cmd", checkpoint_cmd),
+        ("Discover-HHCCReaderHomeLab.cmd", discover_cmd),
+    ):
+        assert ">nul 2>&1 echo(" not in text, f"{name} pipes gate input into nul"
+        assert 'findstr.exe" /R /X "[' in text, f"{name} missing findstr gate"
+        assert "if errorlevel 1 goto usage" in text, f"{name} missing gate fallthrough"
+
+    # Console-title regression (2026-10-01): unescaped `&` in `title ... H&H ...`
+    # terminates the command so cmd tries to run `H ...` as a program.
+    for name, text in (
+        ("Prepare-HHCCReaderNetworkSwitch.cmd", prepare),
+        ("Checkpoint-HHCCReaderNetwork.cmd", checkpoint_cmd),
+        ("Discover-HHCCReaderHomeLab.cmd", discover_cmd),
+        ("Plan-HHCCReaderAlphaInput.cmd", alpha_cmd),
+    ):
+        assert "title SysAdminSuite - H^&H" in text, f"{name} title must escape H&&H"
+        assert "title SysAdminSuite - H&H" not in text, f"{name} title leaves & unescaped"
+
     tracked = "\n".join((prepare, checkpoint_cmd, checkpoint_ps, discover_cmd, discover_ps, alpha_cmd, alpha_ps, docs))
     secret_literals = (
         "pax" + "9876" + "@@",
@@ -121,6 +145,27 @@ def main() -> int:
     assert "home-lab-state-{0}.json" in checkpoint_ps
     assert "NETWORK_CHECKPOINT_NO_ACTIVE_IPV4" in checkpoint_ps
     assert "before_checkpoint" in checkpoint_ps
+
+    # Null-NetProfile regression (2026-10-01): strict mode throws on
+    # `$config.NetProfile.Name` when an active adapter (for example WSL
+    # vEthernet) exposes a null profile, aborting the whole capture.
+    assert "if ($null -ne $config.NetProfile)" in checkpoint_ps, (
+        "checkpoint must guard null NetProfile before reading .Name"
+    )
+    assert "[string]$config.NetProfile.Name`n" not in checkpoint_ps, (
+        "checkpoint reads NetProfile.Name without a null guard"
+    )
+    # Null-pipe regression (2026-10-01): `$null | ForEach-Object` still runs the
+    # block once with $_ = $null, so strict mode aborts on $_.NextHop for
+    # adapters without a default gateway (for example WSL vEthernet).
+    assert "$config.IPv4DefaultGateway | Where-Object { $null -ne $_ } |" in checkpoint_ps, (
+        "checkpoint must filter null gateway entries before reading .NextHop"
+    )
+    # Missing-property regression (2026-10-01): some hosts expose route rows
+    # without a PolicyStore property, so strict mode must feature-detect it.
+    assert "PSObject.Properties['PolicyStore']" in checkpoint_ps, (
+        "checkpoint must feature-detect PolicyStore before reading it"
+    )
 
     assert "PROTECTED_ENTERPRISE" in docs
     assert "AUTHORIZED_CONSUMER_LAB" in docs

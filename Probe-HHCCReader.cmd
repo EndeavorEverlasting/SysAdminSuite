@@ -1,6 +1,6 @@
 @echo off
 setlocal EnableExtensions EnableDelayedExpansion
-title SysAdminSuite - H&H CC Reader Read-Only Probe
+title SysAdminSuite - H^&H CC Reader Read-Only Probe
 cls
 
 if "%~1"=="" goto usage
