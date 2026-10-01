@@ -157,7 +157,9 @@ Current state:
 - Kiosk4 device diagnostics are closed and must not be restaged for this discriminator;
 - public/package search for exact build `2.0.15.260522` is exhausted without an authoritative mapping;
 - every credentialed management surface remains `ACCESS_NOT_PROVEN`;
-- strongest next gate is estate-specific owner/terminal-record confirmation for package exposure and supported assignment method.
+- strongest next gate is estate-specific owner/terminal-record confirmation for package exposure and supported assignment method;
+- the exact reopen artifact is the **Estate-authority evidence packet** defined in `docs/HH_CC_READER_NETSTAT_BASELINE.md`;
+- the firmware lane stays quiescent until that packet is COMPLETE — no additional reader diagnostics or public package archaeology.
 
 Required outputs before P6:
 

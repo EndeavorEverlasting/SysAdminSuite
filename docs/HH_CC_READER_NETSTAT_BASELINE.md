@@ -2,10 +2,11 @@
 
 ## Status
 
-**Discovery state:** active.
-**Firmware procedure:** not yet proven.
+**Discovery state:** quiescent at estate-authority boundary (device diagnostics closed; package/entitlement incomplete).
+**Firmware procedure:** not yet proven; mutation not authorized.
 **Field evidence authority:** operator-managed external evidence workspace.
 **Repository role:** reusable parameterized procedure, safety boundaries, and acceptance semantics only.
+**Reopen artifact:** Estate-authority evidence packet (below). Do not restage reader diagnostics for this gap.
 
 This document intentionally contains no live H&H target IP, MAC, credential, screenshot, private external-workspace identifier, or raw field output.
 
@@ -111,6 +112,55 @@ Current dispositions from exhausted provider-neutral evidence:
 That confirmation must come from the applicable PAXSTORE/processor/reseller terminal record, an approved support case, or named owner confirmation. Until that gate is crossed, leave every credentialed surface at `ACCESS_NOT_PROVEN` and do not assign, push, sideload, or otherwise mutate firmware.
 
 When an exact management surface is identified and the next operation genuinely requires an operator credential or login, stop at that precise boundary and record: exact surface, why it is the strongest candidate, exact evidence needed after login, smallest operator action required, and expected artifact/proof.
+
+## Estate-authority evidence packet (required to reopen firmware work)
+
+The H&H firmware lane is **quiescent** at an external authority boundary. Do not manufacture more repository archaeology, public PAX searching, OpenCode probing, Netstat/START TEST restaging, Connectivity restaging, or endpoint hunting for this gap.
+
+The lane reopens only when one estate-specific evidence packet is captured in the operator-managed external evidence workspace and indexed to a non-secret `AUTHORITY_PACKET_ID`. Live terminal IDs, credentials, portal URLs with session tokens, screenshots containing restricted data, and private workspace identifiers stay external. Tracked source records only the packet schema, discriminator outcomes, and sanitized classifications.
+
+### Packet identity
+
+Record once per representative reader / management lookup:
+
+```text
+AUTHORITY_PACKET_ID=<non-secret packet id>
+READER_IDENTITY_REF=<external index key only; no live IP/MAC/serial in Git>
+TARGET_FIRMWARE_PLANNING_CANDIDATE=2.0.15.260522
+PACKET_CAPTURE_UTC=<ISO-8601>
+EVIDENCE_CUSTODIAN=<role or team, not a secret>
+SOURCE_SURFACE=<one of the candidate surfaces below>
+ACCESS_STATE=PROVEN_ACCESS|ACCESS_NOT_PROVEN|BLOCKED_AUTHORITY
+```
+
+### Required answers (all seven)
+
+The packet is incomplete unless every field below is either answered from the named management surface or explicitly marked `UNKNOWN` with a reason:
+
+1. `MANAGEMENT_OWNER` — who owns/manages the terminal record (tenant / reseller / processor / support authority name as shown on that surface)
+2. `PACKAGE_EXPOSED_FOR_2_0_15_260522` — `YES` | `NO` | `UNKNOWN` whether that surface exposes `2.0.15.260522`
+3. `PACKAGE_RELEASE_ID` — exact package/release/firmware-list identifier that maps to `2.0.15.260522`, or `NONE_OBSERVED`
+4. `ASSIGNMENT_METHOD` — how firmware is assigned/pushed (for example terminal push, group push, support-mediated job); quote the surface's own verb when possible
+5. `REBOOT_RECONNECT_BEHAVIOR` — required reboot/reconnect/wait behavior during/after the update
+6. `ROLLBACK_EXCEPTION_PATH` — rollback, cancel, or exception procedure if the job fails or must be reversed
+7. `POST_UPDATE_ACCEPTANCE` — what observation proves success (exact version string on device and/or management record, plus required operational checks)
+
+### Minimum artifact set
+
+For the chosen `SOURCE_SURFACE`, preserve externally (not in Git):
+
+- one terminal-record view that binds the representative reader to the management owner;
+- one firmware/package view that shows either the `2.0.15.260522` mapping or an explicit absence;
+- the assignment/push affordance or support-case instruction that would initiate an update;
+- written reboot/reconnect and rollback/exception text from that same authority;
+- the post-update acceptance criterion stated by that authority.
+
+### Close / fail rules
+
+- Packet **COMPLETE** only when all seven answers are filled and `ACCESS_STATE=PROVEN_ACCESS` for the named surface.
+- If the surface is identified but login/entitlement is missing, set `ACCESS_STATE=BLOCKED_AUTHORITY` and stop at that exact login boundary — do not widen into reader diagnostics.
+- If `PACKAGE_EXPOSED_FOR_2_0_15_260522=NO`, record the conflict against the planning candidate; do not silently substitute another build.
+- A complete packet authorizes **management-baseline closure review** only. It still does **not** authorize fleet mutation; P6 remains a separately authorized one-reader pilot.
 
 ## Evidence linkage contract
 

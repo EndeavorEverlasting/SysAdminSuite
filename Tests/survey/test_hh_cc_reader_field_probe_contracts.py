@@ -138,6 +138,13 @@ def main() -> int:
         "Strongest next authority gate",
         "2.0.15.260522",
         "Do not restage another reader window for this gap",
+        "Estate-authority evidence packet",
+        "AUTHORITY_PACKET_ID",
+        "PACKAGE_EXPOSED_FOR_2_0_15_260522",
+        "ASSIGNMENT_METHOD",
+        "ROLLBACK_EXCEPTION_PATH",
+        "POST_UPDATE_ACCEPTANCE",
+        "management-baseline closure review",
     ):
         assert marker in netstat_docs, f"Netstat baseline contract missing marker: {marker}"
 
