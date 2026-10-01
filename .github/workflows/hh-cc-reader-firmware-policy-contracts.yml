@@ -1,0 +1,60 @@
+name: H&H CC Reader Firmware Policy Contracts
+
+permissions:
+  contents: read
+
+on:
+  pull_request:
+    paths:
+      - 'harness/api/hh-cc-reader-firmware-policy.json'
+      - 'schemas/harness/hh-cc-reader-firmware-policy.schema.json'
+      - 'harness/validators/validate-hh-cc-reader-firmware-policy.py'
+      - 'Tests/survey/test_hh_cc_reader_firmware_policy_contracts.py'
+      - 'docs/HH_CC_READER_NETSTAT_BASELINE.md'
+      - '.claude/skills/field-workflow/SKILL.md'
+      - 'harness/api/harness-validator-registry.json'
+      - 'harness/api/operational-harness-manifest.json'
+      - 'CODEBASE_MAP.md'
+      - '.githooks/pre-commit'
+      - '.githooks/pre-push'
+      - 'tests/survey/run_offline_survey_tests.sh'
+      - '.github/workflows/hh-cc-reader-firmware-policy-contracts.yml'
+  push:
+    branches: [main, 'fix/**', 'harness/**', 'feat/**', 'repair/**']
+    paths:
+      - 'harness/api/hh-cc-reader-firmware-policy.json'
+      - 'schemas/harness/hh-cc-reader-firmware-policy.schema.json'
+      - 'harness/validators/validate-hh-cc-reader-firmware-policy.py'
+      - 'Tests/survey/test_hh_cc_reader_firmware_policy_contracts.py'
+      - 'docs/HH_CC_READER_NETSTAT_BASELINE.md'
+      - '.claude/skills/field-workflow/SKILL.md'
+      - 'harness/api/harness-validator-registry.json'
+      - 'harness/api/operational-harness-manifest.json'
+      - 'CODEBASE_MAP.md'
+      - '.githooks/pre-commit'
+      - '.githooks/pre-push'
+      - 'tests/survey/run_offline_survey_tests.sh'
+      - '.github/workflows/hh-cc-reader-firmware-policy-contracts.yml'
+  workflow_dispatch:
+
+jobs:
+  contracts:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Check out repository
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Compile policy validator
+        run: python -m py_compile harness/validators/validate-hh-cc-reader-firmware-policy.py Tests/survey/test_hh_cc_reader_firmware_policy_contracts.py
+      - name: Validate firmware decision policy
+        run: python harness/validators/validate-hh-cc-reader-firmware-policy.py
+      - name: Run focused firmware policy contracts
+        run: python Tests/survey/test_hh_cc_reader_firmware_policy_contracts.py
+      - name: Check whitespace
+        run: git show --check --oneline --no-renames HEAD

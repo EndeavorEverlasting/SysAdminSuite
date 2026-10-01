@@ -9,18 +9,37 @@
 
 This document intentionally contains no live H&H target IP, MAC, credential, screenshot, private external-workspace identifier, or raw field output.
 
+## Client inventory firmware evidence
+
+The client-provided inventory includes a field named `Active Outdated`. Treat that field as client estate classification evidence, not as a vendor release-feed label.
+
+Current interpretation:
+
+- `Active Outdated = Yes` means the client source classifies the row as active-outdated and requiring remediation.
+- `Active Outdated = No` means the client source does not classify the row as active-outdated. Firmware versions observed on those rows are therefore **client-accepted baseline candidates**.
+- The two distinct firmware versions currently observed under `Active Outdated = No` are `2.0.14.221110` and `2.0.15.260522`.
+- `2.0.14.221110` creates an explicit ambiguity: it is numerically older than the selected target yet is still accepted by the client classification. The reason may be policy, hardware/release compatibility, stale source data, or another estate-specific rule; none is proven yet. Preserve the discrepancy instead of rewriting it away.
+- This client signal does **not** prove vendor-global latest firmware, package availability in the applicable management tenant, entitlement, or authorization to update.
+
+The machine-readable authority for these semantics is `harness/api/hh-cc-reader-firmware-policy.json`, enforced by `harness/validators/validate-hh-cc-reader-firmware-policy.py`.
+
 ## Operator-selected firmware target
 
 **Default target firmware:** `2.0.15.260522`.
 
-This is the operator-selected default target for the H&H A80 rollout and should be carried forward by agents, reports, pilot planning, and management-path discovery unless stronger authoritative estate-specific evidence explicitly supersedes it.
+The default is not an arbitrary version string. Under the current client evidence set, the harness selects the **highest numeric observed client-accepted candidate** by comparing each dot-separated component as an integer tuple. Of `2.0.14.221110` and `2.0.15.260522`, that produces `2.0.15.260522`.
+
+Carry `2.0.15.260522` forward in reports, pilot planning, and management-path discovery unless one of the policy's explicit supersession conditions is met: stronger H&H estate-specific management/owner evidence, a revised client source that changes the accepted candidate set, or an explicit operator target change.
+
+This is a **fleet-level planning candidate**, not a site-authorized execution target. Organization and site/hospital are independent profile authorities: resolve the specific H&H site before selecting mutation behavior. An independently operated, unknown, ambiguous, conflicting, or unsupported site remains `DISCOVERY_REQUIRED` and must not inherit the fleet candidate as execution authority.
 
 Evidence semantics remain strict:
 
-- `2.0.15.260522` is the current **operator-selected target**, not proof that a particular PAXSTORE/processor tenant has exposed or authorized the corresponding package.
+- `2.0.15.260522` is the current **default planning target**, not proof that a particular PAXSTORE/processor tenant has exposed or authorized the corresponding package.
+- `Active Outdated = No` is not vendor-global proof that every associated firmware is current; it is client estate evidence that those rows are not presently classified as active-outdated.
 - Discovery work should seek the exact package/release mapping for `2.0.15.260522`, the owning management plane, and the supported assignment method.
-- Do not silently replace the target with another version because a vendor portal, generic guide, coworker device, or agent proposes a different build. Record any conflict explicitly and reconcile it against authoritative estate-specific evidence.
-- Firmware mutation remains gated on a supported management/update path and a controlled representative-reader pilot.
+- Do not silently replace the target with another version because a vendor portal, generic guide, coworker device, or agent proposes a different build. Surface the conflict and reconcile it against the machine policy and stronger estate-specific evidence.
+- Firmware mutation remains gated on authoritative package mapping, a supported update method, and one controlled representative-reader pilot.
 
 ## What changed on 2026-09-28
 

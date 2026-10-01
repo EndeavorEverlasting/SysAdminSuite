@@ -1,0 +1,95 @@
+{
+  "schema_version": "sas-hh-cc-reader-firmware-policy/v1",
+  "repository": "EndeavorEverlasting/SysAdminSuite",
+  "scope": {
+    "organization": "NYC Health + Hospitals",
+    "device_family": "PAX A80",
+    "source_field": "Active Outdated",
+    "source_authority": "client inventory/export"
+  },
+  "source_field_semantics": {
+    "yes": "The client inventory classifies the row as active-outdated and requiring remediation.",
+    "no": "The client inventory does not classify the row as active-outdated; firmware observed on these rows is client-accepted baseline evidence.",
+    "authority_ceiling": "Client estate classification evidence only. It does not prove vendor-global latest firmware, package availability, management entitlement, or update authorization."
+  },
+  "observed_client_accepted_candidates": [
+    {
+      "version": "2.0.14.221110",
+      "basis": "Observed in the client source where Active Outdated is No.",
+      "status": "accepted_candidate",
+      "ambiguity": "This numerically older version is still accepted by the client classification. The reason is unresolved and must remain explicit."
+    },
+    {
+      "version": "2.0.15.260522",
+      "basis": "Observed in the client source where Active Outdated is No.",
+      "status": "default_target_candidate",
+      "ambiguity": null
+    }
+  ],
+  "selection": {
+    "default_target": "2.0.15.260522",
+    "rule": "highest_numeric_observed_client_accepted_candidate",
+    "ordering": "compare every dot-separated numeric component as an integer tuple",
+    "rationale": "Use the highest observed client-accepted candidate as the default planning target while authoritative estate-specific package mapping remains unresolved.",
+    "supersession_requires": [
+      "stronger H&H estate-specific management-plane or owner evidence",
+      "a client source revision that changes the accepted candidate set",
+      "an explicit operator target change"
+    ],
+    "scope": "fleet_planning_candidate_only"
+  },
+  "ambiguities": [
+    {
+      "id": "accepted-older-firmware",
+      "version": "2.0.14.221110",
+      "state": "OPEN",
+      "question": "Why does the client source accept a numerically older firmware version, and is that classification current?",
+      "handling": "Do not discard the row, relabel it as outdated, or treat it as the rollout target solely to remove the inconsistency. Carry the ambiguity into management-plane clarification."
+    }
+  ],
+  "gates": {
+    "do_not_treat_active_outdated_no_as_vendor_latest": true,
+    "do_not_silently_substitute_target": true,
+    "authoritative_package_mapping_required_before_firmware_mutation": true,
+    "supported_update_method_required_before_firmware_mutation": true,
+    "controlled_pilot_required_before_repeatable_rollout": true,
+    "site_context_required_before_firmware_mutation": true,
+    "fleet_default_is_not_site_execution_authority": true
+  },
+  "bindings": [
+    {
+      "path": "docs/HH_CC_READER_NETSTAT_BASELINE.md",
+      "required_markers": [
+        "Active Outdated",
+        "2.0.14.221110",
+        "2.0.15.260522",
+        "harness/api/hh-cc-reader-firmware-policy.json"
+      ]
+    },
+    {
+      "path": ".claude/skills/field-workflow/SKILL.md",
+      "required_markers": [
+        "H&H CC-reader firmware decision gate",
+        "Active Outdated",
+        "harness/api/hh-cc-reader-firmware-policy.json",
+        "machine policy is the source of truth"
+      ]
+    }
+  ],
+  "proof_ceiling": "Repository policy proves how client inventory evidence is interpreted and how the fleet-level default planning candidate is selected. It does not prove a site-authorized execution target, vendor-global latest firmware, package entitlement, supported assignment, a successful update, or production rollout acceptance.",
+  "site_resolution": {
+    "fleet_planning_scope": "organization-wide candidate only",
+    "default_site_state": "DISCOVERY_REQUIRED",
+    "execution_target_state": "UNRESOLVED_UNTIL_SITE_AND_MANAGEMENT_AUTHORITY",
+    "rules": {
+      "organization_default_is_not_site_execution_authority": true,
+      "site_or_hospital_context_required_before_mutation_behavior": true,
+      "independently_operated_or_unproved_site_requires_explicit_site_evidence": true,
+      "unknown_ambiguous_conflicting_or_unsupported_site_fails_closed": true
+    },
+    "resolution_evidence": [
+      "authoritative H&H site/hospital owner or management-plane evidence",
+      "an explicit registered site override when the site operates independently or differs from the organization baseline"
+    ]
+  }
+}

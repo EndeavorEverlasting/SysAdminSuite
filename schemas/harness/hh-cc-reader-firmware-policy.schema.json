@@ -1,0 +1,316 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://sysadminsuite.invalid/schemas/harness/hh-cc-reader-firmware-policy.schema.json",
+  "title": "H&H CC reader firmware decision policy",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "repository",
+    "scope",
+    "source_field_semantics",
+    "site_resolution",
+    "observed_client_accepted_candidates",
+    "selection",
+    "ambiguities",
+    "gates",
+    "bindings",
+    "proof_ceiling"
+  ],
+  "properties": {
+    "schema_version": {
+      "const": "sas-hh-cc-reader-firmware-policy/v1"
+    },
+    "repository": {
+      "const": "EndeavorEverlasting/SysAdminSuite"
+    },
+    "scope": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "organization",
+        "device_family",
+        "source_field",
+        "source_authority"
+      ],
+      "properties": {
+        "organization": {
+          "const": "NYC Health + Hospitals"
+        },
+        "device_family": {
+          "const": "PAX A80"
+        },
+        "source_field": {
+          "const": "Active Outdated"
+        },
+        "source_authority": {
+          "type": "string",
+          "minLength": 8
+        }
+      }
+    },
+    "source_field_semantics": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "yes",
+        "no",
+        "authority_ceiling"
+      ],
+      "properties": {
+        "yes": {
+          "type": "string",
+          "minLength": 16
+        },
+        "no": {
+          "type": "string",
+          "minLength": 16
+        },
+        "authority_ceiling": {
+          "type": "string",
+          "minLength": 24
+        }
+      }
+    },
+    "observed_client_accepted_candidates": {
+      "type": "array",
+      "minItems": 2,
+      "uniqueItems": true,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "version",
+          "basis",
+          "status",
+          "ambiguity"
+        ],
+        "properties": {
+          "version": {
+            "type": "string",
+            "pattern": "^\\d+(?:\\.\\d+)+$"
+          },
+          "basis": {
+            "type": "string",
+            "minLength": 16
+          },
+          "status": {
+            "enum": [
+              "accepted_candidate",
+              "default_target_candidate"
+            ]
+          },
+          "ambiguity": {
+            "type": [
+              "string",
+              "null"
+            ],
+            "minLength": 16
+          }
+        }
+      }
+    },
+    "selection": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "default_target",
+        "scope",
+        "rule",
+        "ordering",
+        "rationale",
+        "supersession_requires"
+      ],
+      "properties": {
+        "default_target": {
+          "type": "string",
+          "pattern": "^\\d+(?:\\.\\d+)+$"
+        },
+        "rule": {
+          "const": "highest_numeric_observed_client_accepted_candidate"
+        },
+        "ordering": {
+          "type": "string",
+          "minLength": 16
+        },
+        "rationale": {
+          "type": "string",
+          "minLength": 24
+        },
+        "supersession_requires": {
+          "type": "array",
+          "minItems": 3,
+          "uniqueItems": true,
+          "items": {
+            "type": "string",
+            "minLength": 16
+          }
+        },
+        "scope": {
+          "const": "fleet_planning_candidate_only"
+        }
+      }
+    },
+    "ambiguities": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "id",
+          "version",
+          "state",
+          "question",
+          "handling"
+        ],
+        "properties": {
+          "id": {
+            "type": "string",
+            "pattern": "^[a-z0-9][a-z0-9._-]+$"
+          },
+          "version": {
+            "type": "string",
+            "pattern": "^\\d+(?:\\.\\d+)+$"
+          },
+          "state": {
+            "enum": [
+              "OPEN",
+              "RESOLVED"
+            ]
+          },
+          "question": {
+            "type": "string",
+            "minLength": 16
+          },
+          "handling": {
+            "type": "string",
+            "minLength": 24
+          }
+        }
+      }
+    },
+    "gates": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "do_not_treat_active_outdated_no_as_vendor_latest",
+        "do_not_silently_substitute_target",
+        "authoritative_package_mapping_required_before_firmware_mutation",
+        "supported_update_method_required_before_firmware_mutation",
+        "controlled_pilot_required_before_repeatable_rollout",
+        "site_context_required_before_firmware_mutation",
+        "fleet_default_is_not_site_execution_authority"
+      ],
+      "properties": {
+        "do_not_treat_active_outdated_no_as_vendor_latest": {
+          "const": true
+        },
+        "do_not_silently_substitute_target": {
+          "const": true
+        },
+        "authoritative_package_mapping_required_before_firmware_mutation": {
+          "const": true
+        },
+        "supported_update_method_required_before_firmware_mutation": {
+          "const": true
+        },
+        "controlled_pilot_required_before_repeatable_rollout": {
+          "const": true
+        },
+        "site_context_required_before_firmware_mutation": {
+          "const": true
+        },
+        "fleet_default_is_not_site_execution_authority": {
+          "const": true
+        }
+      }
+    },
+    "bindings": {
+      "type": "array",
+      "minItems": 2,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "path",
+          "required_markers"
+        ],
+        "properties": {
+          "path": {
+            "type": "string",
+            "minLength": 8
+          },
+          "required_markers": {
+            "type": "array",
+            "minItems": 3,
+            "uniqueItems": true,
+            "items": {
+              "type": "string",
+              "minLength": 4
+            }
+          }
+        }
+      }
+    },
+    "proof_ceiling": {
+      "type": "string",
+      "minLength": 32
+    },
+    "site_resolution": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "fleet_planning_scope",
+        "default_site_state",
+        "execution_target_state",
+        "rules",
+        "resolution_evidence"
+      ],
+      "properties": {
+        "fleet_planning_scope": {
+          "const": "organization-wide candidate only"
+        },
+        "default_site_state": {
+          "const": "DISCOVERY_REQUIRED"
+        },
+        "execution_target_state": {
+          "const": "UNRESOLVED_UNTIL_SITE_AND_MANAGEMENT_AUTHORITY"
+        },
+        "rules": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "organization_default_is_not_site_execution_authority",
+            "site_or_hospital_context_required_before_mutation_behavior",
+            "independently_operated_or_unproved_site_requires_explicit_site_evidence",
+            "unknown_ambiguous_conflicting_or_unsupported_site_fails_closed"
+          ],
+          "properties": {
+            "organization_default_is_not_site_execution_authority": {
+              "const": true
+            },
+            "site_or_hospital_context_required_before_mutation_behavior": {
+              "const": true
+            },
+            "independently_operated_or_unproved_site_requires_explicit_site_evidence": {
+              "const": true
+            },
+            "unknown_ambiguous_conflicting_or_unsupported_site_fails_closed": {
+              "const": true
+            }
+          }
+        },
+        "resolution_evidence": {
+          "type": "array",
+          "minItems": 2,
+          "uniqueItems": true,
+          "items": {
+            "type": "string",
+            "minLength": 24
+          }
+        }
+      }
+    }
+  }
+}
