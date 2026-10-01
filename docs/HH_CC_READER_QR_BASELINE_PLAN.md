@@ -1,11 +1,11 @@
 # H&H CC Reader QR + Baseline Convergence Plan
 
-Date: 2026-09-28  
-Status: planning / implementation not yet authorized by this document  
-Repository: `EndeavorEverlasting/SysAdminSuite`  
-Planning branch: `plan/hh-cc-reader-qr-baseline-2026-09-28`  
-Base: `main@6be2e47097336125caa58306d1063fb39699e60f`  
-Related field-acceptance ledger: issue #436  
+Date: 2026-09-28
+Status: planning / implementation not yet authorized by this document
+Repository: `EndeavorEverlasting/SysAdminSuite`
+Planning branch: `plan/hh-cc-reader-qr-baseline-2026-09-28`
+Base: `main@6be2e47097336125caa58306d1063fb39699e60f`
+Related field-acceptance ledger: issue #436
 Related Netstat/baseline documentation: successor PR #449 merged 2026-10-01
 
 ## Mission
