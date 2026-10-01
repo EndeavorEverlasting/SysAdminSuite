@@ -50,7 +50,7 @@ $statePath = Join-Path $stateRoot 'home-lab-state.json'
 
 $configs = @()
 try {
-    foreach ($config in @(Get-NetIPConfiguration | Where-Object {
+    foreach ($config in @(Get-NetIPConfiguration -ErrorAction Stop | Where-Object {
         $_.NetAdapter -and $_.NetAdapter.Status -eq 'Up' -and $_.IPv4Address
     })) {
         foreach ($address in @($config.IPv4Address)) {
@@ -72,7 +72,12 @@ try {
             }
         }
     }
-} catch {}
+} catch {
+    throw ("NETWORK_CHECKPOINT_INTERFACE_ENUMERATION_FAILED: {0}" -f $_.Exception.Message)
+}
+if ($configs.Count -eq 0) {
+    throw 'NETWORK_CHECKPOINT_NO_ACTIVE_IPV4: no active IPv4 interface was captured.'
+}
 
 $defaultRoutes = @()
 try {
@@ -86,7 +91,12 @@ try {
                 policy_store = [string]$_.PolicyStore
             }
         })
-} catch {}
+} catch {
+    throw ("NETWORK_CHECKPOINT_ROUTE_ENUMERATION_FAILED: {0}" -f $_.Exception.Message)
+}
+if ($defaultRoutes.Count -eq 0) {
+    throw 'NETWORK_CHECKPOINT_NO_DEFAULT_ROUTE: no IPv4 default route was captured.'
+}
 
 $exactMacNeighbors = @()
 if ($normalizedExpectedMac) {
@@ -107,6 +117,20 @@ if ($normalizedExpectedMac) {
     } catch {}
 }
 
+$networkClassification = $null
+$networkLabel = $null
+$sessionModule = Join-Path $repoRoot 'scripts\SasOperatorSession.psm1'
+if (Test-Path -LiteralPath $sessionModule -PathType Leaf) {
+    try {
+        Import-Module $sessionModule -Force -ErrorAction Stop
+        $network = Get-SasOperatorNetworkClassification -RepoRoot $repoRoot
+        $networkClassification = [string]$network.classification
+        $networkLabel = [string]$network.label
+    } catch {
+        throw ("NETWORK_CHECKPOINT_CLASSIFICATION_FAILED: {0}" -f $_.Exception.Message)
+    }
+}
+
 $wlanText = $null
 try {
     $wlanText = (& "$env:SystemRoot\System32\netsh.exe" wlan show interfaces 2>&1 | Out-String).Trim()
@@ -122,6 +146,8 @@ $receipt = [ordered]@{
     label = $Label
     host = $env:COMPUTERNAME
     repo_commit = Get-SasRepoCommit -Root $repoRoot
+    network_classification = $networkClassification
+    network_label = $networkLabel
     expected_mac_supplied = [bool]$normalizedExpectedMac
     expected_mac = $normalizedExpectedMac
     active_ipv4 = $configs
@@ -142,6 +168,8 @@ $state = [ordered]@{
     prepared_commit = $receipt.repo_commit
     last_phase = $Phase
     last_checkpoint = $receiptPath
+    network_classification = $networkClassification
+    network_label = $networkLabel
     updated_at = [DateTimeOffset]::Now.ToString('o')
 }
 if (Test-Path -LiteralPath $statePath -PathType Leaf) {
@@ -157,7 +185,9 @@ if (Test-Path -LiteralPath $statePath -PathType Leaf) {
         }
     } catch {}
 }
-$state | ConvertTo-Json -Depth 6 | Set-Content -LiteralPath $statePath -Encoding UTF8
+$stateTemp = Join-Path $stateRoot ("{0}.{1}.tmp" -f ([IO.Path]::GetFileName($statePath)),[Guid]::NewGuid().ToString('N'))
+$state | ConvertTo-Json -Depth 6 | Set-Content -LiteralPath $stateTemp -Encoding UTF8
+Move-Item -LiteralPath $stateTemp -Destination $statePath -Force
 
 Write-Host ("CLASSIFICATION={0}" -f $receipt.classification)
 Write-Host ("EVIDENCE={0}" -f $receiptPath)
