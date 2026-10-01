@@ -68,8 +68,8 @@
       "required_markers": [
         "H&H CC-reader firmware decision gate",
         "Active Outdated",
-        "2.0.15.260522",
-        "harness/api/hh-cc-reader-firmware-policy.json"
+        "harness/api/hh-cc-reader-firmware-policy.json",
+        "machine policy is the source of truth"
       ]
     }
   ],
