@@ -50,8 +50,6 @@ jobs:
         uses: actions/setup-python@v5
         with:
           python-version: '3.12'
-      - name: Install schema validator
-        run: python -m pip install jsonschema
       - name: Compile policy validator
         run: python -m py_compile harness/validators/validate-hh-cc-reader-firmware-policy.py Tests/survey/test_hh_cc_reader_firmware_policy_contracts.py
       - name: Validate firmware decision policy
