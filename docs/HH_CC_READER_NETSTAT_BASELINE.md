@@ -31,6 +31,8 @@ The default is not an arbitrary version string. Under the current client evidenc
 
 Carry `2.0.15.260522` forward in reports, pilot planning, and management-path discovery unless one of the policy's explicit supersession conditions is met: stronger H&H estate-specific management/owner evidence, a revised client source that changes the accepted candidate set, or an explicit operator target change.
 
+This is a **fleet-level planning candidate**, not a site-authorized execution target. Organization and site/hospital are independent profile authorities: resolve the specific H&H site before selecting mutation behavior. An independently operated, unknown, ambiguous, conflicting, or unsupported site remains `DISCOVERY_REQUIRED` and must not inherit the fleet candidate as execution authority.
+
 Evidence semantics remain strict:
 
 - `2.0.15.260522` is the current **default planning target**, not proof that a particular PAXSTORE/processor tenant has exposed or authorized the corresponding package.
