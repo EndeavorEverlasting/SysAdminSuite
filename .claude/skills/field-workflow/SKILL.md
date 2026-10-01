@@ -33,7 +33,7 @@ Load only the references that match the selected field lane:
 
 ## H&H CC-reader firmware decision gate
 
-For NYC Health + Hospitals PAX A80 firmware planning, load `harness/api/hh-cc-reader-firmware-policy.json` before proposing, changing, or describing the target firmware. The machine policy is the source of truth for the current `Active Outdated` interpretation, accepted-candidate set, default-target selection rule, open ambiguities, supersession conditions, and pre-mutation gates.
+For NYC Health + Hospitals PAX A80 firmware planning, load `harness/api/hh-cc-reader-firmware-policy.json` before proposing, changing, or describing the target firmware. The machine policy is the source of truth for the current `Active Outdated` interpretation, accepted-candidate set, fleet-level default-target selection rule, site/hospital discovery state, open ambiguities, supersession conditions, and pre-mutation gates. Resolve organization and site/hospital context before treating any fleet planning candidate as an execution target.
 
 Do not restate current firmware values or candidate lists in this skill. Read them from the policy at execution time so a policy update cannot leave field guidance stale. If the policy and any prose disagree, stop and surface the conflict rather than choosing a convenient value.
 
