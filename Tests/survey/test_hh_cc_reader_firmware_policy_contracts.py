@@ -34,6 +34,18 @@ def test_active_outdated_semantics_are_durable() -> None:
     assert policy["gates"]["do_not_treat_active_outdated_no_as_vendor_latest"] is True
 
 
+def test_site_scope_fails_closed_before_execution_target() -> None:
+    policy = load(POLICY)
+    site = policy["site_resolution"]
+    assert site["fleet_planning_scope"] == "organization-wide candidate only"
+    assert site["default_site_state"] == "DISCOVERY_REQUIRED"
+    assert site["execution_target_state"] == "UNRESOLVED_UNTIL_SITE_AND_MANAGEMENT_AUTHORITY"
+    assert all(site["rules"].values())
+    assert policy["selection"]["scope"] == "fleet_planning_candidate_only"
+    assert policy["gates"]["site_context_required_before_firmware_mutation"] is True
+    assert policy["gates"]["fleet_default_is_not_site_execution_authority"] is True
+
+
 def test_current_client_accepted_candidates_are_exact() -> None:
     policy = load(POLICY)
     candidates = {item["version"]: item for item in policy["observed_client_accepted_candidates"]}
@@ -47,6 +59,7 @@ def test_default_is_highest_observed_client_accepted_candidate() -> None:
     policy = load(POLICY)
     versions = [item["version"] for item in policy["observed_client_accepted_candidates"]]
     assert policy["selection"]["rule"] == "highest_numeric_observed_client_accepted_candidate"
+    assert policy["selection"]["scope"] == "fleet_planning_candidate_only"
     assert policy["selection"]["default_target"] == max(versions, key=key)
     assert policy["selection"]["default_target"] == "2.0.15.260522"
 
@@ -63,6 +76,8 @@ def test_older_accepted_version_cannot_be_erased_to_simplify_the_story() -> None
 def test_target_substitution_and_mutation_fail_closed() -> None:
     policy = load(POLICY)
     assert policy["gates"]["do_not_silently_substitute_target"] is True
+    assert policy["gates"]["site_context_required_before_firmware_mutation"] is True
+    assert policy["gates"]["fleet_default_is_not_site_execution_authority"] is True
     assert policy["gates"]["authoritative_package_mapping_required_before_firmware_mutation"] is True
     assert policy["gates"]["supported_update_method_required_before_firmware_mutation"] is True
     assert policy["gates"]["controlled_pilot_required_before_repeatable_rollout"] is True
@@ -77,7 +92,7 @@ def test_docs_and_agent_lane_point_back_to_machine_policy() -> None:
     skill = read(FIELD_SKILL)
     for marker in ("Active Outdated", "2.0.14.221110", "2.0.15.260522", "harness/api/hh-cc-reader-firmware-policy.json"):
         assert marker in doc, f"CC-reader baseline lost marker: {marker}"
-    for marker in ("H&H CC-reader firmware decision gate", "Active Outdated", "machine policy is the source of truth", "harness/api/hh-cc-reader-firmware-policy.json"):
+    for marker in ("H&H CC-reader firmware decision gate", "Active Outdated", "site/hospital", "machine policy is the source of truth", "harness/api/hh-cc-reader-firmware-policy.json"):
         assert marker in skill, f"field workflow lost marker: {marker}"
     section = skill.split("## H&H CC-reader firmware decision gate", 1)[1].split("## ", 1)[0]
     policy = load(POLICY)
