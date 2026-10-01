@@ -169,6 +169,8 @@ $state = [ordered]@{
     prepared_commit = $receipt.repo_commit
     last_phase = $Phase
     last_checkpoint = $receiptPath
+    before_checkpoint = $(if ($Phase -eq 'BEFORE_SWITCH') { $receiptPath } else { $null })
+    after_checkpoint = $(if ($Phase -eq 'AFTER_SWITCH') { $receiptPath } else { $null })
     network_classification = $networkClassification
     network_label = $networkLabel
     updated_at = [DateTimeOffset]::Now.ToString('o')
@@ -182,6 +184,12 @@ if (Test-Path -LiteralPath $statePath -PathType Leaf) {
             }
             if ($Phase -eq 'AFTER_SWITCH' -and -not [string]::IsNullOrWhiteSpace([string]$prior.prepared_commit)) {
                 $state.prepared_commit = [string]$prior.prepared_commit
+            }
+            if ($Phase -ne 'BEFORE_SWITCH' -and -not [string]::IsNullOrWhiteSpace([string]$prior.before_checkpoint)) {
+                $state.before_checkpoint = [string]$prior.before_checkpoint
+            }
+            if ($Phase -ne 'AFTER_SWITCH' -and -not [string]::IsNullOrWhiteSpace([string]$prior.after_checkpoint)) {
+                $state.after_checkpoint = [string]$prior.after_checkpoint
             }
         }
     } catch {}
