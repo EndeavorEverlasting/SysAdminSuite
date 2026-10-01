@@ -15,7 +15,13 @@ param(
     [int]$MaxHosts = 512,
 
     [ValidateRange(20,1000)]
-    [int]$PingTimeoutMs = 90
+    [int]$PingTimeoutMs = 90,
+
+    [ValidateRange(1,2)]
+    [int]$MaxPresencePasses = 2,
+
+    [ValidateRange(250,5000)]
+    [int]$NeighborSettleMs = 1000
 )
 
 Set-StrictMode -Version 2.0
@@ -248,29 +254,36 @@ $exactBefore = @($before | Where-Object {
     (Test-SasNeighborUsable -Neighbor $_)
 })
 $activeDiscoveryRan = $false
+$presencePassesRun = 0
+$after = $before
+$exactAfter = $exactBefore
 
 if ($exactBefore.Count -eq 0) {
     $activeDiscoveryRan = $true
     $pinger = New-Object System.Net.NetworkInformation.Ping
     try {
-        for ($value = $networkInteger + 1; $value -lt $broadcastInteger; $value++) {
-            $candidate = ConvertFrom-SasIPv4Integer -Value $value
-            if ($candidate.ToString() -eq $localIp.ToString()) { continue }
-            try { [void]$pinger.Send($candidate,$PingTimeoutMs) } catch {}
+        for ($pass = 1; $pass -le $MaxPresencePasses; $pass++) {
+            $presencePassesRun = $pass
+            for ($value = $networkInteger + 1; $value -lt $broadcastInteger; $value++) {
+                $candidate = ConvertFrom-SasIPv4Integer -Value $value
+                if ($candidate.ToString() -eq $localIp.ToString()) { continue }
+                try { [void]$pinger.Send($candidate,$PingTimeoutMs) } catch {}
+            }
+
+            Start-Sleep -Milliseconds $NeighborSettleMs
+            $after = Get-SasNeighbors -InterfaceIndex ([int]$selectedRoute.InterfaceIndex)
+            $exactAfter = @($after | Where-Object {
+                $_.mac -eq $normalizedExpectedMac -and
+                (Test-SasNeighborInCurrentSubnet -Neighbor $_ -NetworkInteger $networkInteger -BroadcastInteger $broadcastInteger) -and
+                (Test-SasNeighborUsable -Neighbor $_)
+            })
+            if ($exactAfter.Count -gt 0) { break }
         }
     }
     finally {
         $pinger.Dispose()
     }
 }
-
-Start-Sleep -Milliseconds 1000
-$after = Get-SasNeighbors -InterfaceIndex ([int]$selectedRoute.InterfaceIndex)
-$exactAfter = @($after | Where-Object {
-    $_.mac -eq $normalizedExpectedMac -and
-    (Test-SasNeighborInCurrentSubnet -Neighbor $_ -NetworkInteger $networkInteger -BroadcastInteger $broadcastInteger) -and
-    (Test-SasNeighborUsable -Neighbor $_)
-})
 $expectedOui = (($normalizedExpectedMac -replace '-','').Substring(0,6))
 $sameOui = @($after | Where-Object {
     $_.mac.Length -ge 8 -and
@@ -288,7 +301,7 @@ if ($exactAfter.Count -eq 1) {
 } elseif ($exactAfter.Count -gt 1) {
     $classification = 'HOME_LAB_EXACT_MAC_AMBIGUOUS'
 } else {
-    $classification = 'HOME_LAB_EXACT_MAC_NOT_FOUND'
+    $classification = 'HOME_LAB_EXACT_MAC_NOT_FOUND_AFTER_REACQUISITION'
 }
 
 $probeExit = $null
@@ -309,6 +322,12 @@ if ($targetIp) {
     }
 }
 
+$networkProfileName = if ($null -ne $selectedConfig.NetProfile) { [string]$selectedConfig.NetProfile.Name } else { $null }
+$reacquisitionExhausted = [bool]($activeDiscoveryRan -and -not $targetIp -and $exactAfter.Count -eq 0)
+$adState = 'NOT_AD_VERIFIED'
+$adProbeMode = 'NOT_APPLICABLE_TO_EXACT_MAC_CONSUMER_LAB_REACQUISITION'
+$adInstruction = 'This exact-MAC consumer-lab lane does not query Active Directory. Use the canonical AD probe workflow only when AD registration evidence is separately required.'
+
 $stamp = [DateTimeOffset]::Now.ToString('yyyyMMdd-HHmmss-fff')
 $suffix = [Guid]::NewGuid().ToString('N').Substring(0,8)
 $result = [ordered]@{
@@ -327,7 +346,7 @@ $result = [ordered]@{
     source_interface = [ordered]@{
         interface_index = [int]$selectedRoute.InterfaceIndex
         interface_alias = [string]$selectedConfig.InterfaceAlias
-        network_profile = [string]$selectedConfig.NetProfile.Name
+        network_profile = $networkProfileName
         local_ipv4 = $localIp.ToString()
         prefix_length = $prefixLength
         default_gateway = [string]$selectedRoute.NextHop
@@ -336,6 +355,15 @@ $result = [ordered]@{
     expected_mac = $normalizedExpectedMac
     expected_oui = $expectedOui
     active_host_presence_discovery_ran = $activeDiscoveryRan
+    presence_pass_limit = $MaxPresencePasses
+    presence_passes_run = $presencePassesRun
+    neighbor_settle_ms = $NeighborSettleMs
+    reacquisition_exhausted = $reacquisitionExhausted
+    ad_probe = [ordered]@{
+        state = $adState
+        mode = $adProbeMode
+        instruction = $adInstruction
+    }
     ping_timeout_ms = $PingTimeoutMs
     neighbors_before = $before
     neighbors_after = $after
@@ -358,6 +386,9 @@ Write-Host ("CLASSIFICATION={0}" -f $classification)
 Write-Host ("NETWORK_AUTHORITY={0} [{1}]" -f $network.classification,$network.label)
 Write-Host ("PREPARED_COMMIT_VERIFIED={0}" -f $currentCommit)
 Write-Host ("NETWORK_CHANGED_FROM_BEFORE={0}" -f $networkChangedFromBefore)
+Write-Host ("PRESENCE_PASSES_RUN={0}" -f $presencePassesRun)
+Write-Host ("REACQUISITION_EXHAUSTED={0}" -f $reacquisitionExhausted)
+Write-Host ("AD_STATE={0}" -f $adState)
 Write-Host ("EVIDENCE={0}" -f $receiptPath)
 if (-not $targetIp -and $sameOui.Count -gt 0) {
     Write-Host ("SAME_OUI_CANDIDATES={0}" -f $sameOui.Count)

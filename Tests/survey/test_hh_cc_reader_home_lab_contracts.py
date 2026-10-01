@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import re
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[2]
@@ -12,6 +13,30 @@ def read(path: str) -> str:
     p = ROOT / path
     assert p.is_file(), f"missing required file: {path}"
     return p.read_text(encoding="utf-8-sig")
+
+
+def parse_presence_pass_contract(text: str) -> tuple[int, int, int]:
+    match = re.search(
+        r"\[ValidateRange\((\d+),(\d+)\)\]\s*\[int\]\$MaxPresencePasses\s*=\s*(\d+)",
+        text,
+    )
+    assert match, "MaxPresencePasses validation/default contract is missing"
+    return tuple(int(value) for value in match.groups())
+
+
+def assert_presence_pass_contract(text: str) -> None:
+    assert parse_presence_pass_contract(text) == (1, 2, 2), (
+        "home-lab presence-pass contract must be min=1, max=2, default=2"
+    )
+
+
+def producer_receipt_template(text: str) -> str:
+    match = re.search(
+        r'Join-Path \$outputRoot \("([^"]+)" -f \$stamp,\$suffix\)',
+        text,
+    )
+    assert match, "home-lab receipt producer format is missing"
+    return match.group(1).replace("{0}", "<timestamp>").replace("{1}", "<8hex>")
 
 
 def main() -> int:
@@ -55,6 +80,12 @@ def main() -> int:
         "SEALED_RUNTIME_REQUIRED",
         "HOME_LAB_NETWORK_AUTHORITY_REJECTED",
         "prepared_commit_verified",
+        "MaxPresencePasses = 2",
+        "NeighborSettleMs = 1000",
+        "presence_passes_run",
+        "reacquisition_exhausted",
+        "HOME_LAB_EXACT_MAC_NOT_FOUND_AFTER_REACQUISITION",
+        "if ($null -ne $selectedConfig.NetProfile)",
     ):
         assert marker in discover_cmd + discover_ps, f"home-lab discovery missing marker: {marker}"
 
@@ -118,6 +149,35 @@ def main() -> int:
     assert "hh-cc-reader-network-checkpoint-result" in artifact_ids
     assert "hh-cc-reader-home-lab-discovery-result" in artifact_ids
     assert "hh-cc-reader-alpha-input-plan-result" in artifact_ids
+
+    # Structural/executable regression: direct PowerShell invocation cannot exceed
+    # the documented two-pass ceiling. The negative mutation must fail this owner.
+    assert_presence_pass_contract(discover_ps)
+    widened = discover_ps.replace("[ValidateRange(1,2)]", "[ValidateRange(1,3)]", 1)
+    widened_rejected = False
+    try:
+        assert_presence_pass_contract(widened)
+    except AssertionError:
+        widened_rejected = True
+    assert widened_rejected, "widened three-pass fixture unexpectedly satisfied the contract"
+
+    # Producer -> registry parity: derive the producer template from the executable
+    # format string, then require the canonical registry to name the same artifact.
+    artifact_entries = {entry["id"]: entry for entry in artifacts["artifacts"]}
+    produced = "survey/output/hh-cc-reader/" + producer_receipt_template(discover_ps)
+    registered = artifact_entries["hh-cc-reader-home-lab-discovery-result"]["path"]
+    assert registered == produced, f"home-lab receipt registry drift: {registered} != {produced}"
+    assert registered.endswith("-<timestamp>-<8hex>.json")
+    assert registered != "survey/output/hh-cc-reader/hh-cc-reader-home-lab-discovery-<timestamp>.json"
+
+    # AD doctrine reconciliation: this private-LAN exact-MAC lane must not silently
+    # become an enterprise directory probe. It explicitly records that AD is not
+    # verified and routes separate AD needs to the canonical AD workflow.
+    assert "NOT_AD_VERIFIED" in discover_ps
+    assert "NOT_APPLICABLE_TO_EXACT_MAC_CONSUMER_LAB_REACQUISITION" in discover_ps
+    assert "NOT_AD_VERIFIED" in docs
+    for forbidden_ad_call in ("Get-ADComputer", "DirectorySearcher", "[ADSI]"):
+        assert forbidden_ad_call not in discover_ps
     assert "home-lab-state-{0}.json" in checkpoint_ps
     assert "NETWORK_CHECKPOINT_NO_ACTIVE_IPV4" in checkpoint_ps
     assert "before_checkpoint" in checkpoint_ps
@@ -125,6 +185,15 @@ def main() -> int:
     assert "PROTECTED_ENTERPRISE" in docs
     assert "AUTHORIZED_CONSUMER_LAB" in docs
     assert "does **not** weaken" in docs
+    assert "C:\\SASAL\\Discover-HHCCReaderHomeLab.cmd RUN_ID CONFIRM_CONSUMER_LAB [EXPECTED_MAC]" in docs
+    assert "Known approved IPv4" in docs
+    assert "do not throw it away and start subnet discovery" in docs
+    assert "at most two bounded presence attempts per local host" in docs
+    assert "HOME_LAB_EXACT_MAC_NOT_FOUND_AFTER_REACQUISITION" in docs
+    assert "C:\\SASAL\\Discover-HHCCReaderHomeLab.cmd RUN_ID\n" not in docs
+    assert "for ($pass = 1; $pass -le $MaxPresencePasses; $pass++)" in discover_ps
+    assert "Start-Sleep -Milliseconds $NeighborSettleMs" in discover_ps
+    assert "network_profile = $networkProfileName" in discover_ps
     assert "merchanthelp.bankofamerica.com/Pax-Terminal-Configuration" in docs
 
     print("[PASS] H&H network-switch checkpoint is a tracked CMD workflow")
