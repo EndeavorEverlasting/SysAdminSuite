@@ -154,11 +154,12 @@ def main() -> int:
     # the documented two-pass ceiling. The negative mutation must fail this owner.
     assert_presence_pass_contract(discover_ps)
     widened = discover_ps.replace("[ValidateRange(1,2)]", "[ValidateRange(1,3)]", 1)
+    widened_rejected = False
     try:
         assert_presence_pass_contract(widened)
-        raise AssertionError("widened three-pass fixture unexpectedly satisfied the contract")
     except AssertionError:
-        pass
+        widened_rejected = True
+    assert widened_rejected, "widened three-pass fixture unexpectedly satisfied the contract"
 
     # Producer -> registry parity: derive the producer template from the executable
     # format string, then require the canonical registry to name the same artifact.
