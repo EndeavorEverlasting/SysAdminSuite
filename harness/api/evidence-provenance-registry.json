@@ -1,0 +1,127 @@
+{
+  "schema_version": "sas-evidence-provenance-registry/v1",
+  "repository": "EndeavorEverlasting/SysAdminSuite",
+  "policy": {
+    "preserve_original_run_identity": true,
+    "prior_provenance_may_satisfy_discriminator": true,
+    "missing_current_duplicate_is_not_invalidation": true,
+    "conflicts_require_resolution": true,
+    "no_restage_without_invalidation_reason": true,
+    "live_evidence_remains_untracked": true
+  },
+  "artifact_provenance_states": [
+    "CURRENT_RUN",
+    "PRIOR_RUN",
+    "MISSING",
+    "INVALID",
+    "SUPERSEDED"
+  ],
+  "discriminator_states": [
+    "SATISFIED_CURRENT_RUN",
+    "SATISFIED_BY_PRIOR_PROVENANCE",
+    "UNSATISFIED",
+    "STALE_REVALIDATION_REQUIRED",
+    "CONFLICT",
+    "NOT_APPLICABLE"
+  ],
+  "freshness_classes": [
+    {
+      "id": "STABLE",
+      "reuse": "indefinite_until_invalidated",
+      "description": "Structural or demonstrated facts such as model identity, diagnostic-UI control existence, or a demonstrated fact that a screen does not expose a hostname or address remain reusable until an explicit invalidation reason exists."
+    },
+    {
+      "id": "CONFIGURATION_SENSITIVE",
+      "reuse": "until_known_or_suspected_relevant_change",
+      "description": "Network configuration, application version, management enrollment, and device configuration remain reusable only until a relevant state change is known or suspected."
+    },
+    {
+      "id": "VOLATILE",
+      "reuse": "bounded_by_freshness_policy",
+      "description": "Current firmware, current connectivity, current address, and current management online status remain historical context and cannot establish present state beyond their freshness policy."
+    },
+    {
+      "id": "WINDOW_COUPLED",
+      "reuse": "same_window_only_when_claim_depends_on_timing",
+      "description": "Before/after deltas and temporal comparisons require evidence from the same defined observation window whenever the claimed result depends on that timing relationship."
+    }
+  ],
+  "reuse_conditions": [
+    {
+      "id": "IDENTITY_COMPATIBILITY",
+      "description": "The prior evidence comes from the same proven reader or device, or the discriminator is explicitly device-independent."
+    },
+    {
+      "id": "QUESTION_COMPATIBILITY",
+      "description": "The prior evidence answers the same factual discriminator being evaluated now."
+    },
+    {
+      "id": "EVIDENCE_INTEGRITY",
+      "description": "Provenance is known, the evidence is legible and sufficient, and the result is not reconstructed from guesswork."
+    },
+    {
+      "id": "NO_INVALIDATING_CHANGE",
+      "description": "No relevant state change is known or suspected that would reasonably invalidate the prior answer."
+    },
+    {
+      "id": "FRESHNESS_SEMANTICS",
+      "description": "The discriminator is not one that inherently requires a new temporal observation beyond the freshness policy of its class."
+    },
+    {
+      "id": "NO_CONFLICT",
+      "description": "Newer evidence does not contradict the prior answer."
+    }
+  ],
+  "invalidation_reasons": [
+    "READER_IDENTITY_INCOMPATIBLE",
+    "RELEVANT_SOFTWARE_STATE_CHANGED",
+    "RELEVANT_NETWORK_STATE_CHANGED",
+    "RELEVANT_STATE_CHANGE_SUSPECTED",
+    "PRIOR_EVIDENCE_INCOMPLETE",
+    "NEWER_EVIDENCE_CONFLICT",
+    "FRESHNESS_POLICY_EXHAUSTED",
+    "SAME_WINDOW_TEMPORAL_COMPARISON_REQUIRED",
+    "QUESTION_NOT_ANSWERED_BY_PRIOR_EVIDENCE",
+    "NO_ARTIFACT_AVAILABLE",
+    "PRIOR_ARTIFACT_INVALID_OR_SUPERSEDED",
+    "OPERATOR_REQUESTED_REPRODUCTION"
+  ],
+  "restage_rule": {
+    "missing_same_run_duplication_is_not_by_itself_a_reason_to_repeat_operator_work": true,
+    "restage_requires_recorded_invalidation_reason": true
+  },
+  "allowed_restage_reasons": [
+    "different reader or device identity",
+    "firmware or software changed",
+    "network or control plane changed materially",
+    "prior evidence illegible or incomplete for the current discriminator",
+    "prior result conflicts with newer evidence",
+    "the requested claim is explicitly a new same-window temporal comparison",
+    "operator explicitly requests reproduction"
+  ],
+  "bindings": [
+    {
+      "id": "hh-cc-reader-netstat-baseline",
+      "path": "docs/HH_CC_READER_NETSTAT_BASELINE.md",
+      "required_markers": [
+        "Prior-provenance satisfaction and no-restage rule",
+        "ARTIFACT_PROVENANCE",
+        "DISCRIMINATOR_STATE",
+        "SATISFIED_BY_PRIOR_PROVENANCE",
+        "RESTAGE_REQUIRED=NO",
+        "invalidation reason"
+      ]
+    },
+    {
+      "id": "field-workflow-skill",
+      "path": ".claude/skills/field-workflow/SKILL.md",
+      "required_markers": [
+        "Evidence provenance and no-restage gate",
+        "missing same-run duplication is not by itself a reason to repeat operator work",
+        "SATISFIED_BY_PRIOR_PROVENANCE",
+        "harness/api/evidence-provenance-registry.json"
+      ]
+    }
+  ],
+  "proof_ceiling": "Offline contract semantics only; the registry defines provenance and satisfaction vocabulary and never stores, fetches, or proves live field evidence."
+}
