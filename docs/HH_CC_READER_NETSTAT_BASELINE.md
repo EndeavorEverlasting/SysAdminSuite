@@ -85,6 +85,35 @@ For the current Kiosk4 evidence set, `START_TEST` and the built-in Connectivity 
 
 The management baseline can be closed only by authoritative estate-specific evidence such as the applicable PAXSTORE/processor/reseller terminal record, an approved support case or owner confirmation, or another supported management plane that directly identifies the reader and the allowed firmware task. Coworker anecdote, generic PAXSTORE capability, or a successful Connectivity Test is not sufficient.
 
+## Public H&H merchant-services ownership evidence (narrows P5; does not prove firmware authority)
+
+A public NYC Health + Hospitals Information Technology Committee packet dated September 11, 2023 materially narrows the estate ownership question. In the Experian background presented to the Board, H+H states that **Experian was its current merchant-services vendor, provided the credit-card terminals, and provided the connection used to process credit-card transactions between NYC Health + Hospitals and the bank**.
+
+That is stronger than the prior generic processor/ISV hypothesis list because it is H&H estate-specific evidence. Its proof ceiling is still limited: the statement is dated 2023 and does not identify the A80 model, the 2026 support owner, PAXSTORE enrollment, firmware entitlement, or package `2.0.15.260522`.
+
+The broader public vendor chain is now coherent rather than four unrelated guesses:
+
+- Experian Health currently markets PaymentSafe as its point-of-service patient-payment solution using PCI-compliant card devices.
+- PAX's own 2020 AxiaMed partnership announcement states that AxiaMed offered PAX A920 and **A80** devices to healthcare clients, that AxiaMed's cloud Control Center could remotely update/manage PAX Android devices, and that **Payment Fusion** was AxiaMed's SaaS healthcare-payments platform.
+- AxiaMed was acquired by Bank of America in 2021. Bank of America currently exposes a Healthcare Omni-Channel Gateway/developer surface for healthcare payment integrations.
+- These public relationships make **Experian -> AxiaMed/Payment Fusion -> Bank of America -> PAX A80** a materially supported vendor-chain hypothesis, not proof that this exact H&H reader is enrolled in that chain or that any member owns its firmware package.
+
+Public references:
+
+- https://hhinternet.blob.core.windows.net/uploads/2023/09/202309-it.pdf
+- https://www.experian.com/healthcare/products/payment-tools/secure-patient-healthcare-payment-solutions
+- https://www.pax.us/about/press-room/pax-technology-inc-and-axiamed-partner-to-provide-optimal-healthcare-payment-experience-with-android-based-a920-a80/
+- https://www.nasdaq.com/press-release/bank-of-america-acquires-axia-technologies-inc.-2021-04-02
+- https://developer-prod1.merchant-services.bankofamerica.com/
+
+### Decision consequence
+
+- **Experian is now the strongest documented H&H merchant-terminal relationship**, with the important temporal qualifier **as of September 2023**. Current 2026 continuity remains unproved until an H&H owner or Experian account/support record confirms it.
+- **AxiaMed, Payment Fusion, and Bank of America are no longer independent free-floating ownership guesses.** They are a linked downstream healthcare-payments chain that may explain the PAX A80 estate, but H&H-specific deployment is still unproved.
+- **PAXSTORE and AxiaMed Control Center remain competing/possibly layered device-management hypotheses.** Public evidence does not establish which one exposes firmware `2.0.15.260522` for the representative H&H A80.
+- **Agilant remains an implementation/support hypothesis only.** No public evidence found in this pass establishes Agilant as the merchant-services, PAX tenant, processor, or firmware authority.
+- The first authority request should therefore target the **H&H owner of the Experian merchant-services/terminal relationship or the corresponding Experian account/support owner** and ask which management surface owns the representative A80 record, whether that surface is PAXSTORE, AxiaMed/Bank of America Control Center/Gateway, or another plane, and whether it exposes package `2.0.15.260522`.
+
 ## Management-plane candidate disposition (2026-10-01)
 
 This section is the durable P5 discovery ledger for firmware target `2.0.15.260522`. It does not authorize mutation.
@@ -101,12 +130,14 @@ Current dispositions from exhausted provider-neutral evidence:
 - **PAXSTORE terminal App & Firmware / Push Firmware** — capability proven by public PAXSTORE documentation and materially consistent with the device-side PAX Store Push Service Primary (443) correlation. Estate tenant, enrollment, and package exposure remain unknown. Access: `ACCESS_NOT_PROVEN`. Package `2.0.15.260522`: unresolved. Strongest capability candidate.
 - **PAXSTORE reseller administrator firmware list / push** — capability proven by the public Reseller Admin Guide (A80 firmware list and push-to-terminal/group). Which reseller owns the H&H estate remains unknown. Access: `ACCESS_NOT_PROVEN`. Package `2.0.15.260522`: unresolved.
 - **PAX North America Technical Support Analyst path** — capability proven as a documented firmware-update route in current PAX NA FAQ material. No open estate support case or analyst confirmation is in evidence. Access: `ACCESS_NOT_PROVEN`. Package `2.0.15.260522`: unresolved.
-- **Processor / ISV ownership hypotheses (Bank of America, AxiaMed, Payment Fusion, Agilant)** — named only as unresolved estate ownership questions. None is proved to own firmware assignment for these readers. Access: `ACCESS_NOT_PROVEN`. Package `2.0.15.260522`: unresolved. Do not promote any of these names into a proved control plane.
+- **Experian Health merchant-services / terminal relationship** — H&H's September 2023 IT Committee packet states that Experian was the current merchant-services vendor, provided the credit-card terminals, and provided the processing connection between H&H and the bank. This is estate-specific historical ownership evidence, not current 2026 entitlement proof. Access: `ACCESS_NOT_PROVEN`. Current relationship continuity: unresolved. Package `2.0.15.260522`: unresolved. **Strongest documented owner-contact candidate.**
+- **AxiaMed / Payment Fusion / Bank of America downstream chain** — PAX publicly documents A80/A920 availability to AxiaMed healthcare clients, AxiaMed Control Center remote device management/update capability, and Payment Fusion as AxiaMed's platform; Bank of America acquired AxiaMed in 2021. This materially supports a downstream payment-device chain but does not prove the representative H&H A80 is enrolled there. Access: `ACCESS_NOT_PROVEN`. Package `2.0.15.260522`: unresolved.
+- **Agilant implementation/support hypothesis** — no public evidence found in this pass establishes Agilant as the H&H merchant-services owner, PAX tenant/reseller, processor, or firmware authority. Access: `ACCESS_NOT_PROVEN`. Package `2.0.15.260522`: unresolved.
 - **Local A80 admin / Diagnostic Test firmware controls** — field exploration found no proved local firmware-update control. Access: `NOT_APPLICABLE` for remote package assignment.
 - **Device Connectivity Test / Netstat alone** — Kiosk4 discriminators are closed by prior provenance (`START_TEST` / Connectivity / `REMOTE_ENDPOINT_CANDIDATE=NONE`). Access: `NOT_APPLICABLE` for package/entitlement resolution. Do not restage another reader window for this gap.
 - **Generic public search for exact build `2.0.15.260522`** — exhausted on 2026-10-01 with no authoritative public PAX package/release mapping. Access: `NOT_APPLICABLE`. Cannot close the estate package gate.
 
-**Strongest next authority gate:** obtain estate-specific confirmation of which candidate above owns the representative H&H A80 terminal record and whether that surface exposes the exact package/release corresponding to `2.0.15.260522`, plus the supported assignment/update method, expected reboot/reconnect behavior, rollback/exception procedure, and post-update acceptance checks.
+**Strongest next authority gate:** confirm whether Experian still owns the H&H merchant-services/terminal relationship in 2026 and, through the H&H relationship owner or Experian account/support owner, identify the exact management surface holding the representative A80 record. Then determine whether that surface is PAXSTORE, AxiaMed/Bank of America Control Center/Gateway, or another plane and whether it exposes the exact package/release corresponding to `2.0.15.260522`, plus the supported assignment/update method, expected reboot/reconnect behavior, rollback/exception procedure, and post-update acceptance checks.
 
 That confirmation must come from the applicable PAXSTORE/processor/reseller terminal record, an approved support case, or named owner confirmation. Until that gate is crossed, leave every credentialed surface at `ACCESS_NOT_PROVEN` and do not assign, push, sideload, or otherwise mutate firmware.
 
