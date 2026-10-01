@@ -46,6 +46,15 @@ def main() -> int:
     ):
         assert marker in script, f"probe missing marker: {marker}"
 
+    # Field regression: some active adapters (for example WSL vEthernet) can expose
+    # a null NetProfile under strict mode, and Windows PowerShell 5.1 can reject
+    # @($genericList) with "Argument types do not match".
+    assert "if ($null -ne $config.NetProfile)" in script
+    assert "Network = $networkName" in script
+    assert "$networkRows = $rows.ToArray()" in script
+    assert "$result.network = $networkRows" in script
+    assert "$result.network = @($rows)" not in script
+
     forbidden_mutation = (
         "Set-NetIPAddress",
         "New-NetIPAddress",
