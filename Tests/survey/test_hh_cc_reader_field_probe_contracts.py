@@ -116,7 +116,7 @@ def main() -> int:
         "## Workstation correlation lane", 1
     )[0]
     phase_order = re.findall(
-        r"(?m)^(\\d+)\\. \\*\\*(Identity gate|BASELINE|START_TEST|DURING_TEST|POST_TEST)\\*\\*",
+        r"(?m)^(\d+)\. \*\*(Identity gate|BASELINE|START_TEST|DURING_TEST|POST_TEST)\*\*",
         phase_section,
     )
     assert phase_order == [
