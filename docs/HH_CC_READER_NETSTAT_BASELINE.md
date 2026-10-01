@@ -115,6 +115,25 @@ Public references:
 - **Agilant remains an implementation/support hypothesis only.** No public evidence found in this pass establishes Agilant as the merchant-services, PAX tenant, processor, or firmware authority.
 - The first authority request should therefore target the **H&H owner of the Experian merchant-services/terminal relationship or the corresponding Experian account/support owner** and ask which management surface owns the representative A80 record, whether that surface is PAXSTORE, AxiaMed/Bank of America Control Center/Gateway, or another plane, and whether it exposes package `2.0.15.260522`.
 
+## Gordon source-level update-feasibility evidence (2026-09-28)
+
+A recovered source-level transcript of the September 28 internal Gordon call closes one earlier evidence-access gap without closing the firmware authority gate.
+
+What the call directly supports:
+
+- Gordon reported that he had **two or three credit-card readers at home** and had successfully updated them there.
+- He described the successful home setup as ordinary DHCP/dynamic addressing with open Internet access and no special site network settings.
+- He separately described Kings County as a site that may use programmed subnets/IP ranges, so site-specific network configuration and update transport must not be conflated.
+
+Evidence consequence:
+
+- **Remote-update feasibility is source-level supported.** A reader does not inherently need to remain on an H&H site network merely for an update to be possible.
+- **The update mechanism is still unproved.** The call does not identify what initiated the update, which management surface/account/tenant owned the terminal, whether the reader self-pulled or received a pushed job, what firmware package/version was assigned, or what completion/rollback contract applied.
+- Gordon mentioned erasing settings and returning networking to DHCP as a way to make a reader use the available network. Treat that as an SME-described behavior, **not authorization** to wipe/reset/change environment or networking on an H&H reader. Existing no-mutation and estate-authority gates remain controlling.
+- This evidence therefore does **not** set `ACCESS_STATE=PROVEN_ACCESS`, does not fill the seven-field estate-authority packet, and does not authorize P6 or fleet mutation.
+
+**Bounded follow-up discriminator:** ask the successful updater what action actually initiated the home update, what portal/tool/account or support path (if any) showed the terminal and job, what firmware version/package was selected or observed, and what proved success. A named management surface/owner answer can populate the estate-authority packet; an anecdotal "it updated" answer cannot.
+
 ## Management-plane candidate disposition (2026-10-01)
 
 This section is the durable P5 discovery ledger for firmware target `2.0.15.260522`. It does not authorize mutation.
@@ -138,7 +157,7 @@ Current dispositions from exhausted provider-neutral evidence:
 - **Device Connectivity Test / Netstat alone** — Kiosk4 discriminators are closed by prior provenance (`START_TEST` / Connectivity / `REMOTE_ENDPOINT_CANDIDATE=NONE`). Access: `NOT_APPLICABLE` for package/entitlement resolution. Do not restage another reader window for this gap.
 - **Generic public search for exact build `2.0.15.260522`** — exhausted on 2026-10-01 with no authoritative public PAX package/release mapping. Access: `NOT_APPLICABLE`. Cannot close the estate package gate.
 
-**Strongest next authority gate:** confirm whether Experian still owns the H&H merchant-services/terminal relationship in 2026 and, through the H&H relationship owner or Experian account/support owner, identify the exact management surface holding the representative A80 record. Then determine whether that surface is PAXSTORE, AxiaMed/Bank of America Control Center/Gateway, or another plane and whether it exposes the exact package/release corresponding to `2.0.15.260522`, plus the supported assignment/update method, expected reboot/reconnect behavior, rollback/exception procedure, and post-update acceptance checks.
+**Strongest next authority gate:** first convert Gordon's source-level home-update evidence into a named management surface/owner if he can identify what actually initiated and observed those successful updates; if that does not resolve the surface, confirm whether Experian still owns the H&H merchant-services/terminal relationship in 2026 and, through the H&H relationship owner or Experian account/support owner, identify the exact management surface holding the representative A80 record. Then determine whether that surface is PAXSTORE, AxiaMed/Bank of America Control Center/Gateway, or another plane and whether it exposes the exact package/release corresponding to `2.0.15.260522`, plus the supported assignment/update method, expected reboot/reconnect behavior, rollback/exception procedure, and post-update acceptance checks.
 
 That confirmation must come from the applicable PAXSTORE/processor/reseller terminal record, an approved support case, or named owner confirmation. Until that gate is crossed, leave every credentialed surface at `ACCESS_NOT_PROVEN` and do not assign, push, sideload, or otherwise mutate firmware.
 
