@@ -181,8 +181,18 @@ def test_mechanism_first_update_path_exhaustion() -> None:
         "provider-auto-update",
     ]
     assert [item["priority"] for item in candidates] == [1, 2, 3, 4]
-    assert candidates[0]["state"] == "STRONGEST_ESTATE_MATCH"
-    assert candidates[1]["state"] == "STRONGEST_DELIVERY_MATCH"
+    assert [item["evidence_rank"] for item in candidates] == [
+        "STRONGEST_ESTATE_MATCH",
+        "STRONGEST_DELIVERY_MATCH",
+        "FALLBACK",
+        "FALLBACK",
+    ]
+    assert [item["disposition"] for item in candidates] == [
+        "CREDENTIAL_GATE",
+        "CREDENTIAL_GATE",
+        "NOT_APPLICABLE",
+        "EVIDENCE_GAP",
+    ]
     assert candidates[1]["role"] == "firmware_delivery_mechanism"
     joined = "\n".join(item["next_discriminator"] for item in candidates)
     for marker in ("CREDENTIAL_GATE", "PAXSTORE", "NTMS", "automatic update"):
