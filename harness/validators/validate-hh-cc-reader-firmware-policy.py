@@ -1,0 +1,215 @@
+#!/usr/bin/env python3
+"""Validate the H&H CC-reader firmware decision policy.
+
+This contract makes the client inventory's ``Active Outdated`` signal durable
+without promoting it beyond its evidence ceiling. It preserves the two observed
+client-accepted firmware candidates, selects the highest numeric accepted
+candidate as the default planning target, keeps the older accepted version's
+ambiguity open, and blocks silent target substitution or firmware mutation
+without authoritative estate-specific package/update evidence.
+"""
+from __future__ import annotations
+
+import json
+import re
+import subprocess
+from pathlib import Path
+
+ROOT = Path(__file__).resolve().parents[2]
+POLICY = ROOT / "harness/api/hh-cc-reader-firmware-policy.json"
+SCHEMA = ROOT / "schemas/harness/hh-cc-reader-firmware-policy.schema.json"
+VALIDATORS = ROOT / "harness/api/harness-validator-registry.json"
+MANIFEST = ROOT / "harness/api/operational-harness-manifest.json"
+HH_DOC = ROOT / "docs/HH_CC_READER_NETSTAT_BASELINE.md"
+FIELD_SKILL = ROOT / ".claude/skills/field-workflow/SKILL.md"
+CODEBASE_MAP = ROOT / "CODEBASE_MAP.md"
+TEST = ROOT / "Tests/survey/test_hh_cc_reader_firmware_policy_contracts.py"
+PRE_COMMIT = ROOT / ".githooks/pre-commit"
+PRE_PUSH = ROOT / ".githooks/pre-push"
+OFFLINE = ROOT / "tests/survey/run_offline_survey_tests.sh"
+CI = ROOT / ".github/workflows/hh-cc-reader-firmware-policy-contracts.yml"
+
+VERSION = re.compile(r"^\d+(?:\.\d+)+$")
+NETWORK_IMPORT = re.compile(
+    r"(?m)^\s*(?:import|from)\s+(?:urllib|socket|requests|http|asyncio|ftplib|telnetlib)\b"
+)
+PROVIDER_MARKERS = (
+    "drive" + ".google.com",
+    "docs" + ".google.com",
+    "Google" + " Drive",
+    "One" + "Drive",
+    "Drop" + "box",
+)
+
+
+def read(path: Path) -> str:
+    assert path.is_file(), f"missing H&H firmware policy component: {path.relative_to(ROOT)}"
+    return path.read_text(encoding="utf-8-sig")
+
+
+def load(path: Path) -> dict:
+    return json.loads(read(path))
+
+
+def tracked(path: Path) -> bool:
+    result = subprocess.run(
+        ["git", "-C", str(ROOT), "ls-files", "--error-unmatch", path.relative_to(ROOT).as_posix()],
+        text=True,
+        capture_output=True,
+        check=False,
+    )
+    return result.returncode == 0
+
+
+def version_key(value: str) -> tuple[int, ...]:
+    assert VERSION.fullmatch(value), f"non-numeric dotted firmware version: {value!r}"
+    return tuple(int(part) for part in value.split("."))
+
+
+def test_schema_and_scope() -> None:
+    policy = load(POLICY)
+    schema = load(SCHEMA)
+    assert policy["schema_version"] == "sas-hh-cc-reader-firmware-policy/v1"
+    assert policy["repository"] == "EndeavorEverlasting/SysAdminSuite"
+    assert schema["$schema"].endswith("draft/2020-12/schema")
+    assert schema["properties"]["schema_version"]["const"] == policy["schema_version"]
+    assert policy["scope"]["organization"] == "NYC Health + Hospitals"
+    assert policy["scope"]["device_family"] == "PAX A80"
+    assert policy["scope"]["source_field"] == "Active Outdated"
+    try:
+        import jsonschema  # type: ignore
+    except ImportError:
+        pass
+    else:
+        jsonschema.Draft202012Validator(schema).validate(policy)
+
+
+def test_client_field_semantics() -> None:
+    policy = load(POLICY)
+    semantics = policy["source_field_semantics"]
+    assert "requiring remediation" in semantics["yes"]
+    assert "client-accepted baseline evidence" in semantics["no"]
+    ceiling = semantics["authority_ceiling"]
+    for marker in (
+        "Client estate classification evidence only",
+        "vendor-global latest firmware",
+        "package availability",
+        "management entitlement",
+        "update authorization",
+    ):
+        assert marker in ceiling, f"authority ceiling lost marker: {marker}"
+
+
+def test_candidate_set_and_default_selection() -> None:
+    policy = load(POLICY)
+    candidates = policy["observed_client_accepted_candidates"]
+    versions = [item["version"] for item in candidates]
+    assert set(versions) == {"2.0.14.221110", "2.0.15.260522"}
+    assert len(versions) == len(set(versions))
+    assert all("Active Outdated is No" in item["basis"] for item in candidates)
+    default_target = policy["selection"]["default_target"]
+    assert policy["selection"]["rule"] == "highest_numeric_observed_client_accepted_candidate"
+    assert default_target == max(versions, key=version_key)
+    default_rows = [item for item in candidates if item["status"] == "default_target_candidate"]
+    assert len(default_rows) == 1
+    assert default_rows[0]["version"] == default_target == "2.0.15.260522"
+
+
+def test_older_accepted_version_ambiguity_stays_open() -> None:
+    policy = load(POLICY)
+    old = next(item for item in policy["observed_client_accepted_candidates"] if item["version"] == "2.0.14.221110")
+    assert old["status"] == "accepted_candidate"
+    assert old["ambiguity"] and "numerically older" in old["ambiguity"]
+    ambiguity = next(item for item in policy["ambiguities"] if item["version"] == "2.0.14.221110")
+    assert ambiguity["state"] == "OPEN"
+    assert "why" in ambiguity["question"].lower()
+    assert "classification current" in ambiguity["question"].lower()
+    for marker in ("Do not discard", "relabel it as outdated", "management-plane clarification"):
+        assert marker in ambiguity["handling"], f"older-version ambiguity lost marker: {marker}"
+
+
+def test_mutation_and_supersession_gates() -> None:
+    policy = load(POLICY)
+    assert all(value is True for value in policy["gates"].values())
+    supersession = policy["selection"]["supersession_requires"]
+    joined = "\n".join(supersession)
+    for marker in ("H&H estate-specific", "client source revision", "explicit operator target change"):
+        assert marker in joined, f"supersession gate missing: {marker}"
+    assert policy["gates"]["do_not_treat_active_outdated_no_as_vendor_latest"] is True
+    assert policy["gates"]["do_not_silently_substitute_target"] is True
+    assert policy["gates"]["authoritative_package_mapping_required_before_firmware_mutation"] is True
+    assert policy["gates"]["supported_update_method_required_before_firmware_mutation"] is True
+    assert policy["gates"]["controlled_pilot_required_before_repeatable_rollout"] is True
+
+
+def test_bindings_and_agent_guidance() -> None:
+    policy = load(POLICY)
+    for binding in policy["bindings"]:
+        text = read(ROOT / binding["path"])
+        for marker in binding["required_markers"]:
+            assert marker in text, f"binding {binding['path']} lost marker: {marker}"
+    skill = read(FIELD_SKILL)
+    assert "## H&H CC-reader firmware decision gate" in skill
+    assert "Do not collapse `Active Outdated = No` into vendor-global latest firmware." in skill
+    doc = read(HH_DOC)
+    assert "## Client inventory firmware evidence" in doc
+    assert "2.0.14.221110" in doc
+    assert "2.0.15.260522" in doc
+
+
+def test_harness_wiring() -> None:
+    validators = load(VALIDATORS)["validators"]
+    entry = next((item for item in validators if item["id"] == "hh-cc-reader-firmware-policy-contracts"), None)
+    assert entry is not None, "validator registry missing H&H firmware policy contract"
+    assert entry["command"] == "python harness/validators/validate-hh-cc-reader-firmware-policy.py"
+    assert entry["blocking"] is True
+    for required in (
+        "harness/api/hh-cc-reader-firmware-policy.json",
+        "schemas/harness/hh-cc-reader-firmware-policy.schema.json",
+        "docs/HH_CC_READER_NETSTAT_BASELINE.md",
+        ".claude/skills/field-workflow/SKILL.md",
+    ):
+        assert required in entry["scope"], f"validator scope missing: {required}"
+    components = {item["id"]: item for item in load(MANIFEST)["components"]}
+    expected = {
+        "hh-cc-reader-firmware-policy": "harness/api/hh-cc-reader-firmware-policy.json",
+        "hh-cc-reader-firmware-policy-schema": "schemas/harness/hh-cc-reader-firmware-policy.schema.json",
+        "hh-cc-reader-firmware-policy-validator": "harness/validators/validate-hh-cc-reader-firmware-policy.py",
+        "hh-cc-reader-firmware-policy-contracts": "Tests/survey/test_hh_cc_reader_firmware_policy_contracts.py",
+    }
+    for component_id, path in expected.items():
+        assert component_id in components, f"manifest missing component: {component_id}"
+        assert components[component_id]["path"] == path
+    validator_name = "validate-hh-cc-reader-firmware-policy.py"
+    for path in (PRE_COMMIT, PRE_PUSH, OFFLINE, CI):
+        assert validator_name in read(path), f"firmware policy validator not wired: {path.relative_to(ROOT)}"
+    assert TEST.relative_to(ROOT).as_posix() in read(OFFLINE)
+    assert "harness/api/hh-cc-reader-firmware-policy.json" in read(CODEBASE_MAP)
+
+
+def test_offline_and_live_data_boundaries() -> None:
+    targets = (POLICY, SCHEMA, Path(__file__), TEST, HH_DOC, FIELD_SKILL)
+    joined = "\n".join(read(path) for path in targets)
+    for marker in PROVIDER_MARKERS:
+        assert marker not in joined, f"provider-specific marker leaked: {marker}"
+    assert not re.search(r"(?i)\b(?:\d{1,3}\.){3}\d{1,3}\b", joined), "IPv4 literal not needed in firmware policy"
+    assert not re.search(r"(?i)\b(?:[0-9a-f]{2}[-:]){5}[0-9a-f]{2}\b", joined), "MAC literal not needed in firmware policy"
+    for path in (Path(__file__), TEST):
+        assert not NETWORK_IMPORT.search(read(path)), f"network import in offline firmware contract: {path.name}"
+
+
+def test_components_are_tracked() -> None:
+    for path in (POLICY, SCHEMA, Path(__file__), TEST, HH_DOC, FIELD_SKILL, CODEBASE_MAP, PRE_COMMIT, PRE_PUSH, OFFLINE, CI):
+        assert tracked(path), f"H&H firmware policy component is not tracked: {path.relative_to(ROOT)}"
+
+
+def main() -> int:
+    tests = [value for name, value in sorted(globals().items()) if name.startswith("test_")]
+    for test in tests:
+        test()
+    print(f"PASS: H&H CC-reader firmware policy contracts ({len(tests)} groups)")
+    return 0
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())
