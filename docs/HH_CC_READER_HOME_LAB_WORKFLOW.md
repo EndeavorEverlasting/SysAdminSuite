@@ -102,7 +102,7 @@ These negative results are routing evidence, not reasons to restart the investig
 
 ## PAX A80 alpha-input checkpoint
 
-Public Bank of America and PAX ecosystem documentation demonstrates that the Android Settings access path can require an alphanumeric password and instructs the operator to enter it through the terminal keypad.
+Public Bank of America and PAX ecosystem documentation shows two relevant Android Settings credential forms in the field ecosystem: a numeric-only default and an alphanumeric default. Treat these as documented candidates for the Settings layer, not as a password-sweep list. One organization-authorized documented candidate may be tried once; rejection is evidence and does not authorize cycling unrelated credentials.
 
 Public references:
 
@@ -128,7 +128,7 @@ The helper codifies documented PAX-family behavior:
 - press the number key containing the desired letter;
 - press **ALPHA** until the desired character visibly appears;
 - do not assume a fixed case-cycle count across applications/firmware;
-- special-character positions remain **UNPROVEN** unless the actual A80 prompt visibly exposes a symbol-entry method.
+- the observed A80 keypad uses the standard letter groups on keys 2–9; the planner follows those visible groups rather than older PAX keypad layouts;\n- special-character positions remain **UNPROVEN** for this A80 prompt unless the UI exposes a symbol-entry method; some documented PAX-family terminals use a visible on-screen Up-arrow/symbol control followed by ALPHA, which may be tested only when that control is actually present.
 
 The A80 hardware has a physical ALPHA key and letter groups on the number keys. Prior failure of ALPHA/FUNC behavior inside an AxiaMed-controlled numeric credential field does not prove that the separate Android Settings prompt behaves the same way.
 
