@@ -51,6 +51,10 @@ def main() -> int:
         "same_oui_candidates",
         "Invoke-SasHhCcReaderProbe.ps1",
         "BOUNDED_LOCAL_DISCOVERY_EXACT_MAC",
+        "CONFIRM_CONSUMER_LAB",
+        "SEALED_RUNTIME_REQUIRED",
+        "HOME_LAB_NETWORK_AUTHORITY_REJECTED",
+        "prepared_commit_verified",
     ):
         assert marker in discover_cmd + discover_ps, f"home-lab discovery missing marker: {marker}"
 
@@ -98,7 +102,7 @@ def main() -> int:
     expected_commands = {
         "hh-cc-reader-network-switch-prepare": ("Prepare-HHCCReaderNetworkSwitch.cmd RUN_ID [EXPECTED_MAC]", True),
         "hh-cc-reader-network-checkpoint": ("Checkpoint-HHCCReaderNetwork.cmd PHASE RUN_ID [EXPECTED_MAC] [LABEL]", False),
-        "hh-cc-reader-home-lab-discovery": ("Discover-HHCCReaderHomeLab.cmd RUN_ID [EXPECTED_MAC]", True),
+        "hh-cc-reader-home-lab-discovery": ("Discover-HHCCReaderHomeLab.cmd RUN_ID CONFIRM_CONSUMER_LAB [EXPECTED_MAC]", True),
         "hh-cc-reader-alpha-input-plan": ("Plan-HHCCReaderAlphaInput.cmd TEXT", False),
     }
     for command_id, (command, network) in expected_commands.items():
@@ -114,6 +118,9 @@ def main() -> int:
     assert "hh-cc-reader-network-checkpoint-result" in artifact_ids
     assert "hh-cc-reader-home-lab-discovery-result" in artifact_ids
     assert "hh-cc-reader-alpha-input-plan-result" in artifact_ids
+    assert "home-lab-state-{0}.json" in checkpoint_ps
+    assert "NETWORK_CHECKPOINT_NO_ACTIVE_IPV4" in checkpoint_ps
+    assert "before_checkpoint" in checkpoint_ps
 
     assert "PROTECTED_ENTERPRISE" in docs
     assert "AUTHORIZED_CONSUMER_LAB" in docs
