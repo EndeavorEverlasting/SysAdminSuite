@@ -91,6 +91,15 @@ def main() -> int:
     assert "cannot independently validate the external human approval source" in docs
     assert "CC-reader software/firmware deployment" in docs
     assert "remains blocked" in docs
+    assert "mechanism discovery is now governed by" in docs
+    assert "management owner is an output, not a prerequisite supplied by a client or coworker" in docs
+    assert "Payment Fusion Control Center / Healthcare Omni-Channel" in docs
+    assert "PAXSTORE OTA firmware push" in docs
+    assert "`CREDENTIAL_GATE`" in docs
+    assert "`NOT_APPLICABLE`" in docs
+    assert "owner-identification requests" in docs
+    assert "strongest next gate is confirmation from the current H&H Experian" not in docs
+    assert "current H&H owner of the Experian merchant-services/terminal relationship" not in docs
     assert "Probe-HHCCReaderEndpoint.cmd READER_IPV4 REMOTE_ENDPOINT PORT APPROVAL_REF [EXPECTED-MAC]" in qr_plan
     assert "QR-eligible but not yet scanner-ready" in qr_plan
     assert "Raw `Test-NetConnection` snippets are component diagnostics only" in qr_plan
