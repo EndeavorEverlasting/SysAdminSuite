@@ -1,0 +1,138 @@
+#!/usr/bin/env python3
+"""Contracts for the bounded H&H CC-reader endpoint-correlation probe."""
+from __future__ import annotations
+
+import ipaddress
+import json
+import re
+from pathlib import Path
+
+ROOT = Path(__file__).resolve().parents[2]
+
+
+def read(path: str) -> str:
+    p = ROOT / path
+    assert p.is_file(), f"missing required file: {path}"
+    return p.read_text(encoding="utf-8-sig")
+
+
+def main() -> int:
+    launcher = read("Probe-HHCCReaderEndpoint.cmd")
+    script = read("scripts/Invoke-SasHhCcReaderEndpointProbe.ps1")
+    docs = read("docs/HH_CC_READER_REMOTE_OPERATIONS_PROGRAM.md")
+    qr_plan = read("docs/HH_CC_READER_QR_BASELINE_PLAN.md")
+    command_registry = json.loads(read("harness/api/harness-command-registry.json"))
+    artifact_registry = json.loads(read("harness/api/harness-artifact-registry.json"))
+    outcome_registry = json.loads(read("harness/api/harness-outcome-registry.json"))
+
+    for marker in (
+        'Invoke-SasNetworkAwareField.ps1" refresh',
+        "C:\\SASAL\\Probe-HHCCReaderEndpoint.cmd",
+        "Probe-HHCCReader.cmd",
+        "Invoke-SasHhCcReaderEndpointProbe.ps1",
+        "READER_IPV4 REMOTE_ENDPOINT PORT APPROVAL_REF [EXPECTED-MAC]",
+    ):
+        assert marker in launcher, f"endpoint launcher missing marker: {marker}"
+
+    for marker in (
+        "CheckHostName",
+        "Test-NetConnection",
+        "REMOTE_ENDPOINT_CORRELATION_COMPLETE",
+        "REMOTE_ENDPOINT_TEST_ERROR",
+        "ApprovalRef",
+        "approval_reference_supplied = $true",
+        "ValidateOnly",
+        "ENDPOINT_INPUT_VALID",
+        "[Guid]::NewGuid()",
+        "yyyyMMdd-HHmmss-fff",
+        "survey\\output\\hh-cc-reader",
+        "ownership_proven = $false",
+    ):
+        assert marker in script, f"endpoint probe missing marker: {marker}"
+
+    forbidden = (
+        "Set-NetIPAddress",
+        "New-NetIPAddress",
+        "Remove-NetIPAddress",
+        "Set-DnsClient",
+        "Restart-Computer",
+        "Invoke-Command",
+        "Enter-PSSession",
+        "Get-NetTCPConnection",
+        "nmap",
+        "naabu",
+        "adb ",
+        "fastboot ",
+    )
+    lowered = script.lower()
+    for marker in forbidden:
+        assert marker.lower() not in lowered, f"endpoint probe contains forbidden marker: {marker}"
+
+    # Shell metacharacters must remain inside quoted positional expansions until
+    # the PowerShell validator applies the stricter endpoint/reference grammar.
+    assert 'call "C:\\SASAL\\Probe-HHCCReaderEndpoint.cmd" "%~1" "%~2" "%~3" "%~4" "%~5"' in launcher
+    assert '-ReaderIPAddress "%~1" -RemoteEndpoint "%~2" -RemotePort "%~3" -ApprovalRef "%~4" -ValidateOnly' in launcher
+    assert 'call "%~dp0Probe-HHCCReader.cmd" "%~1" "%~5"' in launcher
+    assert 'Probe-HHCCReaderEndpoint.cmd" %*' not in launcher
+    assert "-ReaderIPAddress %1" not in launcher
+    assert "-RemoteEndpoint %2" not in launcher
+    assert "-ApprovalRef %4" not in launcher
+
+    normalized_launcher = re.sub(r"\s+", " ", launcher)
+    assert "CIDRs, ranges, wildcards" in normalized_launcher
+    assert "CIDRs, ranges, wildcards" in script
+    assert "ApprovalRef must be a non-secret" in script
+    assert "one observed REMOTE_ENDPOINT + one explicit PORT + one APPROVAL_REF" in docs
+    assert "cannot independently validate the external human approval source" in docs
+    assert "CC-reader software/firmware deployment" in docs
+    assert "remains blocked" in docs
+    assert "Probe-HHCCReaderEndpoint.cmd READER_IPV4 REMOTE_ENDPOINT PORT APPROVAL_REF [EXPECTED-MAC]" in qr_plan
+    assert "QR-eligible but not yet scanner-ready" in qr_plan
+    assert "Raw `Test-NetConnection` snippets are component diagnostics only" in qr_plan
+    assert "blocked until endpoint CMD exists" not in qr_plan
+    assert "Probe-HHCCReaderEndpoint.cmd APPROVED_REMOTE_HOST_OR_IP [PORT]" not in qr_plan
+    assert "Google Drive" not in qr_plan
+
+    joined = "\n".join((launcher, script, docs, qr_plan))
+    ipv4_literals = set(re.findall(r"(?<!\d)(?:\d{1,3}\.){3}\d{1,3}(?!\d)", joined))
+    allowed_networks = (
+        ipaddress.ip_network("192.0.2.0/24"),
+        ipaddress.ip_network("198.51.100.0/24"),
+        ipaddress.ip_network("203.0.113.0/24"),
+    )
+    for literal in ipv4_literals:
+        address = ipaddress.ip_address(literal)
+        assert any(address in network for network in allowed_networks), (
+            f"tracked endpoint lane contains non-documentation IPv4 literal: {literal}"
+        )
+
+    mac_literals = set(re.findall(r"(?i)\b(?:[0-9a-f]{2}[-:]){5}[0-9a-f]{2}\b", joined))
+    assert mac_literals <= {"AA-BB-CC-DD-EE-FF"}
+
+    commands = {entry["id"]: entry for entry in command_registry["commands"]}
+    assert "hh-cc-reader-endpoint-probe" in commands
+    command = commands["hh-cc-reader-endpoint-probe"]
+    assert command["source_of_truth"] == "Probe-HHCCReaderEndpoint.cmd"
+    assert command["mutation"] == "local_runtime"
+    assert command["network"] is True
+
+    artifacts = {entry["id"]: entry for entry in artifact_registry["artifacts"]}
+    assert "hh-cc-reader-endpoint-probe-result" in artifacts
+    assert artifacts["hh-cc-reader-endpoint-probe-result"]["tracked"] is False
+    assert artifacts["hh-cc-reader-endpoint-probe-result"]["contains_live_data"] is True
+    assert "<timestamp>-<8hex>.json" in artifacts["hh-cc-reader-endpoint-probe-result"]["path"]
+
+    outcomes = {entry["command_id"]: entry for entry in outcome_registry["contracts"]}
+    assert "hh-cc-reader-endpoint-probe" in outcomes
+    assert outcomes["hh-cc-reader-endpoint-probe"]["success_artifact_id"] == "hh-cc-reader-endpoint-probe-result"
+
+    print("[PASS] Endpoint correlation has a tracked CMD front door")
+    print("[PASS] Canonical reader probe gates endpoint correlation first")
+    print("[PASS] Endpoint lane is one-target/one-port, read-only, and no-scan")
+    print("[PASS] Tracked files contain only documentation-safe example identities")
+    print("[PASS] Command/artifact/outcome registries converge on the endpoint receipt")
+    return 0
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())

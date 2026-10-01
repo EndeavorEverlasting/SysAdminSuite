@@ -1,12 +1,12 @@
 # H&H CC Reader QR + Baseline Convergence Plan
 
-Date: 2026-09-28  
-Status: planning / implementation not yet authorized by this document  
-Repository: `EndeavorEverlasting/SysAdminSuite`  
-Planning branch: `plan/hh-cc-reader-qr-baseline-2026-09-28`  
-Base: `main@6be2e47097336125caa58306d1063fb39699e60f`  
-Related field-acceptance ledger: issue #436  
-Related Netstat/baseline documentation: PR #441 (open at planning time)
+Date: 2026-09-28
+Status: planning / implementation not yet authorized by this document
+Repository: `EndeavorEverlasting/SysAdminSuite`
+Planning branch: `plan/hh-cc-reader-qr-baseline-2026-09-28`
+Base: `main@6be2e47097336125caa58306d1063fb39699e60f`
+Related field-acceptance ledger: issue #436
+Related Netstat/baseline documentation: successor PR #449 merged 2026-10-01
 
 ## Mission
 
@@ -58,16 +58,17 @@ The technician runbook also shows read-only PowerShell component snippets for hu
 
 ### Remote endpoint correlation
 
-The current runbook uses a bounded manual continuation after a specific endpoint is directly observed and approved:
+The repository-owned endpoint continuation is:
 
-```powershell
-$RemoteEndpoint = "<APPROVED_REMOTE_HOST_OR_IP>"
-Test-NetConnection $RemoteEndpoint -Port 443 -InformationLevel Detailed
+```text
+Probe-HHCCReaderEndpoint.cmd READER_IPV4 REMOTE_ENDPOINT PORT APPROVAL_REF [EXPECTED-MAC]
 ```
 
-This is **not yet a QR-ready technician contract** because no tracked endpoint CMD front door currently owns the workflow.
+It first validates the endpoint/reference arguments, then requires the canonical reader same-subnet/device gate to pass, then performs one read-only `Test-NetConnection` to the explicitly observed and approved endpoint/port and writes an ignored local receipt.
 
-Do not solve that gap by QR-encoding the raw two-line script and calling it field-ready.
+Raw `Test-NetConnection` snippets are component diagnostics only. They are no longer the technician command authority for endpoint correlation and must not be QR-wrapped as a substitute for the launcher.
+
+The endpoint launcher is **QR-eligible but not yet scanner-ready**. Scanner-ready still requires the shared local renderer/capsule work, exact payload round-trip proof, and physical-scanner acceptance below.
 
 ## Baseline adjacency contract
 
@@ -81,7 +82,7 @@ Every executable snippet/launcher shown to a technician must have these fields i
 | bounded `ping` | bounded ICMP observation | Reader Baseline: Ping Received / Notes | copy/paste diagnostic only |
 | detailed `Test-NetConnection` to reader | source/interface/path context | Reader Baseline: Source Interface / Source IPv4 / Notes | copy/paste diagnostic only |
 | TCP/443 `Test-NetConnection` to reader | reachability to that reader IP/port only | Reader Baseline: TCP 443 / Notes | copy/paste diagnostic only |
-| approved remote endpoint correlation | approved endpoint, resolved IP, port, source address/interface, TCP result, evidence reference, ownership classification, approval source | Endpoint Correlation | **blocked until endpoint CMD exists** |
+| `Probe-HHCCReaderEndpoint.cmd ...` | reader gate, approved endpoint, resolved IP, explicit port, source address/interface, TCP result, evidence reference, local receipt, ownership ceiling | Endpoint Correlation | launcher exists; QR-eligible, **not scanner-ready until P2-P5** |
 
 A failed ping does not prove a reader is offline. TCP success proves reachability to the specified endpoint/port only. It does not prove service ownership or firmware authority.
 
@@ -151,30 +152,29 @@ Proof ceiling: documentation/evidence-schema contract only.
 
 ### P1 — bounded remote-endpoint launcher
 
-Create a tracked technician front door before any remote-endpoint QR is field-ready.
+Status: implemented in the endpoint-correlation integration lane; scanner transport remains separate.
 
-Proposed shape:
+Canonical shape:
 
 ```text
-Probe-HHCCReaderEndpoint.cmd APPROVED_REMOTE_HOST_OR_IP [PORT]
+Probe-HHCCReaderEndpoint.cmd READER_IPV4 REMOTE_ENDPOINT PORT APPROVAL_REF [EXPECTED-MAC]
 ```
 
-The exact name may change during implementation if a current canonical naming authority requires it.
+Contract:
 
-Requirements:
-
+- canonical reader same-subnet/device gate runs first;
 - one explicit endpoint only;
-- one explicit port only, defaulting to 443 only if the contract chooses to preserve that current behavior;
+- one explicit TCP port only; no implicit/default port;
+- one non-secret approval/evidence reference is required;
 - no CIDR/range input;
 - no wildcard discovery;
 - no port sweep;
 - no endpoint ownership inference;
-- resolve hostname/IP deterministically;
 - capture source interface/address, resolved destination, destination port, TCP result, and bounded diagnostic context;
-- write sanitized machine-readable evidence under an ignored local evidence root;
+- write machine-readable evidence under the ignored local evidence root;
 - expose a concise final classification;
-- register command/artifact/outcome contracts as required by the harness;
-- add focused tests proving the no-scan/no-mutation/no-live-H&H boundary.
+- register command/artifact/outcome contracts in the harness;
+- keep live H&H values out of tracked source.
 
 Proof ceiling: repository launcher contract. No endpoint ownership or firmware authority.
 
@@ -227,7 +227,7 @@ Only after P1-P3 prove the runtime contract:
 - keep a non-QR fallback complete;
 - never require network access to obtain/render the QR.
 
-The Google Drive runbook remains the live H&H field-document authority. Repository docs stay provider-neutral and contain no private Drive URL, live IP/MAC, or field screenshot.
+The operator-managed external runbook remains the live H&H field-document authority. Repository docs stay provider-neutral and contain no private workspace URL, live IP/MAC, or field screenshot.
 
 ### P5 — physical-scanner acceptance
 
