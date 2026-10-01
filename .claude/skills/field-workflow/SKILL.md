@@ -24,11 +24,24 @@ Load only the references that match the selected field lane:
 - Canonical Northwell printer engine: [`mapping/Invoke-NorthwellPrinterMapping.ps1`](../../../mapping/Invoke-NorthwellPrinterMapping.ps1)
 - Northwell printer evidence precedence: [`harness/api/northwell-printer-mapping-evidence-policy.json`](../../../harness/api/northwell-printer-mapping-evidence-policy.json)
 - Copy-safe capsule source policy: [`harness/api/copy-safe-operator-command-policy.json`](../../../harness/api/copy-safe-operator-command-policy.json)
+- H&H CC-reader firmware decision policy: [`harness/api/hh-cc-reader-firmware-policy.json`](../../../harness/api/hh-cc-reader-firmware-policy.json)
 - Dashboard front door and fallback: [`docs/DASHBOARD_ENTRYPOINT.md`](../../../docs/DASHBOARD_ENTRYPOINT.md)
 - Software deployment tutorial: [`docs/tutorials/SOFTWARE_DEPLOYMENT_DRY_RUN_AND_PILOT.md`](../../../docs/tutorials/SOFTWARE_DEPLOYMENT_DRY_RUN_AND_PILOT.md)
 - Software installation safety contract: [`docs/SOFTWARE_INSTALL_HARNESS.md`](../../../docs/SOFTWARE_INSTALL_HARNESS.md)
 - Executable fixture proof: [`docs/SOFTWARE_INSTALL_E2E.md`](../../../docs/SOFTWARE_INSTALL_E2E.md)
 - Software-install result presentation: [`docs/SOFTWARE_INSTALL_RESULT_INSPECTION.md`](../../../docs/SOFTWARE_INSTALL_RESULT_INSPECTION.md)
+
+## H&H CC-reader firmware decision gate
+
+For NYC Health + Hospitals PAX A80 firmware planning, read `harness/api/hh-cc-reader-firmware-policy.json` before proposing, changing, or describing the target firmware.
+
+1. Treat `Active Outdated` as a **client inventory classification signal**. `Yes` means the client marks the row active-outdated; `No` means the client does not presently classify the row that way.
+2. Firmware observed where `Active Outdated = No` is **client-accepted baseline evidence**. The current observed candidates are `2.0.14.221110` and `2.0.15.260522`.
+3. Use `2.0.15.260522` as the current default planning target because it is the highest numeric observed client-accepted candidate under the registered rule.
+4. Preserve the `2.0.14.221110` discrepancy as an open ambiguity. Do not discard it, automatically relabel it outdated, or invent a reason the client accepts it.
+5. Do not collapse `Active Outdated = No` into vendor-global latest firmware. It does not prove PAX/PAXSTORE release authority, package availability, entitlement, or update authorization.
+6. Do not silently substitute another target. Supersession requires stronger H&H estate-specific management/owner evidence, a revised client source that changes the accepted candidate set, or an explicit operator target change.
+7. Firmware mutation remains blocked until the applicable management plane identifies the authoritative package and supported update method, followed by one controlled pilot before repeatable rollout.
 
 ## Operator command composition gate
 
