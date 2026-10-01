@@ -67,6 +67,32 @@ The same `RUN_ID` must label or index:
 
 Do not combine artifacts under one `RUN_ID` when the reader identity changes, a later diagnostic window starts, or provenance cannot be established. Start a new `RUN_ID` instead. Existing launcher receipt schemas do not need to be mutated merely to carry this external linkage; the evidence index owns the association.
 
+## Prior-provenance satisfaction and no-restage rule
+
+Evidence state has two independent fields, and they are never the same field:
+
+- `ARTIFACT_PROVENANCE` — where and when an artifact actually came from: `CURRENT_RUN`, `PRIOR_RUN`, `MISSING`, `INVALID`, or `SUPERSEDED`. An artifact from an earlier run stays `PRIOR_RUN`. It cannot be relabeled `CURRENT_RUN`, copied into a newer run folder, or given a rewritten timestamp.
+- `DISCRIMINATOR_STATE` — whether the evidence already possessed answers the factual question: `SATISFIED_CURRENT_RUN`, `SATISFIED_BY_PRIOR_PROVENANCE`, `UNSATISFIED`, `STALE_REVALIDATION_REQUIRED`, `CONFLICT`, or `NOT_APPLICABLE`.
+
+Prior evidence may satisfy a current discriminator without becoming an artifact of the current run. Canonical example for the completed START TEST experiment:
+
+```text
+START_TEST_ARTIFACT_PROVENANCE=PRIOR_RUN
+START_TEST_DISCRIMINATOR=SATISFIED_BY_PRIOR_PROVENANCE
+REMOTE_ENDPOINT_CANDIDATE=NONE
+RESTAGE_REQUIRED=NO
+```
+
+Rules:
+
+- A missing same-run duplicate never forces a repeat. A newer `RUN_ID`, an empty phase cell, an uncopied prior artifact, or an evidence index that distinguishes prior from current provenance is not by itself an invalidation event.
+- Index the earlier artifact as prior provenance with its original `RUN_ID` and timestamp. Do not copy it into the new run folder, do not rewrite its timestamp, and do not claim it occurred in the new run.
+- Restage only with a recorded invalidation reason: a different reader identity; a firmware, software, or network/control-plane change; prior evidence illegible or incomplete for this discriminator; conflict with newer evidence; an explicitly new same-window temporal comparison; or an explicit operator reproduction request.
+- Same-window proof stays strict: a `BASELINE` from one run and a `POST_TEST` from another run can never be promoted into a proved same-window delta, and cross-window artifacts still may not be combined under one `RUN_ID`.
+- When the discriminator is `SATISFIED_BY_PRIOR_PROVENANCE`, record the result and advance to the next unresolved discriminator — currently the firmware management baseline — instead of repeating the completed experiment.
+
+The reusable machine contract is `harness/api/evidence-provenance-registry.json`, validated offline by `harness/validators/validate-evidence-provenance-contracts.py`.
+
 ## Canonical Netstat evidence phases
 
 One authorized reader run uses this order:
