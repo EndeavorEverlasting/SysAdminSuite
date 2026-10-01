@@ -1,6 +1,6 @@
 @echo off
 setlocal EnableExtensions
-title SysAdminSuite - H&H CC Reader PAX Keypad Input Plan
+title SysAdminSuite - H^&H CC Reader PAX Keypad Input Plan
 cls
 
 if not "%~1"=="" goto usage
