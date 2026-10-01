@@ -51,7 +51,7 @@ if not "!SAS_EXIT!"=="0" goto finish
 echo.
 echo PREPARE_COMPLETE
 echo After the network switch, run:
-echo   C:\SASAL\Discover-HHCCReaderHomeLab.cmd "%RUN_ID%"
+echo   C:\SASAL\Discover-HHCCReaderHomeLab.cmd "%RUN_ID%" CONFIRM_CONSUMER_LAB
 echo.
 echo Optional explicit after-switch checkpoint only:
 echo   C:\SASAL\Checkpoint-HHCCReaderNetwork.cmd AFTER_SWITCH "%RUN_ID%"
