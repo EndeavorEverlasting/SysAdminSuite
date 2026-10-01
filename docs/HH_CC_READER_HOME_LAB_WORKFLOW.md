@@ -26,6 +26,8 @@ Use the network-switch and bounded local-discovery workflow in this document.
 
 The home-lab lane requires an explicit `CONFIRM_CONSUMER_LAB` token, a prepared sealed runtime, and the repository network classifier to report `GUEST_INTERNET` before any active discovery. When the reader's approved IPv4 is already known from authoritative field evidence, preserve that information and use the canonical one-target probe instead of rediscovering the subnet. Only when the IPv4 is genuinely unknown may the home-lab lane run up to two bounded host-presence passes across the workstation's current **private local subnet**, subject to a hard host-count ceiling, solely to populate local neighbor state and recover an exact approved MAC. It does not perform broad port scanning.
 
+This exact-MAC consumer-lab reacquisition lane intentionally does **not** query Active Directory or use AD/DNS identity as a prerequisite. Per the repository AD resilience doctrine, IP reachability is not AD registration; this workflow records the directory state as `NOT_AD_VERIFIED`. If AD registration evidence is separately required, use the canonical AD probe workflow and its fallback ladder rather than injecting enterprise directory assumptions into this private-LAN lane.
+
 ## Canonical command flow
 
 ### 1. Before switching networks
@@ -151,7 +153,7 @@ The A80 hardware has a physical ALPHA key and letter groups on the number keys. 
 Ignored local artifacts:
 
 - `survey/output/hh-cc-reader/hh-cc-reader-network-checkpoint-<timestamp>-<phase>.json`
-- `survey/output/hh-cc-reader/hh-cc-reader-home-lab-discovery-<timestamp>.json`
+- `survey/output/hh-cc-reader/hh-cc-reader-home-lab-discovery-<timestamp>-<8hex>.json`
 - `survey/output/hh-cc-reader/hh-cc-reader-alpha-input-plan-<timestamp>.json` (metadata only; supplied text is not persisted)
 - existing canonical probe receipts under `survey/output/hh-cc-reader/`
 
@@ -170,7 +172,8 @@ This workflow can prove:
 - workstation network context before and after a switch;
 - bounded local-subnet neighbor discovery occurred;
 - an exact approved MAC did or did not resolve to one local IPv4;
-- the existing canonical probe result for an exact-MAC target.
+- the existing canonical probe result for an exact-MAC target;
+- that AD registration remains `NOT_AD_VERIFIED` in this non-AD consumer-lab lane.
 
 It cannot by itself prove:
 

@@ -17,7 +17,7 @@ param(
     [ValidateRange(20,1000)]
     [int]$PingTimeoutMs = 90,
 
-    [ValidateRange(1,3)]
+    [ValidateRange(1,2)]
     [int]$MaxPresencePasses = 2,
 
     [ValidateRange(250,5000)]
@@ -324,6 +324,9 @@ if ($targetIp) {
 
 $networkProfileName = if ($null -ne $selectedConfig.NetProfile) { [string]$selectedConfig.NetProfile.Name } else { $null }
 $reacquisitionExhausted = [bool]($activeDiscoveryRan -and -not $targetIp -and $exactAfter.Count -eq 0)
+$adState = 'NOT_AD_VERIFIED'
+$adProbeMode = 'NOT_APPLICABLE_TO_EXACT_MAC_CONSUMER_LAB_REACQUISITION'
+$adInstruction = 'This exact-MAC consumer-lab lane does not query Active Directory. Use the canonical AD probe workflow only when AD registration evidence is separately required.'
 
 $stamp = [DateTimeOffset]::Now.ToString('yyyyMMdd-HHmmss-fff')
 $suffix = [Guid]::NewGuid().ToString('N').Substring(0,8)
@@ -356,6 +359,11 @@ $result = [ordered]@{
     presence_passes_run = $presencePassesRun
     neighbor_settle_ms = $NeighborSettleMs
     reacquisition_exhausted = $reacquisitionExhausted
+    ad_probe = [ordered]@{
+        state = $adState
+        mode = $adProbeMode
+        instruction = $adInstruction
+    }
     ping_timeout_ms = $PingTimeoutMs
     neighbors_before = $before
     neighbors_after = $after
@@ -380,6 +388,7 @@ Write-Host ("PREPARED_COMMIT_VERIFIED={0}" -f $currentCommit)
 Write-Host ("NETWORK_CHANGED_FROM_BEFORE={0}" -f $networkChangedFromBefore)
 Write-Host ("PRESENCE_PASSES_RUN={0}" -f $presencePassesRun)
 Write-Host ("REACQUISITION_EXHAUSTED={0}" -f $reacquisitionExhausted)
+Write-Host ("AD_STATE={0}" -f $adState)
 Write-Host ("EVIDENCE={0}" -f $receiptPath)
 if (-not $targetIp -and $sameOui.Count -gt 0) {
     Write-Host ("SAME_OUI_CANDIDATES={0}" -f $sameOui.Count)
