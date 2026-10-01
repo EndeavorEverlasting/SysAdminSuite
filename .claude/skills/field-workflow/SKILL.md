@@ -94,6 +94,19 @@ Only after `northwell.shared-printer.organization-default` is selected, when a t
 15. `Repair-NorthwellPrinter-Queue-Evidence.cmd` is **artifact reclassification only**. Use it only when preserved local JSON explicitly records `physical_output_observed=true` and the derived classifier is wrong. Do not use it merely because a real requested document already printed successfully.
 16. On failure, direct diagnosis to the run-scoped evidence. Quick runs use `ResolvedPlan.json`, `Controller.log`, per-target `Status.json`/`Agent.log`, and `Summary.json`; batch runs add parent `BatchPlan.json`, parent `Summary.json`, and `Group-NNN` child engine evidence.
 
+## Evidence provenance and no-restage gate
+
+Before requesting operator recapture of anything already attempted, run this sequence against `harness/api/evidence-provenance-registry.json`:
+
+1. Recover prior evidence for the target question.
+2. Identify the factual discriminator the evidence must answer.
+3. Determine artifact provenance separately: a `PRIOR_RUN` artifact stays `PRIOR_RUN` and is never relabeled into the current run.
+4. Evaluate invalidation and freshness for that discriminator class.
+5. If the state is `SATISFIED_BY_PRIOR_PROVENANCE`: preserve the old provenance, do not request duplicate operator work, and advance to the next unresolved discriminator.
+6. Restage only with an explicit recorded invalidation reason: different reader identity, firmware/software change, network or control-plane change, prior evidence illegible or incomplete, conflict with newer evidence, a true same-window temporal comparison, or an explicit operator reproduction request.
+
+Contract: missing same-run duplication is not by itself a reason to repeat operator work. A newer `RUN_ID`, an empty receipt cell, an uncopied prior artifact, or an evidence index that distinguishes prior from current provenance never forces a repeat.
+
 ## Workflow
 
 1. Identify the field user, organization, site/hospital when relevant, target environment, mutation posture, and starting network posture when a command may be network-sensitive.

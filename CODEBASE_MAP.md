@@ -262,6 +262,8 @@ The machine-readable command authority is `harness/api/harness-command-registry.
 - `harness/validators/validate-harness-registries.py` — first harness integrity gate.
 - `harness/validators/validate-outcome-contracts.py` — rejects command chains that can stop at a green test while the requested goal remains unproven.
 - `harness/validators/validate-deployment-state-contracts.py` — rejects state chains that confuse transport/fixture proof with AutoLogon application, required restart, or optional runtime proof.
+- `harness/api/evidence-provenance-registry.json`, `harness/api/evidence_provenance_policy.py`, and `harness/validators/validate-evidence-provenance-contracts.py` — two-axis artifact-provenance/discriminator-satisfaction contract: `PRIOR_RUN` evidence may satisfy a current discriminator as `SATISFIED_BY_PRIOR_PROVENANCE` without RUN_ID mutation, and missing same-run duplication alone never forces operator rework.
+- `Tests/survey/test_evidence_provenance_reuse_contracts.py` — focused fixtures for reuse, recorded invalidation, conflict, cross-window refusal, binding markers, and wiring.
 - `tools/validate-ai-layer.ps1` — PowerShell validator for the AI harness layer.
 - `tests/survey/run_offline_survey_tests.sh` — offline survey/harness contract runner.
 - `tests/bash/` — Bash contract and smoke tests.

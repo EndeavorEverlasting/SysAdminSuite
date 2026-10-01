@@ -114,6 +114,21 @@ def main() -> int:
         "RUN_ID",
         "exactly one reader identity",
         "workstation probe receipt **path and receipt timestamp**",
+        # Two-axis provenance semantics: artifact provenance and discriminator
+        # satisfaction are separate fields, and a prior-run artifact may satisfy
+        # a current discriminator without a same-run duplicate.
+        "Prior-provenance satisfaction and no-restage rule",
+        "ARTIFACT_PROVENANCE",
+        "DISCRIMINATOR_STATE",
+        "SATISFIED_BY_PRIOR_PROVENANCE",
+        "RESTAGE_REQUIRED=NO",
+        "REMOTE_ENDPOINT_CANDIDATE=NONE",
+        "cannot be relabeled",
+        "recorded invalidation reason",
+        "never forces a repeat",
+        "advance to the next unresolved discriminator",
+        "Same-window proof stays strict",
+        "harness/api/evidence-provenance-registry.json",
     ):
         assert marker in netstat_docs, f"Netstat baseline contract missing marker: {marker}"
 
