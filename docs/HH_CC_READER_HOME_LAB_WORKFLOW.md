@@ -89,6 +89,17 @@ The home-lab discovery command:
 
 It does not run Nmap, Naabu, Masscan, ADB, Fastboot, credential guessing, firmware pushes, payment actions, or reader configuration.
 
+## Closed assumptions — do not rediscover
+
+These negative results are routing evidence, not reasons to restart the investigation from zero:
+
+- an application/kiosk label is not automatically a DNS hostname;
+- DNS/LLMNR/NBT name failure does not prove the reader is offline;
+- an empty workstation ARP/neighbor cache does not prove the gateway/DHCP authority lacks a lease;
+- a passive exact-MAC capture with no observed frames does not prove the reader is offline or on another VLAN;
+- failure of ALPHA/FUNC behavior inside an AxiaMed-controlled numeric credential field does not prove the separate Android Settings password prompt lacks alphanumeric entry;
+- workstation discovery is not exhausted while a bounded authorized consumer-lab local-neighbor path remains untried.
+
 ## PAX A80 alpha-input checkpoint
 
 Public Bank of America and PAX ecosystem documentation demonstrates that the Android Settings access path can require an alphanumeric password and instructs the operator to enter it through the terminal keypad.
