@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import json
+import re
 import subprocess
 from pathlib import Path
 
@@ -311,6 +312,27 @@ def test_repository_text_policy_is_explicit_and_git_visible() -> None:
         assert marker in validator, f"text validator missing: {marker}"
 
 
+def test_push_whitespace_checks_have_parent_history() -> None:
+    command = "git show --check --oneline --no-renames HEAD"
+    unsafe: list[str] = []
+    for path in sorted((ROOT / ".github/workflows").glob("*.yml")):
+        text = read(path)
+        if command not in text:
+            continue
+        checkout_has_history = (
+            "fetch-depth: 0" in text
+            or re.search(r"fetch-depth:\s*(?:[2-9]|[1-9]\d+)", text) is not None
+            or ("github.sha" in text and "--depth=2" in text)
+        )
+        if not checkout_has_history:
+            unsafe.append(path.relative_to(ROOT).as_posix())
+    assert not unsafe, (
+        "push whitespace check can see a shallow root instead of HEAD's parent; "
+        "set checkout fetch-depth >= 2 or explicitly fetch the current SHA with depth 2: "
+        + ", ".join(unsafe)
+    )
+
+
 def test_hooks_ci_map_and_operator_report_are_wired() -> None:
     pre_commit = read(PRE_COMMIT)
     pre_push = read(PRE_PUSH)
@@ -392,6 +414,7 @@ def main() -> int:
     test_outcome_driven_execution_floor()
     test_artifact_registry_names_locations_generators_and_privacy()
     test_repository_text_policy_is_explicit_and_git_visible()
+    test_push_whitespace_checks_have_parent_history()
     test_hooks_ci_map_and_operator_report_are_wired()
     print("PASS: operational harness completeness")
     return 0
