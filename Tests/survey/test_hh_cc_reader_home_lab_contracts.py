@@ -113,6 +113,7 @@ def main() -> int:
     artifact_ids = {entry["id"] for entry in artifacts["artifacts"]}
     assert "hh-cc-reader-network-checkpoint-result" in artifact_ids
     assert "hh-cc-reader-home-lab-discovery-result" in artifact_ids
+    assert "hh-cc-reader-alpha-input-plan-result" in artifact_ids
 
     assert "PROTECTED_ENTERPRISE" in docs
     assert "AUTHORIZED_CONSUMER_LAB" in docs
