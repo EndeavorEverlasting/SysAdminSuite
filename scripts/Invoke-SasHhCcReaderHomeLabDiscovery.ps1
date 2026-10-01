@@ -309,7 +309,8 @@ if ($targetIp) {
     }
 }
 
-$stamp = [DateTimeOffset]::Now.ToString('yyyyMMdd-HHmmss')
+$stamp = [DateTimeOffset]::Now.ToString('yyyyMMdd-HHmmss-fff')
+$suffix = [Guid]::NewGuid().ToString('N').Substring(0,8)
 $result = [ordered]@{
     schema_version = 'sas-hh-cc-reader-home-lab-discovery/v1'
     timestamp = [DateTimeOffset]::Now.ToString('o')
@@ -350,7 +351,7 @@ $result = [ordered]@{
     mutation = 'NONE'
 }
 
-$receiptPath = Join-Path $outputRoot ("hh-cc-reader-home-lab-discovery-{0}.json" -f $stamp)
+$receiptPath = Join-Path $outputRoot ("hh-cc-reader-home-lab-discovery-{0}-{1}.json" -f $stamp,$suffix)
 $result | ConvertTo-Json -Depth 10 | Set-Content -LiteralPath $receiptPath -Encoding UTF8
 
 Write-Host ("CLASSIFICATION={0}" -f $classification)
