@@ -232,7 +232,8 @@
               "id",
               "role",
               "priority",
-              "state",
+              "evidence_rank",
+              "disposition",
               "evidence_basis",
               "next_discriminator"
             ],
@@ -252,16 +253,6 @@
                 "type": "integer",
                 "minimum": 1
               },
-              "state": {
-                "enum": [
-                  "STRONGEST_ESTATE_MATCH",
-                  "STRONGEST_DELIVERY_MATCH",
-                  "EVIDENCE_GAP",
-                  "PROVEN_PATH",
-                  "NOT_APPLICABLE",
-                  "CREDENTIAL_GATE"
-                ]
-              },
               "evidence_basis": {
                 "type": "string",
                 "minLength": 32
@@ -269,6 +260,21 @@
               "next_discriminator": {
                 "type": "string",
                 "minLength": 32
+              },
+              "evidence_rank": {
+                "enum": [
+                  "STRONGEST_ESTATE_MATCH",
+                  "STRONGEST_DELIVERY_MATCH",
+                  "FALLBACK"
+                ]
+              },
+              "disposition": {
+                "enum": [
+                  "PROVEN_PATH",
+                  "NOT_APPLICABLE",
+                  "CREDENTIAL_GATE",
+                  "EVIDENCE_GAP"
+                ]
               }
             }
           }

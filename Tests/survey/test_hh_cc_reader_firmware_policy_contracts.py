@@ -104,8 +104,18 @@ def test_mechanism_discovery_must_precede_human_escalation() -> None:
         "terminal-tms-pull",
         "provider-auto-update",
     ]
-    assert mechanism["candidate_order"][0]["state"] == "STRONGEST_ESTATE_MATCH"
-    assert mechanism["candidate_order"][1]["state"] == "STRONGEST_DELIVERY_MATCH"
+    assert [item["evidence_rank"] for item in mechanism["candidate_order"]] == [
+        "STRONGEST_ESTATE_MATCH",
+        "STRONGEST_DELIVERY_MATCH",
+        "FALLBACK",
+        "FALLBACK",
+    ]
+    assert [item["disposition"] for item in mechanism["candidate_order"]] == [
+        "CREDENTIAL_GATE",
+        "CREDENTIAL_GATE",
+        "NOT_APPLICABLE",
+        "EVIDENCE_GAP",
+    ]
     assert all(mechanism["rules"].values())
     assert mechanism["rules"]["exhaust_supported_mechanisms_before_human_escalation"] is True
     assert mechanism["rules"]["human_owner_confirmation_is_not_a_primary_discriminator"] is True
