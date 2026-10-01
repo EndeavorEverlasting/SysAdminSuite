@@ -101,7 +101,7 @@ def main() -> int:
     entries = {entry["id"]: entry for entry in registry["commands"]}
     expected_commands = {
         "hh-cc-reader-network-switch-prepare": ("Prepare-HHCCReaderNetworkSwitch.cmd RUN_ID [EXPECTED_MAC]", True),
-        "hh-cc-reader-network-checkpoint": ("Checkpoint-HHCCReaderNetwork.cmd PHASE RUN_ID [EXPECTED_MAC] [LABEL]", False),
+        "hh-cc-reader-network-checkpoint": ("Checkpoint-HHCCReaderNetwork.cmd PHASE RUN_ID [EXPECTED_MAC]", False),
         "hh-cc-reader-home-lab-discovery": ("Discover-HHCCReaderHomeLab.cmd RUN_ID CONFIRM_CONSUMER_LAB [EXPECTED_MAC]", True),
         "hh-cc-reader-alpha-input-plan": ("Plan-HHCCReaderAlphaInput.cmd", False),
     }
