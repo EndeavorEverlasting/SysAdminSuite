@@ -47,6 +47,57 @@
       "handling": "Do not discard the row, relabel it as outdated, or treat it as the rollout target solely to remove the inconsistency. Carry the ambiguity into management-plane clarification."
     }
   ],
+  "mechanism_discovery": {
+    "strategy": "mechanism_first_before_human_escalation",
+    "human_escalation": "fallback_only_after_supported_mechanisms_are_dispositioned_or_a_concrete_credential_gate_is_reached",
+    "required_dispositions": [
+      "PROVEN_PATH",
+      "NOT_APPLICABLE",
+      "CREDENTIAL_GATE",
+      "EVIDENCE_GAP"
+    ],
+    "candidate_order": [
+      {
+        "id": "payment-fusion-control-center",
+        "role": "estate_management_surface",
+        "priority": 1,
+        "state": "STRONGEST_ESTATE_MATCH",
+        "evidence_basis": "Public PAX/AxiaMed documentation identifies Control Center as a cloud payment-device management surface for PAX Android devices with remote update capability; current Bank of America Payment Fusion documentation exposes terminal inventory and application/settings management. Operator-managed H&H field evidence is materially consistent with this stack.",
+        "next_discriminator": "Use already-authorized Payment Fusion Control Center or Healthcare Omni-Channel access to locate one representative terminal and inspect its software/update controls. If access is denied, record CREDENTIAL_GATE for this named surface; do not replace it with a generic owner-identification request."
+      },
+      {
+        "id": "paxstore-ota-push",
+        "role": "firmware_delivery_mechanism",
+        "priority": 2,
+        "state": "STRONGEST_DELIVERY_MATCH",
+        "evidence_basis": "The H&H reader Connectivity Test exposes PAX Store Push Service Primary on TCP 443, while PAX documentation supports over-the-air firmware push to individual terminals and terminal groups.",
+        "next_discriminator": "Use already-authorized PAXSTORE access to locate one representative terminal, inspect App & Firmware or Push Firmware, and determine whether the selected planning target package is exposed. If access is denied, record CREDENTIAL_GATE for PAXSTORE."
+      },
+      {
+        "id": "terminal-tms-pull",
+        "role": "provider_specific_fallback",
+        "priority": 3,
+        "state": "EVIDENCE_GAP",
+        "evidence_basis": "Public PAX A80 deployments from other providers demonstrate terminal-initiated TMS application or firmware pull workflows, but no H&H/AxiaMed local TMS update control is currently proven.",
+        "next_discriminator": "Inspect only already-exposed read-only AxiaMed or admin surfaces for NTMS, TMS, Update, or Firmware controls. Never alter a TMS endpoint, erase settings, reset the reader, or infer H&H applicability from another provider's guide."
+      },
+      {
+        "id": "provider-auto-update",
+        "role": "provider_specific_fallback",
+        "priority": 4,
+        "state": "EVIDENCE_GAP",
+        "evidence_basis": "Some managed PAX estates apply software or firmware automatically when terminals check in, but no H&H-specific automatic-update policy is currently proven.",
+        "next_discriminator": "Treat automatic update as supported only when estate-specific management evidence or directly observed representative-terminal behavior proves that policy."
+      }
+    ],
+    "rules": {
+      "management_surface_and_delivery_mechanism_are_separate_discriminators": true,
+      "exhaust_supported_mechanisms_before_human_escalation": true,
+      "human_owner_confirmation_is_not_a_primary_discriminator": true,
+      "credential_gate_names_exact_surface_and_missing_access": true,
+      "do_not_mutate_reader_to_discover_management_path": true
+    }
+  },
   "gates": {
     "do_not_treat_active_outdated_no_as_vendor_latest": true,
     "do_not_silently_substitute_target": true,
@@ -63,7 +114,8 @@
         "Active Outdated",
         "2.0.14.221110",
         "2.0.15.260522",
-        "harness/api/hh-cc-reader-firmware-policy.json"
+        "harness/api/hh-cc-reader-firmware-policy.json",
+        "Mechanism-first firmware update discovery"
       ]
     },
     {
@@ -72,7 +124,8 @@
         "H&H CC-reader firmware decision gate",
         "Active Outdated",
         "harness/api/hh-cc-reader-firmware-policy.json",
-        "machine policy is the source of truth"
+        "machine policy is the source of truth",
+        "Mechanism-first update-path exhaustion"
       ]
     }
   ],
