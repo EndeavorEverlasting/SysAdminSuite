@@ -105,6 +105,10 @@ def main() -> int:
         "Passive workstation-capture topology caveat",
         "quiet `pktmon` window",
         "Issue #436 remains the field-acceptance ledger",
+        "Evidence linkage contract",
+        "RUN_ID",
+        "exactly one reader identity",
+        "workstation probe receipt **path and receipt timestamp**",
     ):
         assert marker in netstat_docs, f"Netstat baseline contract missing marker: {marker}"
 
@@ -112,16 +116,16 @@ def main() -> int:
         "## Workstation correlation lane", 1
     )[0]
     phase_order = re.findall(
-        r"(?m)^\d+\. \*\*(Identity gate|BASELINE|START_TEST|DURING_TEST|POST_TEST)\*\*",
+        r"(?m)^(\\d+)\\. \\*\\*(Identity gate|BASELINE|START_TEST|DURING_TEST|POST_TEST)\\*\\*",
         phase_section,
     )
     assert phase_order == [
-        "Identity gate",
-        "BASELINE",
-        "START_TEST",
-        "DURING_TEST",
-        "POST_TEST",
-    ], f"Netstat phase order changed or duplicated: {phase_order}"
+        ("1", "Identity gate"),
+        ("2", "BASELINE"),
+        ("3", "START_TEST"),
+        ("4", "DURING_TEST"),
+        ("5", "POST_TEST"),
+    ], f"Netstat phase numbering/order changed or duplicated: {phase_order}"
     assert "before pressing Netstat `START TEST`" in phase_section
     assert "immediately after the controlled action" in phase_section
 
