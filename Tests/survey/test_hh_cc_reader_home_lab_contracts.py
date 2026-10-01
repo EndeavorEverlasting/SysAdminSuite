@@ -28,7 +28,7 @@ def main() -> int:
     artifacts = json.loads(read("harness/api/harness-artifact-registry.json"))
 
     for marker in (
-        "Invoke-SasNetworkAwareField.ps1" refresh",
+        'Invoke-SasNetworkAwareField.ps1" refresh',
         "C:\\SASAL\\Checkpoint-HHCCReaderNetwork.cmd",
         "C:\\SASAL\\Discover-HHCCReaderHomeLab.cmd",
     ):
