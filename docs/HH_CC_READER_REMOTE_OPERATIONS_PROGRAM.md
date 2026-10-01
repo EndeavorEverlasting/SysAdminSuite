@@ -159,7 +159,9 @@ Current state:
 - H&H public Board material now identifies **Experian as the merchant-services vendor and credit-card-terminal provider as of September 2023**; current 2026 continuity is not yet proved;
 - PAX public material links AxiaMed to A80 devices, remote Control Center management/update, and Payment Fusion; Bank of America acquired AxiaMed in 2021, making those names one downstream vendor-chain hypothesis rather than separate owners;
 - every credentialed management surface remains `ACCESS_NOT_PROVEN`;
-- strongest next gate is confirmation from the current H&H Experian merchant-services relationship owner (or corresponding Experian account/support owner) of the representative A80's actual management plane and package exposure.
+- strongest next gate is confirmation from the current H&H Experian merchant-services relationship owner (or corresponding Experian account/support owner) of the representative A80's actual management plane and package exposure;
+- the exact reopen artifact is the **Estate-authority evidence packet** defined in `docs/HH_CC_READER_NETSTAT_BASELINE.md`;
+- the firmware lane stays quiescent until that packet is COMPLETE — no additional reader diagnostics or public package archaeology.
 
 Required outputs before P6:
 
@@ -170,6 +172,7 @@ Required outputs before P6:
 - target package/version (`2.0.15.260522` unless stronger estate authority supersedes it);
 - supported remote update method;
 - validation/rollback contract.
+
 
 ### P6 — one-reader deployment pilot
 
