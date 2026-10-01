@@ -39,7 +39,8 @@ function Get-SasRepoCommit {
 
 $repoRoot = (Resolve-Path -LiteralPath (Join-Path $PSScriptRoot '..')).Path
 $normalizedExpectedMac = ConvertTo-SasNormalizedMac -Value $ExpectedMac
-$stamp = [DateTimeOffset]::Now.ToString('yyyyMMdd-HHmmss')
+$stamp = [DateTimeOffset]::Now.ToString('yyyyMMdd-HHmmss-fff')
+$suffix = [Guid]::NewGuid().ToString('N').Substring(0,8)
 $outputRoot = Join-Path $repoRoot 'survey\output\hh-cc-reader'
 [void](New-Item -ItemType Directory -Force -Path $outputRoot)
 
@@ -159,7 +160,7 @@ $receipt = [ordered]@{
     mutation = 'NONE'
 }
 
-$receiptPath = Join-Path $outputRoot ("hh-cc-reader-network-checkpoint-{0}-{1}.json" -f $stamp,$Phase.ToLowerInvariant())
+$receiptPath = Join-Path $outputRoot ("hh-cc-reader-network-checkpoint-{0}-{1}-{2}.json" -f $stamp,$Phase.ToLowerInvariant(),$suffix)
 $receipt | ConvertTo-Json -Depth 8 | Set-Content -LiteralPath $receiptPath -Encoding UTF8
 
 $state = [ordered]@{
