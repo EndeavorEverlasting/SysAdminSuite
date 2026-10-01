@@ -24,7 +24,7 @@ No subnet/range discovery is authorized by that command.
 
 Use the network-switch and bounded local-discovery workflow in this document.
 
-The home-lab lane requires an explicit `CONFIRM_CONSUMER_LAB` token, a prepared sealed runtime, and the repository network classifier to report `GUEST_INTERNET` before any active discovery. The home-lab lane is allowed to generate one bounded host-presence pass across the workstation's current **private local subnet**, subject to a hard host-count ceiling, solely to populate local neighbor state and recover an exact approved MAC. It does not perform broad port scanning.
+The home-lab lane requires an explicit `CONFIRM_CONSUMER_LAB` token, a prepared sealed runtime, and the repository network classifier to report `GUEST_INTERNET` before any active discovery. When the reader's approved IPv4 is already known from authoritative field evidence, preserve that information and use the canonical one-target probe instead of rediscovering the subnet. Only when the IPv4 is genuinely unknown may the home-lab lane run up to two bounded host-presence passes across the workstation's current **private local subnet**, subject to a hard host-count ceiling, solely to populate local neighbor state and recover an exact approved MAC. It does not perform broad port scanning.
 
 ## Canonical command flow
 
@@ -47,10 +47,12 @@ It does not change the reader, choose the next network, or configure Windows net
 
 ### 2. After switching networks
 
-Run:
+**Known approved IPv4:** do not throw it away and start subnet discovery. Use the canonical `Probe-HHCCReader.cmd TARGET_IPV4 [EXPECTED_MAC]` route so the explicit IPv4 is immediately re-correlated with the expected MAC and the read-only probe.
+
+**IPv4 genuinely unknown:** run the bounded discovery front door:
 
 ```text
-C:\SASAL\Discover-HHCCReaderHomeLab.cmd RUN_ID
+C:\SASAL\Discover-HHCCReaderHomeLab.cmd RUN_ID CONFIRM_CONSUMER_LAB [EXPECTED_MAC]
 ```
 
 The discovery workflow first captures `AFTER_SWITCH` automatically, then:
@@ -59,13 +61,16 @@ The discovery workflow first captures `AFTER_SWITCH` automatically, then:
 2. records the local IPv4/prefix/default gateway;
 3. refuses a subnet larger than the configured bounded host ceiling;
 4. checks the existing neighbor table for the exact expected MAC;
-5. only when the exact MAC is absent, sends one short ICMP presence attempt to each host address in that one private local subnet to populate neighbor state;
-6. re-reads the neighbor table;
-7. promotes an IPv4 only on one exact expected-MAC match;
-8. records same-OUI neighbors only as advisory candidates;
-9. on one exact match, invokes the existing `Invoke-SasHhCcReaderProbe.ps1` canonical reader probe from the sealed runtime.
+5. only when the exact MAC is absent, sends one short ICMP presence attempt to each host address in that one private local subnet;
+6. waits a bounded settle interval and re-reads the neighbor table;
+7. if the exact MAC is still absent, performs one final bounded reacquisition pass, then re-reads the neighbor table again;
+8. stops early as soon as any exact-MAC match appears;
+9. promotes an IPv4 only on one exact expected-MAC match;
+10. records same-OUI neighbors only as advisory candidates;
+11. on one exact match, invokes the existing `Invoke-SasHhCcReaderProbe.ps1` canonical reader probe from the sealed runtime;
+12. classifies absence only after the bounded reacquisition window is exhausted.
 
-An OUI-only match is never treated as device identity.
+An OUI-only match is never treated as device identity. `HOME_LAB_EXACT_MAC_NOT_FOUND_AFTER_REACQUISITION` means the two-pass bounded window was exhausted; it still does not prove the reader is powered off or absent from the broader network.
 
 ### 3. Manual checkpoint when useful
 
@@ -82,7 +87,7 @@ The home-lab discovery command:
 - requires a private RFC1918 IPv4 interface;
 - follows the interface owning the default route;
 - refuses scopes above the host ceiling;
-- sends at most one bounded presence attempt per local host;
+- sends at most two bounded presence attempts per local host, stopping early when the exact MAC is reacquired;
 - performs no port enumeration;
 - promotes only an exact approved MAC;
 - delegates higher-layer interpretation to the existing one-target reader probe.
@@ -98,7 +103,7 @@ These negative results are routing evidence, not reasons to restart the investig
 - an empty workstation ARP/neighbor cache does not prove the gateway/DHCP authority lacks a lease;
 - a passive exact-MAC capture with no observed frames does not prove the reader is offline or on another VLAN;
 - failure of ALPHA/FUNC behavior inside an AxiaMed-controlled numeric credential field does not prove the separate Android Settings password prompt lacks alphanumeric entry;
-- workstation discovery is not exhausted while a bounded authorized consumer-lab local-neighbor path remains untried.
+- workstation discovery is not exhausted while an authoritative approved IPv4 can be probed directly or the bounded two-pass authorized consumer-lab reacquisition window remains untried.
 
 ## PAX A80 alpha-input checkpoint
 
@@ -128,7 +133,8 @@ The helper codifies documented PAX-family behavior:
 - press the number key containing the desired letter;
 - press **ALPHA** until the desired character visibly appears;
 - do not assume a fixed case-cycle count across applications/firmware;
-- the observed A80 keypad uses the standard letter groups on keys 2–9; the planner follows those visible groups rather than older PAX keypad layouts;\n- special-character positions remain **UNPROVEN** for this A80 prompt unless the UI exposes a symbol-entry method; some documented PAX-family terminals use a visible on-screen Up-arrow/symbol control followed by ALPHA, which may be tested only when that control is actually present.
+- the observed A80 keypad uses the standard letter groups on keys 2–9; the planner follows those visible groups rather than older PAX keypad layouts;
+- special-character positions remain **UNPROVEN** for this A80 prompt unless the UI exposes a symbol-entry method; some documented PAX-family terminals use a visible on-screen Up-arrow/symbol control followed by ALPHA, which may be tested only when that control is actually present.
 
 The A80 hardware has a physical ALPHA key and letter groups on the number keys. Prior failure of ALPHA/FUNC behavior inside an AxiaMed-controlled numeric credential field does not prove that the separate Android Settings prompt behaves the same way.
 
@@ -146,7 +152,8 @@ Ignored local artifacts:
 
 - `survey/output/hh-cc-reader/hh-cc-reader-network-checkpoint-<timestamp>-<phase>.json`
 - `survey/output/hh-cc-reader/hh-cc-reader-home-lab-discovery-<timestamp>.json`
-- `survey/output/hh-cc-reader/hh-cc-reader-alpha-input-plan-<timestamp>.json` (metadata only; supplied text is not persisted)\n- existing canonical probe receipts under `survey/output/hh-cc-reader/`
+- `survey/output/hh-cc-reader/hh-cc-reader-alpha-input-plan-<timestamp>.json` (metadata only; supplied text is not persisted)
+- existing canonical probe receipts under `survey/output/hh-cc-reader/`
 
 Machine-local continuation state:
 
