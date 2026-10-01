@@ -147,7 +147,7 @@ def main() -> int:
         "Remote-update feasibility is source-level supported",
         "not authorization",
         "Mechanism-first firmware update discovery (P13 recurrence fix)",
-        "mechanism exhaustion",
+        "Mechanism exhaustion rule",
         "CREDENTIAL_GATE",
         "Human escalation",
         "AUTHORITY_PACKET_ID",
