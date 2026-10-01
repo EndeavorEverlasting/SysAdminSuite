@@ -85,6 +85,33 @@ For the current Kiosk4 evidence set, `START_TEST` and the built-in Connectivity 
 
 The management baseline can be closed only by authoritative estate-specific evidence such as the applicable PAXSTORE/processor/reseller terminal record, an approved support case or owner confirmation, or another supported management plane that directly identifies the reader and the allowed firmware task. Coworker anecdote, generic PAXSTORE capability, or a successful Connectivity Test is not sufficient.
 
+## Management-plane candidate disposition (2026-10-01)
+
+This section is the durable P5 discovery ledger for firmware target `2.0.15.260522`. It does not authorize mutation.
+
+Access is classified independently of capability using exactly these labels:
+
+- `PROVEN_ACCESS` — a live estate login or owner-confirmed entitlement for this surface is in evidence
+- `ACCESS_NOT_PROVEN` — the surface may exist, but no credentialed session or owner confirmation is in evidence
+- `NOT_APPLICABLE` — the surface cannot satisfy the package/assignment discriminator for this estate
+- `BLOCKED_AUTHORITY` — the surface is identified, but the next operation is blocked pending a named authority or credential
+
+Current dispositions from exhausted provider-neutral evidence:
+
+- **PAXSTORE terminal App & Firmware / Push Firmware** — capability proven by public PAXSTORE documentation and materially consistent with the device-side PAX Store Push Service Primary (443) correlation. Estate tenant, enrollment, and package exposure remain unknown. Access: `ACCESS_NOT_PROVEN`. Package `2.0.15.260522`: unresolved. Strongest capability candidate.
+- **PAXSTORE reseller administrator firmware list / push** — capability proven by the public Reseller Admin Guide (A80 firmware list and push-to-terminal/group). Which reseller owns the H&H estate remains unknown. Access: `ACCESS_NOT_PROVEN`. Package `2.0.15.260522`: unresolved.
+- **PAX North America Technical Support Analyst path** — capability proven as a documented firmware-update route in current PAX NA FAQ material. No open estate support case or analyst confirmation is in evidence. Access: `ACCESS_NOT_PROVEN`. Package `2.0.15.260522`: unresolved.
+- **Processor / ISV ownership hypotheses (Bank of America, AxiaMed, Payment Fusion, Agilant)** — named only as unresolved estate ownership questions. None is proved to own firmware assignment for these readers. Access: `ACCESS_NOT_PROVEN`. Package `2.0.15.260522`: unresolved. Do not promote any of these names into a proved control plane.
+- **Local A80 admin / Diagnostic Test firmware controls** — field exploration found no proved local firmware-update control. Access: `NOT_APPLICABLE` for remote package assignment.
+- **Device Connectivity Test / Netstat alone** — Kiosk4 discriminators are closed by prior provenance (`START_TEST` / Connectivity / `REMOTE_ENDPOINT_CANDIDATE=NONE`). Access: `NOT_APPLICABLE` for package/entitlement resolution. Do not restage another reader window for this gap.
+- **Generic public search for exact build `2.0.15.260522`** — exhausted on 2026-10-01 with no authoritative public PAX package/release mapping. Access: `NOT_APPLICABLE`. Cannot close the estate package gate.
+
+**Strongest next authority gate:** obtain estate-specific confirmation of which candidate above owns the representative H&H A80 terminal record and whether that surface exposes the exact package/release corresponding to `2.0.15.260522`, plus the supported assignment/update method, expected reboot/reconnect behavior, rollback/exception procedure, and post-update acceptance checks.
+
+That confirmation must come from the applicable PAXSTORE/processor/reseller terminal record, an approved support case, or named owner confirmation. Until that gate is crossed, leave every credentialed surface at `ACCESS_NOT_PROVEN` and do not assign, push, sideload, or otherwise mutate firmware.
+
+When an exact management surface is identified and the next operation genuinely requires an operator credential or login, stop at that precise boundary and record: exact surface, why it is the strongest candidate, exact evidence needed after login, smallest operator action required, and expected artifact/proof.
+
 ## Evidence linkage contract
 
 Every controlled evidence window must have one non-secret `RUN_ID` assigned **before** the Identity gate. The operator-managed evidence index must bind that `RUN_ID` to exactly one reader identity and record the window start/end timestamps.
@@ -206,7 +233,7 @@ Identify the authoritative management plane for this estate and record:
 - rollback/exception handling;
 - post-update validation requirements.
 
-Public or generic vendor behavior is not enough to satisfy this baseline for the H&H estate.
+Public or generic vendor behavior is not enough to satisfy this baseline for the H&H estate. Use the **Management-plane candidate disposition (2026-10-01)** ledger above for current typed dispositions; close this baseline only when an estate-specific authority maps the representative reader to package `2.0.15.260522` and the supported update contract.
 
 ## Firmware configuration gate
 

@@ -149,12 +149,22 @@ Use the repository refresh/sealed-runtime path so authorized technician workstat
 
 ### P5 — management-plane discovery
 
-Parallel field/management lane. Required outputs:
+Parallel field/management lane. Canonical ledger: `docs/HH_CC_READER_NETSTAT_BASELINE.md` section **Management-plane candidate disposition (2026-10-01)**.
+
+Current state:
+
+- operator-selected target remains `2.0.15.260522`;
+- Kiosk4 device diagnostics are closed and must not be restaged for this discriminator;
+- public/package search for exact build `2.0.15.260522` is exhausted without an authoritative mapping;
+- every credentialed management surface remains `ACCESS_NOT_PROVEN`;
+- strongest next gate is estate-specific owner/terminal-record confirmation for package exposure and supported assignment method.
+
+Required outputs before P6:
 
 - actual management owner/control plane;
 - entitlement;
 - authoritative current firmware;
-- target package/version;
+- target package/version (`2.0.15.260522` unless stronger estate authority supersedes it);
 - supported remote update method;
 - validation/rollback contract.
 

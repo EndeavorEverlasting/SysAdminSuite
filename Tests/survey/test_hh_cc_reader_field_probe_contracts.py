@@ -129,6 +129,15 @@ def main() -> int:
         "advance to the next unresolved discriminator",
         "Same-window proof stays strict",
         "harness/api/evidence-provenance-registry.json",
+        # Management-plane P5 ledger: typed access dispositions and the
+        # estate-authority gate for exact package 2.0.15.260522.
+        "Management-plane candidate disposition (2026-10-01)",
+        "ACCESS_NOT_PROVEN",
+        "PROVEN_ACCESS",
+        "BLOCKED_AUTHORITY",
+        "Strongest next authority gate",
+        "2.0.15.260522",
+        "Do not restage another reader window for this gap",
     ):
         assert marker in netstat_docs, f"Netstat baseline contract missing marker: {marker}"
 
