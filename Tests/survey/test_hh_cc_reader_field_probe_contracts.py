@@ -135,7 +135,7 @@ def main() -> int:
         "ACCESS_NOT_PROVEN",
         "PROVEN_ACCESS",
         "BLOCKED_AUTHORITY",
-        "Strongest next authority gate",
+        "Strongest next mechanism gate",
         "2.0.15.260522",
         "Do not restage another reader window for this gap",
         "Estate-authority evidence packet",
