@@ -35,7 +35,7 @@ if not exist "C:\SASAL\Probe-HHCCReaderEndpoint.cmd" (
 )
 
 set "SAS_HH_CC_READER_ENDPOINT_REFRESHED=1"
-call "C:\SASAL\Probe-HHCCReaderEndpoint.cmd" %*
+call "C:\SASAL\Probe-HHCCReaderEndpoint.cmd" "%~1" "%~2" "%~3" "%~4" "%~5"
 set "SAS_EXIT=!ERRORLEVEL!"
 goto finish
 
@@ -52,7 +52,7 @@ if not exist "%~dp0scripts\Invoke-SasHhCcReaderEndpointProbe.ps1" (
 )
 
 echo Validating endpoint correlation inputs before any target contact...
-"%SystemRoot%\System32\WindowsPowerShell\v1.0\powershell.exe" -NoLogo -NoProfile -ExecutionPolicy Bypass -File "%~dp0scripts\Invoke-SasHhCcReaderEndpointProbe.ps1" -ReaderIPAddress %1 -RemoteEndpoint %2 -RemotePort %3 -ApprovalRef %4 -ValidateOnly
+"%SystemRoot%\System32\WindowsPowerShell\v1.0\powershell.exe" -NoLogo -NoProfile -ExecutionPolicy Bypass -File "%~dp0scripts\Invoke-SasHhCcReaderEndpointProbe.ps1" -ReaderIPAddress "%~1" -RemoteEndpoint "%~2" -RemotePort "%~3" -ApprovalRef "%~4" -ValidateOnly
 set "SAS_EXIT=!ERRORLEVEL!"
 if not "!SAS_EXIT!"=="0" (
     echo STOP: endpoint correlation input validation failed.
@@ -61,14 +61,14 @@ if not "!SAS_EXIT!"=="0" (
 
 echo Running the canonical reader same-subnet/device gate first...
 set "SAS_HH_CC_READER_REFRESHED=1"
-call "%~dp0Probe-HHCCReader.cmd" %1 %5
+call "%~dp0Probe-HHCCReader.cmd" "%~1" "%~5"
 set "SAS_EXIT=!ERRORLEVEL!"
 if not "!SAS_EXIT!"=="0" (
     echo STOP: canonical reader probe did not pass. Endpoint correlation is not interpreted.
     goto finish
 )
 
-"%SystemRoot%\System32\WindowsPowerShell\v1.0\powershell.exe" -NoLogo -NoProfile -ExecutionPolicy Bypass -File "%~dp0scripts\Invoke-SasHhCcReaderEndpointProbe.ps1" -ReaderIPAddress %1 -RemoteEndpoint %2 -RemotePort %3 -ApprovalRef %4
+"%SystemRoot%\System32\WindowsPowerShell\v1.0\powershell.exe" -NoLogo -NoProfile -ExecutionPolicy Bypass -File "%~dp0scripts\Invoke-SasHhCcReaderEndpointProbe.ps1" -ReaderIPAddress "%~1" -RemoteEndpoint "%~2" -RemotePort "%~3" -ApprovalRef "%~4"
 set "SAS_EXIT=!ERRORLEVEL!"
 goto finish
 
