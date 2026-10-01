@@ -164,6 +164,27 @@
       "proof": "Artifact provenance and discriminator satisfaction stay separate states, a PRIOR_RUN artifact can satisfy a current discriminator without RUN_ID mutation, missing same-run duplication alone never forces restage, explicit invalidation and conflict still reopen or block reuse, cross-window reuse fails closed, and the H&H and field-workflow bindings plus hook, offline, and CI wiring are present."
     },
     {
+      "id": "hh-cc-reader-firmware-policy-contracts",
+      "category": "harness",
+      "platform": "python3+git",
+      "command": "python harness/validators/validate-hh-cc-reader-firmware-policy.py",
+      "blocking": true,
+      "scope": [
+        "harness/api/hh-cc-reader-firmware-policy.json",
+        "schemas/harness/hh-cc-reader-firmware-policy.schema.json",
+        "harness/validators/validate-hh-cc-reader-firmware-policy.py",
+        "Tests/survey/test_hh_cc_reader_firmware_policy_contracts.py",
+        "docs/HH_CC_READER_NETSTAT_BASELINE.md",
+        ".claude/skills/field-workflow/SKILL.md",
+        "harness/api/operational-harness-manifest.json",
+        "CODEBASE_MAP.md",
+        ".githooks/**",
+        ".github/workflows/hh-cc-reader-firmware-policy-contracts.yml",
+        "tests/survey/run_offline_survey_tests.sh"
+      ],
+      "proof": "Active Outdated remains a client classification signal, both observed client-accepted firmware candidates stay explicit, 2.0.15.260522 remains the numeric-highest default candidate, the 2.0.14 ambiguity stays open, and firmware mutation remains gated on authoritative package/update evidence plus a controlled pilot."
+    },
+    {
       "id": "printer-mapping-use-case-contracts",
       "category": "harness",
       "platform": "python3+git",
