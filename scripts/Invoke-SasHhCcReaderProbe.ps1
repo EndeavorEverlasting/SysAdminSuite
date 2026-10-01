@@ -114,8 +114,9 @@ foreach ($config in $configs) {
         if ($localIp.IsIPv6LinkLocal -or $localIp.ToString().StartsWith('169.254.')) { continue }
 
         $same = Test-SasSameIPv4Subnet -Left $localIp -Right $target -PrefixLength ([int]$address.PrefixLength)
+        $networkName = if ($null -ne $config.NetProfile) { [string]$config.NetProfile.Name } else { $null }
         $row = [pscustomobject]@{
-            Network = [string]$config.NetProfile.Name
+            Network = $networkName
             Interface = [string]$config.InterfaceAlias
             LocalAddress = $localIp.ToString()
             PrefixLength = [int]$address.PrefixLength
@@ -126,8 +127,11 @@ foreach ($config in $configs) {
     }
 }
 
-$result.network = @($rows)
-$candidates = @($rows | Where-Object { $_.SameSubnet })
+# Windows PowerShell 5.1 can throw "Argument types do not match" when @(...)
+# directly wraps a generic List[T]. Materialize an ordinary array explicitly.
+$networkRows = $rows.ToArray()
+$result.network = $networkRows
+$candidates = @($networkRows | Where-Object { $_.SameSubnet })
 if ($candidates.Count -eq 0) {
     $result.classification = 'NETWORK_MISMATCH'
     Write-Host 'CLASSIFICATION=NETWORK_MISMATCH'
