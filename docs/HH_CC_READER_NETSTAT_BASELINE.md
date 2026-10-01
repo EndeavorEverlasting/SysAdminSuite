@@ -9,6 +9,19 @@
 
 This document intentionally contains no live H&H target IP, MAC, credential, screenshot, private external-workspace identifier, or raw field output.
 
+## Operator-selected firmware target
+
+**Default target firmware:** `2.0.15.260522`.
+
+This is the operator-selected default target for the H&H A80 rollout and should be carried forward by agents, reports, pilot planning, and management-path discovery unless stronger authoritative estate-specific evidence explicitly supersedes it.
+
+Evidence semantics remain strict:
+
+- `2.0.15.260522` is the current **operator-selected target**, not proof that a particular PAXSTORE/processor tenant has exposed or authorized the corresponding package.
+- Discovery work should seek the exact package/release mapping for `2.0.15.260522`, the owning management plane, and the supported assignment method.
+- Do not silently replace the target with another version because a vendor portal, generic guide, coworker device, or agent proposes a different build. Record any conflict explicitly and reconcile it against authoritative estate-specific evidence.
+- Firmware mutation remains gated on a supported management/update path and a controlled representative-reader pilot.
+
 ## What changed on 2026-09-28
 
 The built-in A80 Netstat surface is now known to require a multi-frame capture rather than a single screenshot.
