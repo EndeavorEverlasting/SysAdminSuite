@@ -59,6 +59,21 @@ The PowerShell implementation:
 - TCP/443 success proves only TCP/443 reachability.
 - No result from this workflow identifies AxiaMed, Bank of America, PAXSTORE, Payment Fusion, or a firmware-management service by itself.
 
+## Authorized consumer-lab bridge
+
+The canonical `Probe-HHCCReader.cmd` remains one-target and does not discover an IP.
+
+When the technician is deliberately reproducing the reader on an authorized private/home lab LAN and the reader IPv4 is not yet known, use the separate tracked workflow:
+
+```text
+Prepare-HHCCReaderNetworkSwitch.cmd RUN_ID [EXPECTED_MAC]
+C:\SASAL\Discover-HHCCReaderHomeLab.cmd RUN_ID
+```
+
+That lane captures before/after workstation network context, performs a bounded private-subnet host-presence pass under a hard host-count ceiling, promotes only one exact expected-MAC match, and then delegates to the existing canonical probe. It is not portable to H&H protected-enterprise networks.
+
+See [HH_CC_READER_HOME_LAB_WORKFLOW.md](HH_CC_READER_HOME_LAB_WORKFLOW.md).
+
 ## Forbidden scope
 
 This lane must not:
