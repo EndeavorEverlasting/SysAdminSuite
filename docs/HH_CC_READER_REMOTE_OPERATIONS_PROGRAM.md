@@ -156,12 +156,15 @@ Current state:
 - operator-selected target remains `2.0.15.260522`;
 - Kiosk4 device diagnostics are closed and must not be restaged for this discriminator;
 - public/package search for exact build `2.0.15.260522` is exhausted without an authoritative mapping;
+- H&H public Board material now identifies **Experian as the merchant-services vendor and credit-card-terminal provider as of September 2023**; current 2026 continuity is not yet proved;
+- PAX public material links AxiaMed to A80 devices, remote Control Center management/update, and Payment Fusion; Bank of America acquired AxiaMed in 2021, making those names one downstream vendor-chain hypothesis rather than separate owners;
 - every credentialed management surface remains `ACCESS_NOT_PROVEN`;
-- strongest next gate is estate-specific owner/terminal-record confirmation for package exposure and supported assignment method.
+- strongest next gate is confirmation from the current H&H Experian merchant-services relationship owner (or corresponding Experian account/support owner) of the representative A80's actual management plane and package exposure.
 
 Required outputs before P6:
 
-- actual management owner/control plane;
+- current H&H owner of the Experian merchant-services/terminal relationship, or evidence that the relationship has been superseded;
+- actual management owner/control plane for the representative A80 (PAXSTORE, AxiaMed/Bank of America Control Center/Gateway, or another supported plane);
 - entitlement;
 - authoritative current firmware;
 - target package/version (`2.0.15.260522` unless stronger estate authority supersedes it);
