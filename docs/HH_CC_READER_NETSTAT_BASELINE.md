@@ -62,7 +62,7 @@ This evidence does **not** prove:
 - the authoritative current or target firmware package/version;
 - that the observed push-service check is the exact transport used for a firmware task on this estate.
 
-The next controlled reader window should therefore preserve the existing Netstat/Connectivity-Test phase contract and look only for a concrete endpoint/port that appears during the built-in test. If one is observed, use the existing one-endpoint correlation launcher. If none is observed, retain `NO_CONCRETE_ENDPOINT_OBSERVED` rather than broadening discovery.
+For the current Kiosk4 evidence set, `START_TEST` and the built-in Connectivity Test are closed by preserved prior provenance, with `REMOTE_ENDPOINT_CANDIDATE=NONE`. Do **not** schedule or repeat another physical reader window merely to obtain a newer `RUN_ID` or to keep searching for an endpoint. Advance to the firmware management baseline. The endpoint-correlation launcher remains dormant unless preserved/current evidence directly exposes one concrete endpoint+port or a documented revalidation trigger invalidates the prior discriminator.
 
 The management baseline can be closed only by authoritative estate-specific evidence such as the applicable PAXSTORE/processor/reseller terminal record, an approved support case or owner confirmation, or another supported management plane that directly identifies the reader and the allowed firmware task. Coworker anecdote, generic PAXSTORE capability, or a successful Connectivity Test is not sufficient.
 
