@@ -67,6 +67,16 @@ def main() -> int:
     for marker in forbidden:
         assert marker.lower() not in lowered, f"endpoint probe contains forbidden marker: {marker}"
 
+    # Shell metacharacters must remain inside quoted positional expansions until
+    # the PowerShell validator applies the stricter endpoint/reference grammar.
+    assert 'call "C:\\SASAL\\Probe-HHCCReaderEndpoint.cmd" "%~1" "%~2" "%~3" "%~4" "%~5"' in launcher
+    assert '-ReaderIPAddress "%~1" -RemoteEndpoint "%~2" -RemotePort "%~3" -ApprovalRef "%~4" -ValidateOnly' in launcher
+    assert 'call "%~dp0Probe-HHCCReader.cmd" "%~1" "%~5"' in launcher
+    assert 'Probe-HHCCReaderEndpoint.cmd" %*' not in launcher
+    assert "-ReaderIPAddress %1" not in launcher
+    assert "-RemoteEndpoint %2" not in launcher
+    assert "-ApprovalRef %4" not in launcher
+
     normalized_launcher = re.sub(r"\s+", " ", launcher)
     assert "CIDRs, ranges, wildcards" in normalized_launcher
     assert "CIDRs, ranges, wildcards" in script
