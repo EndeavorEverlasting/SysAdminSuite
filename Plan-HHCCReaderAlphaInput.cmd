@@ -4,6 +4,7 @@ title SysAdminSuite - H&H CC Reader PAX Keypad Input Plan
 cls
 
 if "%~1"=="" goto usage
+if not "%~2"=="" goto usage
 
 if not exist "%~dp0scripts\ConvertTo-SasPaxKeypadPlan.ps1" (
   echo ERROR: keypad planning implementation is missing beside this launcher.
@@ -22,12 +23,12 @@ echo  Special-character mappings are never invented.
 echo ================================================================
 echo.
 
-"%SystemRoot%\System32\WindowsPowerShell\v1.0\powershell.exe" -NoLogo -NoProfile -ExecutionPolicy Bypass -File "%~dp0scripts\ConvertTo-SasPaxKeypadPlan.ps1" -Text "%*"
+"%SystemRoot%\System32\WindowsPowerShell\v1.0\powershell.exe" -NoLogo -NoProfile -ExecutionPolicy Bypass -File "%~dp0scripts\ConvertTo-SasPaxKeypadPlan.ps1" -Text "%~1"
 exit /b %ERRORLEVEL%
 
 :usage
 echo Usage:
-echo   Plan-HHCCReaderAlphaInput.cmd TEXT
+echo   Plan-HHCCReaderAlphaInput.cmd "TEXT"
 echo.
 echo Use only with an authorized credential or harmless dry-run text.
 echo The helper plans key entry; it does not validate a password.
