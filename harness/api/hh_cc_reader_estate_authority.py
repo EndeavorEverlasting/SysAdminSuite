@@ -19,6 +19,7 @@ DEFAULT_POLICY_PATH = ROOT / "harness" / "api" / "hh-cc-reader-firmware-policy.j
 ANSWERED_PACKAGE_EXPOSED = frozenset({"YES", "NO"})
 UNKNOWN_MARKERS = frozenset({"UNKNOWN", "", "NONE", "N/A"})
 PACKAGE_EXPOSED_FIELD = "PACKAGE_EXPOSED_FOR_2_0_15_260522"
+RELEASE_REFERENCE_NOT_EXPOSED = "UNKNOWN_SURFACE_NOT_EXPOSED"
 
 _DEFAULTS: dict[str, Any] = {
     "mechanism_id": None,
@@ -343,10 +344,18 @@ def evaluate(inputs: dict[str, Any], policy: dict[str, Any] | None = None) -> di
     ]
     package_exposed = str(data["package_exposed_for_target"]).strip().upper()
     release_id = str(data["package_release_id"]).strip()
+    release_upper = release_id.upper()
     package_conflict = package_exposed == "NO"
+    release_reference_not_exposed = (
+        package_exposed == "YES" and release_upper == RELEASE_REFERENCE_NOT_EXPOSED
+    )
     if package_exposed == "YES" and (
-        release_id.upper() in UNKNOWN_MARKERS or release_id.upper() == "NONE_OBSERVED"
+        release_upper in UNKNOWN_MARKERS
+        or release_upper == "NONE_OBSERVED"
+        or release_reference_not_exposed
     ):
+        unanswered.append("PACKAGE_RELEASE_ID")
+    if package_exposed == "NO" and release_upper != "NONE_OBSERVED":
         unanswered.append("PACKAGE_RELEASE_ID")
     if package_exposed not in ANSWERED_PACKAGE_EXPOSED:
         unanswered.append(PACKAGE_EXPOSED_FIELD)
@@ -360,10 +369,18 @@ def evaluate(inputs: dict[str, Any], policy: dict[str, Any] | None = None) -> di
             mutation_authorized=False,
             package_conflict=package_conflict,
             fail_closed=bool(acceptance["rules"]["unknown_without_reason_fails_closed"]),
-            reason="PACKET_FIELDS_INCOMPLETE",
+            reason=(
+                "RELEASE_REFERENCE_NOT_EXPOSED"
+                if release_reference_not_exposed
+                else "PACKET_FIELDS_INCOMPLETE"
+            ),
             checklist_missing=[],
             unanswered_packet_fields=unanswered,
-            next_gate="COMPLETE_ESTATE_AUTHORITY_PACKET",
+            next_gate=(
+                "P5D_RELEASE_REFERENCE_COMPATIBILITY_REPAIR"
+                if release_reference_not_exposed
+                else "COMPLETE_ESTATE_AUTHORITY_PACKET"
+            ),
             call_stack=[
                 "OPERATOR_READONLY_OBSERVATION",
                 "validate_session_and_role",
