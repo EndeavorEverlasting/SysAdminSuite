@@ -112,6 +112,59 @@ def test_sanitize_reader_identity_ref_and_checklist_derivation() -> None:
     assert remaining == []
 
 
+def test_release_reference_absence_routes_p5d_without_false_resolution() -> None:
+    policy = load_policy()
+    packet = load_packet_or_template(TEMPLATE)
+    packet["evaluator_inputs"]["package_exposed_for_target"] = "YES"
+    packet["evaluator_inputs"]["package_release_id"] = "UNKNOWN_SURFACE_NOT_EXPOSED"
+    normalized = normalize_packet(packet)
+    inputs = normalized["evaluator_inputs"]
+
+    checklist = derive_checklist_satisfied(inputs, policy)
+    assert checklist["resolve-target-package-visibility"] is False
+    remaining_ids = {item["id"] for item in remaining_live_worksheet(inputs)}
+    assert "package_release_reference" in remaining_ids
+    assert normalized["_p5b_normalization"]["p5d_release_reference_compatibility_repair_required"] is True
+
+    # Complete the other live fields so the evaluator reaches the release-reference discriminator.
+    inputs.update(
+        {
+            "authorized_readonly_session": True,
+            "role_scope_ok": True,
+            "representative_terminal_bound": True,
+            "reader_identity_ref": "ext-hh-a80-p5d-test",
+            "current_firmware_observed": True,
+            "current_firmware_value": "2.0.14.221110",
+            "management_owner": "H&H estate tenant as shown on surface",
+            "assignment_method": "automatic terminal updating affordance observed; not invoked",
+            "reboot_reconnect_behavior": "reboot then reconnect per surface text",
+            "rollback_exception_path": "cancel path recorded from surface",
+            "post_update_acceptance": "management and device version strings match target",
+            "access_state": "PROVEN_ACCESS",
+        }
+    )
+    inputs["checklist_satisfied"] = {
+        item["id"]: True for item in policy["readonly_estate_checklist"]["items"]
+    }
+    result = evaluate(inputs)
+    assert result["packet_state"] == "INCOMPLETE"
+    assert result["reason"] == "RELEASE_REFERENCE_NOT_EXPOSED"
+    assert result["next_gate"] == "P5D_RELEASE_REFERENCE_COMPATIBILITY_REPAIR"
+    assert result["mutation_authorized"] is False
+
+
+def test_package_no_uses_none_observed_without_triggering_p5d() -> None:
+    packet = load_packet_or_template(TEMPLATE)
+    packet["evaluator_inputs"]["package_exposed_for_target"] = "NO"
+    packet["evaluator_inputs"]["package_release_id"] = "UNKNOWN"
+    normalized = normalize_packet(packet)
+    inputs = normalized["evaluator_inputs"]
+    assert inputs["package_release_id"] == "NONE_OBSERVED"
+    remaining_ids = {item["id"] for item in remaining_live_worksheet(inputs)}
+    assert "package_release_reference" not in remaining_ids
+    assert normalized["_p5b_normalization"]["p5d_release_reference_compatibility_repair_required"] is False
+
+
 def test_cli_writes_external_packet_and_worksheet() -> None:
     from harness.api.hh_cc_reader_estate_packet_normalize import main as normalize_main
 
@@ -131,8 +184,10 @@ def main() -> int:
     test_normalize_settles_derivable_without_inventing_live()
     test_normalize_then_evaluate_reaches_authorized_readonly_gate()
     test_sanitize_reader_identity_ref_and_checklist_derivation()
+    test_release_reference_absence_routes_p5d_without_false_resolution()
+    test_package_no_uses_none_observed_without_triggering_p5d()
     test_cli_writes_external_packet_and_worksheet()
-    print("PASS: H&H estate-authority P5-B normalization call-stack contracts (5 groups)")
+    print("PASS: H&H estate-authority P5-B normalization call-stack contracts (7 groups)")
     return 0
 
 

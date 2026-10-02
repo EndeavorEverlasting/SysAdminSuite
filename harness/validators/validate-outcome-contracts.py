@@ -79,6 +79,13 @@ def main() -> int:
     assert contract_by_command["autologon-recover"]["success_artifact_id"] == "autologon-field-deployment-result"
     assert contract_by_command["operator-context"]["success_artifact_id"] == "operator-session-state"
     assert contract_by_command["operator-next"]["success_artifact_id"] == "operator-session-state"
+    hh_normalize = contract_by_command["hh-cc-reader-estate-packet-normalize"]
+    assert hh_normalize["continuations"], "P5-B normalization must continue to estate evaluation"
+    hh_eval_continuation = hh_normalize["continuations"][0]
+    assert hh_eval_continuation["command_id"] == "hh-cc-reader-estate-authority-evaluate"
+    assert hh_eval_continuation["when_goal"] == "proven-path"
+    assert hh_eval_continuation["same_turn"] is True
+    assert hh_eval_continuation["requires_authorization"] is False
     assert contract_by_command["autologon-runtime-proof"]["success_outcome"] == "runtime_proven"
     assert contract_by_command["autologon-runtime-proof"]["success_artifact_id"] == "autologon-technician-runtime-proof"
 

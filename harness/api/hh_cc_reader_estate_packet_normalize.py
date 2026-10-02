@@ -43,6 +43,7 @@ DEFAULT_TEMPLATE = (
 )
 DEFAULT_MECHANISM_ID = "payment-fusion-control-center"
 DEFAULT_DISPOSITION = "CREDENTIAL_GATE"
+RELEASE_REFERENCE_NOT_EXPOSED = "UNKNOWN_SURFACE_NOT_EXPOSED"
 
 LIVE_WORKSHEET: tuple[dict[str, str], ...] = (
     {
@@ -104,7 +105,7 @@ LIVE_WORKSHEET: tuple[dict[str, str], ...] = (
         "id": "package_release_reference",
         "look_for": "Stable package/release/list/software/repository ID for .15 IF ANY",
         "where": "same package/software repository record",
-        "capture": "surface-native id OR NONE_OBSERVED; never invent; not another firmware version",
+        "capture": "surface-native id; if package YES and no separate id is exposed, record UNKNOWN_SURFACE_NOT_EXPOSED; NONE_OBSERVED is only for package NO",
         "not_shown_valid": "yes — surface evidence, not operator failure; may trigger P5-D only if package YES and no separate id",
         "blocks_p5": "conditional (P5-D) when package YES and schema cannot represent absence",
         "evidence_state_until_captured": "LIVE_VALUE_NOT_CAPTURED",
@@ -207,8 +208,13 @@ def derive_checklist_satisfied(inputs: dict[str, Any], policy: dict[str, Any]) -
     fw = _resolved_firmware_value(inputs.get("current_firmware_value"))
     package = str(inputs.get("package_exposed_for_target") or "").strip().upper()
     release = inputs.get("package_release_id")
-    package_resolved = package in {"YES", "NO"} and not _unknownish(release)
-    if package == "NO" and str(release or "").strip().upper() == "NONE_OBSERVED":
+    release_upper = str(release or "").strip().upper()
+    package_resolved = (
+        package == "YES"
+        and not _unknownish(release)
+        and release_upper not in {"NONE_OBSERVED", RELEASE_REFERENCE_NOT_EXPOSED}
+    )
+    if package == "NO" and release_upper == "NONE_OBSERVED":
         package_resolved = True
 
     derived = {
@@ -266,9 +272,13 @@ def remaining_live_worksheet(inputs: dict[str, Any]) -> list[dict[str, str]]:
                     needed = True
             elif field == "package_release_id":
                 exposed = str(inputs.get("package_exposed_for_target") or "").strip().upper()
-                if exposed == "YES" and _unknownish(value):
+                release_upper = str(value or "").strip().upper()
+                if exposed == "YES" and (
+                    _unknownish(value)
+                    or release_upper in {"NONE_OBSERVED", RELEASE_REFERENCE_NOT_EXPOSED}
+                ):
                     needed = True
-                elif exposed == "NO" and str(value or "").strip().upper() != "NONE_OBSERVED":
+                elif exposed == "NO" and release_upper != "NONE_OBSERVED":
                     needed = True
                 elif exposed not in {"YES", "NO"}:
                     needed = True
@@ -356,6 +366,11 @@ def normalize_packet(
         "target_firmware_planning_candidate": target,
         "authority_packet_id": inputs.get("authority_packet_id"),
         "live_observations_remaining": remaining_live_worksheet(inputs),
+        "p5d_release_reference_compatibility_repair_required": (
+            str(inputs.get("package_exposed_for_target") or "").strip().upper() == "YES"
+            and str(inputs.get("package_release_id") or "").strip().upper()
+            == RELEASE_REFERENCE_NOT_EXPOSED
+        ),
         "invented_live_values": False,
         "network_contact": False,
     }
@@ -494,6 +509,10 @@ def main(argv: list[str] | None = None) -> int:
         f"{normalized['evaluator_inputs'].get('target_firmware_planning_candidate')}"
     )
     print(f"LIVE_OBSERVATIONS_REMAINING={len(remaining)}")
+    print(
+        "P5D_RELEASE_REFERENCE_COMPATIBILITY_REPAIR_REQUIRED="
+        f"{normalized['_p5b_normalization']['p5d_release_reference_compatibility_repair_required']}"
+    )
     print(f"INVENTED_LIVE_VALUES={normalized['_p5b_normalization']['invented_live_values']}")
     if worksheet_path is not None:
         print(f"WORKSHEET={worksheet_path}")
