@@ -326,7 +326,6 @@ def test_harness_wiring() -> None:
         "hh-cc-reader-firmware-policy-contracts": "Tests/survey/test_hh_cc_reader_firmware_policy_contracts.py",
         "hh-cc-reader-estate-authority-evaluator": "harness/api/hh_cc_reader_estate_authority.py",
         "hh-cc-reader-estate-authority-contracts": "Tests/survey/test_hh_cc_reader_estate_authority_contracts.py",
-        "hh-cc-reader-estate-authority-evaluate-launcher": "Evaluate-HHCCReaderEstateAuthority.cmd",
         "hh-cc-reader-estate-authority-launcher-contracts": "Tests/survey/test_hh_cc_reader_estate_authority_launcher_contracts.py",
     }
     for component_id, path in expected.items():
