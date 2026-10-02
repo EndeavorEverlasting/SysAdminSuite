@@ -197,9 +197,9 @@ Operator-facing status matrices should also classify importance as `CRITICAL`, `
 
 These two questions are different and MUST NOT be conflated:
 
-1. **Planning target selection:** Is `2.0.15.260522` the current firmware planning target?  
+1. **Planning target selection:** Is `2.0.15.260522` the current firmware planning target?
    **State:** `SETTLED_POLICY` — YES. It is the repository's default planning candidate from the client-accepted set.
-2. **Estate package exposure:** Does the authenticated H&H management surface expose a package corresponding to `2.0.15.260522` for the representative estate/terminal?  
+2. **Estate package exposure:** Does the authenticated H&H management surface expose a package corresponding to `2.0.15.260522` for the representative estate/terminal?
    **State:** `LIVE_VALUE_NOT_CAPTURED` until observed.
 
 A user/operator saying “yes, use 2.0.15.260522” settles question 1. It does not fabricate question 2.
