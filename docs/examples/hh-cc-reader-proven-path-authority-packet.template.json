@@ -7,13 +7,15 @@
     "evaluator_path": "harness/api/hh_cc_reader_estate_authority.py",
     "baseline_packet_prose": "docs/HH_CC_READER_NETSTAT_BASELINE.md#estate-authority-evidence-packet-required-to-reopen-firmware-work",
     "session_runbook": "docs/HH_CC_READER_P5_READONLY_SESSION_RUNBOOK.md",
-    "pinned_main_sha_at_template_authoring": "204a3bb93609d4c4e1751dddd7ea466918ef7b05"
+    "pinned_main_sha_at_template_authoring": "b4a668fb24000c46f1abd35ceb031b214c4f86c2"
   },
   "sanitization_rules": [
     "No live serial, IP, MAC, hostname, or badge identifier in tracked source",
     "No credentials, tokens, cookies, or portal session URLs",
     "No restricted screenshots in Git; index externally via AUTHORITY_PACKET_ID",
     "UNKNOWN requires unknown_reasons.<FIELD> with a reason of at least 8 non-blank characters",
+    "current_firmware_value must be a sanitized firmware/version string for PROVEN_PATH; boolean observation alone is insufficient",
+    "package_exposed_for_target UNKNOWN cannot promote even with a reason; promotion requires YES+release id or NO/NONE_OBSERVED",
     "Choose exactly one eligible mechanism_id for this session"
   ],
   "forbidden_actions": [
@@ -40,6 +42,7 @@
     "reader_identity_ref": null,
     "representative_terminal_bound": false,
     "current_firmware_observed": false,
+    "current_firmware_value": null,
     "management_owner": null,
     "package_exposed_for_target": "UNKNOWN",
     "package_release_id": "UNKNOWN",
@@ -191,6 +194,7 @@
     "disposition_may_promote": null,
     "mutation_authorized": null,
     "package_conflict": null,
+    "current_firmware_observed_value": null,
     "reason": null,
     "next_gate": null,
     "checklist_missing": null,
