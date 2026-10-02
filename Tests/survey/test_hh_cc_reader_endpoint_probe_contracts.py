@@ -24,6 +24,7 @@ def main() -> int:
     command_registry = json.loads(read("harness/api/harness-command-registry.json"))
     artifact_registry = json.loads(read("harness/api/harness-artifact-registry.json"))
     outcome_registry = json.loads(read("harness/api/harness-outcome-registry.json"))
+    firmware_policy = json.loads(read("harness/api/hh-cc-reader-firmware-policy.json"))
 
     for marker in (
         'Invoke-SasNetworkAwareField.ps1" refresh',
@@ -91,6 +92,30 @@ def main() -> int:
     assert "cannot independently validate the external human approval source" in docs
     assert "CC-reader software/firmware deployment" in docs
     assert "remains blocked" in docs
+    assert "mechanism discovery is now governed by" in docs
+    assert "management owner is an output, not a prerequisite supplied by a client or coworker" in docs
+    assert "Payment Fusion Control Center / Healthcare Omni-Channel" in docs
+    assert "PAXSTORE OTA firmware push" in docs
+    assert "`CREDENTIAL_GATE`" in docs
+    assert "`NOT_APPLICABLE`" in docs
+    assert "owner-identification requests" in docs
+    p5 = docs.split("### P5 — management-plane discovery", 1)[1].split("### P6 — one-reader deployment pilot", 1)[0]
+    mechanism = {item["id"]: item for item in firmware_policy["mechanism_discovery"]["candidate_order"]}
+    state_markers = {
+        "payment-fusion-control-center": "Payment Fusion Control Center / Healthcare Omni-Channel",
+        "paxstore-ota-push": "PAXSTORE OTA firmware push",
+        "provider-auto-update": "provider-managed automatic update",
+    }
+    for candidate_id, marker in state_markers.items():
+        line = next((line for line in p5.splitlines() if marker in line), "")
+        assert line, f"P5 program lost mechanism marker: {marker}"
+        assert f"`{mechanism[candidate_id]['disposition']}`" in line, (
+            f"P5 program drifted from firmware policy for {candidate_id}: {line}"
+        )
+    assert mechanism["terminal-tms-pull"]["disposition"] == "NOT_APPLICABLE"
+    assert "`NOT_APPLICABLE`" in p5
+    assert "strongest next gate is confirmation from the current H&H Experian" not in docs
+    assert "current H&H owner of the Experian merchant-services/terminal relationship" not in docs
     assert "Probe-HHCCReaderEndpoint.cmd READER_IPV4 REMOTE_ENDPOINT PORT APPROVAL_REF [EXPECTED-MAC]" in qr_plan
     assert "QR-eligible but not yet scanner-ready" in qr_plan
     assert "Raw `Test-NetConnection` snippets are component diagnostics only" in qr_plan
