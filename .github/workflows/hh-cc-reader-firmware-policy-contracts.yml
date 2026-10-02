@@ -8,9 +8,12 @@ on:
     paths:
       - 'harness/api/hh-cc-reader-firmware-policy.json'
       - 'schemas/harness/hh-cc-reader-firmware-policy.schema.json'
+      - 'harness/api/hh_cc_reader_estate_authority.py'
       - 'harness/validators/validate-hh-cc-reader-firmware-policy.py'
       - 'Tests/survey/test_hh_cc_reader_firmware_policy_contracts.py'
+      - 'Tests/survey/test_hh_cc_reader_estate_authority_contracts.py'
       - 'docs/HH_CC_READER_NETSTAT_BASELINE.md'
+      - 'docs/HH_CC_READER_REMOTE_OPERATIONS_PROGRAM.md'
       - '.claude/skills/field-workflow/SKILL.md'
       - 'harness/api/harness-validator-registry.json'
       - 'harness/api/operational-harness-manifest.json'
@@ -24,9 +27,12 @@ on:
     paths:
       - 'harness/api/hh-cc-reader-firmware-policy.json'
       - 'schemas/harness/hh-cc-reader-firmware-policy.schema.json'
+      - 'harness/api/hh_cc_reader_estate_authority.py'
       - 'harness/validators/validate-hh-cc-reader-firmware-policy.py'
       - 'Tests/survey/test_hh_cc_reader_firmware_policy_contracts.py'
+      - 'Tests/survey/test_hh_cc_reader_estate_authority_contracts.py'
       - 'docs/HH_CC_READER_NETSTAT_BASELINE.md'
+      - 'docs/HH_CC_READER_REMOTE_OPERATIONS_PROGRAM.md'
       - '.claude/skills/field-workflow/SKILL.md'
       - 'harness/api/harness-validator-registry.json'
       - 'harness/api/operational-harness-manifest.json'
@@ -51,10 +57,12 @@ jobs:
         with:
           python-version: '3.12'
       - name: Compile policy validator
-        run: python -m py_compile harness/validators/validate-hh-cc-reader-firmware-policy.py Tests/survey/test_hh_cc_reader_firmware_policy_contracts.py
+        run: python -m py_compile harness/validators/validate-hh-cc-reader-firmware-policy.py Tests/survey/test_hh_cc_reader_firmware_policy_contracts.py harness/api/hh_cc_reader_estate_authority.py Tests/survey/test_hh_cc_reader_estate_authority_contracts.py
       - name: Validate firmware decision policy
         run: python harness/validators/validate-hh-cc-reader-firmware-policy.py
       - name: Run focused firmware policy contracts
         run: python Tests/survey/test_hh_cc_reader_firmware_policy_contracts.py
+      - name: Run estate-authority call-stack contracts
+        run: python Tests/survey/test_hh_cc_reader_estate_authority_contracts.py
       - name: Check whitespace
         run: git show --check --oneline --no-renames HEAD

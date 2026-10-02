@@ -128,13 +128,33 @@ def test_mechanism_discovery_must_precede_human_escalation() -> None:
     assert mechanism["rules"]["human_owner_confirmation_is_not_a_primary_discriminator"] is True
     assert "generic owner-identification request" in mechanism["candidate_order"][0]["next_discriminator"]
 
+
+def test_proven_path_acceptance_and_readonly_checklist_are_owned() -> None:
+    policy = load(POLICY)
+    acceptance = policy["proven_path_acceptance"]
+    checklist = policy["readonly_estate_checklist"]
+    assert acceptance["from_disposition"] == "CREDENTIAL_GATE"
+    assert acceptance["to_disposition"] == "PROVEN_PATH"
+    assert acceptance["required_access_state"] == "PROVEN_ACCESS"
+    assert "paxstore-ota-push" in acceptance["eligible_mechanism_ids"]
+    assert "terminal-tms-pull" in acceptance["ineligible_mechanism_ids"]
+    assert acceptance["rules"]["mutation_remains_unauthorized_after_proven_path"] is True
+    assert acceptance["rules"]["package_absence_is_conflict_not_silent_substitution"] is True
+    assert checklist["lane"] == "P5_management_plane_discovery"
+    assert "push" in checklist["forbidden_actions"]
+    assert len(checklist["items"]) == 12
+    assert "Readonly Firmware List + Terminal Management" in checklist["minimum_role_by_surface"]["paxstore-ota-push"]
+
+
 def test_docs_and_agent_lane_point_back_to_machine_policy() -> None:
     doc = read(DOC)
     skill = read(FIELD_SKILL)
     for marker in ("Active Outdated", "2.0.14.221110", "2.0.15.260522", "harness/api/hh-cc-reader-firmware-policy.json"):
         assert marker in doc, f"CC-reader baseline lost marker: {marker}"
-    for marker in ("H&H CC-reader firmware decision gate", "Active Outdated", "site/hospital", "machine policy is the source of truth", "harness/api/hh-cc-reader-firmware-policy.json"):
+    for marker in ("H&H CC-reader firmware decision gate", "Active Outdated", "site/hospital", "machine policy is the source of truth", "harness/api/hh-cc-reader-firmware-policy.json", "PROVEN_PATH acceptance"):
         assert marker in skill, f"field workflow lost marker: {marker}"
+    for marker in ("PROVEN_PATH acceptance record", "Read-only estate evidence checklist"):
+        assert marker in doc, f"CC-reader baseline lost marker: {marker}"
     section = skill.split("## H&H CC-reader firmware decision gate", 1)[1].split("## ", 1)[0]
     policy = load(POLICY)
     for candidate in policy["observed_client_accepted_candidates"]:

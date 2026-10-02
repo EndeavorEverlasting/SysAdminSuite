@@ -176,6 +176,42 @@ Required outputs before P6:
 - rollback/exception path;
 - post-update acceptance contract.
 
+#### PROVEN_PATH acceptance record
+
+Canonical machine owner: `harness/api/hh-cc-reader-firmware-policy.json` section `proven_path_acceptance`.
+Executable seam: `harness/api/hh_cc_reader_estate_authority.py`.
+
+Promotion is proposed only when the evaluator returns `packet_state=COMPLETE`, `proposed_disposition=PROVEN_PATH`, and `mutation_authorized=false`. Package absence is recorded as `package_conflict=true` without silent target substitution. Local TMS/NTMS (`terminal-tms-pull`) remains ineligible.
+
+#### Read-only estate evidence checklist
+
+Canonical machine owner: `harness/api/hh-cc-reader-firmware-policy.json` section `readonly_estate_checklist` (12 ordered required observations). Operator work populates a sanitized observation packet; the evaluator scores the checklist and refuses forbidden discovery mutations.
+
+#### P5 program design and call-stack prototype
+
+**User outcomes:** bind the representative A80 to an authoritative estate surface; close P5 with a PROVEN_PATH acceptance record; keep mutation unauthorized until a separately authorized P6 pilot.
+
+**Domain vocabulary:** MechanismCandidate, Disposition, EstateObservation, AuthorityPacket, ProvenPathAcceptanceRecord, ReadOnlyChecklistItem, PackageConflict, MutationAuthorization.
+
+**Chosen seam (after comparison):** extend the existing firmware policy with acceptance/checklist records and a local evaluator (same pattern as evidence-provenance). Rejected alternatives: prose-only checklist (not executable); separate parallel registry (split authority with no gain while the firmware policy already owns mechanism dispositions).
+
+**Success call stack:**
+
+```text
+OPERATOR_READONLY_OBSERVATION
+  -> validate_session_and_role
+  -> reject_forbidden_mutation
+  -> bind_representative_terminal
+  -> score_readonly_checklist
+  -> assemble_authority_packet
+  -> evaluate_proven_path_transition
+  -> RESULT_PROVEN_PATH_MUTATION_DENIED
+```
+
+**Failure call stacks exercised by fixtures:** blocked authority; discovery mutation rejected; incomplete packet remains `CREDENTIAL_GATE`; ineligible TMS/NTMS rejected; package-absence conflict without substitution.
+
+**Deployment operating model:** local offline Python evaluator only. No PaaS/container/Kubernetes tier is decision-relevant; live portal adapters remain future successor work behind credentials this runtime does not possess.
+
 
 ### P6 — one-reader deployment pilot
 

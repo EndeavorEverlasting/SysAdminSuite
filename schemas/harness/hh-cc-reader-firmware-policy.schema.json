@@ -15,6 +15,8 @@
     "ambiguities",
     "mechanism_discovery",
     "gates",
+    "proven_path_acceptance",
+    "readonly_estate_checklist",
     "bindings",
     "proof_ceiling"
   ],
@@ -342,6 +344,211 @@
         },
         "fleet_default_is_not_site_execution_authority": {
           "const": true
+        }
+      }
+    },
+    "proven_path_acceptance": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "purpose",
+        "from_disposition",
+        "to_disposition",
+        "eligible_mechanism_ids",
+        "ineligible_mechanism_ids",
+        "required_access_state",
+        "required_packet_fields",
+        "rules",
+        "acceptance_record_fields",
+        "completion_gate",
+        "proof_ceiling"
+      ],
+      "properties": {
+        "purpose": {
+          "type": "string",
+          "minLength": 32
+        },
+        "from_disposition": {
+          "const": "CREDENTIAL_GATE"
+        },
+        "to_disposition": {
+          "const": "PROVEN_PATH"
+        },
+        "eligible_mechanism_ids": {
+          "type": "array",
+          "minItems": 3,
+          "uniqueItems": true,
+          "items": {
+            "type": "string",
+            "pattern": "^[a-z0-9][a-z0-9._-]+$"
+          }
+        },
+        "ineligible_mechanism_ids": {
+          "type": "array",
+          "minItems": 1,
+          "uniqueItems": true,
+          "items": {
+            "type": "string",
+            "pattern": "^[a-z0-9][a-z0-9._-]+$"
+          }
+        },
+        "required_access_state": {
+          "const": "PROVEN_ACCESS"
+        },
+        "required_packet_fields": {
+          "type": "array",
+          "minItems": 7,
+          "maxItems": 7,
+          "uniqueItems": true,
+          "items": {
+            "type": "string",
+            "minLength": 8
+          }
+        },
+        "rules": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "authorized_readonly_session_required",
+            "representative_terminal_must_be_bound",
+            "current_firmware_must_be_observed",
+            "all_seven_packet_fields_must_be_answered",
+            "unknown_without_reason_fails_closed",
+            "package_absence_is_conflict_not_silent_substitution",
+            "mutation_remains_unauthorized_after_proven_path",
+            "discovery_must_not_push_assign_activate_approve_reset_or_change",
+            "p6_pilot_remains_separately_authorized"
+          ],
+          "properties": {
+            "authorized_readonly_session_required": {
+              "const": true
+            },
+            "representative_terminal_must_be_bound": {
+              "const": true
+            },
+            "current_firmware_must_be_observed": {
+              "const": true
+            },
+            "all_seven_packet_fields_must_be_answered": {
+              "const": true
+            },
+            "unknown_without_reason_fails_closed": {
+              "const": true
+            },
+            "package_absence_is_conflict_not_silent_substitution": {
+              "const": true
+            },
+            "mutation_remains_unauthorized_after_proven_path": {
+              "const": true
+            },
+            "discovery_must_not_push_assign_activate_approve_reset_or_change": {
+              "const": true
+            },
+            "p6_pilot_remains_separately_authorized": {
+              "const": true
+            }
+          }
+        },
+        "acceptance_record_fields": {
+          "type": "array",
+          "minItems": 12,
+          "uniqueItems": true,
+          "items": {
+            "type": "string",
+            "minLength": 8
+          }
+        },
+        "completion_gate": {
+          "type": "string",
+          "minLength": 64
+        },
+        "proof_ceiling": {
+          "type": "string",
+          "minLength": 32
+        }
+      }
+    },
+    "readonly_estate_checklist": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "purpose",
+        "lane",
+        "forbidden_actions",
+        "minimum_role_by_surface",
+        "items"
+      ],
+      "properties": {
+        "purpose": {
+          "type": "string",
+          "minLength": 32
+        },
+        "lane": {
+          "const": "P5_management_plane_discovery"
+        },
+        "forbidden_actions": {
+          "type": "array",
+          "minItems": 8,
+          "uniqueItems": true,
+          "items": {
+            "type": "string",
+            "minLength": 4
+          }
+        },
+        "minimum_role_by_surface": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "payment-fusion-control-center",
+            "paxstore-ota-push",
+            "provider-auto-update"
+          ],
+          "properties": {
+            "payment-fusion-control-center": {
+              "type": "string",
+              "minLength": 24
+            },
+            "paxstore-ota-push": {
+              "type": "string",
+              "minLength": 16
+            },
+            "provider-auto-update": {
+              "type": "string",
+              "minLength": 24
+            }
+          }
+        },
+        "items": {
+          "type": "array",
+          "minItems": 12,
+          "maxItems": 12,
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": [
+              "id",
+              "order",
+              "required",
+              "observation"
+            ],
+            "properties": {
+              "id": {
+                "type": "string",
+                "pattern": "^[a-z0-9][a-z0-9._-]+$"
+              },
+              "order": {
+                "type": "integer",
+                "minimum": 1
+              },
+              "required": {
+                "const": true
+              },
+              "observation": {
+                "type": "string",
+                "minLength": 24
+              }
+            }
+          }
         }
       }
     },

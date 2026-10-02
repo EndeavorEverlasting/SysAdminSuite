@@ -6,7 +6,7 @@ without promoting it beyond its evidence ceiling. It preserves the two observed
 client-accepted firmware candidates, selects the highest numeric accepted
 candidate as the default planning target, keeps the older accepted version's
 ambiguity open, and blocks silent target substitution or firmware mutation
-without authoritative estate-specific package/update evidence. It also prevents a recurring discovery defect: unknown ownership must not terminate investigation before the supported update-mechanism families are dispositioned.
+without authoritative estate-specific package/update evidence. It also prevents a recurring discovery defect: unknown ownership must not terminate investigation before the supported update-mechanism families are dispositioned. It further owns the PROVEN_PATH acceptance record and read-only estate checklist seams used by the executable estate-authority evaluator.
 """
 from __future__ import annotations
 
@@ -18,9 +18,12 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[2]
 POLICY = ROOT / "harness/api/hh-cc-reader-firmware-policy.json"
 SCHEMA = ROOT / "schemas/harness/hh-cc-reader-firmware-policy.schema.json"
+ESTATE_EVALUATOR = ROOT / "harness/api/hh_cc_reader_estate_authority.py"
+ESTATE_TEST = ROOT / "Tests/survey/test_hh_cc_reader_estate_authority_contracts.py"
 VALIDATORS = ROOT / "harness/api/harness-validator-registry.json"
 MANIFEST = ROOT / "harness/api/operational-harness-manifest.json"
 HH_DOC = ROOT / "docs/HH_CC_READER_NETSTAT_BASELINE.md"
+REMOTE_DOC = ROOT / "docs/HH_CC_READER_REMOTE_OPERATIONS_PROGRAM.md"
 FIELD_SKILL = ROOT / ".claude/skills/field-workflow/SKILL.md"
 CODEBASE_MAP = ROOT / "CODEBASE_MAP.md"
 TEST = ROOT / "Tests/survey/test_hh_cc_reader_firmware_policy_contracts.py"
@@ -210,6 +213,55 @@ def test_mechanism_first_update_path_exhaustion() -> None:
     assert rules["credential_gate_names_exact_surface_and_missing_access"] is True
     assert rules["do_not_mutate_reader_to_discover_management_path"] is True
 
+
+def test_proven_path_acceptance_and_readonly_checklist() -> None:
+    policy = load(POLICY)
+    acceptance = policy["proven_path_acceptance"]
+    checklist = policy["readonly_estate_checklist"]
+    assert acceptance["from_disposition"] == "CREDENTIAL_GATE"
+    assert acceptance["to_disposition"] == "PROVEN_PATH"
+    assert acceptance["required_access_state"] == "PROVEN_ACCESS"
+    assert acceptance["eligible_mechanism_ids"] == [
+        "payment-fusion-control-center",
+        "paxstore-ota-push",
+        "provider-auto-update",
+    ]
+    assert acceptance["ineligible_mechanism_ids"] == ["terminal-tms-pull"]
+    assert len(acceptance["required_packet_fields"]) == 7
+    assert "MANAGEMENT_OWNER" in acceptance["required_packet_fields"]
+    assert "POST_UPDATE_ACCEPTANCE" in acceptance["required_packet_fields"]
+    assert all(acceptance["rules"].values())
+    assert acceptance["rules"]["mutation_remains_unauthorized_after_proven_path"] is True
+    assert acceptance["rules"]["package_absence_is_conflict_not_silent_substitution"] is True
+    assert "PROVEN_PATH" in acceptance["completion_gate"]
+    assert "ACCESS_STATE" in acceptance["completion_gate"]
+    assert "does not authorize" in acceptance["proof_ceiling"].lower()
+    assert "pilot" in acceptance["proof_ceiling"].lower()
+    assert checklist["lane"] == "P5_management_plane_discovery"
+    for action in ("push", "assign", "activate", "approve", "reset", "write"):
+        assert action in checklist["forbidden_actions"], f"checklist lost forbidden action: {action}"
+    assert "Readonly Firmware List + Terminal Management" in checklist["minimum_role_by_surface"]["paxstore-ota-push"]
+    assert "IngEstate" in checklist["minimum_role_by_surface"]["payment-fusion-control-center"] or (
+        "automatic-update" in checklist["minimum_role_by_surface"]["payment-fusion-control-center"]
+    )
+    assert len(checklist["items"]) == 12
+    assert [item["order"] for item in checklist["items"]] == list(range(1, 13))
+    assert all(item["required"] is True for item in checklist["items"])
+    assert checklist["items"][0]["id"] == "confirm-authorized-readonly-session"
+    assert checklist["items"][-1]["id"] == "emit-sanitized-authority-packet"
+    assert ESTATE_EVALUATOR.is_file()
+    assert ESTATE_TEST.is_file()
+    evaluator = read(ESTATE_EVALUATOR)
+    for marker in (
+        "evaluate_proven_path_transition",
+        "DISCOVERY_MUTATION_FORBIDDEN",
+        "PROVEN_PATH_ACCEPTANCE_SATISFIED",
+        "package_conflict",
+        "mutation_authorized",
+    ):
+        assert marker in evaluator, f"estate evaluator lost marker: {marker}"
+
+
 def test_bindings_and_agent_guidance() -> None:
     policy = load(POLICY)
     for binding in policy["bindings"]:
@@ -223,6 +275,7 @@ def test_bindings_and_agent_guidance() -> None:
     assert "harness/api/hh-cc-reader-firmware-policy.json" in section
     assert "Active Outdated" in section
     assert "site/hospital" in section
+    assert "PROVEN_PATH acceptance" in section
     for candidate in policy["observed_client_accepted_candidates"]:
         assert candidate["version"] not in section, "field skill must not duplicate current firmware values"
     assert policy["selection"]["default_target"] not in section, "field skill must read target from policy"
@@ -230,6 +283,12 @@ def test_bindings_and_agent_guidance() -> None:
     assert "## Client inventory firmware evidence" in doc
     assert "2.0.14.221110" in doc
     assert "2.0.15.260522" in doc
+    assert "PROVEN_PATH acceptance record" in doc
+    assert "Read-only estate evidence checklist" in doc
+    remote = read(REMOTE_DOC)
+    assert "PROVEN_PATH acceptance record" in remote
+    assert "Read-only estate evidence checklist" in remote
+    assert "hh_cc_reader_estate_authority.py" in remote
 
 
 def test_harness_wiring() -> None:
@@ -241,7 +300,10 @@ def test_harness_wiring() -> None:
     for required in (
         "harness/api/hh-cc-reader-firmware-policy.json",
         "schemas/harness/hh-cc-reader-firmware-policy.schema.json",
+        "harness/api/hh_cc_reader_estate_authority.py",
+        "Tests/survey/test_hh_cc_reader_estate_authority_contracts.py",
         "docs/HH_CC_READER_NETSTAT_BASELINE.md",
+        "docs/HH_CC_READER_REMOTE_OPERATIONS_PROGRAM.md",
         ".claude/skills/field-workflow/SKILL.md",
     ):
         assert required in entry["scope"], f"validator scope missing: {required}"
@@ -251,30 +313,55 @@ def test_harness_wiring() -> None:
         "hh-cc-reader-firmware-policy-schema": "schemas/harness/hh-cc-reader-firmware-policy.schema.json",
         "hh-cc-reader-firmware-policy-validator": "harness/validators/validate-hh-cc-reader-firmware-policy.py",
         "hh-cc-reader-firmware-policy-contracts": "Tests/survey/test_hh_cc_reader_firmware_policy_contracts.py",
+        "hh-cc-reader-estate-authority-evaluator": "harness/api/hh_cc_reader_estate_authority.py",
+        "hh-cc-reader-estate-authority-contracts": "Tests/survey/test_hh_cc_reader_estate_authority_contracts.py",
     }
     for component_id, path in expected.items():
         assert component_id in components, f"manifest missing component: {component_id}"
         assert components[component_id]["path"] == path
     validator_name = "validate-hh-cc-reader-firmware-policy.py"
+    estate_test = "test_hh_cc_reader_estate_authority_contracts.py"
     for path in (PRE_COMMIT, PRE_PUSH, OFFLINE, CI):
-        assert validator_name in read(path), f"firmware policy validator not wired: {path.relative_to(ROOT)}"
+        text = read(path)
+        assert validator_name in text, f"firmware policy validator not wired: {path.relative_to(ROOT)}"
+        assert estate_test in text, f"estate-authority contracts not wired: {path.relative_to(ROOT)}"
     assert TEST.relative_to(ROOT).as_posix() in read(OFFLINE)
     assert "harness/api/hh-cc-reader-firmware-policy.json" in read(CODEBASE_MAP)
+    assert "hh_cc_reader_estate_authority.py" in read(CODEBASE_MAP)
 
 
 def test_offline_and_live_data_boundaries() -> None:
-    targets = (POLICY, SCHEMA, Path(__file__), TEST, HH_DOC, FIELD_SKILL)
+    targets = (POLICY, SCHEMA, Path(__file__), TEST, ESTATE_EVALUATOR, ESTATE_TEST, HH_DOC, REMOTE_DOC, FIELD_SKILL)
     joined = "\n".join(read(path) for path in targets)
     for marker in PROVIDER_MARKERS:
         assert marker not in joined, f"provider-specific marker leaked: {marker}"
-    assert not re.search(r"(?i)\b(?:\d{1,3}\.){3}\d{1,3}\b", joined), "IPv4 literal not needed in firmware policy"
-    assert not re.search(r"(?i)\b(?:[0-9a-f]{2}[-:]){5}[0-9a-f]{2}\b", joined), "MAC literal not needed in firmware policy"
-    for path in (Path(__file__), TEST):
+    # Remote-ops program retains documented TEST-NET launcher examples; keep IPv4/MAC
+    # fail-closed on the estate-authority and policy surfaces that must stay identifier-free.
+    identity_surfaces = (POLICY, SCHEMA, Path(__file__), TEST, ESTATE_EVALUATOR, ESTATE_TEST, FIELD_SKILL)
+    identity_joined = "\n".join(read(path) for path in identity_surfaces)
+    assert not re.search(r"(?i)\b(?:\d{1,3}\.){3}\d{1,3}\b", identity_joined), "IPv4 literal not needed in firmware policy"
+    assert not re.search(r"(?i)\b(?:[0-9a-f]{2}[-:]){5}[0-9a-f]{2}\b", identity_joined), "MAC literal not needed in firmware policy"
+    for path in (Path(__file__), TEST, ESTATE_EVALUATOR, ESTATE_TEST):
         assert not NETWORK_IMPORT.search(read(path)), f"network import in offline firmware contract: {path.name}"
 
 
 def test_components_are_tracked() -> None:
-    for path in (POLICY, SCHEMA, Path(__file__), TEST, HH_DOC, FIELD_SKILL, CODEBASE_MAP, PRE_COMMIT, PRE_PUSH, OFFLINE, CI):
+    for path in (
+        POLICY,
+        SCHEMA,
+        Path(__file__),
+        TEST,
+        ESTATE_EVALUATOR,
+        ESTATE_TEST,
+        HH_DOC,
+        REMOTE_DOC,
+        FIELD_SKILL,
+        CODEBASE_MAP,
+        PRE_COMMIT,
+        PRE_PUSH,
+        OFFLINE,
+        CI,
+    ):
         assert tracked(path), f"H&H firmware policy component is not tracked: {path.relative_to(ROOT)}"
 
 

@@ -218,6 +218,44 @@ Until one mechanism reaches `PROVEN_PATH` and the exact package/release mapping 
 
 When an exact management surface is identified and the next operation genuinely requires an operator credential or login, stop at that precise boundary and record: exact surface, why it is the strongest candidate, exact evidence needed after login, smallest operator action required, and expected artifact/proof.
 
+## PROVEN_PATH acceptance record
+
+Machine owner: `harness/api/hh-cc-reader-firmware-policy.json` → `proven_path_acceptance`, evaluated by `harness/api/hh_cc_reader_estate_authority.py`.
+
+A named mechanism may propose `CREDENTIAL_GATE` → `PROVEN_PATH` only when the sanitized acceptance record proves all of:
+
+1. authorized read-only session on an eligible surface (`payment-fusion-control-center`, `paxstore-ota-push`, or `provider-auto-update`);
+2. minimum read role satisfied (PAXSTORE: **Readonly Firmware List + Terminal Management**);
+3. representative A80 bound via non-secret `READER_IDENTITY_REF`;
+4. authoritative current firmware/package observed;
+5. all seven estate-authority packet fields answered;
+6. `ACCESS_STATE=PROVEN_ACCESS`;
+7. non-secret `AUTHORITY_PACKET_ID` indexed;
+8. no discovery mutation (`push` / `assign` / `activate` / `approve` / `reset` / `write` / related forbidden actions).
+
+`PACKAGE_EXPOSED_FOR_2_0_15_260522=NO` is an explicit package conflict, not permission to substitute another build. The path may still become `PROVEN_PATH`, but pilot package authority remains blocked until the conflict is resolved.
+
+`mutation_authorized` remains `false` after `PROVEN_PATH`. P6 is a separately authorized one-reader pilot lane.
+
+## Read-only estate evidence checklist
+
+Machine owner: `harness/api/hh-cc-reader-firmware-policy.json` → `readonly_estate_checklist`.
+
+Ordered discovery observations (all required; none may mutate):
+
+1. confirm authorized read-only session;
+2. confirm minimum read role;
+3. locate representative A80 without add/activate/reassign;
+4. bind non-secret `READER_IDENTITY_REF`;
+5. observe current firmware/package;
+6. inspect automatic-update policy/job/package state without changing it;
+7. resolve visibility of planning candidate `2.0.15.260522`;
+8. record assignment method (observe affordance; do not invoke);
+9. record reboot/reconnect behavior;
+10. record rollback/exception path;
+11. record post-update acceptance criterion;
+12. emit sanitized `AUTHORITY_PACKET_ID` index only.
+
 ## Estate-authority evidence packet (required to reopen firmware work)
 
 The H&H firmware lane is **quiescent** at an external authority boundary. Do not manufacture more repository archaeology, public PAX searching, OpenCode probing, Netstat/START TEST restaging, Connectivity restaging, or endpoint hunting for this gap.
