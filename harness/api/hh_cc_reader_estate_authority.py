@@ -18,6 +18,7 @@ DEFAULT_POLICY_PATH = ROOT / "harness" / "api" / "hh-cc-reader-firmware-policy.j
 
 ANSWERED_PACKAGE_EXPOSED = frozenset({"YES", "NO"})
 UNKNOWN_MARKERS = frozenset({"UNKNOWN", "", "NONE", "N/A"})
+PACKAGE_EXPOSED_FIELD = "PACKAGE_EXPOSED_FOR_2_0_15_260522"
 
 _DEFAULTS: dict[str, Any] = {
     "mechanism_id": None,
@@ -29,6 +30,7 @@ _DEFAULTS: dict[str, Any] = {
     "reader_identity_ref": None,
     "representative_terminal_bound": False,
     "current_firmware_observed": False,
+    "current_firmware_value": None,
     "management_owner": None,
     "package_exposed_for_target": "UNKNOWN",
     "package_release_id": "UNKNOWN",
@@ -69,6 +71,19 @@ def _answered(value: Any, unknown_reasons: dict[str, Any], field: str) -> bool:
     return len(text) >= 1
 
 
+def _resolved_firmware_value(value: Any) -> str | None:
+    """Return a sanitized authoritative firmware string, or None if unresolved."""
+    if value is None or isinstance(value, bool):
+        return None
+    text = str(value).strip()
+    if not text:
+        return None
+    upper = text.upper()
+    if upper in UNKNOWN_MARKERS or upper.startswith("UNKNOWN"):
+        return None
+    return text
+
+
 def _normalize_actions(actions: Any) -> set[str]:
     if actions is None:
         return set()
@@ -77,8 +92,11 @@ def _normalize_actions(actions: Any) -> set[str]:
     return {str(item).strip().lower() for item in actions if str(item).strip()}
 
 
-def _result(**kwargs: Any) -> dict[str, Any]:
-    return kwargs
+def _result(*, current_firmware_observed_value: str | None = None, **kwargs: Any) -> dict[str, Any]:
+    return {
+        "current_firmware_observed_value": current_firmware_observed_value,
+        **kwargs,
+    }
 
 
 def evaluate(inputs: dict[str, Any], policy: dict[str, Any] | None = None) -> dict[str, Any]:
@@ -271,9 +289,31 @@ def evaluate(inputs: dict[str, Any], policy: dict[str, Any] | None = None) -> di
             ],
         )
 
+    firmware_value = _resolved_firmware_value(data["current_firmware_value"])
+    if firmware_value is None:
+        return _result(
+            packet_state="INCOMPLETE",
+            proposed_disposition="CREDENTIAL_GATE",
+            disposition_may_promote=False,
+            mutation_authorized=False,
+            package_conflict=False,
+            fail_closed=False,
+            reason="CURRENT_FIRMWARE_VALUE_REQUIRED",
+            checklist_missing=missing_checklist,
+            next_gate="RECORD_CURRENT_FIRMWARE_VALUE",
+            call_stack=[
+                "OPERATOR_READONLY_OBSERVATION",
+                "validate_session_and_role",
+                "reject_forbidden_mutation",
+                "bind_representative_terminal",
+                "RESULT_INCOMPLETE_CURRENT_FIRMWARE_VALUE",
+            ],
+        )
+
     # --- score_readonly_checklist ---
     if missing_checklist:
         return _result(
+            current_firmware_observed_value=firmware_value,
             packet_state="INCOMPLETE",
             proposed_disposition="CREDENTIAL_GATE",
             disposition_may_promote=False,
@@ -294,10 +334,12 @@ def evaluate(inputs: dict[str, Any], policy: dict[str, Any] | None = None) -> di
         )
 
     # --- assemble_authority_packet ---
+    # Package visibility may be recorded as UNKNOWN+reason for checklist observation,
+    # but completion_gate promotion requires YES or NO only.
     unanswered = [
         field
         for field, value in packet_fields.items()
-        if not _answered(value, unknown_reasons, field)
+        if field != PACKAGE_EXPOSED_FIELD and not _answered(value, unknown_reasons, field)
     ]
     package_exposed = str(data["package_exposed_for_target"]).strip().upper()
     release_id = str(data["package_release_id"]).strip()
@@ -306,14 +348,12 @@ def evaluate(inputs: dict[str, Any], policy: dict[str, Any] | None = None) -> di
         release_id.upper() in UNKNOWN_MARKERS or release_id.upper() == "NONE_OBSERVED"
     ):
         unanswered.append("PACKAGE_RELEASE_ID")
-    if package_exposed not in ANSWERED_PACKAGE_EXPOSED and not _answered(
-        package_exposed, unknown_reasons, "PACKAGE_EXPOSED_FOR_2_0_15_260522"
-    ):
-        if "PACKAGE_EXPOSED_FOR_2_0_15_260522" not in unanswered:
-            unanswered.append("PACKAGE_EXPOSED_FOR_2_0_15_260522")
+    if package_exposed not in ANSWERED_PACKAGE_EXPOSED:
+        unanswered.append(PACKAGE_EXPOSED_FIELD)
 
     if unanswered:
         return _result(
+            current_firmware_observed_value=firmware_value,
             packet_state="INCOMPLETE",
             proposed_disposition="CREDENTIAL_GATE",
             disposition_may_promote=False,
@@ -337,6 +377,7 @@ def evaluate(inputs: dict[str, Any], policy: dict[str, Any] | None = None) -> di
 
     if data["access_state"] != acceptance["required_access_state"]:
         return _result(
+            current_firmware_observed_value=firmware_value,
             packet_state="INCOMPLETE",
             proposed_disposition="CREDENTIAL_GATE",
             disposition_may_promote=False,
@@ -359,6 +400,7 @@ def evaluate(inputs: dict[str, Any], policy: dict[str, Any] | None = None) -> di
 
     if not _answered(data["authority_packet_id"], unknown_reasons, "AUTHORITY_PACKET_ID"):
         return _result(
+            current_firmware_observed_value=firmware_value,
             packet_state="INCOMPLETE",
             proposed_disposition="CREDENTIAL_GATE",
             disposition_may_promote=False,
@@ -388,6 +430,7 @@ def evaluate(inputs: dict[str, Any], policy: dict[str, Any] | None = None) -> di
         else "P6_SEPARATE_PILOT_AUTHORIZATION"
     )
     return _result(
+        current_firmware_observed_value=firmware_value,
         packet_state="COMPLETE",
         proposed_disposition=acceptance["to_disposition"],
         disposition_may_promote=True,
