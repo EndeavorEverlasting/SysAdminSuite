@@ -1,7 +1,7 @@
 # H&H CC Reader — P5 read-only estate session runbook
 
 Status: operator procedure
-Pinned policy floor: `main` @ `204a3bb93609d4c4e1751dddd7ea466918ef7b05` (refresh before use)
+Pinned policy floor: `main` @ `b4a668fb24000c46f1abd35ceb031b214c4f86c2` (refresh before use)
 Lane: P5 management-plane discovery only — **not** P6 pilot mutation
 
 ## Authority
@@ -89,8 +89,10 @@ Copy the template's `evaluator_inputs` and update fields as each step succeeds. 
 ### 5. `observe-current-firmware`
 
 - Record the authoritative current firmware/package shown for that terminal.
-- Put the sanitized version string into acceptance `CURRENT_FIRMWARE_OBSERVED`.
+- Set `current_firmware_value` to that sanitized version string (required for PROVEN_PATH).
 - Set `current_firmware_observed=true`.
+- Copy the same sanitized string into acceptance `CURRENT_FIRMWARE_OBSERVED` / evaluator result `current_firmware_observed_value`.
+- Empty / `UNKNOWN` / boolean-only observation cannot promote.
 
 ### 6. `inspect-automatic-update-policy`
 
@@ -103,7 +105,7 @@ Copy the template's `evaluator_inputs` and update fields as each step succeeds. 
 - Set `package_exposed_for_target` to `YES` | `NO` | `UNKNOWN`.
 - If `YES`: set `package_release_id` to the exact sanitized release/list id.
 - If `NO`: set `package_release_id` to `NONE_OBSERVED` (package conflict, not substitution).
-- If `UNKNOWN`: add `unknown_reasons.PACKAGE_EXPOSED_FOR_2_0_15_260522` with an explicit reason (≥ 8 characters).
+- If `UNKNOWN`: add `unknown_reasons.PACKAGE_EXPOSED_FOR_2_0_15_260522` with an explicit reason (≥ 8 characters). UNKNOWN may satisfy checklist recording but **cannot** promote to `PROVEN_PATH` (stays `CREDENTIAL_GATE` / incomplete packet).
 
 ### 8. `record-assignment-method`
 
@@ -125,7 +127,7 @@ Copy the template's `evaluator_inputs` and update fields as each step succeeds. 
 
 ### 12. `emit-sanitized-authority-packet`
 
-- Ensure all seven required packet fields are answered (or UNKNOWN + reason).
+- Ensure all seven required packet fields are answered for promotion: package mapping must be `YES`+release id or `NO`/`NONE_OBSERVED`. UNKNOWN+reason remains incomplete for PROVEN_PATH.
 - Set `access_state=PROVEN_ACCESS` only when the session truly proved access for that surface.
 - Set `authority_packet_id` to the non-secret packet id.
 - Index external artifacts (terminal view, package view, affordance text, reboot/rollback/acceptance text) outside Git.
@@ -133,13 +135,13 @@ Copy the template's `evaluator_inputs` and update fields as each step succeeds. 
 
 ## Evaluate (required)
 
-From a refreshed SysAdminSuite checkout on current `main`:
+From a refreshed SysAdminSuite checkout on current `main`, write filled `evaluator_inputs` to an external JSON file (not Git), then:
 
 ```bash
-python -c "import json; from harness.api.hh_cc_reader_estate_authority import evaluate; print(json.dumps(evaluate(<evaluator_inputs>), indent=2, sort_keys=True))"
+python -c "import json, pathlib; from harness.api.hh_cc_reader_estate_authority import evaluate; packet=json.loads(pathlib.Path(r'<external-filled-packet.json>').read_text(encoding='utf-8')); print(json.dumps(evaluate(packet['evaluator_inputs']), indent=2, sort_keys=True))"
 ```
 
-Or paste `evaluator_inputs` into a local throwaway script. Do not invent a second evaluator.
+Replace `<external-filled-packet.json>` with the private fill-copy path. Do not invent a second evaluator.
 
 ### Expected terminal states
 
@@ -149,8 +151,10 @@ Or paste `evaluator_inputs` into a local throwaway script. Do not invent a secon
 | Role insufficient | `INCOMPLETE` / `CONFIRM_MINIMUM_READ_ROLE` |
 | Reader unbound | `INCOMPLETE` / `BIND_REPRESENTATIVE_A80` |
 | Firmware not observed | `INCOMPLETE` / `OBSERVE_CURRENT_FIRMWARE` |
+| Firmware value missing / UNKNOWN | `INCOMPLETE` / `RECORD_CURRENT_FIRMWARE_VALUE` |
 | Checklist incomplete | `INCOMPLETE` / `COMPLETE_READONLY_CHECKLIST` |
 | Packet fields incomplete | `INCOMPLETE` / `COMPLETE_ESTATE_AUTHORITY_PACKET` |
+| Package visibility UNKNOWN (+reason) | `INCOMPLETE` / `CREDENTIAL_GATE` / `COMPLETE_ESTATE_AUTHORITY_PACKET` (no PROVEN_PATH) |
 | Access not proven | `INCOMPLETE` / `SET_ACCESS_STATE_PROVEN_ACCESS` |
 | Complete + package YES | `COMPLETE` / `PROVEN_PATH` / `mutation_authorized=false` / `P6_SEPARATE_PILOT_AUTHORIZATION` |
 | Complete + package NO | `COMPLETE` / `PROVEN_PATH` / `package_conflict=true` / `RESOLVE_PACKAGE_CONFLICT_BEFORE_P6` |
