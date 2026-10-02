@@ -168,7 +168,7 @@ Current state:
 
 Required outputs before P6:
 
-- one named management surface advances from `CREDENTIAL_GATE` to authorized read access for the representative A80, or new estate-specific evidence proves the automatic-update lane;
+- one named mechanism/control surface advances from `CREDENTIAL_GATE` to authorized read access for the representative A80 (including either Payment Fusion Control Center / Healthcare Omni-Channel or PAXSTORE), or new estate-specific evidence proves the automatic-update lane;
 - representative-terminal record and authoritative current firmware;
 - exact package/release mapping for target `2.0.15.260522` (or a surfaced conflict; do not silently substitute another build);
 - supported remote assignment/update method;
