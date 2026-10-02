@@ -172,9 +172,12 @@
       "scope": [
         "harness/api/hh-cc-reader-firmware-policy.json",
         "schemas/harness/hh-cc-reader-firmware-policy.schema.json",
+        "harness/api/hh_cc_reader_estate_authority.py",
         "harness/validators/validate-hh-cc-reader-firmware-policy.py",
         "Tests/survey/test_hh_cc_reader_firmware_policy_contracts.py",
+        "Tests/survey/test_hh_cc_reader_estate_authority_contracts.py",
         "docs/HH_CC_READER_NETSTAT_BASELINE.md",
+        "docs/HH_CC_READER_REMOTE_OPERATIONS_PROGRAM.md",
         ".claude/skills/field-workflow/SKILL.md",
         "harness/api/operational-harness-manifest.json",
         "CODEBASE_MAP.md",
@@ -182,7 +185,7 @@
         ".github/workflows/hh-cc-reader-firmware-policy-contracts.yml",
         "tests/survey/run_offline_survey_tests.sh"
       ],
-      "proof": "Active Outdated remains a client classification signal, both observed client-accepted firmware candidates stay explicit, 2.0.15.260522 remains the numeric-highest default candidate, the 2.0.14 ambiguity stays open, and firmware mutation remains gated on authoritative package/update evidence plus a controlled pilot."
+      "proof": "Active Outdated remains a client classification signal, both observed client-accepted firmware candidates stay explicit, 2.0.15.260522 remains the numeric-highest default candidate, the 2.0.14 ambiguity stays open, firmware mutation remains gated on authoritative package/update evidence plus a controlled pilot, and PROVEN_PATH acceptance plus the read-only estate checklist are owned by executable seams."
     },
     {
       "id": "printer-mapping-use-case-contracts",

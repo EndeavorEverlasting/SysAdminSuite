@@ -111,6 +111,157 @@
     "site_context_required_before_firmware_mutation": true,
     "fleet_default_is_not_site_execution_authority": true
   },
+  "proven_path_acceptance": {
+    "purpose": "Define the exact acceptance record that may promote one named mechanism from CREDENTIAL_GATE to PROVEN_PATH after authorized read-only estate observation.",
+    "from_disposition": "CREDENTIAL_GATE",
+    "to_disposition": "PROVEN_PATH",
+    "eligible_mechanism_ids": [
+      "payment-fusion-control-center",
+      "paxstore-ota-push",
+      "provider-auto-update"
+    ],
+    "ineligible_mechanism_ids": [
+      "terminal-tms-pull"
+    ],
+    "required_access_state": "PROVEN_ACCESS",
+    "required_packet_fields": [
+      "MANAGEMENT_OWNER",
+      "PACKAGE_EXPOSED_FOR_2_0_15_260522",
+      "PACKAGE_RELEASE_ID",
+      "ASSIGNMENT_METHOD",
+      "REBOOT_RECONNECT_BEHAVIOR",
+      "ROLLBACK_EXCEPTION_PATH",
+      "POST_UPDATE_ACCEPTANCE"
+    ],
+    "rules": {
+      "authorized_readonly_session_required": true,
+      "representative_terminal_must_be_bound": true,
+      "current_firmware_must_be_observed": true,
+      "all_seven_packet_fields_must_be_answered": true,
+      "unknown_without_reason_fails_closed": true,
+      "package_absence_is_conflict_not_silent_substitution": true,
+      "mutation_remains_unauthorized_after_proven_path": true,
+      "discovery_must_not_push_assign_activate_approve_reset_or_change": true,
+      "p6_pilot_remains_separately_authorized": true
+    },
+    "acceptance_record_fields": [
+      "AUTHORITY_PACKET_ID",
+      "READER_IDENTITY_REF",
+      "SOURCE_SURFACE",
+      "MECHANISM_ID",
+      "ACCESS_STATE",
+      "TARGET_FIRMWARE_PLANNING_CANDIDATE",
+      "CURRENT_FIRMWARE_OBSERVED",
+      "PACKAGE_EXPOSED_FOR_2_0_15_260522",
+      "PACKAGE_RELEASE_ID",
+      "ASSIGNMENT_METHOD",
+      "REBOOT_RECONNECT_BEHAVIOR",
+      "ROLLBACK_EXCEPTION_PATH",
+      "POST_UPDATE_ACCEPTANCE",
+      "MANAGEMENT_OWNER",
+      "MUTATION_PERFORMED",
+      "PACKET_STATE"
+    ],
+    "completion_gate": "One eligible mechanism proposes PROVEN_PATH only when ACCESS_STATE is PROVEN_ACCESS, the representative terminal is bound, current firmware is observed, all seven estate-authority packet fields are answered, no discovery mutation occurred, and the package mapping is either YES with a release id or NO/NONE_OBSERVED recorded as an explicit conflict against the planning candidate.",
+    "proof_ceiling": "A PROVEN_PATH acceptance record proves the authoritative estate binding and package/update contract for planning. It does not authorize a firmware push, one-reader pilot, or fleet rollout."
+  },
+  "readonly_estate_checklist": {
+    "purpose": "Ordered read-only estate observation checklist for Payment Fusion/Healthcare Omni-Channel/IngEstate or PAXSTORE. No push, assign, activate, approve, reset, enrollment, reassignment, or package change is permitted.",
+    "lane": "P5_management_plane_discovery",
+    "forbidden_actions": [
+      "push",
+      "assign",
+      "activate",
+      "approve",
+      "reset",
+      "sideload",
+      "enroll",
+      "reassign",
+      "network_change",
+      "package_change",
+      "policy_change",
+      "write"
+    ],
+    "minimum_role_by_surface": {
+      "payment-fusion-control-center": "authorized read access exposing representative terminal, firmware/software state, and automatic-update policy or assignment controls",
+      "paxstore-ota-push": "Readonly Firmware List + Terminal Management",
+      "provider-auto-update": "authorized read access to Control Center/IngEstate or PAXSTORE estate views for update-policy, job, and package state"
+    },
+    "items": [
+      {
+        "id": "confirm-authorized-readonly-session",
+        "order": 1,
+        "required": true,
+        "observation": "Confirm an already-authorized read-only session exists on one eligible estate surface. Do not create accounts or request owner identification."
+      },
+      {
+        "id": "confirm-minimum-read-role",
+        "order": 2,
+        "required": true,
+        "observation": "Confirm the session role meets the surface minimum read role. Full/write/push is not required for discovery."
+      },
+      {
+        "id": "locate-representative-a80",
+        "order": 3,
+        "required": true,
+        "observation": "Locate the representative H&H A80 terminal record without adding, activating, or reassigning terminals."
+      },
+      {
+        "id": "bind-reader-identity-ref",
+        "order": 4,
+        "required": true,
+        "observation": "Bind a non-secret READER_IDENTITY_REF to the observed terminal record. Live serial/IP/MAC stay external."
+      },
+      {
+        "id": "observe-current-firmware",
+        "order": 5,
+        "required": true,
+        "observation": "Record the authoritative current firmware/package shown for that terminal."
+      },
+      {
+        "id": "inspect-automatic-update-policy",
+        "order": 6,
+        "required": true,
+        "observation": "Inspect automatic-update policy/job/package state without initiating, altering, approving, or cancelling a task."
+      },
+      {
+        "id": "resolve-target-package-visibility",
+        "order": 7,
+        "required": true,
+        "observation": "Resolve whether 2.0.15.260522 is exposed. Record YES with release id, NO/NONE_OBSERVED as conflict, or UNKNOWN with reason."
+      },
+      {
+        "id": "record-assignment-method",
+        "order": 8,
+        "required": true,
+        "observation": "Record the supported assignment/update method using the surface's own verb. Observe the affordance; do not invoke it."
+      },
+      {
+        "id": "record-reboot-reconnect-behavior",
+        "order": 9,
+        "required": true,
+        "observation": "Record required reboot/reconnect/wait behavior from the same authority."
+      },
+      {
+        "id": "record-rollback-exception-path",
+        "order": 10,
+        "required": true,
+        "observation": "Record rollback, cancel, or exception handling if the job fails or must be reversed."
+      },
+      {
+        "id": "record-post-update-acceptance",
+        "order": 11,
+        "required": true,
+        "observation": "Record the post-update acceptance criterion stated by that authority."
+      },
+      {
+        "id": "emit-sanitized-authority-packet",
+        "order": 12,
+        "required": true,
+        "observation": "Index a non-secret AUTHORITY_PACKET_ID and sanitized classifications only. Credentials, live terminal identifiers, and restricted screenshots stay external."
+      }
+    ]
+  },
   "bindings": [
     {
       "path": "docs/HH_CC_READER_NETSTAT_BASELINE.md",
@@ -119,7 +270,18 @@
         "2.0.14.221110",
         "2.0.15.260522",
         "harness/api/hh-cc-reader-firmware-policy.json",
-        "Mechanism-first firmware update discovery"
+        "Mechanism-first firmware update discovery",
+        "PROVEN_PATH acceptance record",
+        "Read-only estate evidence checklist"
+      ]
+    },
+    {
+      "path": "docs/HH_CC_READER_REMOTE_OPERATIONS_PROGRAM.md",
+      "required_markers": [
+        "P5 — management-plane discovery",
+        "PROVEN_PATH acceptance record",
+        "Read-only estate evidence checklist",
+        "hh_cc_reader_estate_authority.py"
       ]
     },
     {
@@ -129,11 +291,12 @@
         "Active Outdated",
         "harness/api/hh-cc-reader-firmware-policy.json",
         "machine policy is the source of truth",
-        "Mechanism-first update-path exhaustion"
+        "Mechanism-first update-path exhaustion",
+        "PROVEN_PATH acceptance"
       ]
     }
   ],
-  "proof_ceiling": "Repository policy proves how client inventory evidence is interpreted and how the fleet-level default planning candidate is selected. It does not prove a site-authorized execution target, vendor-global latest firmware, package entitlement, supported assignment, a successful update, or production rollout acceptance.",
+  "proof_ceiling": "Repository policy proves how client inventory evidence is interpreted, how the fleet-level default planning candidate is selected, and the exact PROVEN_PATH acceptance plus read-only estate checklist seams. It does not prove a site-authorized execution target, vendor-global latest firmware, package entitlement, supported assignment, a successful update, or production rollout acceptance.",
   "site_resolution": {
     "fleet_planning_scope": "organization-wide candidate only",
     "default_site_state": "DISCOVERY_REQUIRED",

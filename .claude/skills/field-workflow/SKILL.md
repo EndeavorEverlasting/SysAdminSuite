@@ -33,7 +33,7 @@ Load only the references that match the selected field lane:
 
 ## H&H CC-reader firmware decision gate
 
-For NYC Health + Hospitals PAX A80 firmware planning, load `harness/api/hh-cc-reader-firmware-policy.json` before proposing, changing, or describing the target firmware. The machine policy is the source of truth for the current `Active Outdated` interpretation, accepted-candidate set, fleet-level default-target selection rule, site/hospital discovery state, open ambiguities, supersession conditions, and pre-mutation gates. Resolve organization and site/hospital context before treating any fleet planning candidate as an execution target.
+For NYC Health + Hospitals PAX A80 firmware planning, load `harness/api/hh-cc-reader-firmware-policy.json` before proposing, changing, or describing the target firmware. The machine policy is the source of truth for the current `Active Outdated` interpretation, accepted-candidate set, fleet-level default-target selection rule, site/hospital discovery state, open ambiguities, supersession conditions, pre-mutation gates, and PROVEN_PATH acceptance. Resolve organization and site/hospital context before treating any fleet planning candidate as an execution target.
 
 Do not restate current firmware values or candidate lists in this skill. Read them from the policy at execution time so a policy update cannot leave field guidance stale. If the policy and any prose disagree, stop and surface the conflict rather than choosing a convenient value.
 
@@ -45,6 +45,8 @@ Before escalating to a client, coworker, relationship owner, reseller, vendor ow
 Every mechanism candidate must be dispositioned as `PROVEN_PATH`, `NOT_APPLICABLE`, `CREDENTIAL_GATE`, or `EVIDENCE_GAP`. A `CREDENTIAL_GATE` must name the exact surface and missing access/permission; do not broaden it into a generic "find the owner" request. Human escalation is a fallback only after mechanism exhaustion or when a named surface has a concrete credential/support gate unavailable to automation.
 
 Do not reset a reader, erase settings, change networking/TMS endpoints, sideload firmware, or perform a firmware push merely to discover which management path exists. Discovery remains read-only until the machine policy's pre-mutation gates and separately authorized pilot gate are satisfied.
+
+The read-only estate checklist and PROVEN_PATH acceptance record live in the same machine policy (`proven_path_acceptance`, `readonly_estate_checklist`) and are evaluated by `harness/api/hh_cc_reader_estate_authority.py`. Do not invent alternate promotion rules in chat. A complete acceptance record still leaves mutation unauthorized; P6 remains a separate pilot authorization.
 
 ## Operator command composition gate
 
