@@ -191,9 +191,14 @@ def test_mechanism_first_update_path_exhaustion() -> None:
         "CREDENTIAL_GATE",
         "CREDENTIAL_GATE",
         "NOT_APPLICABLE",
-        "EVIDENCE_GAP",
+        "CREDENTIAL_GATE",
     ]
     assert candidates[1]["role"] == "firmware_delivery_mechanism"
+    assert "Readonly Firmware List + Terminal Management" in candidates[1]["next_discriminator"]
+    assert "Full/write/push privileges are not required for discovery" in candidates[1]["next_discriminator"]
+    assert "Automatic terminal updating" in candidates[3]["evidence_basis"]
+    assert "IngEstate" in candidates[3]["evidence_basis"]
+    assert "platform capability alone" in candidates[3]["next_discriminator"]
     joined = "\n".join(item["next_discriminator"] for item in candidates)
     for marker in ("CREDENTIAL_GATE", "PAXSTORE", "NTMS", "automatic update"):
         assert marker in joined, f"mechanism-first discriminator lost marker: {marker}"
