@@ -352,3 +352,21 @@ Completion gate: receipt validation plus tracker writeback/readback proof.
 ## Proof ceiling
 
 Repository planning, fixtures, validators, dry runs, and receipt rendering can prove contracts and local behavior. They cannot prove Kiosk4 identity, live package assignment, firmware mutation, restoration, or tracker writeback until those actions are observed in the appropriate runtime.
+
+## Recovered Kiosk4 tracker/source baseline candidate
+
+The existing CC Reader Technician Dashboard and its underlying source inventory identify the experimental Kiosk4 record as:
+
+- source name: Kiosk4;
+- source serial / CC identity: 1240473751;
+- model: PAX A80;
+- source MAC: C8:40:52:3C:93:BA;
+- source firmware/application version: 2.0.15.260410;
+- source state: deployed;
+- client/tracker Active Outdated classification: Yes;
+- source status: offline at the historical inventory snapshot.
+
+These values are the expected identity/baseline candidates for the live lock. They do not prove current network reachability, current IPv4, or current live firmware.
+
+The historical offline field must not be promoted into a present-tense offline conclusion. The live experiment must prove current identity with the expected serial/MAC and canonical network probe, then re-observe firmware. If live firmware remains 2.0.15.260410 and identity matches, the reader has a strong tracker-backed eligibility path toward target 2.0.15.260522. If live firmware or identity differs, reconcile the discrepancy before mutation.
+
