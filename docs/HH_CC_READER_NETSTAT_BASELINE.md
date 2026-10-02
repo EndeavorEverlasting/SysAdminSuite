@@ -258,7 +258,7 @@ Ordered discovery observations (all required; none may mutate):
 
 ## Estate-authority evidence packet (required to reopen firmware work)
 
-Operator fill-in template (maps to evaluator inputs; does not replace this section or the machine policy): `docs/examples/hh-cc-reader-proven-path-authority-packet.template.json`.  
+Operator fill-in template (maps to evaluator inputs; does not replace this section or the machine policy): `docs/examples/hh-cc-reader-proven-path-authority-packet.template.json`.
 One-surface read-only session procedure: `docs/HH_CC_READER_P5_READONLY_SESSION_RUNBOOK.md`.
 
 The H&H firmware lane is **quiescent** at an external authority boundary. Do not manufacture more repository archaeology, public PAX searching, OpenCode probing, Netstat/START TEST restaging, Connectivity restaging, or endpoint hunting for this gap.

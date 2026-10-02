@@ -1,7 +1,7 @@
 # H&H CC Reader — P5 read-only estate session runbook
 
-Status: operator procedure  
-Pinned policy floor: `main` @ `204a3bb93609d4c4e1751dddd7ea466918ef7b05` (refresh before use)  
+Status: operator procedure
+Pinned policy floor: `main` @ `204a3bb93609d4c4e1751dddd7ea466918ef7b05` (refresh before use)
 Lane: P5 management-plane discovery only — **not** P6 pilot mutation
 
 ## Authority
