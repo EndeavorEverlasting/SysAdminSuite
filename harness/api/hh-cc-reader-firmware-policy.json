@@ -89,7 +89,7 @@
         "role": "provider_specific_fallback",
         "priority": 4,
         "evidence_basis": "Current Bank of America Healthcare Omni-Channel documentation explicitly lists Control Center Automatic terminal updating and IngEstate Remote terminal communication plus a Terminal software repository. Current PAXSTORE material also documents remote firmware updates and policy-based distribution. Automatic update is therefore a proven platform capability on leading candidate stacks, but the H&H representative terminal's enrollment, update policy, package assignment, and target mapping remain unproved.",
-        "next_discriminator": "Resolve H&H applicability through authorized read access to Payment Fusion Control Center / IngEstate or PAXSTORE estate views: inspect the representative terminal's update-policy, job, and package state without initiating or changing a task. Until that read access exists, preserve CREDENTIAL_GATE; do not infer H&H applicability from platform capability alone.",
+        "next_discriminator": "Resolve automatic update H&H applicability through authorized read access to Payment Fusion Control Center / IngEstate or PAXSTORE estate views: inspect the representative terminal's update-policy, job, and package state without initiating or changing a task. Until that read access exists, preserve CREDENTIAL_GATE; do not infer H&H applicability from platform capability alone.",
         "evidence_rank": "FALLBACK",
         "disposition": "CREDENTIAL_GATE"
       }
