@@ -2,293 +2,37 @@
   "schema_version": "sas-harness-command-registry/v1",
   "repository": "EndeavorEverlasting/SysAdminSuite",
   "commands": [
-    {
-      "id": "harness-validate",
-      "kind": "validate",
-      "command": "python harness/validators/validate-harness-registries.py",
-      "source_of_truth": "harness/api/harness-validator-registry.json",
-      "mutation": "repository_read_only",
-      "network": false,
-      "purpose": "Validate harness registries and fresh-agent wiring before broader checks."
-    },
-    {
-      "id": "harness-outcome-validate",
-      "kind": "validate",
-      "command": "python harness/validators/validate-outcome-contracts.py",
-      "source_of_truth": "harness/api/harness-outcome-registry.json",
-      "mutation": "repository_read_only",
-      "network": false,
-      "purpose": "Validate that command chains resolve artifacts or terminal outcomes and do not stop at tests-only or status-only intermediate gates."
-    },
-    {
-      "id": "deployment-state-validate",
-      "kind": "validate",
-      "command": "python harness/validators/validate-deployment-state-contracts.py",
-      "source_of_truth": "harness/api/deployment-state-registry.json",
-      "mutation": "repository_read_only",
-      "network": false,
-      "purpose": "Validate AutoLogon/Cybernet desired-state routing against current package truth, real apply commands, restart semantics, and critical deployment/runtime artifacts."
-    },
-    {
-      "id": "autologon-field-completion-contracts",
-      "kind": "test",
-      "command": "python Tests/survey/test_autologon_field_deployment_completion_contracts.py",
-      "source_of_truth": "Tests/survey/test_autologon_field_deployment_completion_contracts.py",
-      "mutation": "repository_read_only",
-      "network": false,
-      "purpose": "Validate canonical target routing, exact local eligibility, completed-state monotonicity, atomic apply-once behavior, recovery convergence, no-Core boundaries, restart-complete success, and operator-state convergence."
-    },
-    {
-      "id": "harness-completeness",
-      "kind": "test",
-      "command": "python Tests/survey/test_operational_harness_completeness_contracts.py",
-      "source_of_truth": "Tests/survey/test_operational_harness_completeness_contracts.py",
-      "mutation": "repository_read_only",
-      "network": false,
-      "purpose": "Prove the operational harness floor exists, is tracked, and is wired."
-    },
-    {
-      "id": "one-command-harness-proof",
-      "kind": "test",
-      "command": "pwsh -NoProfile -ExecutionPolicy Bypass -File scripts/Invoke-SasVmDryRunHarnessProof.ps1",
-      "source_of_truth": "scripts/Invoke-SasVmDryRunHarnessProof.ps1",
-      "mutation": "repository_build_output_only",
-      "network": false,
-      "purpose": "Run the canonical offline synthetic harness gate locally or in CI and emit one profile-aware PASS/SKIP/FAIL matrix plus machine-readable receipt without runtime, launcher, network, or target mutation proof."
-    },
-    {
-      "id": "offline-floor",
-      "kind": "test",
-      "command": "bash tests/survey/run_offline_survey_tests.sh",
-      "source_of_truth": "tests/survey/run_offline_survey_tests.sh",
-      "mutation": "repository_read_only",
-      "network": false,
-      "purpose": "Run the broad dependency-free offline survey and harness contract floor."
-    },
-    {
-      "id": "powershell-tests",
-      "kind": "test",
-      "command": "pwsh -NoProfile -ExecutionPolicy Bypass -File tools/Test-Pester5Suite.ps1 -TestPath Tests/Pester",
-      "source_of_truth": "tools/Test-Pester5Suite.ps1",
-      "mutation": "repository_read_only",
-      "network": false,
-      "purpose": "Run the maintained PowerShell Pester 5 suite."
-    },
-    {
-      "id": "managed-tests",
-      "kind": "test",
-      "command": "dotnet test SysAdminSuite.sln -c Release --verbosity normal",
-      "source_of_truth": ".github/workflows/dotnet-tests.yml",
-      "mutation": "repository_build_output_only",
-      "network": "restore_may_require_package_source",
-      "purpose": "Restore, build, and run the managed unit-test solution."
-    },
-    {
-      "id": "dashboard-build",
-      "kind": "build",
-      "command": "dotnet publish src/SysAdminSuite.DashboardHost/SysAdminSuite.DashboardHost.csproj -c Release -r win-x64 --self-contained false -o tools/publish/SysAdminSuite.DashboardHost",
-      "source_of_truth": ".github/workflows/dotnet-tests.yml",
-      "mutation": "repository_build_output_only",
-      "network": "restore_may_require_package_source",
-      "purpose": "Publish the framework-dependent Windows dashboard host artifact."
-    },
-    {
-      "id": "dashboard-launch",
-      "kind": "run",
-      "command": "START-HERE-SysAdminSuite-Dashboard.bat",
-      "source_of_truth": "README.md",
-      "mutation": "local_runtime",
-      "network": "workflow_dependent",
-      "purpose": "Canonical field-user dashboard launcher; prefer this over reconstructing internals."
-    },
-    {
-      "id": "operator-context",
-      "kind": "run",
-      "command": "sas context",
-      "source_of_truth": "scripts/Show-SasOperatorContext.ps1",
-      "mutation": "local_runtime",
-      "network": false,
-      "purpose": "Synchronize and display current repo branch/ref, network, requested and canonical target, exact local eligibility, historical recovery, AutoLogon transaction state, evidence path, and exact next action."
-    },
-    {
-      "id": "operator-next",
-      "kind": "run",
-      "command": "sas next",
-      "source_of_truth": "scripts/Show-SasOperatorContext.ps1",
-      "mutation": "local_runtime",
-      "network": false,
-      "purpose": "Display only the required network and one exact next command from persistent operator state."
-    },
-    {
-      "id": "operator-evidence-recovery",
-      "kind": "run",
-      "command": "sas evidence",
-      "source_of_truth": "scripts/Show-SasOperatorEvidence.ps1",
-      "mutation": "local_runtime",
-      "network": false,
-      "purpose": "Recover the newest local deployment/runtime artifact after a closed or crashed terminal across bounded current/Desktop/OneDrive SysAdminSuite checkout layouts and write a stable machine-local evidence index."
-    },
-    {
-      "id": "hh-cc-reader-probe",
-      "kind": "run",
-      "command": "Probe-HHCCReader.cmd TARGET_IPV4 [EXPECTED_MAC]",
-      "source_of_truth": "Probe-HHCCReader.cmd",
-      "mutation": "local_runtime",
-      "network": true,
-      "purpose": "Refresh current SysAdminSuite, then run one explicit Health & Hospitals CC-reader IPv4 target through same-subnet and optional expected-MAC gates before bounded read-only neighbor, ICMP, detailed Test-NetConnection, and TCP-port checks; write only ignored local evidence and never change reader configuration."
-    },
-    {
-      "id": "hh-cc-reader-endpoint-probe",
-      "kind": "run",
-      "command": "Probe-HHCCReaderEndpoint.cmd READER_IPV4 REMOTE_ENDPOINT PORT APPROVAL_REF [EXPECTED_MAC]",
-      "source_of_truth": "Probe-HHCCReaderEndpoint.cmd",
-      "mutation": "local_runtime",
-      "network": true,
-      "purpose": "Refresh current SysAdminSuite, run the canonical CC-reader same-subnet/device gate, then test one observed-and-approved remote hostname/IPv4 and one TCP port; write ignored local evidence and never scan, infer ownership, or mutate the reader."
-    },
-    {
-      "id": "hh-cc-reader-network-switch-prepare",
-      "kind": "run",
-      "command": "Prepare-HHCCReaderNetworkSwitch.cmd RUN_ID [EXPECTED_MAC]",
-      "source_of_truth": "Prepare-HHCCReaderNetworkSwitch.cmd",
-      "mutation": "local_runtime",
-      "network": true,
-      "purpose": "Refresh and seal current SysAdminSuite, capture a BEFORE_SWITCH workstation network checkpoint, and persist machine-local continuation state for an authorized H&H CC-reader network switch without changing reader or workstation network configuration."
-    },
-    {
-      "id": "hh-cc-reader-network-checkpoint",
-      "kind": "run",
-      "command": "Checkpoint-HHCCReaderNetwork.cmd PHASE RUN_ID [EXPECTED_MAC]",
-      "source_of_truth": "Checkpoint-HHCCReaderNetwork.cmd",
-      "mutation": "local_runtime",
-      "network": false,
-      "purpose": "Capture read-only local workstation interface, IPv4/prefix, gateway, DNS, default-route, WLAN metadata, and exact-MAC neighbor state before/after a CC-reader network switch; write ignored local evidence and machine-local continuation state only."
-    },
-    {
-      "id": "hh-cc-reader-home-lab-discovery",
-      "kind": "run",
-      "command": "Discover-HHCCReaderHomeLab.cmd RUN_ID CONFIRM_CONSUMER_LAB [EXPECTED_MAC]",
-      "source_of_truth": "Discover-HHCCReaderHomeLab.cmd",
-      "mutation": "local_runtime",
-      "network": true,
-      "purpose": "On an explicitly authorized consumer/private lab LAN when the reader IPv4 is genuinely unknown, perform at most two bounded host-presence passes across the current private local subnet, stop early on one exact expected-MAC target, then invoke the existing canonical one-target CC-reader probe; no broad port scan or reader mutation."
-    },
-    {
-      "id": "hh-cc-reader-alpha-input-plan",
-      "kind": "run",
-      "command": "Plan-HHCCReaderAlphaInput.cmd",
-      "source_of_truth": "Plan-HHCCReaderAlphaInput.cmd",
-      "mutation": "none",
-      "network": false,
-      "purpose": "Render a local PAX-family keypad entry plan for operator-supplied authorized text using number-key plus ALPHA cycling; never invent special-character mappings or store credential literals in tracked source."
-    },
-    {
-      "id": "hh-cc-reader-estate-authority-evaluate",
-      "kind": "run",
-      "command": "Evaluate-HHCCReaderEstateAuthority.cmd SANITIZED_PACKET_JSON",
-      "source_of_truth": "Evaluate-HHCCReaderEstateAuthority.cmd",
-      "mutation": "none",
-      "network": false,
-      "purpose": "Evaluate one sanitized external P5 estate-authority packet through the canonical Python evaluator, write an ignored local receipt under survey/output/hh-cc-reader/, and never contact Payment Fusion/PAXSTORE or authorize firmware mutation."
-    },
-    {
-      "id": "cybernet-deployment-probe",
-      "kind": "run",
-      "command": "sas cybernet Probe HOST",
-      "source_of_truth": "Probe-CybernetSoftware.cmd",
-      "mutation": "none",
-      "network": true,
-      "purpose": "Run one authorized target through the staged Kerberos SMB plus Task Scheduler readiness chain, stop at the first failed dependency, emit an ignored readiness artifact, and never mutate the target or broaden to WinRM/auto discovery."
-    },
-    {
-      "id": "cybernet-plan",
-      "kind": "deploy-plan",
-      "command": "Run-CybernetClientConfiguration.cmd Plan HOST",
-      "source_of_truth": "Run-CybernetClientConfiguration.cmd",
-      "mutation": "none",
-      "network": false,
-      "purpose": "Historical full Cybernet client configuration plan; not the current software deployment surface."
-    },
-    {
-      "id": "cybernet-apply",
-      "kind": "deploy",
-      "command": "Run-CybernetClientConfiguration.cmd Apply HOST",
-      "source_of_truth": "Run-CybernetClientConfiguration.cmd",
-      "mutation": "authorized_target_mutation",
-      "network": true,
-      "purpose": "Historical full-profile hardware/client Apply surface; do not use it as the current software deployment route."
-    },
-    {
-      "id": "cybernet-core-plan",
-      "kind": "deploy-plan",
-      "command": "Deploy-CybernetClinicalCore.cmd Plan HOST",
-      "source_of_truth": "Deploy-CybernetClinicalCore.cmd",
-      "mutation": "none",
-      "network": false,
-      "purpose": "Dry-run the exact five-package Cybernet clinical core without AutoLogon."
-    },
-    {
-      "id": "hh-cc-reader-estate-packet-normalize",
-      "kind": "run",
-      "command": "Normalize-HHCCReaderEstatePacket.cmd [--output PACKET_OUT] [--worksheet MD] [PACKET_IN]",
-      "source_of_truth": "Normalize-HHCCReaderEstatePacket.cmd",
-      "mutation": "none",
-      "network": false,
-      "purpose": "P5-B: populate settled/derivable fields on one external sanitized estate-authority packet, emit remaining live-observation worksheet, never invent firmware/package/release values or contact Payment Fusion/PAXSTORE."
-    },
-    {
-      "id": "cybernet-core-deploy",
-      "kind": "deploy",
-      "command": "Deploy-CybernetClinicalCore.cmd Deploy HOST",
-      "source_of_truth": "Deploy-CybernetClinicalCore.cmd",
-      "mutation": "authorized_target_mutation",
-      "network": true,
-      "purpose": "Internal five-package clinical-core deployment stage; AutoLogon remains excluded from this stage."
-    },
-    {
-      "id": "cybernet-software-deploy",
-      "kind": "deploy",
-      "command": "sas cybernet Deploy HOST",
-      "source_of_truth": "Deploy-CybernetSoftware.cmd",
-      "mutation": "authorized_target_mutation",
-      "network": true,
-      "purpose": "Run the one-target low-noise Kerberos SMB plus Task Scheduler readiness gate, then deploy the full Cybernet software profile: five clinical applications, AutoLogon last through S4U, automatic target restart, and bounded restart-cycle observation."
-    },
-    {
-      "id": "autologon-recover",
-      "kind": "run",
-      "command": "sas autologon Recover HOST",
-      "source_of_truth": "scripts/Invoke-SasAutoLogonFieldDeployment.ps1",
-      "mutation": "authorized_target_mutation",
-      "network": true,
-      "purpose": "Prove protected network posture and canonical eligibility, skip completed historical recovery, and recover only an exact safely recorded unfinished probe-only S4U transaction. Never install AutoLogon."
-    },
-    {
-      "id": "autologon-remote",
-      "kind": "deploy",
-      "command": "sas autologon Remote HOST",
-      "source_of_truth": "scripts/Invoke-SasAutoLogonFieldDeployment.ps1",
-      "mutation": "authorized_target_mutation",
-      "network": true,
-      "purpose": "Prove protected network posture, canonicalize before exact local eligibility, lock the canonical target, converge safe interrupted probe-only recovery, invoke the hardened AutoLogon S4U apply exactly once, complete the bounded restart, and persist the outer terminal field result."
-    },
-    {
-      "id": "autologon-complete",
-      "kind": "deploy",
-      "command": "Complete-SysAdminSuiteAutoLogon.cmd HOST",
-      "source_of_truth": "scripts/Invoke-SasAutoLogonCompletion.ps1",
-      "mutation": "authorized_target_mutation",
-      "network": true,
-      "purpose": "From the sealed machine-local runtime, prove manifest and full SHA-256 seal before target contact, establish the exact protected network, run one fresh 15-second hard-bounded read-only Kerberos SMB/task admission, and enter the existing crash-safe AutoLogon deployment only after the transport classifies ready."
-    },
-    {
-      "id": "autologon-runtime-proof",
-      "kind": "run",
-      "command": "scripts\\Start-SasAutoLogonTechnicianRuntimeProof.cmd targets\\local\\autologon-runtime.json",
-      "source_of_truth": "scripts/Invoke-SasAutoLogonTechnicianRuntimeProof.ps1",
-      "mutation": "local_runtime",
-      "network": "workflow_dependent",
-      "purpose": "Optional higher-ceiling actual-session runtime proof after deployment; it must not delay or replace software deployment."
-    }
+    {"id":"harness-validate","kind":"validate","command":"python harness/validators/validate-harness-registries.py","source_of_truth":"harness/api/harness-validator-registry.json","mutation":"repository_read_only","network":false,"purpose":"Validate harness registries and fresh-agent wiring before broader checks."},
+    {"id":"harness-outcome-validate","kind":"validate","command":"python harness/validators/validate-outcome-contracts.py","source_of_truth":"harness/api/harness-outcome-registry.json","mutation":"repository_read_only","network":false,"purpose":"Validate that command chains resolve artifacts or terminal outcomes and do not stop at tests-only or status-only intermediate gates."},
+    {"id":"deployment-state-validate","kind":"validate","command":"python harness/validators/validate-deployment-state-contracts.py","source_of_truth":"harness/api/deployment-state-registry.json","mutation":"repository_read_only","network":false,"purpose":"Validate AutoLogon/Cybernet desired-state routing against current package truth, real apply commands, restart semantics, and critical deployment/runtime artifacts."},
+    {"id":"autologon-field-completion-contracts","kind":"test","command":"python Tests/survey/test_autologon_field_deployment_completion_contracts.py","source_of_truth":"Tests/survey/test_autologon_field_deployment_completion_contracts.py","mutation":"repository_read_only","network":false,"purpose":"Validate canonical target routing, exact local eligibility, completed-state monotonicity, atomic apply-once behavior, recovery convergence, no-Core boundaries, restart-complete success, and operator-state convergence."},
+    {"id":"harness-completeness","kind":"test","command":"python Tests/survey/test_operational_harness_completeness_contracts.py","source_of_truth":"Tests/survey/test_operational_harness_completeness_contracts.py","mutation":"repository_read_only","network":false,"purpose":"Prove the operational harness floor exists, is tracked, and is wired."},
+    {"id":"one-command-harness-proof","kind":"test","command":"pwsh -NoProfile -ExecutionPolicy Bypass -File scripts/Invoke-SasVmDryRunHarnessProof.ps1","source_of_truth":"scripts/Invoke-SasVmDryRunHarnessProof.ps1","mutation":"repository_build_output_only","network":false,"purpose":"Run the canonical offline synthetic harness gate locally or in CI and emit one profile-aware PASS/SKIP/FAIL matrix plus machine-readable receipt without runtime, launcher, network, or target mutation proof."},
+    {"id":"offline-floor","kind":"test","command":"bash tests/survey/run_offline_survey_tests.sh","source_of_truth":"tests/survey/run_offline_survey_tests.sh","mutation":"repository_read_only","network":false,"purpose":"Run the broad dependency-free offline survey and harness contract floor."},
+    {"id":"powershell-tests","kind":"test","command":"pwsh -NoProfile -ExecutionPolicy Bypass -File tools/Test-Pester5Suite.ps1 -TestPath Tests/Pester","source_of_truth":"tools/Test-Pester5Suite.ps1","mutation":"repository_read_only","network":false,"purpose":"Run the maintained PowerShell Pester 5 suite."},
+    {"id":"managed-tests","kind":"test","command":"dotnet test SysAdminSuite.sln -c Release --verbosity normal","source_of_truth":".github/workflows/dotnet-tests.yml","mutation":"repository_build_output_only","network":"restore_may_require_package_source","purpose":"Restore, build, and run the managed unit-test solution."},
+    {"id":"dashboard-build","kind":"build","command":"dotnet publish src/SysAdminSuite.DashboardHost/SysAdminSuite.DashboardHost.csproj -c Release -r win-x64 --self-contained false -o tools/publish/SysAdminSuite.DashboardHost","source_of_truth":".github/workflows/dotnet-tests.yml","mutation":"repository_build_output_only","network":"restore_may_require_package_source","purpose":"Publish the framework-dependent Windows dashboard host artifact."},
+    {"id":"dashboard-launch","kind":"run","command":"START-HERE-SysAdminSuite-Dashboard.bat","source_of_truth":"README.md","mutation":"local_runtime","network":"workflow_dependent","purpose":"Canonical field-user dashboard launcher; prefer this over reconstructing internals."},
+    {"id":"operator-context","kind":"run","command":"sas context","source_of_truth":"scripts/Show-SasOperatorContext.ps1","mutation":"local_runtime","network":false,"purpose":"Synchronize and display current repo branch/ref, network, requested and canonical target, exact local eligibility, historical recovery, AutoLogon transaction state, evidence path, and exact next action."},
+    {"id":"operator-next","kind":"run","command":"sas next","source_of_truth":"scripts/Show-SasOperatorContext.ps1","mutation":"local_runtime","network":false,"purpose":"Display only the required network and one exact next command from persistent operator state."},
+    {"id":"operator-evidence-recovery","kind":"run","command":"sas evidence","source_of_truth":"scripts/Show-SasOperatorEvidence.ps1","mutation":"local_runtime","network":false,"purpose":"Recover the newest local deployment/runtime artifact after a closed or crashed terminal across bounded current/Desktop/OneDrive SysAdminSuite checkout layouts and write a stable machine-local evidence index."},
+    {"id":"hh-cc-reader-probe","kind":"run","command":"Probe-HHCCReader.cmd TARGET_IPV4 [EXPECTED_MAC]","source_of_truth":"Probe-HHCCReader.cmd","mutation":"local_runtime","network":true,"purpose":"Refresh current SysAdminSuite, then run one explicit Health & Hospitals CC-reader IPv4 target through same-subnet and optional expected-MAC gates before bounded read-only neighbor, ICMP, detailed Test-NetConnection, and TCP-port checks; write only ignored local evidence and never change reader configuration."},
+    {"id":"hh-cc-reader-endpoint-probe","kind":"run","command":"Probe-HHCCReaderEndpoint.cmd READER_IPV4 REMOTE_ENDPOINT PORT APPROVAL_REF [EXPECTED_MAC]","source_of_truth":"Probe-HHCCReaderEndpoint.cmd","mutation":"local_runtime","network":true,"purpose":"Refresh current SysAdminSuite, run the canonical CC-reader same-subnet/device gate, then test one observed-and-approved remote hostname/IPv4 and one TCP port; write ignored local evidence and never scan, infer ownership, or mutate the reader."},
+    {"id":"hh-cc-reader-network-switch-prepare","kind":"run","command":"Prepare-HHCCReaderNetworkSwitch.cmd RUN_ID [EXPECTED_MAC]","source_of_truth":"Prepare-HHCCReaderNetworkSwitch.cmd","mutation":"local_runtime","network":true,"purpose":"Refresh and seal current SysAdminSuite, capture a BEFORE_SWITCH workstation network checkpoint, and persist machine-local continuation state for an authorized H&H CC-reader network switch without changing reader or workstation network configuration."},
+    {"id":"hh-cc-reader-network-checkpoint","kind":"run","command":"Checkpoint-HHCCReaderNetwork.cmd PHASE RUN_ID [EXPECTED_MAC]","source_of_truth":"Checkpoint-HHCCReaderNetwork.cmd","mutation":"local_runtime","network":false,"purpose":"Capture read-only local workstation interface, IPv4/prefix, gateway, DNS, default-route, WLAN metadata, and exact-MAC neighbor state before/after a CC-reader network switch; write ignored local evidence and machine-local continuation state only."},
+    {"id":"hh-cc-reader-home-lab-discovery","kind":"run","command":"Discover-HHCCReaderHomeLab.cmd RUN_ID CONFIRM_CONSUMER_LAB [EXPECTED_MAC]","source_of_truth":"Discover-HHCCReaderHomeLab.cmd","mutation":"local_runtime","network":true,"purpose":"On an explicitly authorized consumer/private lab LAN when the reader IPv4 is genuinely unknown, perform at most two bounded host-presence passes across the current private local subnet, stop early on one exact expected-MAC target, then invoke the existing canonical one-target CC-reader probe; no broad port scan or reader mutation."},
+    {"id":"hh-cc-reader-alpha-input-plan","kind":"run","command":"Plan-HHCCReaderAlphaInput.cmd","source_of_truth":"Plan-HHCCReaderAlphaInput.cmd","mutation":"none","network":false,"purpose":"Render a local PAX-family keypad entry plan for operator-supplied authorized text using number-key plus ALPHA cycling; never invent special-character mappings or store credential literals in tracked source."},
+    {"id":"hh-cc-reader-estate-authority-evaluate","kind":"run","command":"Evaluate-HHCCReaderEstateAuthority.cmd SANITIZED_PACKET_JSON","source_of_truth":"Evaluate-HHCCReaderEstateAuthority.cmd","mutation":"none","network":false,"purpose":"Evaluate one sanitized external P5 estate-authority packet through the canonical Python evaluator, write an ignored local receipt under survey/output/hh-cc-reader/, and never contact Payment Fusion/PAXSTORE or authorize firmware mutation."},
+{"id":"hh-cc-reader-estate-packet-normalize","kind":"run","command":"Normalize-HHCCReaderEstatePacket.cmd [--output PACKET_OUT] [--worksheet MD] [PACKET_IN]","source_of_truth":"Normalize-HHCCReaderEstatePacket.cmd","mutation":"none","network":false,"purpose":"P5-B: populate settled/derivable fields on one external sanitized estate-authority packet, emit remaining live-observation worksheet, never invent firmware/package/release values or contact Payment Fusion/PAXSTORE."},
+    {"id":"cybernet-deployment-probe","kind":"run","command":"sas cybernet Probe HOST","source_of_truth":"Probe-CybernetSoftware.cmd","mutation":"none","network":true,"purpose":"Run one authorized target through the staged Kerberos SMB plus Task Scheduler readiness chain, stop at the first failed dependency, emit an ignored readiness artifact, and never mutate the target or broaden to WinRM/auto discovery."},
+    {"id":"cybernet-plan","kind":"deploy-plan","command":"Run-CybernetClientConfiguration.cmd Plan HOST","source_of_truth":"Run-CybernetClientConfiguration.cmd","mutation":"none","network":false,"purpose":"Historical full Cybernet client configuration plan; not the current software deployment surface."},
+    {"id":"cybernet-apply","kind":"deploy","command":"Run-CybernetClientConfiguration.cmd Apply HOST","source_of_truth":"Run-CybernetClientConfiguration.cmd","mutation":"authorized_target_mutation","network":true,"purpose":"Historical full-profile hardware/client Apply surface; do not use it as the current software deployment route."},
+    {"id":"cybernet-core-plan","kind":"deploy-plan","command":"Deploy-CybernetClinicalCore.cmd Plan HOST","source_of_truth":"Deploy-CybernetClinicalCore.cmd","mutation":"none","network":false,"purpose":"Dry-run the exact five-package Cybernet clinical core without AutoLogon."},
+    {"id":"cybernet-core-deploy","kind":"deploy","command":"Deploy-CybernetClinicalCore.cmd Deploy HOST","source_of_truth":"Deploy-CybernetClinicalCore.cmd","mutation":"authorized_target_mutation","network":true,"purpose":"Internal five-package clinical-core deployment stage; AutoLogon remains excluded from this stage."},
+    {"id":"cybernet-software-deploy","kind":"deploy","command":"sas cybernet Deploy HOST","source_of_truth":"Deploy-CybernetSoftware.cmd","mutation":"authorized_target_mutation","network":true,"purpose":"Run the one-target low-noise Kerberos SMB plus Task Scheduler readiness gate, then deploy the full Cybernet software profile: five clinical applications, AutoLogon last through S4U, automatic target restart, and bounded restart-cycle observation."},
+    {"id":"autologon-recover","kind":"run","command":"sas autologon Recover HOST","source_of_truth":"scripts/Invoke-SasAutoLogonFieldDeployment.ps1","mutation":"authorized_target_mutation","network":true,"purpose":"Prove protected network posture and canonical eligibility, skip completed historical recovery, and recover only an exact safely recorded unfinished probe-only S4U transaction. Never install AutoLogon."},
+    {"id":"autologon-remote","kind":"deploy","command":"sas autologon Remote HOST","source_of_truth":"scripts/Invoke-SasAutoLogonFieldDeployment.ps1","mutation":"authorized_target_mutation","network":true,"purpose":"Prove protected network posture, canonicalize before exact local eligibility, lock the canonical target, converge safe interrupted probe-only recovery, invoke the hardened AutoLogon S4U apply exactly once, complete the bounded restart, and persist the outer terminal field result."},
+    {"id":"autologon-complete","kind":"deploy","command":"Complete-SysAdminSuiteAutoLogon.cmd HOST","source_of_truth":"scripts/Invoke-SasAutoLogonCompletion.ps1","mutation":"authorized_target_mutation","network":true,"purpose":"From the sealed machine-local runtime, prove manifest and full SHA-256 seal before target contact, establish the exact protected network, run one fresh 15-second hard-bounded read-only Kerberos SMB/task admission, and enter the existing crash-safe AutoLogon deployment only after the transport classifies ready."},
+    {"id":"autologon-runtime-proof","kind":"run","command":"scripts\\Start-SasAutoLogonTechnicianRuntimeProof.cmd targets\\local\\autologon-runtime.json","source_of_truth":"scripts/Invoke-SasAutoLogonTechnicianRuntimeProof.ps1","mutation":"local_runtime","network":"workflow_dependent","purpose":"Optional higher-ceiling actual-session runtime proof after deployment; it must not delay or replace software deployment."}
   ]
 }
