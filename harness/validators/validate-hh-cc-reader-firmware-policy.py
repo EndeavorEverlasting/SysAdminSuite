@@ -19,7 +19,10 @@ ROOT = Path(__file__).resolve().parents[2]
 POLICY = ROOT / "harness/api/hh-cc-reader-firmware-policy.json"
 SCHEMA = ROOT / "schemas/harness/hh-cc-reader-firmware-policy.schema.json"
 ESTATE_EVALUATOR = ROOT / "harness/api/hh_cc_reader_estate_authority.py"
+ESTATE_NORMALIZE = ROOT / "harness/api/hh_cc_reader_estate_packet_normalize.py"
 ESTATE_TEST = ROOT / "Tests/survey/test_hh_cc_reader_estate_authority_contracts.py"
+ESTATE_NORMALIZE_TEST = ROOT / "Tests/survey/test_hh_cc_reader_estate_packet_normalize_contracts.py"
+ESTATE_NORMALIZE_CMD = ROOT / "Normalize-HHCCReaderEstatePacket.cmd"
 VALIDATORS = ROOT / "harness/api/harness-validator-registry.json"
 MANIFEST = ROOT / "harness/api/operational-harness-manifest.json"
 HH_DOC = ROOT / "docs/HH_CC_READER_NETSTAT_BASELINE.md"
@@ -298,6 +301,8 @@ def test_bindings_and_agent_guidance() -> None:
     assert "PROVEN_PATH acceptance record" in remote
     assert "Read-only estate evidence checklist" in remote
     assert "hh_cc_reader_estate_authority.py" in remote
+    assert "Normalize-HHCCReaderEstatePacket.cmd" in remote or "hh_cc_reader_estate_packet_normalize.py" in remote
+    assert "P5-B" in remote
 
 
 def test_harness_wiring() -> None:
@@ -310,9 +315,12 @@ def test_harness_wiring() -> None:
         "harness/api/hh-cc-reader-firmware-policy.json",
         "schemas/harness/hh-cc-reader-firmware-policy.schema.json",
         "harness/api/hh_cc_reader_estate_authority.py",
+        "harness/api/hh_cc_reader_estate_packet_normalize.py",
         "Tests/survey/test_hh_cc_reader_estate_authority_contracts.py",
         "Tests/survey/test_hh_cc_reader_estate_authority_launcher_contracts.py",
+        "Tests/survey/test_hh_cc_reader_estate_packet_normalize_contracts.py",
         "Evaluate-HHCCReaderEstateAuthority.cmd",
+        "Normalize-HHCCReaderEstatePacket.cmd",
         "docs/HH_CC_READER_NETSTAT_BASELINE.md",
         "docs/HH_CC_READER_REMOTE_OPERATIONS_PROGRAM.md",
         ".claude/skills/field-workflow/SKILL.md",
@@ -327,6 +335,9 @@ def test_harness_wiring() -> None:
         "hh-cc-reader-estate-authority-evaluator": "harness/api/hh_cc_reader_estate_authority.py",
         "hh-cc-reader-estate-authority-contracts": "Tests/survey/test_hh_cc_reader_estate_authority_contracts.py",
         "hh-cc-reader-estate-authority-launcher-contracts": "Tests/survey/test_hh_cc_reader_estate_authority_launcher_contracts.py",
+        "hh-cc-reader-estate-packet-normalize": "harness/api/hh_cc_reader_estate_packet_normalize.py",
+        "hh-cc-reader-estate-packet-normalize-contracts": "Tests/survey/test_hh_cc_reader_estate_packet_normalize_contracts.py",
+        "hh-cc-reader-estate-packet-normalize-launcher": "Normalize-HHCCReaderEstatePacket.cmd",
     }
     for component_id, path in expected.items():
         assert component_id in components, f"manifest missing component: {component_id}"
@@ -334,27 +345,36 @@ def test_harness_wiring() -> None:
     validator_name = "validate-hh-cc-reader-firmware-policy.py"
     estate_test = "test_hh_cc_reader_estate_authority_contracts.py"
     launcher_test = "test_hh_cc_reader_estate_authority_launcher_contracts.py"
+    normalize_test = "test_hh_cc_reader_estate_packet_normalize_contracts.py"
     for path in (PRE_COMMIT, PRE_PUSH, OFFLINE, CI):
         text = read(path)
         assert validator_name in text, f"firmware policy validator not wired: {path.relative_to(ROOT)}"
         assert estate_test in text, f"estate-authority contracts not wired: {path.relative_to(ROOT)}"
     assert launcher_test in read(OFFLINE), "estate-authority launcher contracts not wired into offline floor"
     assert launcher_test in read(CI), "estate-authority launcher contracts not wired into CI"
+    assert normalize_test in read(OFFLINE), "estate-packet normalize contracts not wired into offline floor"
+    assert normalize_test in read(CI), "estate-packet normalize contracts not wired into CI"
     assert "Evaluate-HHCCReaderEstateAuthority.cmd" in read(CI)
+    assert "Normalize-HHCCReaderEstatePacket.cmd" in read(CI)
     assert TEST.relative_to(ROOT).as_posix() in read(OFFLINE)
     assert "harness/api/hh-cc-reader-firmware-policy.json" in read(CODEBASE_MAP)
     assert "hh_cc_reader_estate_authority.py" in read(CODEBASE_MAP)
+    assert "hh_cc_reader_estate_packet_normalize.py" in read(CODEBASE_MAP)
     assert "Evaluate-HHCCReaderEstateAuthority.cmd" in read(CODEBASE_MAP)
+    assert "Normalize-HHCCReaderEstatePacket.cmd" in read(CODEBASE_MAP)
+    assert ESTATE_NORMALIZE.is_file()
+    assert ESTATE_NORMALIZE_TEST.is_file()
+    assert ESTATE_NORMALIZE_CMD.is_file()
 
 
 def test_offline_and_live_data_boundaries() -> None:
-    targets = (POLICY, SCHEMA, Path(__file__), TEST, ESTATE_EVALUATOR, ESTATE_TEST, HH_DOC, REMOTE_DOC, FIELD_SKILL)
+    targets = (POLICY, SCHEMA, Path(__file__), TEST, ESTATE_EVALUATOR, ESTATE_TEST, ESTATE_NORMALIZE, ESTATE_NORMALIZE_TEST, HH_DOC, REMOTE_DOC, FIELD_SKILL)
     joined = "\n".join(read(path) for path in targets)
     for marker in PROVIDER_MARKERS:
         assert marker not in joined, f"provider-specific marker leaked: {marker}"
     # Remote-ops program retains documented TEST-NET launcher examples; keep IPv4/MAC
     # fail-closed on the estate-authority and policy surfaces that must stay identifier-free.
-    identity_surfaces = (POLICY, SCHEMA, Path(__file__), TEST, ESTATE_EVALUATOR, ESTATE_TEST, FIELD_SKILL)
+    identity_surfaces = (POLICY, SCHEMA, Path(__file__), TEST, ESTATE_EVALUATOR, ESTATE_TEST, ESTATE_NORMALIZE, ESTATE_NORMALIZE_TEST, FIELD_SKILL)
     identity_joined = "\n".join(read(path) for path in identity_surfaces)
     assert not re.search(r"(?i)\b(?:\d{1,3}\.){3}\d{1,3}\b", identity_joined), "IPv4 literal not needed in firmware policy"
     assert not re.search(r"(?i)\b(?:[0-9a-f]{2}[-:]){5}[0-9a-f]{2}\b", identity_joined), "MAC literal not needed in firmware policy"

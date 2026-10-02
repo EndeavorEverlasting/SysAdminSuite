@@ -197,9 +197,9 @@ Operator-facing status matrices should also classify importance as `CRITICAL`, `
 
 These two questions are different and MUST NOT be conflated:
 
-1. **Planning target selection:** Is `2.0.15.260522` the current firmware planning target?  
+1. **Planning target selection:** Is `2.0.15.260522` the current firmware planning target?
    **State:** `SETTLED_POLICY` — YES. It is the repository's default planning candidate from the client-accepted set.
-2. **Estate package exposure:** Does the authenticated H&H management surface expose a package corresponding to `2.0.15.260522` for the representative estate/terminal?  
+2. **Estate package exposure:** Does the authenticated H&H management surface expose a package corresponding to `2.0.15.260522` for the representative estate/terminal?
    **State:** `LIVE_VALUE_NOT_CAPTURED` until observed.
 
 A user/operator saying “yes, use 2.0.15.260522” settles question 1. It does not fabricate question 2.
@@ -259,7 +259,7 @@ The evaluator implementation is already integrated and CI-validated. “Evaluato
 | Lane | Runtime / owner | Scope | Dependency | Artifact / proof | Completion gate |
 | --- | --- | --- | --- | --- | --- |
 | P5-A — baseline evaluator receipt | LOCAL_AGENT_RUNTIME | Refresh repo, resolve existing external staged packet if present, run the canonical evaluator exactly once without fabricating live evidence. | current main + staged packet | ignored local evaluator receipt + exact classification/next gate | current packet state is known |
-| P5-B — deterministic packet normalization | LOCAL_AGENT_RUNTIME | Populate settled/derivable fields, generate safe aliases/packet id, derive checklist flags from actual evidence, and reduce operator worksheet to genuine live observations. | P5-A | external sanitized packet + minimal operator worksheet | no derivable/bookkeeping item remains operator homework |
+| P5-B — deterministic packet normalization | LOCAL_AGENT_RUNTIME | Populate settled/derivable fields via `Normalize-HHCCReaderEstatePacket.cmd`, generate safe aliases/packet id, derive checklist flags from actual evidence, and reduce operator worksheet to genuine live observations. | P5-A | external sanitized packet + minimal operator worksheet | no derivable/bookkeeping item remains operator homework |
 | P5-C — Payment Fusion observation | OPERATOR_OR_PHYSICAL_RUNTIME | Complete authorized login/MFA and observe only the genuine live fields in the matrix. No write actions. | P5-B worksheet + authorized credentials | external observation notes/screenshots + sanitized values | representative A80 and decision-relevant live fields observed or explicitly not exposed |
 | P5-D — conditional release-reference compatibility repair | LOCAL_AGENT_RUNTIME | Only if P5-C proves target package exposure but no stable package/release/list identifier is exposed: repair the machine contract so the explicit absence can be represented without inventing an identifier, with negative/positive fixtures and focused regression. | P5-C explicit no-identifier evidence | bounded code/schema/test change + green focused/registered gates | real surface semantics can be represented truthfully |
 | P5-E — final P5 evaluation | LOCAL_AGENT_RUNTIME | Update external packet from P5-C (and P5-D if required), rerun canonical evaluator, preserve receipt and exact next gate. | P5-C; P5-D when applicable | COMPLETE/PROVEN_PATH receipt or exact remaining blocker | P5 disposition is no longer ambiguous |
