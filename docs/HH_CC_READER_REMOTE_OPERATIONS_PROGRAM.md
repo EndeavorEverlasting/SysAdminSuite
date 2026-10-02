@@ -345,3 +345,12 @@ Blocked until P5 is proved. A future deployment command must be a separate expli
 - live H&H values never enter tracked source;
 - additive agents may own endpoint launcher, QR, field evidence schema, or management discovery independently when file ownership does not collide;
 - converge through command contracts, not copied implementations.
+
+## 2026-10-02 P04 round-trip and batch extension
+
+Canonical execution plan extension: docs/HH_CC_READER_FIRMWARE_ROUNDTRIP_BATCH_PLAN.md
+
+That plan preserves this program as the parent authority while adding the operator-required progression: exact Kiosk4 baseline lock -> governed outdated classification -> restoration proof before mutation -> one-reader target update -> verified restoration to starting state -> dashboard/CSV batch adapter -> reversible batch executor -> SysAdminSuite-style HTML receipts and read-back reconciliation into the existing CC Reader Technician Dashboard.
+
+The existing CC Reader Technician Dashboard remains the operational tracker. New batch plans, restore plans, summaries, and HTML receipts are execution artifacts/adapters, not replacement trackers.
+
