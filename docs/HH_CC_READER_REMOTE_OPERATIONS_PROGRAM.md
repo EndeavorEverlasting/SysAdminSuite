@@ -1,7 +1,7 @@
 # H&H CC Reader Remote Operations Program
 
 Date: 2026-09-28
-Status: P04 architecture + bounded endpoint-correlation prototype
+Status: P04 architecture + P5 evidence-state factoring + bounded endpoint-correlation prototype
 Repository: `EndeavorEverlasting/SysAdminSuite`
 
 ## Program boundary
@@ -175,6 +175,114 @@ Required outputs before P6:
 - reboot/reconnect behavior;
 - rollback/exception path;
 - post-update acceptance contract.
+
+
+#### P5 evidence-state semantics — operator-facing and agent-facing
+
+P5 must not collapse every unresolved field into the generic word `UNPROVEN`. Use the strongest precise evidence state:
+
+| Evidence state | Meaning | Typical importance |
+| --- | --- | --- |
+| `SETTLED_POLICY` | Decision is already established by accepted repository/client evidence and must not be reopened without stronger superseding evidence. | CRITICAL |
+| `IMPLEMENTED_VALIDATED` | Repository seam exists and its owning tests/CI have passed at the cited revision. | CRITICAL |
+| `LIVE_VALUE_NOT_CAPTURED` | The value must come from an authenticated estate observation and has not yet been recorded. | CRITICAL or USEFUL |
+| `DERIVABLE_NOT_POPULATED` | The system can truthfully generate/populate the value from already-known inputs; operator input is unnecessary. | DERIVABLE |
+| `UNKNOWN_SURFACE_NOT_EXPOSED` | The authenticated surface was inspected but did not expose the requested datum. This is evidence, not a request to keep hunting indefinitely. | USEFUL |
+| `OPTIONAL_NON_BLOCKING` | Useful context that is not required to advance the current acceptance gate. | NEGLIGIBLE |
+| `INTERACTIVE_AUTH_REQUIRED` | Only the credential/MFA boundary prevents the next observation. | CRITICAL |
+
+Operator-facing status matrices should also classify importance as `CRITICAL`, `USEFUL`, `DERIVABLE`, or `NEGLIGIBLE`. Raw schema completeness is not equivalent to operator importance.
+
+#### P5 terminology contract
+
+These two questions are different and MUST NOT be conflated:
+
+1. **Planning target selection:** Is `2.0.15.260522` the current firmware planning target?  
+   **State:** `SETTLED_POLICY` — YES. It is the repository's default planning candidate from the client-accepted set.
+2. **Estate package exposure:** Does the authenticated H&H management surface expose a package corresponding to `2.0.15.260522` for the representative estate/terminal?  
+   **State:** `LIVE_VALUE_NOT_CAPTURED` until observed.
+
+A user/operator saying “yes, use 2.0.15.260522” settles question 1. It does not fabricate question 2.
+
+`package_release_id` means the stable identifier, if any, that the authenticated management surface associates with the package/release/software-repository record corresponding to `2.0.15.260522`. The portal may label it Release ID, Package ID, Firmware ID, Software ID, Repository ID, Version ID, List ID, or another equivalent. It is **not** another firmware version and it is **not** a pre-known universal PAX identifier.
+
+Do not invent a release/package identifier. If the authenticated surface exposes the target package but exposes no separate stable identifier, record that observation explicitly as `UNKNOWN_SURFACE_NOT_EXPOSED` and route the evaluator contract through the conditional compatibility-repair lane below. The operator must not be sent on an indefinite search for a field the surface may not provide.
+
+Current public evidence proves the management capabilities but does not define a universal firmware-package identifier contract:
+
+- Bank of America Healthcare Omni-Channel integrations: Control Center provides terminal management and automatic terminal updating; IngEstate provides remote terminal communication and a terminal software repository: https://developer.merchant-services.bankofamerica.com/healthcareomnichannel/integrations
+- Bank of America Payment Fusion Settings API: PFCC manages terminal settings/applications/gateway data and exposes stable identifiers for several management objects, but the public API does not document the private firmware-repository record shape used by the authenticated estate UI: https://developer.merchant-services.bankofamerica.com/healthcareomnichannel/api?apiDef=settings
+- PAX MAXSTORE: remote estate management supports application, parameter, and firmware distribution/OTA management, but the public product page does not establish a universal firmware “release ID” field: https://www.paxtechnology.com/maxstore
+
+#### P5 lane versus evaluator
+
+P5 is the **read-only management-plane discovery lane**. The evaluator is P5's deterministic classifier, not the entire P5 activity.
+
+Canonical flow:
+
+```text
+authenticated read-only management observation
+  -> sanitized authority packet
+  -> Evaluate-HHCCReaderEstateAuthority.cmd
+  -> harness/api/hh_cc_reader_estate_authority.py
+  -> classification + next gate + ignored local receipt
+```
+
+The evaluator implementation is already integrated and CI-validated. “Evaluator not yet run against the completed H&H packet” must never be reported as “evaluator unproven.”
+
+#### P5 field-ownership matrix
+
+| Field / decision | Evidence state before live login | Importance | Owner / population rule |
+| --- | --- | --- | --- |
+| target firmware `2.0.15.260522` | `SETTLED_POLICY` | CRITICAL | repository policy; do not ask operator again |
+| `mechanism_id=payment-fusion-control-center` | `SETTLED_POLICY` | CRITICAL | repository policy / current mechanism order |
+| `current_disposition=CREDENTIAL_GATE` | `DERIVABLE_NOT_POPULATED` | DERIVABLE | agent/tooling |
+| mutation intent/actions = none | `DERIVABLE_NOT_POPULATED` | DERIVABLE | agent/tooling for read-only lane |
+| `authority_packet_id` | `DERIVABLE_NOT_POPULATED` | NEGLIGIBLE | generate non-secret session identifier |
+| `reader_identity_ref` | `DERIVABLE_NOT_POPULATED` after A80 selection | DERIVABLE | generate sanitized alias from external evidence index |
+| authenticated estate access | `INTERACTIVE_AUTH_REQUIRED` | CRITICAL | operator login/MFA; then observation |
+| minimum read role | `LIVE_VALUE_NOT_CAPTURED` | CRITICAL | authenticated surface |
+| representative A80 present | `LIVE_VALUE_NOT_CAPTURED` | CRITICAL | authenticated surface |
+| current A80 firmware value | `LIVE_VALUE_NOT_CAPTURED` | CRITICAL | authenticated terminal record |
+| target package exposed | `LIVE_VALUE_NOT_CAPTURED` | CRITICAL | authenticated package/update view |
+| package/release record reference | `LIVE_VALUE_NOT_CAPTURED` | USEFUL | surface's own stable identifier if exposed |
+| assignment/update affordance | `LIVE_VALUE_NOT_CAPTURED` | USEFUL | observe surface terminology; never invoke |
+| reboot/reconnect behavior | `LIVE_VALUE_NOT_CAPTURED` | USEFUL | same authority or linked authoritative documentation |
+| rollback/cancel/exception path | `LIVE_VALUE_NOT_CAPTURED` | USEFUL | same authority or linked authoritative documentation |
+| post-update acceptance indication | `LIVE_VALUE_NOT_CAPTURED` | USEFUL | same authority or linked authoritative documentation |
+| checklist booleans | `DERIVABLE_NOT_POPULATED` | DERIVABLE | derive from captured observations; operator should not hand-manage booleans |
+| packet/evaluator classification | `DERIVABLE_NOT_POPULATED` | DERIVABLE | canonical evaluator |
+| P6 authorization | not reached | CRITICAL | separate successor gate; never inferred from P5 |
+
+#### P04 successor decomposition for P5 convergence
+
+| Lane | Runtime / owner | Scope | Dependency | Artifact / proof | Completion gate |
+| --- | --- | --- | --- | --- | --- |
+| P5-A — baseline evaluator receipt | LOCAL_AGENT_RUNTIME | Refresh repo, resolve existing external staged packet if present, run the canonical evaluator exactly once without fabricating live evidence. | current main + staged packet | ignored local evaluator receipt + exact classification/next gate | current packet state is known |
+| P5-B — deterministic packet normalization | LOCAL_AGENT_RUNTIME | Populate settled/derivable fields, generate safe aliases/packet id, derive checklist flags from actual evidence, and reduce operator worksheet to genuine live observations. | P5-A | external sanitized packet + minimal operator worksheet | no derivable/bookkeeping item remains operator homework |
+| P5-C — Payment Fusion observation | OPERATOR_OR_PHYSICAL_RUNTIME | Complete authorized login/MFA and observe only the genuine live fields in the matrix. No write actions. | P5-B worksheet + authorized credentials | external observation notes/screenshots + sanitized values | representative A80 and decision-relevant live fields observed or explicitly not exposed |
+| P5-D — conditional release-reference compatibility repair | LOCAL_AGENT_RUNTIME | Only if P5-C proves target package exposure but no stable package/release/list identifier is exposed: repair the machine contract so the explicit absence can be represented without inventing an identifier, with negative/positive fixtures and focused regression. | P5-C explicit no-identifier evidence | bounded code/schema/test change + green focused/registered gates | real surface semantics can be represented truthfully |
+| P5-E — final P5 evaluation | LOCAL_AGENT_RUNTIME | Update external packet from P5-C (and P5-D if required), rerun canonical evaluator, preserve receipt and exact next gate. | P5-C; P5-D when applicable | COMPLETE/PROVEN_PATH receipt or exact remaining blocker | P5 disposition is no longer ambiguous |
+| P6 — one-reader pilot | OPERATOR + LOCAL_AGENT_RUNTIME | Separate mutation-authorized pilot design/execution. | P5-E PROVEN_PATH + explicit pilot authorization | pilot plan, mutation proof, rollback/acceptance evidence | separately authorized pilot completes |
+
+P5-A and P5-B may proceed before the interactive session. P5-C is the only lane that crosses the credential/MFA boundary. P5-D is conditional and must not be preemptively implemented merely because the current schema is stricter than the public evidence. P5-E resumes immediately when its dependencies are satisfied.
+
+#### P5 local-agent acceptance contract
+
+The local implementation agent must:
+
+1. refresh current default-branch/provider truth before execution;
+2. run the current staged packet through `Evaluate-HHCCReaderEstateAuthority.cmd` and preserve the receipt;
+3. classify every remaining field using the evidence-state and importance vocabularies above;
+4. automatically populate every truthful settled/derivable field instead of asking the operator;
+5. produce a minimal operator worksheet containing only genuinely live observations;
+6. never ask again whether `2.0.15.260522` is the intended planning target unless stronger superseding evidence changes repository policy;
+7. never invent a release/package identifier;
+8. treat explicit “target package visible but no separate identifier exposed” as evidence that may trigger P5-D, not as operator failure;
+9. rerun the same canonical evaluator immediately after live observations are supplied;
+10. report proof states separately: evaluator implemented, CI validated, integrated, baseline packet evaluated, live observations captured, completed packet evaluated, PROVEN_PATH established, P6 authorized.
+
+The implementation handoff should prefer precise phrases such as `LIVE_VALUE_NOT_CAPTURED`, `DERIVABLE_NOT_POPULATED`, `IMPLEMENTED_VALIDATED`, `SETTLED_POLICY`, `INTERACTIVE_AUTH_REQUIRED`, `OPTIONAL_NON_BLOCKING`, and `UNKNOWN_SURFACE_NOT_EXPOSED` over generic `UNPROVEN`.
 
 #### PROVEN_PATH acceptance record
 
