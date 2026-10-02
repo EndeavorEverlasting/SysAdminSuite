@@ -1,0 +1,43 @@
+{
+  "schema": "sas.hh-cc-reader.proven-path-authority-packet.template/v1",
+  "policy_ref": {
+    "evaluator_path": "harness/api/hh_cc_reader_estate_authority.py"
+  },
+  "evaluator_inputs": {
+    "mechanism_id": "paxstore-ota-push",
+    "current_disposition": "CREDENTIAL_GATE",
+    "authorized_readonly_session": true,
+    "role_scope_ok": true,
+    "mutation_intent": false,
+    "mutation_actions_observed": [],
+    "reader_identity_ref": "ext-reader-index-001",
+    "representative_terminal_bound": true,
+    "current_firmware_observed": true,
+    "current_firmware_value": "2.0.14.221110",
+    "management_owner": "H&H estate tenant as shown on surface",
+    "package_exposed_for_target": "YES",
+    "package_release_id": "firmware-list-id-sanitized",
+    "unknown_reasons": {},
+    "assignment_method": "terminal push affordance observed; not invoked",
+    "reboot_reconnect_behavior": "reboot then reconnect per surface text",
+    "rollback_exception_path": "cancel/rollback path recorded from surface",
+    "post_update_acceptance": "management and device version strings match target",
+    "access_state": "PROVEN_ACCESS",
+    "authority_packet_id": "pkt-fixture-yes",
+    "checklist_satisfied": {
+      "confirm-authorized-readonly-session": true,
+      "confirm-minimum-read-role": true,
+      "locate-representative-a80": true,
+      "bind-reader-identity-ref": true,
+      "observe-current-firmware": true,
+      "inspect-automatic-update-policy": true,
+      "resolve-target-package-visibility": true,
+      "record-assignment-method": true,
+      "record-reboot-reconnect-behavior": true,
+      "record-rollback-exception-path": true,
+      "record-post-update-acceptance": true,
+      "emit-sanitized-authority-packet": true
+    },
+    "target_firmware_planning_candidate": "2.0.15.260522"
+  }
+}

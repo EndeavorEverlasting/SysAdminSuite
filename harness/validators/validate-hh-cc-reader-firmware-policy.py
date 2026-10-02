@@ -311,6 +311,8 @@ def test_harness_wiring() -> None:
         "schemas/harness/hh-cc-reader-firmware-policy.schema.json",
         "harness/api/hh_cc_reader_estate_authority.py",
         "Tests/survey/test_hh_cc_reader_estate_authority_contracts.py",
+        "Tests/survey/test_hh_cc_reader_estate_authority_launcher_contracts.py",
+        "Evaluate-HHCCReaderEstateAuthority.cmd",
         "docs/HH_CC_READER_NETSTAT_BASELINE.md",
         "docs/HH_CC_READER_REMOTE_OPERATIONS_PROGRAM.md",
         ".claude/skills/field-workflow/SKILL.md",
@@ -324,19 +326,25 @@ def test_harness_wiring() -> None:
         "hh-cc-reader-firmware-policy-contracts": "Tests/survey/test_hh_cc_reader_firmware_policy_contracts.py",
         "hh-cc-reader-estate-authority-evaluator": "harness/api/hh_cc_reader_estate_authority.py",
         "hh-cc-reader-estate-authority-contracts": "Tests/survey/test_hh_cc_reader_estate_authority_contracts.py",
+        "hh-cc-reader-estate-authority-launcher-contracts": "Tests/survey/test_hh_cc_reader_estate_authority_launcher_contracts.py",
     }
     for component_id, path in expected.items():
         assert component_id in components, f"manifest missing component: {component_id}"
         assert components[component_id]["path"] == path
     validator_name = "validate-hh-cc-reader-firmware-policy.py"
     estate_test = "test_hh_cc_reader_estate_authority_contracts.py"
+    launcher_test = "test_hh_cc_reader_estate_authority_launcher_contracts.py"
     for path in (PRE_COMMIT, PRE_PUSH, OFFLINE, CI):
         text = read(path)
         assert validator_name in text, f"firmware policy validator not wired: {path.relative_to(ROOT)}"
         assert estate_test in text, f"estate-authority contracts not wired: {path.relative_to(ROOT)}"
+    assert launcher_test in read(OFFLINE), "estate-authority launcher contracts not wired into offline floor"
+    assert launcher_test in read(CI), "estate-authority launcher contracts not wired into CI"
+    assert "Evaluate-HHCCReaderEstateAuthority.cmd" in read(CI)
     assert TEST.relative_to(ROOT).as_posix() in read(OFFLINE)
     assert "harness/api/hh-cc-reader-firmware-policy.json" in read(CODEBASE_MAP)
     assert "hh_cc_reader_estate_authority.py" in read(CODEBASE_MAP)
+    assert "Evaluate-HHCCReaderEstateAuthority.cmd" in read(CODEBASE_MAP)
 
 
 def test_offline_and_live_data_boundaries() -> None:

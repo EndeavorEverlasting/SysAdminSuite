@@ -57,6 +57,7 @@ echo "[sas-harness] pre-commit: validating the exact staged snapshot $snapshot_t
   python3 harness/validators/validate-hh-cc-reader-firmware-policy.py
   python3 Tests/survey/test_hh_cc_reader_firmware_policy_contracts.py
   python3 Tests/survey/test_hh_cc_reader_estate_authority_contracts.py
+  python3 Tests/survey/test_hh_cc_reader_estate_authority_launcher_contracts.py
   python3 Tests/survey/test_cybernet_hardware_identity_harness_completeness.py
   python3 Tests/survey/test_operational_harness_completeness_contracts.py
   python3 scripts/check-repo-text-policy.py --cached

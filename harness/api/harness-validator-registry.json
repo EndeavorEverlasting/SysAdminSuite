@@ -176,16 +176,22 @@
         "harness/validators/validate-hh-cc-reader-firmware-policy.py",
         "Tests/survey/test_hh_cc_reader_firmware_policy_contracts.py",
         "Tests/survey/test_hh_cc_reader_estate_authority_contracts.py",
+        "Tests/survey/test_hh_cc_reader_estate_authority_launcher_contracts.py",
+        "Evaluate-HHCCReaderEstateAuthority.cmd",
         "docs/HH_CC_READER_NETSTAT_BASELINE.md",
         "docs/HH_CC_READER_REMOTE_OPERATIONS_PROGRAM.md",
+        "docs/HH_CC_READER_P5_READONLY_SESSION_RUNBOOK.md",
         ".claude/skills/field-workflow/SKILL.md",
         "harness/api/operational-harness-manifest.json",
+        "harness/api/harness-command-registry.json",
+        "harness/api/harness-outcome-registry.json",
+        "harness/api/harness-artifact-registry.json",
         "CODEBASE_MAP.md",
         ".githooks/**",
         ".github/workflows/hh-cc-reader-firmware-policy-contracts.yml",
         "tests/survey/run_offline_survey_tests.sh"
       ],
-      "proof": "Active Outdated remains a client classification signal, both observed client-accepted firmware candidates stay explicit, 2.0.15.260522 remains the numeric-highest default candidate, the 2.0.14 ambiguity stays open, firmware mutation remains gated on authoritative package/update evidence plus a controlled pilot, and PROVEN_PATH acceptance plus the read-only estate checklist are owned by executable seams."
+      "proof": "Active Outdated remains a client classification signal, both observed client-accepted firmware candidates stay explicit, 2.0.15.260522 remains the numeric-highest default candidate, the 2.0.14 ambiguity stays open, firmware mutation remains gated on authoritative package/update evidence plus a controlled pilot, PROVEN_PATH acceptance plus the read-only estate checklist are owned by executable seams, and Evaluate-HHCCReaderEstateAuthority.cmd is the operator packet-evaluation front door."
     },
     {
       "id": "printer-mapping-use-case-contracts",

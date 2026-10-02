@@ -135,13 +135,13 @@ Copy the template's `evaluator_inputs` and update fields as each step succeeds. 
 
 ## Evaluate (required)
 
-From a refreshed SysAdminSuite checkout on current `main`, write filled `evaluator_inputs` to an external JSON file (not Git), then:
+From a refreshed SysAdminSuite checkout on current `main`, write filled `evaluator_inputs` into an external packet JSON (not Git), then invoke the canonical operator launcher:
 
-```bash
-python -c "import json, pathlib; from harness.api.hh_cc_reader_estate_authority import evaluate; packet=json.loads(pathlib.Path(r'<external-filled-packet.json>').read_text(encoding='utf-8')); print(json.dumps(evaluate(packet['evaluator_inputs']), indent=2, sort_keys=True))"
+```bat
+Evaluate-HHCCReaderEstateAuthority.cmd %TEMP%\hh-cc-p5-packet-fill.json
 ```
 
-Replace `<external-filled-packet.json>` with the private fill-copy path. Do not invent a second evaluator.
+The launcher calls `harness\api\hh_cc_reader_estate_authority.py`, prints classification fields, writes an ignored local receipt under `survey\output\hh-cc-reader\`, and never contacts Payment Fusion/PAXSTORE. Do not invent a second evaluator or reconstruct a hand-built `python -c` invocation.
 
 ### Expected terminal states
 
