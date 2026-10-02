@@ -1,0 +1,200 @@
+{
+  "$comment": "Operator fill-in template only. Canonical machine owners remain harness/api/hh-cc-reader-firmware-policy.json (proven_path_acceptance + readonly_estate_checklist) and harness/api/hh_cc_reader_estate_authority.py. Do not invent alternate promotion rules. Live IDs, credentials, portal session URLs, and restricted screenshots stay outside Git.",
+  "schema": "sas.hh-cc-reader.proven-path-authority-packet.template/v1",
+  "policy_ref": {
+    "repository": "EndeavorEverlasting/SysAdminSuite",
+    "policy_path": "harness/api/hh-cc-reader-firmware-policy.json",
+    "evaluator_path": "harness/api/hh_cc_reader_estate_authority.py",
+    "baseline_packet_prose": "docs/HH_CC_READER_NETSTAT_BASELINE.md#estate-authority-evidence-packet-required-to-reopen-firmware-work",
+    "session_runbook": "docs/HH_CC_READER_P5_READONLY_SESSION_RUNBOOK.md",
+    "pinned_main_sha_at_template_authoring": "204a3bb93609d4c4e1751dddd7ea466918ef7b05"
+  },
+  "sanitization_rules": [
+    "No live serial, IP, MAC, hostname, or badge identifier in tracked source",
+    "No credentials, tokens, cookies, or portal session URLs",
+    "No restricted screenshots in Git; index externally via AUTHORITY_PACKET_ID",
+    "UNKNOWN requires unknown_reasons.<FIELD> with a reason of at least 8 non-blank characters",
+    "Choose exactly one eligible mechanism_id for this session"
+  ],
+  "forbidden_actions": [
+    "push",
+    "assign",
+    "activate",
+    "approve",
+    "reset",
+    "sideload",
+    "enroll",
+    "reassign",
+    "network_change",
+    "package_change",
+    "policy_change",
+    "write"
+  ],
+  "evaluator_inputs": {
+    "mechanism_id": null,
+    "current_disposition": "CREDENTIAL_GATE",
+    "authorized_readonly_session": false,
+    "role_scope_ok": false,
+    "mutation_intent": false,
+    "mutation_actions_observed": [],
+    "reader_identity_ref": null,
+    "representative_terminal_bound": false,
+    "current_firmware_observed": false,
+    "management_owner": null,
+    "package_exposed_for_target": "UNKNOWN",
+    "package_release_id": "UNKNOWN",
+    "unknown_reasons": {},
+    "assignment_method": null,
+    "reboot_reconnect_behavior": null,
+    "rollback_exception_path": null,
+    "post_update_acceptance": null,
+    "access_state": "ACCESS_NOT_PROVEN",
+    "authority_packet_id": null,
+    "checklist_satisfied": {
+      "confirm-authorized-readonly-session": false,
+      "confirm-minimum-read-role": false,
+      "locate-representative-a80": false,
+      "bind-reader-identity-ref": false,
+      "observe-current-firmware": false,
+      "inspect-automatic-update-policy": false,
+      "resolve-target-package-visibility": false,
+      "record-assignment-method": false,
+      "record-reboot-reconnect-behavior": false,
+      "record-rollback-exception-path": false,
+      "record-post-update-acceptance": false,
+      "emit-sanitized-authority-packet": false
+    },
+    "target_firmware_planning_candidate": "2.0.15.260522"
+  },
+  "mechanism_id_allowed_values": [
+    "payment-fusion-control-center",
+    "paxstore-ota-push",
+    "provider-auto-update"
+  ],
+  "mechanism_id_ineligible": [
+    "terminal-tms-pull"
+  ],
+  "access_state_allowed_values": [
+    "PROVEN_ACCESS",
+    "ACCESS_NOT_PROVEN",
+    "BLOCKED_AUTHORITY"
+  ],
+  "package_exposed_for_target_allowed_values": [
+    "YES",
+    "NO",
+    "UNKNOWN"
+  ],
+  "required_packet_fields": {
+    "MANAGEMENT_OWNER": null,
+    "PACKAGE_EXPOSED_FOR_2_0_15_260522": null,
+    "PACKAGE_RELEASE_ID": null,
+    "ASSIGNMENT_METHOD": null,
+    "REBOOT_RECONNECT_BEHAVIOR": null,
+    "ROLLBACK_EXCEPTION_PATH": null,
+    "POST_UPDATE_ACCEPTANCE": null
+  },
+  "acceptance_record_fields": {
+    "AUTHORITY_PACKET_ID": null,
+    "READER_IDENTITY_REF": null,
+    "SOURCE_SURFACE": null,
+    "MECHANISM_ID": null,
+    "ACCESS_STATE": null,
+    "TARGET_FIRMWARE_PLANNING_CANDIDATE": "2.0.15.260522",
+    "CURRENT_FIRMWARE_OBSERVED": null,
+    "PACKAGE_EXPOSED_FOR_2_0_15_260522": null,
+    "PACKAGE_RELEASE_ID": null,
+    "ASSIGNMENT_METHOD": null,
+    "REBOOT_RECONNECT_BEHAVIOR": null,
+    "ROLLBACK_EXCEPTION_PATH": null,
+    "POST_UPDATE_ACCEPTANCE": null,
+    "MANAGEMENT_OWNER": null,
+    "MUTATION_PERFORMED": false,
+    "PACKET_STATE": null
+  },
+  "checklist_items": [
+    {
+      "id": "confirm-authorized-readonly-session",
+      "order": 1,
+      "satisfied": false,
+      "evidence_note": null
+    },
+    {
+      "id": "confirm-minimum-read-role",
+      "order": 2,
+      "satisfied": false,
+      "evidence_note": null
+    },
+    {
+      "id": "locate-representative-a80",
+      "order": 3,
+      "satisfied": false,
+      "evidence_note": null
+    },
+    {
+      "id": "bind-reader-identity-ref",
+      "order": 4,
+      "satisfied": false,
+      "evidence_note": null
+    },
+    {
+      "id": "observe-current-firmware",
+      "order": 5,
+      "satisfied": false,
+      "evidence_note": null
+    },
+    {
+      "id": "inspect-automatic-update-policy",
+      "order": 6,
+      "satisfied": false,
+      "evidence_note": null
+    },
+    {
+      "id": "resolve-target-package-visibility",
+      "order": 7,
+      "satisfied": false,
+      "evidence_note": null
+    },
+    {
+      "id": "record-assignment-method",
+      "order": 8,
+      "satisfied": false,
+      "evidence_note": null
+    },
+    {
+      "id": "record-reboot-reconnect-behavior",
+      "order": 9,
+      "satisfied": false,
+      "evidence_note": null
+    },
+    {
+      "id": "record-rollback-exception-path",
+      "order": 10,
+      "satisfied": false,
+      "evidence_note": null
+    },
+    {
+      "id": "record-post-update-acceptance",
+      "order": 11,
+      "satisfied": false,
+      "evidence_note": null
+    },
+    {
+      "id": "emit-sanitized-authority-packet",
+      "order": 12,
+      "satisfied": false,
+      "evidence_note": null
+    }
+  ],
+  "evaluator_result_slot": {
+    "packet_state": null,
+    "proposed_disposition": null,
+    "disposition_may_promote": null,
+    "mutation_authorized": null,
+    "package_conflict": null,
+    "reason": null,
+    "next_gate": null,
+    "checklist_missing": null,
+    "unanswered_packet_fields": null,
+    "call_stack": null
+  }
+}

@@ -187,6 +187,8 @@ Promotion is proposed only when the evaluator returns `packet_state=COMPLETE`, `
 
 Canonical machine owner: `harness/api/hh-cc-reader-firmware-policy.json` section `readonly_estate_checklist` (12 ordered required observations). Operator work populates a sanitized observation packet; the evaluator scores the checklist and refuses forbidden discovery mutations.
 
+Operator session procedure (not a second authority): `docs/HH_CC_READER_P5_READONLY_SESSION_RUNBOOK.md`. Fill-in template: `docs/examples/hh-cc-reader-proven-path-authority-packet.template.json`.
+
 #### P5 program design and call-stack prototype
 
 **User outcomes:** bind the representative A80 to an authoritative estate surface; close P5 with a PROVEN_PATH acceptance record; keep mutation unauthorized until a separately authorized P6 pilot.
