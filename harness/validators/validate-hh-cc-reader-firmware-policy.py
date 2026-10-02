@@ -233,8 +233,12 @@ def test_proven_path_acceptance_and_readonly_checklist() -> None:
     assert all(acceptance["rules"].values())
     assert acceptance["rules"]["mutation_remains_unauthorized_after_proven_path"] is True
     assert acceptance["rules"]["package_absence_is_conflict_not_silent_substitution"] is True
+    assert acceptance["rules"]["current_firmware_value_must_be_recorded"] is True
+    assert acceptance["rules"]["package_visibility_unknown_cannot_promote"] is True
     assert "PROVEN_PATH" in acceptance["completion_gate"]
     assert "ACCESS_STATE" in acceptance["completion_gate"]
+    assert "recorded sanitized firmware" in acceptance["completion_gate"]
+    assert "UNKNOWN" in acceptance["completion_gate"]
     assert "does not authorize" in acceptance["proof_ceiling"].lower()
     assert "pilot" in acceptance["proof_ceiling"].lower()
     assert checklist["lane"] == "P5_management_plane_discovery"
@@ -258,8 +262,13 @@ def test_proven_path_acceptance_and_readonly_checklist() -> None:
         "PROVEN_PATH_ACCEPTANCE_SATISFIED",
         "package_conflict",
         "mutation_authorized",
+        "CURRENT_FIRMWARE_VALUE_REQUIRED",
+        "current_firmware_observed_value",
     ):
         assert marker in evaluator, f"estate evaluator lost marker: {marker}"
+    estate_tests = read(ESTATE_TEST)
+    assert "test_unknown_package_visibility_with_reason_stays_at_credential_gate" in estate_tests
+    assert "test_firmware_boolean_without_value_cannot_promote" in estate_tests
 
 
 def test_bindings_and_agent_guidance() -> None:

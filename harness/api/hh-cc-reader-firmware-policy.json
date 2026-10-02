@@ -137,9 +137,11 @@
       "authorized_readonly_session_required": true,
       "representative_terminal_must_be_bound": true,
       "current_firmware_must_be_observed": true,
+      "current_firmware_value_must_be_recorded": true,
       "all_seven_packet_fields_must_be_answered": true,
       "unknown_without_reason_fails_closed": true,
       "package_absence_is_conflict_not_silent_substitution": true,
+      "package_visibility_unknown_cannot_promote": true,
       "mutation_remains_unauthorized_after_proven_path": true,
       "discovery_must_not_push_assign_activate_approve_reset_or_change": true,
       "p6_pilot_remains_separately_authorized": true
@@ -162,7 +164,7 @@
       "MUTATION_PERFORMED",
       "PACKET_STATE"
     ],
-    "completion_gate": "One eligible mechanism proposes PROVEN_PATH only when ACCESS_STATE is PROVEN_ACCESS, the representative terminal is bound, current firmware is observed, all seven estate-authority packet fields are answered, no discovery mutation occurred, and the package mapping is either YES with a release id or NO/NONE_OBSERVED recorded as an explicit conflict against the planning candidate.",
+    "completion_gate": "One eligible mechanism proposes PROVEN_PATH only when ACCESS_STATE is PROVEN_ACCESS, the representative terminal is bound, current firmware is observed as a recorded sanitized firmware/version value (not merely a boolean observation flag), all seven estate-authority packet fields are answered, no discovery mutation occurred, and the package mapping is either YES with a release id or NO/NONE_OBSERVED recorded as an explicit conflict against the planning candidate. Package visibility UNKNOWN, even with a reason, remains CREDENTIAL_GATE and cannot promote.",
     "proof_ceiling": "A PROVEN_PATH acceptance record proves the authoritative estate binding and package/update contract for planning. It does not authorize a firmware push, one-reader pilot, or fleet rollout."
   },
   "readonly_estate_checklist": {

@@ -412,9 +412,11 @@
             "authorized_readonly_session_required",
             "representative_terminal_must_be_bound",
             "current_firmware_must_be_observed",
+            "current_firmware_value_must_be_recorded",
             "all_seven_packet_fields_must_be_answered",
             "unknown_without_reason_fails_closed",
             "package_absence_is_conflict_not_silent_substitution",
+            "package_visibility_unknown_cannot_promote",
             "mutation_remains_unauthorized_after_proven_path",
             "discovery_must_not_push_assign_activate_approve_reset_or_change",
             "p6_pilot_remains_separately_authorized"
@@ -429,6 +431,9 @@
             "current_firmware_must_be_observed": {
               "const": true
             },
+            "current_firmware_value_must_be_recorded": {
+              "const": true
+            },
             "all_seven_packet_fields_must_be_answered": {
               "const": true
             },
@@ -436,6 +441,9 @@
               "const": true
             },
             "package_absence_is_conflict_not_silent_substitution": {
+              "const": true
+            },
+            "package_visibility_unknown_cannot_promote": {
               "const": true
             },
             "mutation_remains_unauthorized_after_proven_path": {
