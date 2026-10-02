@@ -159,16 +159,16 @@ Current state:
 - H&H public Board material now identifies **Experian as the merchant-services vendor and credit-card-terminal provider as of September 2023**; current 2026 continuity is not yet proved;
 - PAX public material links AxiaMed to A80 devices, remote Control Center management/update, and Payment Fusion; Bank of America acquired AxiaMed in 2021, making those names one downstream vendor-chain hypothesis rather than separate owners;
 - mechanism discovery is now governed by `harness/api/hh-cc-reader-firmware-policy.json`; **management owner is an output, not a prerequisite supplied by a client or coworker**;
-- **Payment Fusion Control Center / Healthcare Omni-Channel** is the strongest estate-facing management-surface match and is currently `CREDENTIAL_GATE`: the named surface is known, but this execution environment has no authorized H&H/AxiaMed/Payment Fusion account or API role;
-- **PAXSTORE OTA firmware push** is the strongest firmware-delivery match and is currently `CREDENTIAL_GATE`: the observed public account reaches Marketplace/App Store but lacks estate Terminal Management / reseller-admin scope;
+- **Payment Fusion Control Center / Healthcare Omni-Channel** is the strongest estate-facing management-surface match and is currently `CREDENTIAL_GATE`: current Bank of America documentation proves Control Center automatic terminal updating plus IngEstate remote terminal communication / terminal software repository capability, but this execution environment has no authorized H&H/AxiaMed/Payment Fusion read role;
+- **PAXSTORE OTA firmware push** is the strongest firmware-delivery match and is currently `CREDENTIAL_GATE`: current PAX role documentation shows that **Readonly Firmware List + Terminal Management** is sufficient to inspect firmware/update and terminal state, while the observed public account lacks that estate scope; Full/write/push access is not required for discovery;
 - the exposed local AxiaMed **TMS/NTMS/update** lane is `NOT_APPLICABLE`: the captured unlocked menu and Diagnostic exploration expose no local firmware/update control and must not be restaged;
-- provider-managed automatic update remains `EVIDENCE_GAP`;
+- provider-managed automatic update is now `CREDENTIAL_GATE`: platform capability is proved by current Bank of America Control Center/IngEstate documentation and PAXSTORE policy-based distribution, while H&H enrollment, policy assignment, and target package mapping still require authorized read access;
 - the exact reopen artifact remains the **Estate-authority evidence packet** defined in `docs/HH_CC_READER_NETSTAT_BASELINE.md`, but its `SOURCE_SURFACE` and `MANAGEMENT_OWNER` fields are populated from mechanism discovery rather than by asking a human to identify the owner;
 - no additional reader diagnostics, owner-identification requests, or generic public package archaeology are required for P5.
 
 Required outputs before P6:
 
-- one named mechanism/control surface advances from `CREDENTIAL_GATE` to authorized read access for the representative A80 (including either Payment Fusion Control Center / Healthcare Omni-Channel or PAXSTORE), or new estate-specific evidence proves the automatic-update lane;
+- one named mechanism/control surface advances from `CREDENTIAL_GATE` to authorized read access for the representative A80 (Payment Fusion Control Center / IngEstate or PAXSTORE); discovery needs read-only firmware/update, terminal, policy/job, and package state only;
 - representative-terminal record and authoritative current firmware;
 - exact package/release mapping for target `2.0.15.260522` (or a surfaced conflict; do not silently substitute another build);
 - supported remote assignment/update method;
