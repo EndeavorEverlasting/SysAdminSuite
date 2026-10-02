@@ -258,6 +258,9 @@ Ordered discovery observations (all required; none may mutate):
 
 ## Estate-authority evidence packet (required to reopen firmware work)
 
+Operator fill-in template (maps to evaluator inputs; does not replace this section or the machine policy): `docs/examples/hh-cc-reader-proven-path-authority-packet.template.json`.  
+One-surface read-only session procedure: `docs/HH_CC_READER_P5_READONLY_SESSION_RUNBOOK.md`.
+
 The H&H firmware lane is **quiescent** at an external authority boundary. Do not manufacture more repository archaeology, public PAX searching, OpenCode probing, Netstat/START TEST restaging, Connectivity restaging, or endpoint hunting for this gap.
 
 The packet's `SOURCE_SURFACE` and `MANAGEMENT_OWNER` are **outputs of mechanism discovery**, not prerequisites that must be supplied by the client. Populate them from the first mechanism that reaches `PROVEN_PATH` or from a named surface that reaches `CREDENTIAL_GATE`. A relationship owner, reseller, vendor, or support contact is a fallback only when the mechanism ladder has identified the exact surface or exhausted the independent evidence paths; do not begin the workflow by asking a human to name the owner.
