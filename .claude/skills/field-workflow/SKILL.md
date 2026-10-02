@@ -46,7 +46,7 @@ Every mechanism candidate must be dispositioned as `PROVEN_PATH`, `NOT_APPLICABL
 
 Do not reset a reader, erase settings, change networking/TMS endpoints, sideload firmware, or perform a firmware push merely to discover which management path exists. Discovery remains read-only until the machine policy's pre-mutation gates and separately authorized pilot gate are satisfied.
 
-The read-only estate checklist and PROVEN_PATH acceptance record live in the same machine policy (`proven_path_acceptance`, `readonly_estate_checklist`) and are evaluated by `harness/api/hh_cc_reader_estate_authority.py`. Do not invent alternate promotion rules in chat. A complete acceptance record still leaves mutation unauthorized; P6 remains a separate pilot authorization.
+The read-only estate checklist and PROVEN_PATH acceptance record live in the same machine policy (`proven_path_acceptance`, `readonly_estate_checklist`) and are evaluated by `harness/api/hh_cc_reader_estate_authority.py` through the operator front door `Evaluate-HHCCReaderEstateAuthority.cmd`. Do not invent alternate promotion rules in chat. A complete acceptance record still leaves mutation unauthorized; P6 remains a separate pilot authorization.
 
 ## Operator command composition gate
 

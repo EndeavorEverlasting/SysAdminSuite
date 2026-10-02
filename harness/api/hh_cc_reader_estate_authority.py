@@ -454,3 +454,138 @@ def evaluate(inputs: dict[str, Any], policy: dict[str, Any] | None = None) -> di
             "RESULT_PROVEN_PATH_MUTATION_DENIED",
         ],
     )
+
+
+RECEIPT_SCHEMA_VERSION = "sas-hh-cc-reader-estate-authority-result/v1"
+DEFAULT_RECEIPT_DIR = ROOT / "survey" / "output" / "hh-cc-reader"
+
+
+def load_packet_file(path: Path) -> dict[str, Any]:
+    """Load one sanitized authority packet JSON and return evaluator_inputs."""
+    if not path.is_file():
+        raise FileNotFoundError(f"packet file not found: {path}")
+    try:
+        raw = json.loads(path.read_text(encoding="utf-8-sig"))
+    except json.JSONDecodeError as exc:
+        raise ValueError(f"malformed packet JSON: {path}: {exc}") from exc
+    if not isinstance(raw, dict):
+        raise ValueError(f"packet root must be a JSON object: {path}")
+    if "evaluator_inputs" not in raw:
+        raise ValueError(f"packet missing evaluator_inputs: {path}")
+    inputs = raw["evaluator_inputs"]
+    if not isinstance(inputs, dict):
+        raise ValueError(f"evaluator_inputs must be a JSON object: {path}")
+    return {"packet": raw, "evaluator_inputs": inputs}
+
+
+def write_estate_authority_receipt(
+    *,
+    packet_path: Path,
+    result: dict[str, Any],
+    output_dir: Path | None = None,
+) -> Path:
+    """Write an ignored local sanitized evaluate receipt; never copies live identifiers from Git."""
+    from datetime import datetime, timezone
+    import secrets
+
+    out_dir = output_dir if output_dir is not None else DEFAULT_RECEIPT_DIR
+    out_dir.mkdir(parents=True, exist_ok=True)
+    stamp = datetime.now(timezone.utc).strftime("%Y%m%d-%H%M%S")
+    suffix = secrets.token_hex(4)
+    receipt_path = out_dir / f"hh-cc-reader-estate-authority-{stamp}-{suffix}.json"
+    packet_id = result.get("authority_packet_id")
+    # Prefer the operator packet id from inputs when present on the result path via call site.
+    receipt = {
+        "schema_version": RECEIPT_SCHEMA_VERSION,
+        "mutation": "NONE",
+        "packet_path_basename": packet_path.name,
+        "authority_packet_id": packet_id,
+        "packet_state": result.get("packet_state"),
+        "proposed_disposition": result.get("proposed_disposition"),
+        "disposition_may_promote": result.get("disposition_may_promote"),
+        "mutation_authorized": result.get("mutation_authorized"),
+        "package_conflict": result.get("package_conflict"),
+        "current_firmware_observed_value": result.get("current_firmware_observed_value"),
+        "reason": result.get("reason"),
+        "next_gate": result.get("next_gate"),
+        "checklist_missing": result.get("checklist_missing"),
+        "unanswered_packet_fields": result.get("unanswered_packet_fields"),
+        "call_stack": result.get("call_stack"),
+        "evaluator_path": "harness/api/hh_cc_reader_estate_authority.py",
+        "policy_path": "harness/api/hh-cc-reader-firmware-policy.json",
+    }
+    receipt_path.write_text(json.dumps(receipt, indent=2, sort_keys=True) + "\n", encoding="utf-8")
+    return receipt_path
+
+
+def main(argv: list[str] | None = None) -> int:
+    """CLI: evaluate one external sanitized authority packet JSON path."""
+    import argparse
+    import sys
+
+    parser = argparse.ArgumentParser(
+        description=(
+            "Evaluate one sanitized H&H CC-reader P5 estate-authority packet. "
+            "Does not contact Payment Fusion, PAXSTORE, or any network surface."
+        )
+    )
+    parser.add_argument(
+        "packet_json",
+        help="Path to sanitized authority packet JSON containing evaluator_inputs",
+    )
+    parser.add_argument(
+        "--output-dir",
+        default=None,
+        help="Optional receipt directory (default: survey/output/hh-cc-reader)",
+    )
+    args = parser.parse_args(argv)
+    packet_path = Path(args.packet_json).expanduser()
+    if not packet_path.is_file():
+        print(f"ERROR: packet file not found: {packet_path}", file=sys.stderr)
+        return 2
+    try:
+        loaded = load_packet_file(packet_path)
+    except ValueError as exc:
+        print(f"ERROR: {exc}", file=sys.stderr)
+        return 1
+    inputs = loaded["evaluator_inputs"]
+    try:
+        result = evaluate(inputs)
+    except (ValueError, AssertionError) as exc:
+        print(f"ERROR: evaluator rejected inputs: {exc}", file=sys.stderr)
+        return 1
+
+    # Carry packet id onto the receipt from inputs when evaluate() does not emit it.
+    if "authority_packet_id" not in result:
+        result = {
+            **result,
+            "authority_packet_id": inputs.get("authority_packet_id"),
+        }
+
+    out_dir = Path(args.output_dir).expanduser() if args.output_dir else None
+    receipt_path = write_estate_authority_receipt(
+        packet_path=packet_path,
+        result=result,
+        output_dir=out_dir,
+    )
+
+    disposition = str(result.get("proposed_disposition") or "UNKNOWN")
+    packet_state = str(result.get("packet_state") or "UNKNOWN")
+    classification = f"{packet_state}/{disposition}"
+    print(f"CLASSIFICATION={classification}")
+    print(f"PACKET_STATE={packet_state}")
+    print(f"PROPOSED_DISPOSITION={disposition}")
+    print(f"DISPOSITION_MAY_PROMOTE={result.get('disposition_may_promote')}")
+    print(f"MUTATION_AUTHORIZED={result.get('mutation_authorized')}")
+    print(f"PACKAGE_CONFLICT={result.get('package_conflict')}")
+    print(f"CURRENT_FIRMWARE_OBSERVED_VALUE={result.get('current_firmware_observed_value')}")
+    print(f"REASON={result.get('reason')}")
+    print(f"NEXT_GATE={result.get('next_gate')}")
+    print(f"AUTHORITY_PACKET_ID={result.get('authority_packet_id')}")
+    print(f"EVIDENCE={receipt_path}")
+    print(json.dumps(result, indent=2, sort_keys=True))
+    return 0
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())
