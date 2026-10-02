@@ -114,8 +114,15 @@ def test_mechanism_discovery_must_precede_human_escalation() -> None:
         "CREDENTIAL_GATE",
         "CREDENTIAL_GATE",
         "NOT_APPLICABLE",
-        "EVIDENCE_GAP",
+        "CREDENTIAL_GATE",
     ]
+    paxstore = mechanism["candidate_order"][1]
+    auto_update = mechanism["candidate_order"][3]
+    assert "Readonly Firmware List + Terminal Management" in paxstore["next_discriminator"]
+    assert "Full/write/push privileges are not required for discovery" in paxstore["next_discriminator"]
+    assert "Automatic terminal updating" in auto_update["evidence_basis"]
+    assert "IngEstate" in auto_update["evidence_basis"]
+    assert "platform capability alone" in auto_update["next_discriminator"]
     assert all(mechanism["rules"].values())
     assert mechanism["rules"]["exhaust_supported_mechanisms_before_human_escalation"] is True
     assert mechanism["rules"]["human_owner_confirmation_is_not_a_primary_discriminator"] is True

@@ -145,7 +145,7 @@ The recurring failure mode was treating **"management owner unknown"** as a term
 
 1. **Payment Fusion Control Center / Bank of America Healthcare Omni-Channel — strongest estate-facing management-surface match. Current disposition: `CREDENTIAL_GATE`.**
    - PAX's AxiaMed partnership material states that AxiaMed's Control Center manages PAX Android payment devices from a cloud system and supports remote updates.
-   - Current Bank of America Payment Fusion documentation exposes terminal inventory plus terminal settings/application management through Payment Fusion Control Center.
+   - Current Bank of America Healthcare Omni-Channel documentation explicitly lists **Control Center -> Terminal management -> Automatic terminal updating** and **IngEstate -> Remote terminal communication -> Terminal software repository**. This closes the generic platform-capability question without proving the representative H&H terminal is enrolled there.
    - Experian Health public implementation material for other healthcare customers explicitly bundles **PAX A80 with Control Center**, reinforcing that this is a real deployed healthcare stack rather than a naming coincidence.
    - Operator-managed evidence already reached the AxiaMed gateway's existing-account login surface; no self-service signup was exposed. The mechanism is therefore no longer owner-unknown: the exact remaining boundary is authorized account/role access to the representative terminal. Preserve **CREDENTIAL_GATE: PAYMENT_FUSION_CONTROL_CENTER** rather than asking anyone to name the owner.
 
@@ -154,17 +154,19 @@ The recurring failure mode was treating **"management owner unknown"** as a term
    - PAX states that PAXSTORE pushes firmware and application updates over the air, including batch operations.
    - PAX reseller documentation exposes **Push Firmware** tasks for terminals/groups.
    - A public PAX deployment implementation guide gives the practical sequence: **PAXSTORE -> Terminal Management -> select terminal -> Push Task -> Firmware -> choose firmware -> Activate**.
-   - Operator-managed evidence already proved that a public PAXSTORE account can reach Marketplace/App Store but does not expose fleet **Terminal Management**. The exact remaining boundary is reseller/admin/estate role scope. Preserve **CREDENTIAL_GATE: PAXSTORE**; do not create, activate, reassign, or push to an H&H terminal merely to test account scope.
+   - Current PAXSTORE role documentation defines **Firmware List** as firmware/update notice/details by terminal and **Terminal Management** as terminal status/information; both support **Readonly** as well as Full privilege levels. For discovery, the smallest useful role is **Readonly Firmware List + Terminal Management**. Full/write/push access is not required until a separately authorized pilot.
+   - Operator-managed evidence already proved that a public PAXSTORE account can reach Marketplace/App Store but does not expose fleet **Terminal Management**. Preserve **CREDENTIAL_GATE: PAXSTORE** until the read-only estate role above is available; do not create, activate, reassign, or push to an H&H terminal merely to test account scope.
 
 3. **Terminal-initiated TMS/NTMS pull — provider-specific fallback. Current disposition: `NOT_APPLICABLE` on the exhausted H&H AxiaMed/admin surface.**
    - Public A80 deployments show that some providers expose local **Update / Firmware** or **NTMS Agent -> Update Application** flows that contact a configured TMS.
    - The unlocked H&H AxiaMed admin menu has already been captured end-to-end and exposes Ethernet/Network, Connectivity, Ping, Test Transaction, Traceroute, Netstat, Diagnostic, Change Environment, and Reset Device controls — but no **NTMS**, **TMS**, **Update**, or **Firmware** control. Prior Diagnostic exploration also did not expose a firmware path.
    - **Disposition consequence:** do not restage local menu exploration. Reopen only if a materially new application/control surface or estate-specific documentation exposes an update action.
 
-4. **Provider-managed automatic update — provider-specific fallback. Current disposition: `EVIDENCE_GAP`.**
-   - Some managed PAX estates update automatically after check-in/restart.
-   - No H&H-specific automatic-update contract is proven.
-   - **Next discriminator:** accept this mechanism only when estate management evidence or directly observed representative-reader behavior proves it.
+4. **Provider-managed automatic update — provider-specific fallback. Current disposition: `CREDENTIAL_GATE`.**
+   - Current Bank of America Healthcare Omni-Channel documentation proves **Automatic terminal updating** as a Control Center capability and identifies **IngEstate** as the remote terminal communication / terminal software repository layer.
+   - Current PAXSTORE material independently documents remote firmware updates plus policy-based distribution.
+   - These sources prove platform capability, **not** that the representative H&H terminal is enrolled in either automatic-update policy or that package `2.0.15.260522` is assigned/exposed.
+   - **Next discriminator:** use authorized read-only Control Center/IngEstate or PAXSTORE estate access to inspect the representative terminal's update-policy, job, and package state. Do not initiate, alter, or approve a task during discovery.
 
 ### Mechanism exit states
 
@@ -181,7 +183,9 @@ Public mechanism references:
 
 - https://www.pax.us/about/press-room/pax-technology-inc-and-axiamed-partner-to-provide-optimal-healthcare-payment-experience-with-android-based-a920-a80/
 - https://developer.merchant-services.bankofamerica.com/healthcareomnichannel/api?apiDef=settings
+- https://developer.merchant-services.bankofamerica.com/healthcareomnichannel/integrations
 - https://www.pax.us/marketplace/
+- https://faqs.pax.us/wp-content/uploads/2021/05/PAXSTORE-Role-Management-User-Guide-Reseller-V1.0_10-19-2020.pdf
 - https://faqs.pax.us/wp-content/uploads/2020/05/PAXSTORE-Reseller-Admin-Guide_v1.0.pdf
 - https://bridgepaynetwork.atlassian.net/wiki/spaces/DC/pages/215744615/PAX%2BA-Series%2BDeployment%2BInstructions
 
@@ -208,7 +212,7 @@ Current dispositions from exhausted provider-neutral evidence:
 - **Device Connectivity Test / Netstat alone** — Kiosk4 discriminators are closed by prior provenance (`START_TEST` / Connectivity / `REMOTE_ENDPOINT_CANDIDATE=NONE`). Access: `NOT_APPLICABLE` for package/entitlement resolution. Do not restage another reader window for this gap.
 - **Generic public search for exact build `2.0.15.260522`** — exhausted on 2026-10-01 with no authoritative public PAX package/release mapping. Access: `NOT_APPLICABLE`. Cannot close the estate package gate.
 
-**Strongest next mechanism gate:** the two leading mechanisms are now both at named, concrete access boundaries rather than owner-discovery boundaries: `CREDENTIAL_GATE: PAYMENT_FUSION_CONTROL_CENTER` for the estate-facing management surface and `CREDENTIAL_GATE: PAXSTORE` for the firmware-delivery surface/role. The exposed local TMS/NTMS lane is `NOT_APPLICABLE`; provider-auto-update remains `EVIDENCE_GAP`. Do not ask a client or coworker to identify an owner and do not repeat reader diagnostics. The next successful transition must come from authorized access to one of the two named control surfaces or new estate-specific evidence that proves the automatic-update lane.
+**Strongest next mechanism gate:** all remaining remote-cloud lanes are now at named, concrete access boundaries rather than owner-discovery or generic capability gaps: `CREDENTIAL_GATE: PAYMENT_FUSION_CONTROL_CENTER / INGESTATE` and `CREDENTIAL_GATE: PAXSTORE`. The exposed local TMS/NTMS lane is `NOT_APPLICABLE`. Provider-managed automatic update is also `CREDENTIAL_GATE`: platform capability is proved, but H&H enrollment/policy/package mapping is not. Do not ask a client or coworker to identify an owner and do not repeat reader diagnostics. The next successful transition is authorized **read-only** access to one of the named control surfaces and direct observation of the representative terminal's firmware/update state.
 
 Until one mechanism reaches `PROVEN_PATH` and the exact package/release mapping plus supported update method are established, leave firmware mutation unauthorized: do not assign, push, sideload, reset, or change reader/TMS/network configuration.
 

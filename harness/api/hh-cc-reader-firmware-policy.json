@@ -61,8 +61,8 @@
         "id": "payment-fusion-control-center",
         "role": "estate_management_surface",
         "priority": 1,
-        "evidence_basis": "Public PAX/AxiaMed documentation identifies Control Center as a cloud payment-device management surface for PAX Android devices with remote update capability; current Bank of America Payment Fusion documentation exposes terminal inventory and application/settings management. Operator-managed H&H evidence also records the AxiaMed gateway as an existing-account login surface.",
-        "next_discriminator": "The named Payment Fusion/AxiaMed surface is already identified. Required access is an authorized H&H/AxiaMed/Payment Fusion account or role that exposes the representative terminal and update controls. Until such credentials are present in the execution environment, preserve CREDENTIAL_GATE for this exact surface; do not replace it with a generic owner-identification request.",
+        "evidence_basis": "Public PAX/AxiaMed documentation identifies Control Center as a cloud payment-device management surface for PAX Android devices. Current Bank of America Healthcare Omni-Channel documentation explicitly lists Control Center terminal management and Automatic terminal updating, plus IngEstate Remote terminal communication and a Terminal software repository. Operator-managed H&H evidence also records the AxiaMed gateway as an existing-account login surface.",
+        "next_discriminator": "The platform capability is no longer an evidence gap. Required next state is authorized read access to Payment Fusion Control Center / Healthcare Omni-Channel / IngEstate that exposes the representative terminal, software or firmware state, and automatic-update policy or assignment controls. Until such credentials are present in the execution environment, preserve CREDENTIAL_GATE for this exact surface; do not replace it with a generic owner-identification request.",
         "evidence_rank": "STRONGEST_ESTATE_MATCH",
         "disposition": "CREDENTIAL_GATE"
       },
@@ -70,8 +70,8 @@
         "id": "paxstore-ota-push",
         "role": "firmware_delivery_mechanism",
         "priority": 2,
-        "evidence_basis": "The H&H reader Connectivity Test exposes PAX Store Push Service Primary on TCP 443, while PAX documentation supports over-the-air firmware push to terminals/groups. Operator-managed evidence records that a public PAXSTORE account reaches Marketplace/App Store but does not expose fleet Terminal Management.",
-        "next_discriminator": "The PAXSTORE surface is already identified, but the observed public account lacks reseller/admin/estate Terminal Management privileges. Preserve CREDENTIAL_GATE for the required PAXSTORE role/estate scope. Do not add, reassign, activate, or mutate an H&H terminal merely to test account scope.",
+        "evidence_basis": "The H&H reader Connectivity Test exposes PAX Store Push Service Primary on TCP 443, while PAX documents over-the-air firmware updates. Current PAXSTORE role documentation defines Firmware List as firmware/update notice/details by terminal and Terminal Management as terminal status/information, with Readonly or Full privilege levels. Operator-managed evidence records that a public PAXSTORE account reaches Marketplace/App Store but does not expose fleet Terminal Management.",
+        "next_discriminator": "For read-only discovery, the minimum requested estate role is Readonly Firmware List + Terminal Management for the representative H&H terminal. Full/write/push privileges are not required for discovery and remain outside this lane. Preserve CREDENTIAL_GATE until that read role exists; do not add, reassign, activate, or push to an H&H terminal merely to test account scope.",
         "evidence_rank": "STRONGEST_DELIVERY_MATCH",
         "disposition": "CREDENTIAL_GATE"
       },
@@ -88,10 +88,10 @@
         "id": "provider-auto-update",
         "role": "provider_specific_fallback",
         "priority": 4,
-        "evidence_basis": "Some managed PAX estates apply software or firmware automatically when terminals check in, but no H&H-specific automatic-update policy is currently proven.",
-        "next_discriminator": "Treat automatic update as supported only when estate-specific management evidence or directly observed representative-terminal behavior proves that policy.",
+        "evidence_basis": "Current Bank of America Healthcare Omni-Channel documentation explicitly lists Control Center Automatic terminal updating and IngEstate Remote terminal communication plus a Terminal software repository. Current PAXSTORE material also documents remote firmware updates and policy-based distribution. Automatic update is therefore a proven platform capability on leading candidate stacks, but the H&H representative terminal's enrollment, update policy, package assignment, and target mapping remain unproved.",
+        "next_discriminator": "Resolve automatic update H&H applicability through authorized read access to Payment Fusion Control Center / IngEstate or PAXSTORE estate views: inspect the representative terminal's update-policy, job, and package state without initiating or changing a task. Until that read access exists, preserve CREDENTIAL_GATE; do not infer H&H applicability from platform capability alone.",
         "evidence_rank": "FALLBACK",
-        "disposition": "EVIDENCE_GAP"
+        "disposition": "CREDENTIAL_GATE"
       }
     ],
     "rules": {
