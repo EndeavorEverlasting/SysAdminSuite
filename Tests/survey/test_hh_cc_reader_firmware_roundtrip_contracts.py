@@ -53,6 +53,7 @@ def _unique_identity(**overrides):
         "live_mac": "AA:BB:CC:DD:EE:01",
         "live_ipv4": "192.0.2.10",
         "probe_mac_match": True,
+        "network_environment": "CONSUMER_LAB",
     }
     base.update(overrides)
     return base
@@ -202,6 +203,26 @@ def test_identity_tranches_preserve_strict_mutation_gate() -> None:
     assert mac_resolve["state"] == "IDENTITY_INCOMPLETE"
     assert mac_resolve["identity_tranche"] == "MAC_ONLY"
     assert mac_resolve["unique_target"] is False
+
+    unclassified_network = resolve_target_identity(
+        _unique_identity(network_environment=None)
+    )
+    assert unclassified_network["state"] == "IDENTITY_INCOMPLETE"
+    assert "network_environment_unclassified" in unclassified_network["rejection_reasons"]
+    assert unclassified_network["network_environment_classified"] is False
+
+    invalid_network = resolve_target_identity(
+        _unique_identity(network_environment="HOMEISH")
+    )
+    assert invalid_network["state"] == "IDENTITY_INCOMPLETE"
+    assert "network_environment_invalid" in invalid_network["rejection_reasons"]
+
+    guest_network = resolve_target_identity(
+        _unique_identity(network_environment="HOSPITAL_GUEST_SHARED")
+    )
+    assert guest_network["state"] == "UNIQUE_TARGET_RESOLVED"
+    assert guest_network["network_environment"] == "HOSPITAL_GUEST_SHARED"
+    assert guest_network["network_environment_classified"] is True
 
     common = {
         "source_name": "SyntheticReader",
