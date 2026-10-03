@@ -278,9 +278,7 @@
       "platform": "python3+git",
       "command": "python scripts/check-repo-text-policy.py --cached",
       "blocking": true,
-      "scope": [
-        "changed tracked text"
-      ],
+      "scope": ["changed tracked text"],
       "proof": "Staged Git text blobs use canonical repository byte policy and contain no trailing whitespace."
     },
     {
@@ -289,9 +287,7 @@
       "platform": "python3+git",
       "command": "python scripts/check-repo-text-policy.py --commit HEAD",
       "blocking": true,
-      "scope": [
-        "committed tracked text"
-      ],
+      "scope": ["committed tracked text"],
       "proof": "The destination commit satisfies repository text policy."
     },
     {
@@ -300,9 +296,7 @@
       "platform": "git",
       "command": "git diff --check",
       "blocking": true,
-      "scope": [
-        "working tree diff"
-      ],
+      "scope": ["working tree diff"],
       "proof": "No whitespace errors are present in the current patch."
     },
     {
@@ -311,11 +305,7 @@
       "platform": "bash+python3",
       "command": "bash tests/survey/run_offline_survey_tests.sh",
       "blocking": true,
-      "scope": [
-        "survey/**",
-        "harness/**",
-        "Tests/survey/**"
-      ],
+      "scope": ["survey/**", "harness/**", "Tests/survey/**"],
       "proof": "Dependency-free offline survey and harness contracts pass without target contact."
     },
     {
@@ -324,11 +314,7 @@
       "platform": "PowerShell+Pester5",
       "command": "pwsh -NoProfile -ExecutionPolicy Bypass -File tools/Test-Pester5Suite.ps1 -TestPath Tests/Pester",
       "blocking": false,
-      "scope": [
-        "*.ps1",
-        "*.psm1",
-        "Tests/Pester/**"
-      ],
+      "scope": ["*.ps1", "*.psm1", "Tests/Pester/**"],
       "proof": "PowerShell parser, fixture, and behavioral contracts pass on a Pester 5 host."
     },
     {
@@ -337,11 +323,7 @@
       "platform": ".NET 8",
       "command": "dotnet test SysAdminSuite.sln -c Release --verbosity normal",
       "blocking": false,
-      "scope": [
-        "src/**",
-        "managed-tests/**",
-        "SysAdminSuite.sln"
-      ],
+      "scope": ["src/**", "managed-tests/**", "SysAdminSuite.sln"],
       "proof": "Managed solution restores, builds, and passes unit tests in Release configuration."
     },
     {
@@ -350,9 +332,7 @@
       "platform": ".NET 8",
       "command": "dotnet publish src/SysAdminSuite.DashboardHost/SysAdminSuite.DashboardHost.csproj -c Release -r win-x64 --self-contained false -o tools/publish/SysAdminSuite.DashboardHost",
       "blocking": false,
-      "scope": [
-        "src/SysAdminSuite.DashboardHost/**"
-      ],
+      "scope": ["src/SysAdminSuite.DashboardHost/**"],
       "proof": "DashboardHost produces the framework-dependent win-x64 publish artifact used by its build contract."
     },
     {
