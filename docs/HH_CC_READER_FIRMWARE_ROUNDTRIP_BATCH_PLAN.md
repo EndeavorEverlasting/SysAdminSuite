@@ -58,7 +58,7 @@ The experimental reader is referred to as Kiosk4, but mutation is forbidden unti
 
 Do not reuse the older READERUNK specimen values 10.217.101.192 / C8:40:52:3C:54:B6 as Kiosk4 identity. Those values are historical reader evidence and the later rolling-baseline receipt explicitly did not attribute them to Kiosk4.
 
-The later Kiosk4 work also contains a candidate exact-MAC observation attempt using C8-40-52-3C-93-BA. That passive attempt produced no usable frame and therefore does not, by itself, prove Kiosk4 identity.
+The later Kiosk4 work also contains a candidate exact-MAC observation attempt retained only in private evidence. That passive attempt produced no usable frame and therefore does not, by itself, prove Kiosk4 identity.
 
 BASELINE_LOCKED requires:
 
@@ -244,6 +244,9 @@ Tasks:
 
 Completion gate: tracker wiring and Kiosk4 evidence map are explicit.
 
+R0 evidence map (2026-10-02): docs/HH_CC_READER_KIOSK4_ROUNDTRIP_EVIDENCE_MAP.md
+Offline admission seams (identity/baseline/restore/preview/compare/batch): harness/api/hh_cc_reader_firmware_roundtrip.py
+
 ### R1 — Kiosk4 baseline lock
 
 Runtime: technician/local runtime on the actual experiment network.
@@ -355,18 +358,15 @@ Repository planning, fixtures, validators, dry runs, and receipt rendering can p
 
 ## Recovered Kiosk4 tracker/source baseline candidate
 
-The existing CC Reader Technician Dashboard and its underlying source inventory identify the experimental Kiosk4 record as:
+The existing CC Reader Technician Dashboard and its underlying source inventory identify an experimental Kiosk4 record. Live serial, MAC, IPv4, and firmware values for that record remain in private/operator evidence (`PRIVATE_EVIDENCE:kiosk4-tracker-candidate`) and must not be copied into tracked source.
 
-- source name: Kiosk4;
-- source serial / CC identity: 1240473751;
+Tracked facts that may be stated without live identifiers:
+
+- source name / alias: Kiosk4;
 - model: PAX A80;
-- source MAC: C8:40:52:3C:93:BA;
-- source firmware/application version: 2.0.15.260410;
-- source state: deployed;
-- client/tracker Active Outdated classification: Yes;
-- source status: offline at the historical inventory snapshot.
+- client/tracker Active Outdated classification: Yes (historical snapshot);
+- source state: deployed (historical snapshot);
+- governed planning target: `selection.default_target` from `harness/api/hh-cc-reader-firmware-policy.json`.
 
-These values are the expected identity/baseline candidates for the live lock. They do not prove current network reachability, current IPv4, or current live firmware.
-
-The historical offline field must not be promoted into a present-tense offline conclusion. The live experiment must prove current identity with the expected serial/MAC and canonical network probe, then re-observe firmware. If live firmware remains 2.0.15.260410 and identity matches, the reader has a strong tracker-backed eligibility path toward target 2.0.15.260522. If live firmware or identity differs, reconcile the discrepancy before mutation.
+These values are the expected identity/baseline *class* for the live lock. They do not prove current network reachability, current IPv4, or current live firmware. Bind private serial/MAC/firmware at runtime before BASELINE_LOCKED.
 

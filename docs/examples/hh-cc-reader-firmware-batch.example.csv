@@ -1,0 +1,3 @@
+source_serial,source_name,expected_mac,observed_firmware,active_outdated,target_firmware,action,baseline_ref,restore_plan_ref,site_code,progress_batch_id,campaign_ticket
+REPLACE-WITH-SERIAL,REPLACE-WITH-SOURCE-NAME,AA-BB-CC-DD-EE-FF,REPLACE-WITH-OBSERVED-FW,Yes,2.0.15.260522,PLAN,, ,REPLACE-WITH-SITE,,INC007576091
+REPLACE-WITH-SERIAL-2,REPLACE-WITH-SOURCE-NAME-2,11-22-33-44-55-66,REPLACE-WITH-OBSERVED-FW-2,Yes,2.0.15.260522,PLAN,, ,REPLACE-WITH-SITE,,INC007576091
