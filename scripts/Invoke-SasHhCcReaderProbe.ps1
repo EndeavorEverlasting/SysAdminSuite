@@ -8,6 +8,10 @@ param(
     [AllowEmptyString()]
     [string]$ExpectedMac = '',
 
+    [Parameter(Position=2)]
+    [ValidateSet('UNCLASSIFIED','HOSPITAL_GUEST_SHARED','CONSUMER_LAB','PROTECTED_ENTERPRISE','OTHER_SHARED')]
+    [string]$NetworkEnvironment = 'UNCLASSIFIED',
+
     [ValidateRange(1,20)]
     [int]$PingCount = 4,
 
@@ -82,6 +86,7 @@ if (-not [System.Net.IPAddress]::TryParse($IPAddress, [ref]$target) -or
 $normalizedExpectedMac = ConvertTo-SasNormalizedMac -Value $ExpectedMac
 $repoRoot = (Resolve-Path -LiteralPath (Join-Path $PSScriptRoot '..')).Path
 $expectedMacSupplied = -not [string]::IsNullOrWhiteSpace($normalizedExpectedMac)
+$networkEnvironmentClassified = $NetworkEnvironment -ne 'UNCLASSIFIED'
 $initialIdentityAssurance = if ($expectedMacSupplied) { 'PENDING_MAC_CORRELATION' } else { 'NETWORK_ONLY_MAC_NOT_SUPPLIED' }
 $identityTransport = if ($expectedMacSupplied) { 'L2_NEIGHBOR_EXACT_TARGET' } else { 'NOT_REQUESTED' }
 
@@ -95,7 +100,8 @@ $result = [ordered]@{
     identity_assurance = $initialIdentityAssurance
     identity_transport = $identityTransport
     broad_discovery_performed = $false
-    network_environment_assumption = 'NONE'
+    network_environment = $NetworkEnvironment
+    network_environment_classified = $networkEnvironmentClassified
     network = @()
     selected_interface = $null
     neighbor = $null
@@ -107,6 +113,17 @@ $result = [ordered]@{
 
 Write-Host '=== H&H CC READER READ-ONLY PROBE ==='
 Write-Host ("TARGET={0}" -f $target)
+Write-Host ("NETWORK_ENVIRONMENT={0}" -f $NetworkEnvironment)
+
+if ($expectedMacSupplied -and -not $networkEnvironmentClassified) {
+    $result.classification = 'NETWORK_ENVIRONMENT_UNCLASSIFIED'
+    Write-Host 'IDENTITY_ASSURANCE=BLOCKED_NETWORK_CONTEXT_UNCLASSIFIED'
+    Write-Host 'CLASSIFICATION=NETWORK_ENVIRONMENT_UNCLASSIFIED'
+    Write-Host 'STOP: expected-MAC identity interpretation requires an explicit network environment class.'
+    Write-Host 'Use HOSPITAL_GUEST_SHARED, CONSUMER_LAB, PROTECTED_ENTERPRISE, or OTHER_SHARED. Do not infer the class from network size or Windows profile alone.'
+    Write-SasProbeResult -Result $result -RepoRoot $repoRoot
+    exit 6
+}
 
 $configs = @(Get-NetIPConfiguration | Where-Object {
     $_.NetAdapter -and $_.NetAdapter.Status -eq 'Up' -and $_.IPv4Address
