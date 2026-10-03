@@ -66,9 +66,10 @@ Harness work may preempt the live lane only when all of these are true:
 
 1. the defect is demonstrated, not speculative;
 2. it blocks the current live gate;
-3. a concrete evidence reference identifies the failure;
-4. the repair can be bounded to that blocker;
-5. after repair, execution resumes the same live gate.
+3. a concrete local evidence artifact exists;
+4. the artifact's SHA-256 matches the supplied digest and is explicitly bound to the same current gate;
+5. the repair can be bounded to that blocker;
+6. after repair, execution resumes the same live gate.
 
 A useful improvement, cleanup opportunity, schema enhancement, dashboard change, publication mechanism, or future batch feature does not satisfy this test.
 
