@@ -48,6 +48,8 @@ EXPECTED_PUBLICATION_FIELDS = {
     "published_hash",
     "verified_at",
 }
+EXPECTED_DUPLICATE_RULE = "An identical event_id+payload is idempotent. The same event_id with a materially different payload is CONFLICT and must not be applied."
+EXPECTED_PROMOTION_RULE = "An event may promote only the state dimension and authoritative artifact explicitly named by its governing binding contract."
 
 
 def _load(path: Path) -> dict[str, Any]:
@@ -129,11 +131,9 @@ def validate_contract(payload: dict[str, Any]) -> list[str]:
     required_event_fields = _string_set(event.get("required_fields"))
     if required_event_fields is None or not EXPECTED_EVENT_FIELDS <= required_event_fields:
         errors.append("event_contract.required_fields")
-    duplicate_rule = event.get("duplicate_rule")
-    if not isinstance(duplicate_rule, str) or "idempotent" not in duplicate_rule.casefold() or "conflict" not in duplicate_rule.casefold():
+    if event.get("duplicate_rule") != EXPECTED_DUPLICATE_RULE:
         errors.append("event_contract.duplicate_rule")
-    promotion_rule = event.get("promotion_rule")
-    if not isinstance(promotion_rule, str) or "explicit" not in promotion_rule.casefold() or "state dimension" not in promotion_rule.casefold():
+    if event.get("promotion_rule") != EXPECTED_PROMOTION_RULE:
         errors.append("event_contract.promotion_rule")
 
     if payload.get("publication_lifecycle") != EXPECTED_LIFECYCLE:
