@@ -38,6 +38,10 @@ def main() -> int:
     assert "title SysAdminSuite - H^&H" in launcher, "probe title must escape H&&H"
     assert "title SysAdminSuite - H&H" not in launcher, "probe title leaves & unescaped"
 
+    assert 'call "C:\\SASAL\\Probe-HHCCReader.cmd" "%~1" "" "%~3"' in launcher
+    assert '-IPAddress "%~1" -NetworkEnvironment "%~3"' in launcher
+    assert 'if not "%~4"=="" goto usage' in launcher
+
     for marker in (
         "Get-NetIPConfiguration",
         "Test-SasSameIPv4Subnet",
