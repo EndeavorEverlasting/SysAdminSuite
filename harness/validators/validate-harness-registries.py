@@ -98,7 +98,7 @@ def test_validator_registry() -> None:
         "harness-registry-integrity", "harness-outcome-contracts", "deployment-state-contracts",
         "operational-harness-completeness", "local-harness-contracts", "repository-text-policy-staged",
         "repository-text-policy-commit", "patch-whitespace", "offline-survey-floor", "pester-full",
-        "managed-tests-release", "dashboard-publish",
+        "managed-tests-release", "dashboard-publish", "hh-cc-reader-live-execution-boundary-contracts",
     }
     assert required <= {item["id"] for item in validators}
     for item in validators:
