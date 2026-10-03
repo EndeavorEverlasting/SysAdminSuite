@@ -1,0 +1,304 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://example.invalid/schemas/sas-operational-publication-boundary.v1.schema.json",
+  "title": "SysAdminSuite operational publication boundary contract",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "version",
+    "status",
+    "purpose",
+    "principles",
+    "artifact_identity",
+    "state_dimensions",
+    "event_contract",
+    "publication_lifecycle",
+    "publication_manifest_contract",
+    "drift_rules",
+    "privacy_boundary",
+    "proof_ceiling"
+  ],
+  "properties": {
+    "schema_version": {
+      "const": "sas-operational-publication-boundary/v1"
+    },
+    "version": {
+      "const": 1
+    },
+    "status": {
+      "const": "IMPLEMENTED"
+    },
+    "purpose": {
+      "type": "string",
+      "minLength": 1
+    },
+    "principles": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "authority_projection_separation",
+        "downstream_visibility_must_not_be_upstream_availability_dependency",
+        "manual_publication_gate_is_first_class",
+        "private_publication_manifest_is_allowed",
+        "reverse_sync_default",
+        "projection_receives_operational_contract_not_internal_implementation",
+        "proof_must_flow_from_authority_to_projection",
+        "projection_status_must_not_promote_authoritative_state"
+      ],
+      "properties": {
+        "authority_projection_separation": {
+          "const": true
+        },
+        "downstream_visibility_must_not_be_upstream_availability_dependency": {
+          "const": true
+        },
+        "manual_publication_gate_is_first_class": {
+          "const": true
+        },
+        "private_publication_manifest_is_allowed": {
+          "const": true
+        },
+        "reverse_sync_default": {
+          "const": "DISABLED"
+        },
+        "projection_receives_operational_contract_not_internal_implementation": {
+          "const": true
+        },
+        "proof_must_flow_from_authority_to_projection": {
+          "const": true
+        },
+        "projection_status_must_not_promote_authoritative_state": {
+          "const": true
+        }
+      }
+    },
+    "artifact_identity": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "logical_artifact_key_is_provider_independent",
+        "revision_is_separate_from_logical_identity",
+        "provider_object_id_is_separate_from_logical_identity",
+        "filename_is_not_identity",
+        "hash_binds_a_specific_snapshot_not_the_logical_artifact"
+      ],
+      "properties": {
+        "logical_artifact_key_is_provider_independent": {
+          "const": true
+        },
+        "revision_is_separate_from_logical_identity": {
+          "const": true
+        },
+        "provider_object_id_is_separate_from_logical_identity": {
+          "const": true
+        },
+        "filename_is_not_identity": {
+          "const": true
+        },
+        "hash_binds_a_specific_snapshot_not_the_logical_artifact": {
+          "const": true
+        }
+      }
+    },
+    "state_dimensions": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "orthogonal",
+        "rule",
+        "minimum_dimensions"
+      ],
+      "properties": {
+        "orthogonal": {
+          "const": true
+        },
+        "rule": {
+          "type": "string",
+          "minLength": 1
+        },
+        "minimum_dimensions": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "minLength": 1
+          },
+          "minItems": 2,
+          "uniqueItems": true
+        }
+      }
+    },
+    "event_contract": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "schema",
+        "required_fields",
+        "idempotency_key",
+        "duplicate_rule",
+        "promotion_rule"
+      ],
+      "properties": {
+        "schema": {
+          "const": "sas-operational-event/v1"
+        },
+        "required_fields": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "minLength": 1
+          },
+          "minItems": 5,
+          "uniqueItems": true
+        },
+        "idempotency_key": {
+          "const": "event_id"
+        },
+        "duplicate_rule": {
+          "type": "string",
+          "minLength": 1
+        },
+        "promotion_rule": {
+          "type": "string",
+          "minLength": 1
+        }
+      }
+    },
+    "publication_lifecycle": {
+      "type": "array",
+      "items": {
+        "type": "string",
+        "minLength": 1
+      },
+      "minItems": 7,
+      "maxItems": 7,
+      "uniqueItems": true
+    },
+    "publication_manifest_contract": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "schema",
+        "privacy",
+        "required_fields",
+        "publication_required_fields",
+        "rules"
+      ],
+      "properties": {
+        "schema": {
+          "const": "sas-tracker-publication-manifest/v1"
+        },
+        "privacy": {
+          "type": "string",
+          "minLength": 1
+        },
+        "required_fields": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "minLength": 1
+          },
+          "minItems": 10,
+          "uniqueItems": true
+        },
+        "publication_required_fields": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "minLength": 1
+          },
+          "minItems": 7,
+          "uniqueItems": true
+        },
+        "rules": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "logical_artifact_key_stable_across_revisions",
+            "source_hash_required_for_validated_or_later",
+            "validation_pass_required_before_approval",
+            "manual_gate_may_promote_approved_to_published_unverified",
+            "publish_verified_requires_independent_target_readback",
+            "published_unverified_does_not_block_upstream_work",
+            "target_provider_unavailable_is_not_source_failure"
+          ],
+          "properties": {
+            "logical_artifact_key_stable_across_revisions": {
+              "const": true
+            },
+            "source_hash_required_for_validated_or_later": {
+              "const": true
+            },
+            "validation_pass_required_before_approval": {
+              "const": true
+            },
+            "manual_gate_may_promote_approved_to_published_unverified": {
+              "const": true
+            },
+            "publish_verified_requires_independent_target_readback": {
+              "const": true
+            },
+            "published_unverified_does_not_block_upstream_work": {
+              "const": true
+            },
+            "target_provider_unavailable_is_not_source_failure": {
+              "const": true
+            }
+          }
+        }
+      }
+    },
+    "drift_rules": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "downstream_change_is_input_evidence_not_automatic_writeback",
+        "two_sided_divergence",
+        "timestamp_newer_is_not_merge_authority",
+        "unknown_target_state"
+      ],
+      "properties": {
+        "downstream_change_is_input_evidence_not_automatic_writeback": {
+          "const": true
+        },
+        "two_sided_divergence": {
+          "const": "CONFLICT"
+        },
+        "timestamp_newer_is_not_merge_authority": {
+          "const": true
+        },
+        "unknown_target_state": {
+          "const": "UNVERIFIED"
+        }
+      }
+    },
+    "privacy_boundary": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "secrets_and_credentials_never_enter_projection",
+        "private_evidence_paths_need_not_enter_projection",
+        "internal_orchestration_details_need_not_enter_projection",
+        "operational_facts_required_by_downstream_consumers_may_enter_projection"
+      ],
+      "properties": {
+        "secrets_and_credentials_never_enter_projection": {
+          "const": true
+        },
+        "private_evidence_paths_need_not_enter_projection": {
+          "const": true
+        },
+        "internal_orchestration_details_need_not_enter_projection": {
+          "const": true
+        },
+        "operational_facts_required_by_downstream_consumers_may_enter_projection": {
+          "const": true
+        }
+      }
+    },
+    "proof_ceiling": {
+      "type": "string",
+      "minLength": 1
+    }
+  }
+}
