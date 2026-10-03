@@ -12,15 +12,18 @@ SysAdminSuite does not know or require the provider, account, folder hierarchy, 
 The tracked Windows front door is:
 
 ```text
-Probe-HHCCReader.cmd IPV4 [EXPECTED-MAC]
+Probe-HHCCReader.cmd IPV4 [EXPECTED-MAC] [NETWORK-ENVIRONMENT]
 ```
 
-Use one explicit authorized CC-reader IPv4 address. When the device's expected MAC is known from approved field evidence, supply it so the probe can fail closed before higher-layer interpretation if the IP resolves to the wrong device.
+Use one explicit authorized CC-reader IPv4 address. When the device's expected MAC is known from approved field evidence, supply it together with an explicit network environment class so the probe can fail closed before higher-layer interpretation if the IP resolves to the wrong device. Accepted identity-bearing classes are `HOSPITAL_GUEST_SHARED`, `CONSUMER_LAB`, `PROTECTED_ENTERPRISE`, and `OTHER_SHARED`; `UNCLASSIFIED` cannot satisfy expected-MAC identity interpretation.
 
 Documentation-only example:
 
 ```text
-Probe-HHCCReader.cmd 192.0.2.10 AA-BB-CC-DD-EE-FF
+Probe-HHCCReader.cmd 192.0.2.10 AA-BB-CC-DD-EE-FF HOSPITAL_GUEST_SHARED
+
+# classified network-only observation when MAC is not yet known
+Probe-HHCCReader.cmd 192.0.2.10 "" HOSPITAL_GUEST_SHARED
 ```
 
 The example uses TEST-NET data and is not an operational target.
@@ -50,6 +53,36 @@ The PowerShell implementation:
 9. records a compact `Test-NetConnection -InformationLevel Detailed` view;
 10. tests one explicit TCP port (default 443);
 11. writes a JSON receipt only under the ignored local `survey/output/hh-cc-reader/` evidence root.
+
+## Hospital guest/shared LAN posture
+
+Hospital guest Wi-Fi is treated as a **shared non-domain network environment**, not as a smaller enterprise LAN and not as permission to inherit home-lab discovery behavior. It may resemble a home router from the workstation's point of view while still having a much larger client population, DHCP churn, client isolation, proxying, or L2-neighbor suppression.
+
+The field rules are therefore:
+
+- preserve the canonical one-explicit-IPv4 target contract;
+- require an explicit network environment class before an expected MAC can become identity assurance; Windows network profile/category alone is observational and must not silently choose the class;
+- never widen a missing-identity problem into subnet/range discovery on a hospital guest/shared network;
+- record `identity_assurance` separately from reachability;
+- treat `MAC_MATCHED` as stronger same-L2 identity evidence, not firmware authority;
+- treat `MAC_UNRESOLVED` as an identity-transport limitation that can occur on shared/guest networks; it is not permission to guess, scan, or substitute a nearby device;
+- when no expected MAC is supplied, the environment class may still be recorded, but `NETWORK_ONLY_MAC_NOT_SUPPLIED` remains reachability evidence only and cannot satisfy the round-trip identity lock;
+- if the target IPv4 is unknown on a hospital guest/shared network, recover it from approved physical reader UI, private tracker/evidence, or an authorized management surface. The consumer-lab active discovery bridge below is not portable to this environment.
+
+### Inventory identity tranches
+
+The firmware round-trip/batch seam classifies every reader into one of four operational tranches before mutation:
+
+| Tranche | Inventory evidence | Field implication |
+| --- | --- | --- |
+| `SERIAL_AND_MAC` | serial + valid MAC | Easy tranche. Eligible to proceed to the exact one-target MAC-gated probe; live correlation is still required. |
+| `SERIAL_ONLY` | serial only | Recovery tranche. Recover MAC from approved physical or authorized management evidence; do not scan the guest LAN to manufacture the missing binding. |
+| `MAC_ONLY` | MAC only | Recovery tranche. Recover serial from the tracker, physical label/UI, or authorized management evidence before baseline lock. |
+| `IDENTITY_INSUFFICIENT` | neither | Reconciliation tranche. Stop before network probing until a reader identity anchor is recovered. |
+
+Malformed supplied MAC values are classified `IDENTITY_INVALID` and must be corrected rather than downgraded into another tranche.
+
+The batch planner exposes tranche counts plus a separate identity-admission summary so site work can be staged deliberately: automate only the **admissible** dual-identifier population first, then work serial-only, MAC-only, missing-identity, malformed, duplicate, forbidden, or otherwise conflicted rows through their explicit recovery gates. A row does not become easy merely because both cells are populated. **None of these tranche labels authorizes broad discovery or firmware mutation.**
 
 ## 2026-10-01 Netstat / Connectivity Test continuation
 
@@ -81,7 +114,7 @@ The bounded endpoint continuation is tracked separately as `Probe-HHCCReaderEndp
 
 ## Authorized consumer-lab bridge
 
-The canonical `Probe-HHCCReader.cmd` remains one-target and does not discover an IP.
+The canonical `Probe-HHCCReader.cmd` remains one-target and does not discover an IP. The separate consumer-lab discovery bridge invokes the canonical probe with `NetworkEnvironment=CONSUMER_LAB`; it does not make consumer discovery portable to a hospital guest/shared network.
 
 When the technician is deliberately reproducing the reader on an authorized private/home lab LAN and the reader IPv4 is not yet known, use the separate tracked workflow:
 

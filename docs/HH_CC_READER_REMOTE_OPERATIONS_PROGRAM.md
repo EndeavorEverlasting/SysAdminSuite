@@ -26,7 +26,7 @@ Repository source does not depend on that private document. The durable reposito
 
 ## Existing executable seam
 
-`Probe-HHCCReader.cmd TARGET_IPV4 [EXPECTED_MAC]` is the canonical reader probe. It already owns:
+`Probe-HHCCReader.cmd TARGET_IPV4 [EXPECTED_MAC] [NETWORK_ENVIRONMENT]` is the canonical reader probe. It already owns:
 
 - repository refresh;
 - same-subnet gate;
@@ -42,13 +42,19 @@ Do not create a second reader-probe engine.
 Prototype front door:
 
 ```text
-Probe-HHCCReaderEndpoint.cmd READER_IPV4 REMOTE_ENDPOINT PORT APPROVAL_REF [EXPECTED-MAC]
+Probe-HHCCReaderEndpoint.cmd READER_IPV4 REMOTE_ENDPOINT PORT APPROVAL_REF [EXPECTED-MAC] [NETWORK-ENVIRONMENT]
 ```
 
 Documentation-only example:
 
 ```text
-Probe-HHCCReaderEndpoint.cmd 192.0.2.10 service.example.invalid 443 EVIDENCE-REF-001 AA-BB-CC-DD-EE-FF
+Probe-HHCCReaderEndpoint.cmd 192.0.2.10 service.example.invalid 443 EVIDENCE-REF-001 AA-BB-CC-DD-EE-FF HOSPITAL_GUEST_SHARED
+
+Classified network-only endpoint evidence may preserve the environment without inventing a MAC:
+
+```text
+Probe-HHCCReaderEndpoint.cmd 192.0.2.10 service.example.invalid 443 EVIDENCE-REF-001 "" HOSPITAL_GUEST_SHARED
+```
 ```
 
 Call stack:

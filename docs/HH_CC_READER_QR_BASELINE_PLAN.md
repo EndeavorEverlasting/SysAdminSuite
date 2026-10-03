@@ -45,7 +45,7 @@ Existing repository doctrine applies:
 The merged field front door is:
 
 ```text
-Probe-HHCCReader.cmd TARGET_IPV4 [EXPECTED_MAC]
+Probe-HHCCReader.cmd TARGET_IPV4 [EXPECTED_MAC] [NETWORK_ENVIRONMENT]
 ```
 
 This launcher is the current technician authority for the read-only workstation-side reader probe. A device-specific QR may eventually carry a resolved invocation of this launcher because a tracked CMD contract already exists.
@@ -61,7 +61,7 @@ The technician runbook also shows read-only PowerShell component snippets for hu
 The repository-owned endpoint continuation is:
 
 ```text
-Probe-HHCCReaderEndpoint.cmd READER_IPV4 REMOTE_ENDPOINT PORT APPROVAL_REF [EXPECTED-MAC]
+Probe-HHCCReaderEndpoint.cmd READER_IPV4 REMOTE_ENDPOINT PORT APPROVAL_REF [EXPECTED-MAC] [NETWORK-ENVIRONMENT]
 ```
 
 It first validates the endpoint/reference arguments, then requires the canonical reader same-subnet/device gate to pass, then performs one read-only `Test-NetConnection` to the explicitly observed and approved endpoint/port and writes an ignored local receipt.
@@ -157,7 +157,7 @@ Status: implemented in the endpoint-correlation integration lane; scanner transp
 Canonical shape:
 
 ```text
-Probe-HHCCReaderEndpoint.cmd READER_IPV4 REMOTE_ENDPOINT PORT APPROVAL_REF [EXPECTED-MAC]
+Probe-HHCCReaderEndpoint.cmd READER_IPV4 REMOTE_ENDPOINT PORT APPROVAL_REF [EXPECTED-MAC] [NETWORK-ENVIRONMENT]
 ```
 
 Contract:
