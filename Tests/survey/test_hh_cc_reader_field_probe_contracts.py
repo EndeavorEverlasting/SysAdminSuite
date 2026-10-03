@@ -61,6 +61,9 @@ def main() -> int:
     ):
         assert marker in script, f"probe missing marker: {marker}"
 
+    assert "-replace '[^0-9A-Fa-f]'" not in script, "probe must not strip arbitrary MAC decoration into validity"
+    assert "ExpectedMac must use colon-delimited, hyphen-delimited, or compact 12-hex format." in script
+
     # Field regression: some active adapters (for example WSL vEthernet) can expose
     # a null NetProfile under strict mode, and Windows PowerShell 5.1 can reject
     # @($genericList) with "Argument types do not match".
