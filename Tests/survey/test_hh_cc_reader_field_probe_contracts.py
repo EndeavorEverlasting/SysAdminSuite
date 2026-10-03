@@ -48,6 +48,11 @@ def main() -> int:
         "DEVICE_MISMATCH",
         "DEVICE_UNRESOLVED",
         "READ_ONLY_PROBE_COMPLETE",
+        "identity_assurance",
+        "MAC_MATCHED",
+        "MAC_UNRESOLVED",
+        "NETWORK_ONLY_MAC_NOT_SUPPLIED",
+        "broad_discovery_performed = $false",
         "survey\\output\\hh-cc-reader",
     ):
         assert marker in script, f"probe missing marker: {marker}"
@@ -93,6 +98,18 @@ def main() -> int:
     )
 
     assert "operator-managed external technician instructions remain authoritative" in docs
+    for marker in (
+        "Hospital guest/shared LAN posture",
+        "shared non-domain network environment",
+        "never widen a missing-identity problem into subnet/range discovery",
+        "SERIAL_AND_MAC",
+        "SERIAL_ONLY",
+        "MAC_ONLY",
+        "IDENTITY_INSUFFICIENT",
+        "IDENTITY_INVALID",
+        "batch planner exposes tranche counts",
+    ):
+        assert marker in docs, f"hospital guest/shared identity contract missing marker: {marker}"
     assert "HH_CC_READER_NETSTAT_BASELINE.md" in docs
     assert "PAX Store Push Service Primary (443)" in docs
     assert "EXTERNAL_FIELD_EVIDENCE.md" in docs
@@ -198,6 +215,7 @@ def main() -> int:
 
     print("[PASS] H&H CC-reader workflow has a tracked CMD front door")
     print("[PASS] Probe is one-target, network-gated, optional-MAC-gated, and read-only")
+    print("[PASS] Shared/guest LAN identity assurance is explicit and never widens discovery scope")
     print("[PASS] Tracked artifacts contain only TEST-NET IPv4 and synthetic MAC examples")
     print("[PASS] Netstat baseline and capture-topology semantics remain read-only and provider-neutral")
     print("[PASS] External field evidence is provider-neutral and barcode-generator work is deferred")
