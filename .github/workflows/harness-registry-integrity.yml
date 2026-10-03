@@ -23,6 +23,7 @@ on:
       - 'harness/validators/**'
       - 'harness/reports/**'
       - 'schemas/harness/operational-harness-manifest.schema.json'
+      - 'schemas/harness/operational-publication-boundary.schema.json'
       - 'schemas/harness/harness-command-registry.schema.json'
       - 'schemas/harness/harness-validator-registry.schema.json'
       - 'schemas/harness/harness-artifact-registry.schema.json'
@@ -70,6 +71,7 @@ on:
       - 'harness/validators/**'
       - 'harness/reports/**'
       - 'schemas/harness/operational-harness-manifest.schema.json'
+      - 'schemas/harness/operational-publication-boundary.schema.json'
       - 'schemas/harness/harness-command-registry.schema.json'
       - 'schemas/harness/harness-validator-registry.schema.json'
       - 'schemas/harness/harness-artifact-registry.schema.json'
@@ -130,6 +132,7 @@ jobs:
           import jsonschema
           pairs = [
               ('harness/api/operational-harness-manifest.json', 'schemas/harness/operational-harness-manifest.schema.json'),
+              ('harness/api/operational-publication-boundary.v1.json', 'schemas/harness/operational-publication-boundary.schema.json'),
               ('harness/api/harness-command-registry.json', 'schemas/harness/harness-command-registry.schema.json'),
               ('harness/api/harness-validator-registry.json', 'schemas/harness/harness-validator-registry.schema.json'),
               ('harness/api/harness-artifact-registry.json', 'schemas/harness/harness-artifact-registry.schema.json'),
