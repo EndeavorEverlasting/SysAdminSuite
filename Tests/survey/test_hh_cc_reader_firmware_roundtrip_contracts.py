@@ -13,6 +13,7 @@ ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(ROOT))
 
 from harness.api.hh_cc_reader_firmware_roundtrip import (
+    classify_identity_tranche,
     compare_roundtrip_states,
     default_target_firmware,
     evaluate_mutation_admission,
@@ -148,6 +149,85 @@ def test_ambiguous_and_readerunk_identity_fail_closed() -> None:
     unique = resolve_target_identity(_unique_identity())
     assert unique["state"] == "UNIQUE_TARGET_RESOLVED"
     assert unique["unique_target"] is True
+
+
+def test_identity_tranches_preserve_strict_mutation_gate() -> None:
+    dual = classify_identity_tranche(
+        {"source_serial": "SYNTH-TR-001", "expected_mac": "AA-BB-CC-DD-EE-11"}
+    )
+    assert dual["tranche"] == "SERIAL_AND_MAC"
+    assert dual["inventory_inputs_complete"] is True
+    assert dual["next_gate"] == "MAC_GATED_ONE_TARGET_PROBE"
+    assert dual["broad_discovery_authorized"] is False
+    assert dual["mutation_authorized"] is False
+
+    serial_only = classify_identity_tranche({"source_serial": "SYNTH-TR-002"})
+    assert serial_only["tranche"] == "SERIAL_ONLY"
+    assert "RECOVER_MAC" in serial_only["next_gate"]
+
+    mac_only = classify_identity_tranche({"expected_mac": "AA-BB-CC-DD-EE-13"})
+    assert mac_only["tranche"] == "MAC_ONLY"
+    assert "RECOVER_SERIAL" in mac_only["next_gate"]
+
+    insufficient = classify_identity_tranche({})
+    assert insufficient["tranche"] == "IDENTITY_INSUFFICIENT"
+    assert insufficient["next_gate"] == "RECONCILE_READER_IDENTITY_BEFORE_NETWORK_PROBE"
+
+    malformed = classify_identity_tranche(
+        {"source_serial": "SYNTH-TR-004", "expected_mac": "not-a-mac"}
+    )
+    assert malformed["tranche"] == "IDENTITY_INVALID"
+    assert malformed["next_gate"] == "CORRECT_MALFORMED_MAC"
+
+    serial_resolve = resolve_target_identity(
+        {
+            "source_serial": "SYNTH-TR-002",
+            "live_ipv4": "192.0.2.20",
+            "probe_mac_match": False,
+        }
+    )
+    assert serial_resolve["state"] == "IDENTITY_INCOMPLETE"
+    assert serial_resolve["identity_tranche"] == "SERIAL_ONLY"
+    assert serial_resolve["unique_target"] is False
+    assert serial_resolve["broad_discovery_authorized"] is False
+
+    mac_resolve = resolve_target_identity(
+        {
+            "expected_mac": "AA-BB-CC-DD-EE-13",
+            "live_mac": "AA:BB:CC:DD:EE:13",
+            "live_ipv4": "192.0.2.21",
+            "probe_mac_match": True,
+        }
+    )
+    assert mac_resolve["state"] == "IDENTITY_INCOMPLETE"
+    assert mac_resolve["identity_tranche"] == "MAC_ONLY"
+    assert mac_resolve["unique_target"] is False
+
+    common = {
+        "source_name": "SyntheticReader",
+        "observed_firmware": "2.0.15.260410",
+        "active_outdated": "Yes",
+        "target_firmware": "2.0.15.260522",
+        "action": "PLAN",
+    }
+    plan = normalize_batch_rows(
+        [
+            {**common, "source_serial": "SYNTH-TR-101", "expected_mac": "AA-BB-CC-DD-EE-21"},
+            {**common, "source_serial": "SYNTH-TR-102", "expected_mac": ""},
+            {**common, "source_serial": "", "expected_mac": "AA-BB-CC-DD-EE-23"},
+            {**common, "source_serial": "", "expected_mac": ""},
+        ]
+    )
+    assert plan["identity_tranche_counts"] == {
+        "SERIAL_AND_MAC": 1,
+        "SERIAL_ONLY": 1,
+        "MAC_ONLY": 1,
+        "IDENTITY_INSUFFICIENT": 1,
+    }
+    assert plan["identity_recovery_count"] == 3
+    assert len(plan["identity_recovery_rows"]) == 3
+    assert plan["executable_count"] == 1
+    assert all(not row["broad_discovery_authorized"] for row in plan["rows"])
 
 
 def test_strict_mac_validation_rejects_garbage_hex_extraction() -> None:
@@ -566,6 +646,7 @@ if __name__ == "__main__":
         test_module_launchers_and_example_exist,
         test_tracked_docs_have_no_prohibited_live_identifiers,
         test_ambiguous_and_readerunk_identity_fail_closed,
+        test_identity_tranches_preserve_strict_mutation_gate,
         test_strict_mac_validation_rejects_garbage_hex_extraction,
         test_cross_device_receipt_binding_fail_closed,
         test_missing_baseline_blocks_mutation_and_compare,
