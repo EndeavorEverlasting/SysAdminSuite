@@ -51,6 +51,35 @@ The PowerShell implementation:
 10. tests one explicit TCP port (default 443);
 11. writes a JSON receipt only under the ignored local `survey/output/hh-cc-reader/` evidence root.
 
+## Hospital guest/shared LAN posture
+
+Hospital guest Wi-Fi is treated as a **shared non-domain network environment**, not as a smaller enterprise LAN and not as permission to inherit home-lab discovery behavior. It may resemble a home router from the workstation's point of view while still having a much larger client population, DHCP churn, client isolation, proxying, or L2-neighbor suppression.
+
+The field rules are therefore:
+
+- preserve the canonical one-explicit-IPv4 target contract;
+- never widen a missing-identity problem into subnet/range discovery on a hospital guest/shared network;
+- record `identity_assurance` separately from reachability;
+- treat `MAC_MATCHED` as stronger same-L2 identity evidence, not firmware authority;
+- treat `MAC_UNRESOLVED` as an identity-transport limitation that can occur on shared/guest networks; it is not permission to guess, scan, or substitute a nearby device;
+- when no expected MAC is supplied, `NETWORK_ONLY_MAC_NOT_SUPPLIED` is reachability evidence only and cannot satisfy the round-trip identity lock;
+- if the target IPv4 is unknown on a hospital guest/shared network, recover it from approved physical reader UI, private tracker/evidence, or an authorized management surface. The consumer-lab active discovery bridge below is not portable to this environment.
+
+### Inventory identity tranches
+
+The firmware round-trip/batch seam classifies every reader into one of four operational tranches before mutation:
+
+| Tranche | Inventory evidence | Field implication |
+| --- | --- | --- |
+| `SERIAL_AND_MAC` | serial + valid MAC | Easy tranche. Eligible to proceed to the exact one-target MAC-gated probe; live correlation is still required. |
+| `SERIAL_ONLY` | serial only | Recovery tranche. Recover MAC from approved physical or authorized management evidence; do not scan the guest LAN to manufacture the missing binding. |
+| `MAC_ONLY` | MAC only | Recovery tranche. Recover serial from the tracker, physical label/UI, or authorized management evidence before baseline lock. |
+| `IDENTITY_INSUFFICIENT` | neither | Reconciliation tranche. Stop before network probing until a reader identity anchor is recovered. |
+
+Malformed supplied MAC values are classified `IDENTITY_INVALID` and must be corrected rather than downgraded into another tranche.
+
+The batch planner exposes tranche counts and recovery rows so site work can be staged deliberately: automate the strong dual-identifier population first, then work the serial-only and MAC-only populations through their explicit recovery gates. **None of these tranche labels authorizes broad discovery or firmware mutation.**
+
 ## 2026-10-01 Netstat / Connectivity Test continuation
 
 The field investigation now uses a reusable multi-phase Netstat contract rather than treating one screenshot as a complete network observation.
