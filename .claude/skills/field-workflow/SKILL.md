@@ -43,7 +43,7 @@ Do not restate current firmware values or candidate lists in this skill. Read th
 
 When the selected field lane is H&H CC-reader firmware execution, load the live-execution boundary before starting side work.
 
-The firmware gate is primary. A harness task may interrupt only when a demonstrated harness defect blocks the current gate and has an evidence reference. Missing credentials/MFA, missing live firmware observation, physical device access, downstream tracker/publication work, and non-blocking architecture improvements do not qualify.
+The firmware gate is primary. A harness task may interrupt only when a demonstrated harness defect blocks the current gate and is backed by an existing local evidence artifact whose SHA-256 matches the supplied digest and whose gate binding matches the current gate. Missing credentials/MFA, missing live firmware observation, physical device access, downstream tracker/publication work, and non-blocking architecture improvements do not qualify.
 
 If a blocking harness defect is repaired, rerun the narrow gate and resume the same live gate. Do not restart already-proven identity/network work merely because repository code changed.
 
