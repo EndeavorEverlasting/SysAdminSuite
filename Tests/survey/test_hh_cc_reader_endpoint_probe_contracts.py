@@ -31,7 +31,8 @@ def main() -> int:
         "C:\\SASAL\\Probe-HHCCReaderEndpoint.cmd",
         "Probe-HHCCReader.cmd",
         "Invoke-SasHhCcReaderEndpointProbe.ps1",
-        "READER_IPV4 REMOTE_ENDPOINT PORT APPROVAL_REF [EXPECTED-MAC]",
+        "READER_IPV4 REMOTE_ENDPOINT PORT APPROVAL_REF [EXPECTED-MAC] [NETWORK-ENVIRONMENT]",
+        "HOSPITAL_GUEST_SHARED",
     ):
         assert marker in launcher, f"endpoint launcher missing marker: {marker}"
 
@@ -49,6 +50,8 @@ def main() -> int:
         "approval_reference_supplied = $true",
         "ValidateOnly",
         "ENDPOINT_INPUT_VALID",
+        "NetworkEnvironment",
+        "network_environment_classified",
         "[Guid]::NewGuid()",
         "yyyyMMdd-HHmmss-fff",
         "survey\\output\\hh-cc-reader",
@@ -76,9 +79,11 @@ def main() -> int:
 
     # Shell metacharacters must remain inside quoted positional expansions until
     # the PowerShell validator applies the stricter endpoint/reference grammar.
-    assert 'call "C:\\SASAL\\Probe-HHCCReaderEndpoint.cmd" "%~1" "%~2" "%~3" "%~4" "%~5"' in launcher
-    assert '-ReaderIPAddress "%~1" -RemoteEndpoint "%~2" -RemotePort "%~3" -ApprovalRef "%~4" -ValidateOnly' in launcher
-    assert 'call "%~dp0Probe-HHCCReader.cmd" "%~1" "%~5"' in launcher
+    assert 'call "C:\\SASAL\\Probe-HHCCReaderEndpoint.cmd" "%~1" "%~2" "%~3" "%~4" "%~5" "%~6"' in launcher
+    assert '-ReaderIPAddress "%~1" -RemoteEndpoint "%~2" -RemotePort "%~3" -ApprovalRef "%~4" -NetworkEnvironment "%NETWORK_ENVIRONMENT%" -ValidateOnly' in launcher
+    assert 'call "%~dp0Probe-HHCCReader.cmd" "%~1" "%~5" "%~6"' in launcher
+    assert 'call "%~dp0Probe-HHCCReader.cmd" "%~1" "%~5"' not in launcher
+    assert 'if "%~6"=="" goto usage' in launcher
     assert 'Probe-HHCCReaderEndpoint.cmd" %*' not in launcher
     assert "-ReaderIPAddress %1" not in launcher
     assert "-RemoteEndpoint %2" not in launcher
@@ -88,6 +93,7 @@ def main() -> int:
     assert "CIDRs, ranges, wildcards" in normalized_launcher
     assert "CIDRs, ranges, wildcards" in script
     assert "ApprovalRef must be a non-secret" in script
+    assert "network_environment = $NetworkEnvironment" in script
     assert "one observed REMOTE_ENDPOINT + one explicit PORT + one APPROVAL_REF" in docs
     assert "cannot independently validate the external human approval source" in docs
     assert "CC-reader software/firmware deployment" in docs
@@ -116,7 +122,7 @@ def main() -> int:
     assert "`NOT_APPLICABLE`" in p5
     assert "strongest next gate is confirmation from the current H&H Experian" not in docs
     assert "current H&H owner of the Experian merchant-services/terminal relationship" not in docs
-    assert "Probe-HHCCReaderEndpoint.cmd READER_IPV4 REMOTE_ENDPOINT PORT APPROVAL_REF [EXPECTED-MAC]" in qr_plan
+    assert "Probe-HHCCReaderEndpoint.cmd READER_IPV4 REMOTE_ENDPOINT PORT APPROVAL_REF [EXPECTED-MAC] [NETWORK-ENVIRONMENT]" in qr_plan
     assert "QR-eligible but not yet scanner-ready" in qr_plan
     assert "Raw `Test-NetConnection` snippets are component diagnostics only" in qr_plan
     assert "blocked until endpoint CMD exists" not in qr_plan
@@ -143,6 +149,7 @@ def main() -> int:
     assert "hh-cc-reader-endpoint-probe" in commands
     command = commands["hh-cc-reader-endpoint-probe"]
     assert command["source_of_truth"] == "Probe-HHCCReaderEndpoint.cmd"
+    assert "[NETWORK_ENVIRONMENT]" in command["command"]
     assert command["mutation"] == "local_runtime"
     assert command["network"] is True
 
@@ -150,6 +157,7 @@ def main() -> int:
     assert "hh-cc-reader-endpoint-probe-result" in artifacts
     assert artifacts["hh-cc-reader-endpoint-probe-result"]["tracked"] is False
     assert artifacts["hh-cc-reader-endpoint-probe-result"]["contains_live_data"] is True
+    assert "[NETWORK_ENVIRONMENT]" in artifacts["hh-cc-reader-endpoint-probe-result"]["generator"]
     assert "<timestamp>-<8hex>.json" in artifacts["hh-cc-reader-endpoint-probe-result"]["path"]
 
     outcomes = {entry["command_id"]: entry for entry in outcome_registry["contracts"]}
