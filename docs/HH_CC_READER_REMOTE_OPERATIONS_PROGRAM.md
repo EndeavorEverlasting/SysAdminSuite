@@ -20,7 +20,7 @@ The live firmware program is execution-first. Load `harness/api/hh-cc-reader-liv
 
 A harness task may preempt only for a **confirmed harness defect** that blocks the current live gate and has a concrete evidence reference. Repair only that blocker, validate it, then **resume the same live gate**.
 
-Missing credentials/MFA, an uncaptured live firmware value, physical observation, downstream tracker/publication work, repository-independent architecture improvements, or OneDrive/Google Drive availability are not harness defects. Route them according to the P95 boundary instead of turning them into generic repository development.
+Missing credentials/MFA, an uncaptured live firmware value, physical observation, downstream project/publication work, repository-independent architecture improvements, or downstream publication-provider availability are not harness defects. Route them according to the P95 boundary instead of turning them into generic repository development.
 
 For the current Kiosk4 state, `BASELINE_LOCKED` remains the next gate. The missing authoritative `current_firmware_value` is an external live-evidence/access boundary, so the next work is authenticated estate observation or the same-device physical Software versions fallback, not another harness sprint.
 
