@@ -252,12 +252,18 @@ Offline admission seams (identity/baseline/restore/preview/compare/batch): harne
 Runtime: technician/local runtime on the actual experiment network.
 
 Tasks:
+- classify the active network environment before interpreting identity evidence; a hospital guest/shared LAN is a shared non-domain environment and must not inherit consumer-lab active discovery behavior;
+- classify the reader's inventory identity tranche as SERIAL_AND_MAC, SERIAL_ONLY, MAC_ONLY, IDENTITY_INSUFFICIENT, or IDENTITY_INVALID;
 - recover current Kiosk4 IPv4, MAC, serial/CC identifier, tracker row, firmware, and exposed app/build values;
-- run only the canonical MAC-gated Probe-HHCCReader path;
+- for SERIAL_AND_MAC, run only the canonical one-target MAC-gated Probe-HHCCReader path;
+- for SERIAL_ONLY, recover MAC from approved physical or authorized management evidence before baseline lock; do not substitute subnet discovery;
+- for MAC_ONLY, recover serial from the tracker, physical label/UI, or authorized management evidence before baseline lock;
+- for IDENTITY_INSUFFICIENT or IDENTITY_INVALID, stop for reconciliation/correction before target probing;
 - correlate network result to the same dashboard/source identity;
+- preserve probe identity_assurance separately from reachability so MAC_UNRESOLVED on a shared/guest LAN cannot be mistaken for proof of the wrong reader;
 - freeze timestamped baseline receipt.
 
-Completion gate: BASELINE_LOCKED.
+Completion gate: BASELINE_LOCKED. No identity tranche by itself authorizes mutation or broad discovery.
 
 ### R2 — Management path + restoration proof
 
@@ -302,9 +308,12 @@ Runtime: local implementation.
 Tasks:
 - define canonical batch-input schema from existing dashboard fields;
 - support CSV and XLSX/dashboard export normalization;
+- classify every row into SERIAL_AND_MAC, SERIAL_ONLY, MAC_ONLY, IDENTITY_INSUFFICIENT, or IDENTITY_INVALID before execution admission;
+- expose tranche counts and identity-recovery rows so site work can stage the strong dual-identifier population separately from recovery-heavy tranches;
 - generate dry-run BatchPlan;
-- bind every row to baseline/identity and restore references;
-- add synthetic fixtures including duplicate identity, mismatched MAC, stale firmware, unsupported restoration, and mixed valid/invalid rows.
+- bind every executable row to baseline/identity and restore references;
+- keep SERIAL_ONLY, MAC_ONLY, IDENTITY_INSUFFICIENT, and IDENTITY_INVALID rows non-executable until their explicit recovery gate is satisfied;
+- add synthetic fixtures including duplicate identity, mismatched MAC, serial-only, MAC-only, missing identity, stale firmware, unsupported restoration, and mixed valid/invalid rows.
 
 Dependency: R4.
 
