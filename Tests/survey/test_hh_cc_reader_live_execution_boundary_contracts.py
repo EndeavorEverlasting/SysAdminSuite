@@ -157,6 +157,35 @@ def test_real_nonblocking_defect_is_deferred() -> None:
     assert result["may_preempt_live_execution"] is False
 
 
+def test_none_cannot_claim_to_block_current_gate() -> None:
+    try:
+        route_work_item(
+            {
+                "current_gate": "BASELINE_LOCKED",
+                "work_class": "NONE",
+                "blocks_current_gate": True,
+            }
+        )
+        raise AssertionError("expected contradictory NONE blocker rejection")
+    except ExecutionBoundaryError as exc:
+        assert "none_work_class_cannot_block" in str(exc)
+
+
+def test_nonblocking_side_lanes_cannot_claim_sas_gate_ownership() -> None:
+    for work_class in ("NONBLOCKING_HARNESS_IMPROVEMENT", "DOWNSTREAM_PROJECT_OR_PUBLICATION"):
+        try:
+            route_work_item(
+                {
+                    "current_gate": "BASELINE_LOCKED",
+                    "work_class": work_class,
+                    "blocks_current_gate": True,
+                }
+            )
+            raise AssertionError("expected nonblocking-class blocker rejection")
+        except ExecutionBoundaryError as exc:
+            assert "nonblocking_work_class_cannot_block" in str(exc)
+
+
 def test_architecture_improvement_is_deferred() -> None:
     result = route_work_item(
         {
@@ -228,6 +257,8 @@ def main() -> int:
         test_plain_claim_cannot_preempt_without_artifact_proof,
         test_wrong_gate_or_digest_cannot_preempt,
         test_real_nonblocking_defect_is_deferred,
+        test_none_cannot_claim_to_block_current_gate,
+        test_nonblocking_side_lanes_cannot_claim_sas_gate_ownership,
         test_architecture_improvement_is_deferred,
         test_downstream_publication_is_deferred_and_cannot_block_sas,
         test_repository_staleness_refreshes_without_redesign,
