@@ -224,6 +224,15 @@ def test_identity_tranches_preserve_strict_mutation_gate() -> None:
     assert guest_network["network_environment"] == "HOSPITAL_GUEST_SHARED"
     assert guest_network["network_environment_classified"] is True
 
+    empty_plan = normalize_batch_rows([])
+    assert empty_plan["row_count"] == 0
+    assert empty_plan["executable_count"] == 0
+    assert empty_plan["blocked_count"] == 0
+    assert empty_plan["identity_tranche_counts"] == {}
+    assert empty_plan["identity_ready_count"] == 0
+    assert empty_plan["identity_recovery_count"] == 0
+    assert empty_plan["identity_recovery_rows"] == []
+
     common = {
         "source_name": "SyntheticReader",
         "observed_firmware": "2.0.15.260410",
@@ -245,6 +254,7 @@ def test_identity_tranches_preserve_strict_mutation_gate() -> None:
         "MAC_ONLY": 1,
         "IDENTITY_INSUFFICIENT": 1,
     }
+    assert plan["identity_ready_count"] == 1
     assert plan["identity_recovery_count"] == 3
     assert len(plan["identity_recovery_rows"]) == 3
     assert plan["executable_count"] == 1
@@ -526,6 +536,9 @@ def test_batch_duplicate_groups_block_all_members_and_scope() -> None:
     ]
     plan = normalize_batch_rows(rows)
     assert plan["executable_count"] == 0
+    assert plan["identity_ready_count"] == 0
+    assert plan["identity_recovery_count"] == len(rows)
+    assert all(row["identity_recovery_required"] for row in plan["identity_recovery_rows"])
     assert all(not row["executable"] for row in plan["rows"])
     assert "duplicate_source_serial" in plan["rows"][0]["problems"]
     assert "duplicate_source_serial" in plan["rows"][1]["problems"]
