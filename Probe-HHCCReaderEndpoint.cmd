@@ -4,6 +4,7 @@ title SysAdminSuite - H^&H CC Reader Endpoint Correlation
 cls
 
 set "SAS_EXIT=1"
+if not "%~7"=="" goto usage
 set "NETWORK_ENVIRONMENT=%~6"
 set "NETWORK_ENVIRONMENT_SUPPLIED=1"
 if "%~6"=="" (
