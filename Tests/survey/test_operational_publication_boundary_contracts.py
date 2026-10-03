@@ -58,6 +58,30 @@ class OperationalPublicationBoundaryContracts(unittest.TestCase):
             self.validator.validate_contract(candidate),
         )
 
+    def test_malformed_required_fields_fail_closed(self) -> None:
+        candidate = copy.deepcopy(self.payload)
+        candidate["event_contract"]["required_fields"].append({"not": "a string"})
+        self.assertIn(
+            "event_contract.required_fields",
+            self.validator.validate_contract(candidate),
+        )
+
+    def test_privacy_and_unknown_target_semantics_are_enforced(self) -> None:
+        candidate = copy.deepcopy(self.payload)
+        candidate["privacy_boundary"]["secrets_and_credentials_never_enter_projection"] = False
+        candidate["drift_rules"]["unknown_target_state"] = "UNKNOWN"
+        errors = self.validator.validate_contract(candidate)
+        self.assertIn("privacy_boundary.secrets_and_credentials_never_enter_projection", errors)
+        self.assertIn("drift_rules.unknown_target_state", errors)
+
+    def test_manifest_required_fields_cannot_be_weakened(self) -> None:
+        candidate = copy.deepcopy(self.payload)
+        candidate["publication_manifest_contract"]["required_fields"] = ["logical_artifact_key"]
+        self.assertIn(
+            "publication_manifest_contract.required_fields",
+            self.validator.validate_contract(candidate),
+        )
+
 
 if __name__ == "__main__":
     unittest.main()
