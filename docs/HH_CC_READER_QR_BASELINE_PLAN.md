@@ -61,7 +61,7 @@ The technician runbook also shows read-only PowerShell component snippets for hu
 The repository-owned endpoint continuation is:
 
 ```text
-Probe-HHCCReaderEndpoint.cmd READER_IPV4 REMOTE_ENDPOINT PORT APPROVAL_REF [EXPECTED-MAC]
+Probe-HHCCReaderEndpoint.cmd READER_IPV4 REMOTE_ENDPOINT PORT APPROVAL_REF [EXPECTED-MAC] [NETWORK-ENVIRONMENT]
 ```
 
 It first validates the endpoint/reference arguments, then requires the canonical reader same-subnet/device gate to pass, then performs one read-only `Test-NetConnection` to the explicitly observed and approved endpoint/port and writes an ignored local receipt.
@@ -157,7 +157,7 @@ Status: implemented in the endpoint-correlation integration lane; scanner transp
 Canonical shape:
 
 ```text
-Probe-HHCCReaderEndpoint.cmd READER_IPV4 REMOTE_ENDPOINT PORT APPROVAL_REF [EXPECTED-MAC]
+Probe-HHCCReaderEndpoint.cmd READER_IPV4 REMOTE_ENDPOINT PORT APPROVAL_REF [EXPECTED-MAC] [NETWORK-ENVIRONMENT]
 ```
 
 Contract:
