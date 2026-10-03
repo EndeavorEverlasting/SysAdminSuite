@@ -19,7 +19,8 @@
     "harness_repair_must_be_bounded_to_current_gate": true,
     "after_harness_repair_resume_same_gate": true,
     "architecture_improvement_without_gate_blocker_is_deferred": true,
-    "no_restart_of_proven_prior_gates_without_invalidation_evidence": true
+    "no_restart_of_proven_prior_gates_without_invalidation_evidence": true,
+    "harness_preemption_requires_evidence_artifact_sha256_and_gate_binding": true
   },
   "work_classes": [
     "NONE",
