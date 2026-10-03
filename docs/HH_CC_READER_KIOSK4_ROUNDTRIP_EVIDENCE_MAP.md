@@ -102,8 +102,9 @@ These prove identity fail-closed, baseline requirements, restore-path gating, ro
 3. From the technician field PC on the reader network:
 
 ```bat
-Probe-HHCCReader.cmd <PRIVATE_LIVE_IPV4> <PRIVATE_EXPECTED_MAC>
+Probe-HHCCReader.cmd <PRIVATE_LIVE_IPV4> <PRIVATE_EXPECTED_MAC> <NETWORK_ENVIRONMENT>
 ```
 
-4. Freeze baseline through the round-trip seam only after identity correlation is unique.
-5. Complete P5 PROVEN_PATH + RESTORE_PATH_PROVED before any forward firmware mutation.
+4. Classify the active network environment explicitly (`HOSPITAL_GUEST_SHARED`, `CONSUMER_LAB`, `PROTECTED_ENTERPRISE`, or `OTHER_SHARED`); do not infer it from network size or Windows category alone.
+5. Freeze baseline through the round-trip seam only after identity correlation is unique.
+6. Complete P5 PROVEN_PATH + RESTORE_PATH_PROVED before any forward firmware mutation.
