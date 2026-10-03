@@ -1,5 +1,5 @@
 @echo off
-setlocal EnableExtensions
+setlocal EnableExtensions EnableDelayedExpansion
 title SysAdminSuite - H^&H CC Reader Firmware Batch Normalize
 
 if /I "%~1"=="/?" goto usage
@@ -33,33 +33,49 @@ if not defined PYEXE (
 set "INPUT=%~1"
 set "OUT="
 set "SERIAL="
+set "SERIAL_SET=0"
 shift
+
 :parse
 if "%~1"=="" goto run
 if /I "%~1"=="--output" (
+  if "%~2"=="" (
+    echo ERROR: --output requires a non-empty path value.
+    endlocal & exit /b 2
+  )
   set "OUT=%~2"
   shift
   shift
   goto parse
 )
 if /I "%~1"=="--execute-serial" (
+  if "%~2"=="" (
+    echo ERROR: --execute-serial requires a non-empty serial value.
+    endlocal & exit /b 2
+  )
   set "SERIAL=%~2"
+  set "SERIAL_SET=1"
   shift
   shift
   goto parse
 )
 echo ERROR: unknown argument %~1
-exit /b 2
+endlocal & exit /b 2
 
 :run
+if not exist "%INPUT%" (
+  echo ERROR: input file not found: %INPUT%
+  exit /b 2
+)
+
 if defined OUT (
-  if defined SERIAL (
+  if "!SERIAL_SET!"=="1" (
     %PYEXE% "%~dp0harness\api\hh_cc_reader_firmware_roundtrip.py" batch --input "%INPUT%" --output "%OUT%" --execute-serial "%SERIAL%"
   ) else (
     %PYEXE% "%~dp0harness\api\hh_cc_reader_firmware_roundtrip.py" batch --input "%INPUT%" --output "%OUT%"
   )
 ) else (
-  if defined SERIAL (
+  if "!SERIAL_SET!"=="1" (
     %PYEXE% "%~dp0harness\api\hh_cc_reader_firmware_roundtrip.py" batch --input "%INPUT%" --execute-serial "%SERIAL%"
   ) else (
     %PYEXE% "%~dp0harness\api\hh_cc_reader_firmware_roundtrip.py" batch --input "%INPUT%"
@@ -72,5 +88,6 @@ echo Usage:
 echo   Normalize-HHCCReaderFirmwareBatch.cmd CSV_OR_JSON [--output OUT] [--execute-serial SERIAL]
 echo.
 echo Example CSV: docs\examples\hh-cc-reader-firmware-batch.example.csv
-echo --execute-serial restricts executable rows to one validated device.
+echo --execute-serial requires a non-empty validated serial.
+echo --output requires a non-empty path when supplied.
 exit /b 2

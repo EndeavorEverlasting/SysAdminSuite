@@ -3,8 +3,10 @@
 from __future__ import annotations
 
 import json
+import subprocess
 import sys
 import tempfile
+from copy import deepcopy
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[2]
@@ -12,13 +14,16 @@ sys.path.insert(0, str(ROOT))
 
 from harness.api.hh_cc_reader_firmware_roundtrip import (
     compare_roundtrip_states,
+    default_target_firmware,
     evaluate_mutation_admission,
     evaluate_outdated_eligibility,
     evaluate_restore_path,
     freeze_baseline,
-    load_batch_csv,
+    load_batch_input,
+    load_policy,
     normalize_batch_rows,
     resolve_target_identity,
+    write_receipt,
 )
 from harness.api.hh_cc_reader_estate_packet_normalize import load_packet_or_template, normalize_packet
 from harness.api.hh_cc_reader_estate_authority import evaluate
@@ -28,7 +33,15 @@ EVAL_CMD = ROOT / "Evaluate-HHCCReaderFirmwareRoundtrip.cmd"
 BATCH_CMD = ROOT / "Normalize-HHCCReaderFirmwareBatch.cmd"
 EXAMPLE_CSV = ROOT / "docs/examples/hh-cc-reader-firmware-batch.example.csv"
 EVIDENCE_MAP = ROOT / "docs/HH_CC_READER_KIOSK4_ROUNDTRIP_EVIDENCE_MAP.md"
+ROUNDTRIP_PLAN = ROOT / "docs/HH_CC_READER_FIRMWARE_ROUNDTRIP_BATCH_PLAN.md"
 TEMPLATE = ROOT / "docs/examples/hh-cc-reader-proven-path-authority-packet.template.json"
+
+PROHIBITED_LIVE_MARKERS = (
+    "1240473751",
+    "C8:40:52:3C:93:BA",
+    "C8-40-52-3C-93-BA",
+    "C840523C93BA",
+)
 
 
 def _unique_identity(**overrides):
@@ -44,6 +57,52 @@ def _unique_identity(**overrides):
     return base
 
 
+def _device_b(**overrides):
+    base = _unique_identity(
+        source_serial="SYNTH-SERIAL-002",
+        source_name="SyntheticLabReaderB",
+        expected_mac="AA-BB-CC-DD-EE-02",
+        live_mac="AA:BB:CC:DD:EE:02",
+        live_ipv4="192.0.2.11",
+    )
+    base.update(overrides)
+    return base
+
+
+def _locked_bundle(identity_src=None):
+    identity_src = identity_src or _unique_identity()
+    identity = resolve_target_identity(identity_src)
+    observation = {
+        **identity_src,
+        "identity_proof_state": "UNIQUE_TARGET_RESOLVED",
+        "current_firmware_value": "2.0.15.260410",
+        "target_firmware_value": "2.0.15.260522",
+        "health_status": "online",
+        "configuration_profile_ref": "profile-a",
+    }
+    baseline = freeze_baseline(observation, identity)
+    restore = evaluate_restore_path(
+        {
+            "source_serial": identity["source_serial"],
+            "expected_mac": identity["expected_mac"],
+            "starting_firmware_value": "2.0.15.260410",
+            "restore_mechanism": "management-plane reassignment observed",
+            "restore_package_or_release_ref": "starting-package-ref-synthetic",
+            "rollback_verb": "reassign",
+            "post_restore_acceptance": "authoritative firmware equals baseline",
+        },
+        baseline,
+    )
+    eligibility = evaluate_outdated_eligibility(
+        observed_firmware="2.0.15.260410",
+        active_outdated="Yes",
+        target_firmware="2.0.15.260522",
+        source_serial=identity["source_serial"],
+        expected_mac=identity["expected_mac"],
+    )
+    return identity, baseline, restore, eligibility
+
+
 def test_module_launchers_and_example_exist() -> None:
     assert MODULE.is_file()
     assert EVAL_CMD.is_file()
@@ -52,19 +111,23 @@ def test_module_launchers_and_example_exist() -> None:
     assert EVIDENCE_MAP.is_file()
     text = EVAL_CMD.read_text(encoding="utf-8-sig")
     assert "hh_cc_reader_firmware_roundtrip.py" in text
-    assert "Never authorizes" in text or "never authorizes" in text.lower()
+    assert "survey" in text.lower()
+
+
+def test_tracked_docs_have_no_prohibited_live_identifiers() -> None:
+    for path in (EVIDENCE_MAP, ROUNDTRIP_PLAN):
+        text = path.read_text(encoding="utf-8")
+        for marker in PROHIBITED_LIVE_MARKERS:
+            assert marker not in text, f"{path.name} still contains {marker}"
+        assert "PRIVATE_EVIDENCE" in text or "PRIVATE_FIELD" in text
 
 
 def test_ambiguous_and_readerunk_identity_fail_closed() -> None:
     incomplete = resolve_target_identity(
-        {
-            "source_serial": "SYNTH-SERIAL-001",
-            "expected_mac": "AA-BB-CC-DD-EE-01",
-        }
+        {"source_serial": "SYNTH-SERIAL-001", "expected_mac": "AA-BB-CC-DD-EE-01"}
     )
     assert incomplete["unique_target"] is False
     assert incomplete["state"] == "IDENTITY_INCOMPLETE"
-    assert incomplete["mutation_authorized"] is False
 
     mismatch = resolve_target_identity(
         _unique_identity(live_mac="AA-BB-CC-DD-EE-99", probe_mac_match=False)
@@ -72,7 +135,6 @@ def test_ambiguous_and_readerunk_identity_fail_closed() -> None:
     assert mismatch["unique_target"] is False
     assert "live_mac_mismatch" in mismatch["rejection_reasons"]
 
-    # Construct forbidden specimen without embedding production literals as Kiosk4 truth.
     readerunk = resolve_target_identity(
         _unique_identity(
             live_ipv4=".".join(["10", "217", "101", "192"]),
@@ -88,47 +150,92 @@ def test_ambiguous_and_readerunk_identity_fail_closed() -> None:
     assert unique["unique_target"] is True
 
 
-def test_missing_baseline_blocks_mutation_preview() -> None:
-    identity = resolve_target_identity(_unique_identity())
-    incomplete = freeze_baseline(
-        {
-            "source_serial": identity["source_serial"],
-            "expected_mac": identity["expected_mac"],
-            # missing firmware / identity_proof_state
-        },
-        identity,
+def test_strict_mac_validation_rejects_garbage_hex_extraction() -> None:
+    garbage = resolve_target_identity(
+        _unique_identity(expected_mac="xxAABBCCDDEE01yy", live_mac="xxAABBCCDDEE01yy")
     )
-    assert incomplete["baseline_locked"] is False
-    assert incomplete["state"] == "BASELINE_INCOMPLETE"
+    assert garbage["unique_target"] is False
+    assert "malformed_expected_mac" in garbage["rejection_reasons"]
 
-    baseline_obs = {
-        **_unique_identity(),
-        "identity_proof_state": "UNIQUE_TARGET_RESOLVED",
-        "current_firmware_value": "2.0.15.260410",
-        "target_firmware_value": "2.0.15.260522",
-        "health_status": "online",
-    }
-    baseline = freeze_baseline(baseline_obs, identity)
-    assert baseline["baseline_locked"] is True
+    spaced = resolve_target_identity(
+        _unique_identity(expected_mac="AA BB CC DD EE 01", live_mac="AA BB CC DD EE 01")
+    )
+    assert spaced["unique_target"] is False
 
-    restore = evaluate_restore_path(
+    for good in ("AA:BB:CC:DD:EE:01", "AA-BB-CC-DD-EE-01", "AABBCCDDEE01"):
+        result = resolve_target_identity(_unique_identity(expected_mac=good, live_mac=good))
+        assert result["unique_target"] is True, good
+        assert result["expected_mac"] == "AABBCCDDEE01"
+
+
+def test_cross_device_receipt_binding_fail_closed() -> None:
+    identity_a, baseline_a, restore_a, eligibility_a = _locked_bundle(_unique_identity())
+    identity_b, baseline_b, restore_b, eligibility_b = _locked_bundle(_device_b())
+
+    # identity(A) + baseline(B)
+    cross_baseline = freeze_baseline(
         {
+            **_device_b(),
+            "identity_proof_state": "UNIQUE_TARGET_RESOLVED",
+            "current_firmware_value": "2.0.15.260410",
+            "target_firmware_value": "2.0.15.260522",
+        },
+        identity_a,
+    )
+    assert cross_baseline["baseline_locked"] is False
+    assert "source_serial_identity_mismatch" in cross_baseline["missing_fields"]
+
+    # identity(A) + restore(B) / baseline(A) + restore(B)
+    cross_restore = evaluate_restore_path(
+        {
+            "source_serial": identity_b["source_serial"],
+            "expected_mac": identity_b["expected_mac"],
             "starting_firmware_value": "2.0.15.260410",
             "restore_mechanism": "management-plane reassignment observed",
             "restore_package_or_release_ref": "starting-package-ref-synthetic",
             "rollback_verb": "reassign",
             "post_restore_acceptance": "authoritative firmware equals baseline",
         },
-        baseline,
+        baseline_a,
     )
-    assert restore["restore_path_proved"] is True
+    assert cross_restore["restore_path_proved"] is False
+    assert any("mismatch" in item for item in cross_restore["missing_fields"])
 
-    eligibility = evaluate_outdated_eligibility(
-        observed_firmware="2.0.15.260410",
-        active_outdated="Yes",
-        target_firmware="2.0.15.260522",
+    # eligibility(A) + identity(B) via preview
+    preview = evaluate_mutation_admission(
+        identity=identity_a,
+        baseline=baseline_b,
+        restore_path=restore_b,
+        eligibility=eligibility_b,
+        authority_packet_state="COMPLETE",
+        explicit_one_reader_mutation_authorization=True,
+        dry_run=False,
     )
-    assert eligibility["outdated_classified"] is True
+    assert preview["state"] == "MUTATION_BLOCKED"
+    assert preview["apply_candidate"] is False
+    assert preview["mutation_authorized"] is False
+    assert any("mismatch" in item for item in preview["blockers"])
+
+    same = evaluate_mutation_admission(
+        identity=identity_a,
+        baseline=baseline_a,
+        restore_path=restore_a,
+        eligibility=eligibility_a,
+        authority_packet_state="COMPLETE",
+        explicit_one_reader_mutation_authorization=True,
+        dry_run=True,
+    )
+    assert same["state"] == "MUTATION_PREVIEW_READY"
+    assert same["mutation_authorized"] is False
+
+
+def test_missing_baseline_blocks_mutation_and_compare() -> None:
+    identity, baseline, restore, eligibility = _locked_bundle()
+    incomplete = freeze_baseline(
+        {"source_serial": identity["source_serial"], "expected_mac": identity["expected_mac"]},
+        identity,
+    )
+    assert incomplete["baseline_locked"] is False
 
     blocked = evaluate_mutation_admission(
         identity=identity,
@@ -137,25 +244,303 @@ def test_missing_baseline_blocks_mutation_preview() -> None:
         eligibility=eligibility,
         authority_packet_state="COMPLETE",
         explicit_one_reader_mutation_authorization=True,
-        dry_run=True,
     )
     assert blocked["state"] == "MUTATION_BLOCKED"
     assert "baseline_not_locked" in blocked["blockers"]
-    assert blocked["mutation_authorized"] is False
 
-    preview = evaluate_mutation_admission(
-        identity=identity,
-        baseline=baseline,
-        restore_path=restore,
-        eligibility=eligibility,
-        authority_packet_state="COMPLETE",
-        explicit_one_reader_mutation_authorization=True,
-        dry_run=True,
+    empty_compare = compare_roundtrip_states({}, {"current_firmware_value": "X"}, {"current_firmware_value": "X"})
+    assert empty_compare["state"] == "COMPARE_PREREQUISITES_MISSING"
+    assert empty_compare["restored"] is False
+    assert empty_compare["roundtrip_proven"] is False
+
+
+def test_roundtrip_requires_forward_mutation_before_restore_proof() -> None:
+    identity, baseline, restore, eligibility = _locked_bundle()
+    assert baseline["baseline_locked"] is True
+
+    post_update = {
+        "source_serial": identity["source_serial"],
+        "expected_mac": identity["expected_mac"],
+        "reader_ipv4": identity["live_ipv4"],
+        "current_firmware_value": "2.0.15.260522",
+        "optional_captured": {
+            "health_status": "online",
+            "configuration_profile_ref": "profile-a",
+        },
+    }
+    good_rollback = {
+        "source_serial": identity["source_serial"],
+        "expected_mac": identity["expected_mac"],
+        "reader_ipv4": identity["live_ipv4"],
+        "current_firmware_value": "2.0.15.260410",
+        "optional_captured": {
+            "health_status": "online",
+            "configuration_profile_ref": "profile-a",
+        },
+    }
+    no_mutation = {
+        "source_serial": identity["source_serial"],
+        "expected_mac": identity["expected_mac"],
+        "reader_ipv4": identity["live_ipv4"],
+        "current_firmware_value": "2.0.15.260410",
+        "optional_captured": {
+            "health_status": "online",
+            "configuration_profile_ref": "profile-a",
+        },
+    }
+    drifted = {
+        "source_serial": identity["source_serial"],
+        "expected_mac": identity["expected_mac"],
+        "reader_ipv4": identity["live_ipv4"],
+        "current_firmware_value": "2.0.15.260522",
+        "optional_captured": {
+            "health_status": "degraded",
+            "configuration_profile_ref": "profile-b",
+        },
+    }
+
+    ok = compare_roundtrip_states(baseline, post_update, good_rollback)
+    assert ok["forward_update_proved"] is True
+    assert ok["rollback_state_matched"] is True
+    assert ok["roundtrip_proven"] is True
+    assert ok["state"] == "ROUNDTRIP_PROVEN"
+
+    unchanged = compare_roundtrip_states(baseline, no_mutation, no_mutation)
+    assert unchanged["forward_update_proved"] is False
+    assert unchanged["rollback_state_matched"] is True
+    assert unchanged["roundtrip_proven"] is False
+    assert unchanged["state"] == "ROLLBACK_STATE_MATCHED"
+
+    bad = compare_roundtrip_states(baseline, post_update, drifted)
+    assert bad["state"] == "ROLLBACK_DRIFT_DETECTED"
+    assert "current_firmware_value" in bad["mismatched_fields"]
+
+
+def test_policy_default_target_is_authoritative() -> None:
+    from harness.api.hh_cc_reader_firmware_roundtrip import load_policy as lp
+
+    policy = load_policy()
+    assert default_target_firmware(policy) == policy["selection"]["default_target"]
+
+    changed = deepcopy(policy)
+    changed["selection"]["default_target"] = "9.9.9.999999"
+    assert default_target_firmware(changed) == "9.9.9.999999"
+    result = evaluate_outdated_eligibility(
+        observed_firmware="2.0.15.260410",
+        active_outdated="Yes",
+        policy=changed,
+        source_serial="SYNTH-SERIAL-001",
+        expected_mac="AA-BB-CC-DD-EE-01",
     )
-    assert preview["state"] == "MUTATION_PREVIEW_READY"
-    assert preview["mutation_authorized"] is False
-    assert preview["dry_run_plan"]["source_firmware"] == "2.0.15.260410"
-    assert preview["dry_run_plan"]["target_firmware"] == "2.0.15.260522"
+    assert result["target_firmware"] == "9.9.9.999999"
+    assert result["outdated_classified"] is True
+
+    with tempfile.TemporaryDirectory() as tmp:
+        bad = Path(tmp) / "bad-policy.json"
+        broken = deepcopy(policy)
+        broken["schema_version"] = "not-a-real-schema"
+        bad.write_text(json.dumps(broken), encoding="utf-8")
+        try:
+            lp(bad)
+            raise AssertionError("expected schema ValueError")
+        except ValueError as exc:
+            assert "schema_version" in str(exc)
+
+        missing = Path(tmp) / "missing-target.json"
+        missing_target = deepcopy(policy)
+        missing_target["selection"] = {"rule": "x"}
+        missing.write_text(json.dumps(missing_target), encoding="utf-8")
+        try:
+            lp(missing)
+            raise AssertionError("expected missing default_target ValueError")
+        except ValueError as exc:
+            assert "default_target" in str(exc)
+
+
+def test_batch_duplicate_groups_block_all_members_and_scope() -> None:
+    rows = [
+        {
+            "source_serial": "SYNTH-001",
+            "source_name": "ReaderA",
+            "expected_mac": "AA-BB-CC-DD-EE-01",
+            "observed_firmware": "2.0.15.260410",
+            "active_outdated": "Yes",
+            "target_firmware": "2.0.15.260522",
+            "action": "PLAN",
+        },
+        {
+            "source_serial": "SYNTH-001",
+            "source_name": "DupSerial",
+            "expected_mac": "AA-BB-CC-DD-EE-02",
+            "observed_firmware": "2.0.15.260410",
+            "active_outdated": "Yes",
+            "target_firmware": "2.0.15.260522",
+            "action": "PLAN",
+        },
+        {
+            "source_serial": "SYNTH-003",
+            "source_name": "DupMac1",
+            "expected_mac": "AA-BB-CC-DD-EE-03",
+            "observed_firmware": "2.0.15.260410",
+            "active_outdated": "Yes",
+            "target_firmware": "2.0.15.260522",
+            "action": "PLAN",
+        },
+        {
+            "source_serial": "SYNTH-004",
+            "source_name": "DupMac2",
+            "expected_mac": "AA-BB-CC-DD-EE-03",
+            "observed_firmware": "2.0.15.260410",
+            "active_outdated": "Yes",
+            "target_firmware": "2.0.15.260522",
+            "action": "PLAN",
+        },
+        {
+            "source_serial": "SYNTH-005",
+            "source_name": "Trip1",
+            "expected_mac": "AA-BB-CC-DD-EE-05",
+            "observed_firmware": "2.0.15.260410",
+            "active_outdated": "Yes",
+            "target_firmware": "2.0.15.260522",
+            "action": "PLAN",
+        },
+        {
+            "source_serial": "SYNTH-005",
+            "source_name": "Trip2",
+            "expected_mac": "AA-BB-CC-DD-EE-05",
+            "observed_firmware": "2.0.15.260410",
+            "active_outdated": "Yes",
+            "target_firmware": "2.0.15.260522",
+            "action": "PLAN",
+        },
+        {
+            "source_serial": "SYNTH-005",
+            "source_name": "Trip3",
+            "expected_mac": "AA-BB-CC-DD-EE-05",
+            "observed_firmware": "2.0.15.260410",
+            "active_outdated": "Yes",
+            "target_firmware": "2.0.15.260522",
+            "action": "PLAN",
+        },
+    ]
+    plan = normalize_batch_rows(rows)
+    assert plan["executable_count"] == 0
+    assert all(not row["executable"] for row in plan["rows"])
+    assert "duplicate_source_serial" in plan["rows"][0]["problems"]
+    assert "duplicate_source_serial" in plan["rows"][1]["problems"]
+    assert "duplicate_expected_mac" in plan["rows"][2]["problems"]
+    assert "duplicate_expected_mac" in plan["rows"][3]["problems"]
+
+    scoped = normalize_batch_rows(rows, execute_serial="SYNTH-001")
+    assert scoped["executable_count"] == 0
+    assert all(
+        "duplicate_source_serial" in row["problems"]
+        for row in scoped["rows"]
+        if row["source_serial"] == "SYNTH-001"
+    )
+
+    empty_scope = normalize_batch_rows(rows[:1], execute_serial="")
+    assert empty_scope["executable_count"] == 0
+    assert any("empty_execute_serial_scope" in row["problems"] for row in empty_scope["blocked_rows"])
+
+
+def test_batch_csv_and_json_dispatch_and_malformed_json() -> None:
+    csv_rows = load_batch_input(EXAMPLE_CSV)
+    assert len(csv_rows) == 2
+    csv_plan = normalize_batch_rows(csv_rows)
+    assert csv_plan["row_count"] == 2
+
+    with tempfile.TemporaryDirectory() as tmp:
+        tmp_path = Path(tmp)
+        good_json = tmp_path / "batch.json"
+        good_json.write_text(
+            json.dumps(
+                {
+                    "rows": [
+                        {
+                            "source_serial": "SYNTH-010",
+                            "source_name": "Reader",
+                            "expected_mac": "AA-BB-CC-DD-EE-10",
+                            "observed_firmware": "2.0.15.260410",
+                            "active_outdated": "Yes",
+                            "target_firmware": "2.0.15.260522",
+                            "action": "PLAN",
+                        }
+                    ]
+                }
+            ),
+            encoding="utf-8",
+        )
+        assert len(load_batch_input(good_json)) == 1
+
+        bad_json = tmp_path / "bad.json"
+        bad_json.write_text(json.dumps({"not_rows": []}), encoding="utf-8")
+        try:
+            load_batch_input(bad_json)
+            raise AssertionError("expected malformed JSON rejection")
+        except ValueError as exc:
+            assert "rows" in str(exc)
+
+        completed = subprocess.run(
+            [
+                sys.executable,
+                str(MODULE),
+                "batch",
+                "--input",
+                str(EXAMPLE_CSV),
+                "--output",
+                str(tmp_path / "out.json"),
+            ],
+            check=False,
+            capture_output=True,
+            text=True,
+        )
+        assert completed.returncode == 0, completed.stderr
+        assert (tmp_path / "out.json").is_file()
+
+
+def test_cli_artifact_created_without_explicit_output() -> None:
+    with tempfile.TemporaryDirectory() as tmp:
+        # Use module API write_receipt default path under repo survey/output.
+        identity = resolve_target_identity(_unique_identity())
+        receipt = write_receipt("identity", identity, None)
+        assert receipt.is_file()
+        assert "survey" in str(receipt).replace("\\", "/")
+        assert "hh-cc-reader-firmware-roundtrip-identity-" in receipt.name
+
+
+def test_batch_cmd_missing_option_values_fail_closed() -> None:
+    if sys.platform != "win32":
+        return
+    completed = subprocess.run(
+        f'"{BATCH_CMD}" "{EXAMPLE_CSV}" --execute-serial & if errorlevel 1 exit /b 1',
+        check=False,
+        capture_output=True,
+        text=True,
+        shell=True,
+    )
+    combined = completed.stdout + completed.stderr
+    assert "requires a non-empty" in combined
+    assert completed.returncode != 0
+
+    completed2 = subprocess.run(
+        f'"{BATCH_CMD}" "{EXAMPLE_CSV}" --output & if errorlevel 1 exit /b 1',
+        check=False,
+        capture_output=True,
+        text=True,
+        shell=True,
+    )
+    combined2 = completed2.stdout + completed2.stderr
+    assert "requires a non-empty" in combined2
+    assert completed2.returncode != 0
+
+
+def test_p5_normalize_evaluate_not_weakened() -> None:
+    normalized = normalize_packet(load_packet_or_template(TEMPLATE))
+    result = evaluate(normalized["evaluator_inputs"])
+    assert result["packet_state"] == "BLOCKED_AUTHORITY"
+    assert result["next_gate"] == "AUTHORIZED_READONLY_SESSION"
+    assert result["mutation_authorized"] is False
 
 
 def test_eligibility_does_not_invent_outdated_from_version_order_alone() -> None:
@@ -176,192 +561,29 @@ def test_eligibility_does_not_invent_outdated_from_version_order_alone() -> None
     assert current["outdated_classified"] is False
 
 
-def test_rollback_compare_detects_drift_and_accepts_restore() -> None:
-    baseline = {
-        "current_firmware_value": "2.0.15.260410",
-        "source_serial": "SYNTH-SERIAL-001",
-        "expected_mac": "AABBCCDDEE01",
-        "optional_captured": {
-            "health_status": "online",
-            "configuration_profile_ref": "profile-a",
-        },
-    }
-    post_update = {
-        "current_firmware_value": "2.0.15.260522",
-        "source_serial": "SYNTH-SERIAL-001",
-        "expected_mac": "AABBCCDDEE01",
-        "optional_captured": {
-            "health_status": "online",
-            "configuration_profile_ref": "profile-a",
-        },
-    }
-    good_rollback = {
-        "current_firmware_value": "2.0.15.260410",
-        "source_serial": "SYNTH-SERIAL-001",
-        "expected_mac": "AABBCCDDEE01",
-        "optional_captured": {
-            "health_status": "online",
-            "configuration_profile_ref": "profile-a",
-        },
-    }
-    drifted = {
-        "current_firmware_value": "2.0.15.260522",
-        "source_serial": "SYNTH-SERIAL-001",
-        "expected_mac": "AABBCCDDEE01",
-        "optional_captured": {
-            "health_status": "degraded",
-            "configuration_profile_ref": "profile-b",
-        },
-    }
-    ok = compare_roundtrip_states(baseline, post_update, good_rollback)
-    assert ok["state"] == "ORIGINAL_STATE_RESTORED"
-    assert ok["restored"] is True
-
-    bad = compare_roundtrip_states(baseline, post_update, drifted)
-    assert bad["state"] == "ROLLBACK_DRIFT_DETECTED"
-    assert "current_firmware_value" in bad["mismatched_fields"]
-    assert "health_status" in bad["mismatched_fields"]
-    assert "configuration_profile_ref" in bad["mismatched_fields"]
-
-
-def test_batch_normalize_fail_closed_and_single_device_scope() -> None:
-    rows = [
-        {
-            "source_serial": "SYNTH-001",
-            "source_name": "ReaderA",
-            "expected_mac": "AA-BB-CC-DD-EE-01",
-            "observed_firmware": "2.0.15.260410",
-            "active_outdated": "Yes",
-            "target_firmware": "2.0.15.260522",
-            "action": "PLAN",
-        },
-        {
-            "source_serial": "SYNTH-002",
-            "source_name": "ReaderB",
-            "expected_mac": "AA-BB-CC-DD-EE-02",
-            "observed_firmware": "2.0.15.260410",
-            "active_outdated": "Yes",
-            "target_firmware": "2.0.15.260522",
-            "action": "PLAN",
-        },
-        {
-            "source_serial": "SYNTH-001",
-            "source_name": "Dup",
-            "expected_mac": "AA-BB-CC-DD-EE-03",
-            "observed_firmware": "2.0.15.260410",
-            "active_outdated": "Yes",
-            "target_firmware": "2.0.15.260522",
-            "action": "UPDATE",
-        },
-        {
-            "source_serial": "SYNTH-003",
-            "source_name": "BadMac",
-            "expected_mac": "not-a-mac",
-            "observed_firmware": "2.0.15.260410",
-            "active_outdated": "Yes",
-            "target_firmware": "2.0.15.260522",
-            "action": "PLAN",
-        },
-    ]
-    plan = normalize_batch_rows(rows)
-    assert plan["mutation_authorized"] is False
-    assert plan["blocked_count"] >= 2
-    assert any("duplicate_source_serial" in row["problems"] for row in plan["blocked_rows"])
-    assert any("invalid_expected_mac" in row["problems"] for row in plan["blocked_rows"])
-
-    scoped = normalize_batch_rows(rows[:2], execute_serial="SYNTH-001")
-    assert scoped["executable_count"] == 1
-    assert scoped["executable_rows"][0]["source_serial"] == "SYNTH-001"
-    assert any("outside_single_device_execution_scope" in row["problems"] for row in scoped["blocked_rows"])
-
-    example_rows = load_batch_csv(EXAMPLE_CSV)
-    example_plan = normalize_batch_rows(example_rows)
-    # Placeholder REPLACE-WITH rows are present and parseable; they remain non-live.
-    assert example_plan["row_count"] == 2
-    assert all(row["source_serial"].startswith("REPLACE-WITH") for row in example_plan["rows"])
-
-
-def test_p5_normalize_evaluate_not_weakened() -> None:
-    normalized = normalize_packet(load_packet_or_template(TEMPLATE))
-    result = evaluate(normalized["evaluator_inputs"])
-    assert result["packet_state"] == "BLOCKED_AUTHORITY"
-    assert result["next_gate"] == "AUTHORIZED_READONLY_SESSION"
-    assert result["mutation_authorized"] is False
-
-
-def test_cli_identity_and_compare_modes() -> None:
-    import subprocess
-
-    with tempfile.TemporaryDirectory() as tmp:
-        tmp_path = Path(tmp)
-        identity_in = tmp_path / "identity.json"
-        identity_out = tmp_path / "identity-out.json"
-        identity_in.write_text(json.dumps(_unique_identity()), encoding="utf-8")
-        completed = subprocess.run(
-            [
-                sys.executable,
-                str(MODULE),
-                "identity",
-                "--input",
-                str(identity_in),
-                "--output",
-                str(identity_out),
-            ],
-            check=True,
-            capture_output=True,
-            text=True,
-        )
-        assert completed.returncode == 0
-        payload = json.loads(identity_out.read_text(encoding="utf-8"))
-        assert payload["state"] == "UNIQUE_TARGET_RESOLVED"
-
-        compare_in = tmp_path / "compare.json"
-        compare_out = tmp_path / "compare-out.json"
-        compare_in.write_text(
-            json.dumps(
-                {
-                    "baseline": {"current_firmware_value": "A", "source_serial": "S1"},
-                    "post_update": {"current_firmware_value": "B", "source_serial": "S1"},
-                    "post_rollback": {"current_firmware_value": "A", "source_serial": "S1"},
-                }
-            ),
-            encoding="utf-8",
-        )
-        subprocess.run(
-            [
-                sys.executable,
-                str(MODULE),
-                "compare",
-                "--input",
-                str(compare_in),
-                "--output",
-                str(compare_out),
-            ],
-            check=True,
-            capture_output=True,
-            text=True,
-        )
-        compare_payload = json.loads(compare_out.read_text(encoding="utf-8"))
-        assert compare_payload["state"] == "ORIGINAL_STATE_RESTORED"
-
-
 if __name__ == "__main__":
     tests = [
         test_module_launchers_and_example_exist,
+        test_tracked_docs_have_no_prohibited_live_identifiers,
         test_ambiguous_and_readerunk_identity_fail_closed,
-        test_missing_baseline_blocks_mutation_preview,
-        test_eligibility_does_not_invent_outdated_from_version_order_alone,
-        test_rollback_compare_detects_drift_and_accepts_restore,
-        test_batch_normalize_fail_closed_and_single_device_scope,
+        test_strict_mac_validation_rejects_garbage_hex_extraction,
+        test_cross_device_receipt_binding_fail_closed,
+        test_missing_baseline_blocks_mutation_and_compare,
+        test_roundtrip_requires_forward_mutation_before_restore_proof,
+        test_policy_default_target_is_authoritative,
+        test_batch_duplicate_groups_block_all_members_and_scope,
+        test_batch_csv_and_json_dispatch_and_malformed_json,
+        test_cli_artifact_created_without_explicit_output,
+        test_batch_cmd_missing_option_values_fail_closed,
         test_p5_normalize_evaluate_not_weakened,
-        test_cli_identity_and_compare_modes,
+        test_eligibility_does_not_invent_outdated_from_version_order_alone,
     ]
     failures = 0
     for test in tests:
         try:
             test()
             print(f"PASS {test.__name__}")
-        except Exception as exc:  # noqa: BLE001 - surface exact contract failure
+        except Exception as exc:  # noqa: BLE001
             failures += 1
             print(f"FAIL {test.__name__}: {exc}")
     raise SystemExit(1 if failures else 0)

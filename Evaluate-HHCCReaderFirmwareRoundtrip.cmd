@@ -18,7 +18,8 @@ echo  SYSADMINSUITE H^&H CC READER FIRMWARE ROUND-TRIP EVALUATE
 echo ================================================================
 echo  Offline identity / baseline / restore / eligibility / preview /
 echo  compare contracts only. Never invents live values.
-echo  No Payment Fusion / PAXSTORE / reader mutation.
+echo  Writes an ignored receipt under survey\output\hh-cc-reader when
+echo  --output is omitted. No Payment Fusion / PAXSTORE / mutation.
 echo ================================================================
 echo.
 
@@ -41,4 +42,5 @@ echo   Evaluate-HHCCReaderFirmwareRoundtrip.cmd MODE --input JSON [--output OUT]
 echo.
 echo Modes: identity ^| baseline ^| restore ^| eligibility ^| preview ^| compare ^| batch
 echo Never authorizes firmware mutation. Missing baseline / identity fails closed.
+echo Default artifact path: survey\output\hh-cc-reader\
 exit /b 2

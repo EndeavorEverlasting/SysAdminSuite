@@ -17,15 +17,20 @@ from __future__ import annotations
 import csv
 import json
 import re
+import secrets
+from collections import Counter
+from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
 
 ROOT = Path(__file__).resolve().parents[2]
 DEFAULT_POLICY_PATH = ROOT / "harness" / "api" / "hh-cc-reader-firmware-policy.json"
+DEFAULT_RECEIPT_DIR = ROOT / "survey" / "output" / "hh-cc-reader"
 SCHEMA = "sas-hh-cc-reader-firmware-roundtrip/v1"
 BATCH_SCHEMA = "sas-hh-cc-reader-firmware-batch-row/v1"
+POLICY_SCHEMA_VERSION = "sas-hh-cc-reader-firmware-policy/v1"
 
-# Historical READERUNK specimen values must never bind to Kiosk4.
+# Historical READERUNK specimen values must never bind to experimental targets.
 FORBIDDEN_READERUNK_IPV4 = "10.217.101.192"
 FORBIDDEN_READERUNK_MAC = "C840523C54B6"
 
@@ -69,19 +74,31 @@ BATCH_REQUIRED_COLUMNS = (
 
 BATCH_ACTIONS = frozenset({"PLAN", "UPDATE", "RESTORE"})
 
-_MAC_RE = re.compile(r"[^0-9A-Fa-f]")
+# Approved MAC forms only (colon, hyphen, or compact). No arbitrary stripping.
+_MAC_COLON = re.compile(r"^(?:[0-9A-Fa-f]{2}:){5}[0-9A-Fa-f]{2}$")
+_MAC_HYPHEN = re.compile(r"^(?:[0-9A-Fa-f]{2}-){5}[0-9A-Fa-f]{2}$")
+_MAC_COMPACT = re.compile(r"^[0-9A-Fa-f]{12}$")
 _IPV4_RE = re.compile(
     r"^(?:(?:25[0-5]|2[0-4]\d|[01]?\d?\d)\.){3}(?:25[0-5]|2[0-4]\d|[01]?\d?\d)$"
 )
 
 
 def _norm_mac(value: Any) -> str | None:
+    """Normalize an approved MAC form to compact uppercase hex.
+
+    Accepts only colon-delimited, hyphen-delimited, or compact 12-hex forms.
+    Malformed decoration is rejected rather than stripped into validity.
+    """
     if value is None:
         return None
-    text = _MAC_RE.sub("", str(value).strip()).upper()
-    if len(text) != 12:
+    text = str(value).strip()
+    if not text:
         return None
-    return text
+    if _MAC_COLON.match(text) or _MAC_HYPHEN.match(text):
+        return re.sub(r"[^0-9A-Fa-f]", "", text).upper()
+    if _MAC_COMPACT.match(text):
+        return text.upper()
+    return None
 
 
 def _norm_text(value: Any) -> str | None:
@@ -100,33 +117,86 @@ def _norm_ipv4(value: Any) -> str | None:
     return text
 
 
+def _identity_key(serial: Any, mac: Any) -> tuple[str | None, str | None]:
+    return _norm_text(serial), _norm_mac(mac)
+
+
+def _field_value(blob: dict[str, Any], field: str) -> Any:
+    if field in blob and blob.get(field) not in (None, ""):
+        return blob.get(field)
+    optional = blob.get("optional_captured") or {}
+    if field in optional and optional.get(field) not in (None, ""):
+        return optional.get(field)
+    identity = blob.get("identity") or {}
+    if field == "source_serial":
+        return identity.get("source_serial") or blob.get("source_serial")
+    if field == "expected_mac":
+        return _norm_mac(identity.get("expected_mac") or blob.get("expected_mac"))
+    if field == "reader_ipv4":
+        return identity.get("live_ipv4") or blob.get("reader_ipv4")
+    if field == "current_firmware_value":
+        return blob.get("current_firmware_value")
+    return None
+
+
+def _receipt_identity(blob: dict[str, Any] | None) -> tuple[str | None, str | None]:
+    if not isinstance(blob, dict):
+        return None, None
+    identity = blob.get("identity") if isinstance(blob.get("identity"), dict) else {}
+    serial = _norm_text(
+        identity.get("source_serial")
+        or blob.get("source_serial")
+        or blob.get("target_source_serial")
+    )
+    mac = _norm_mac(
+        identity.get("expected_mac")
+        or blob.get("expected_mac")
+        or blob.get("target_mac")
+        or blob.get("live_mac")
+    )
+    return serial, mac
+
+
+def _require_same_device(
+    left: dict[str, Any] | None,
+    right: dict[str, Any] | None,
+    *,
+    label: str,
+) -> list[str]:
+    blockers: list[str] = []
+    left_serial, left_mac = _receipt_identity(left)
+    right_serial, right_mac = _receipt_identity(right)
+    if not left_serial or not right_serial or left_serial != right_serial:
+        blockers.append(f"{label}_source_serial_mismatch")
+    if not left_mac or not right_mac or left_mac != right_mac:
+        blockers.append(f"{label}_expected_mac_mismatch")
+    return blockers
+
+
 def load_policy(path: Path = DEFAULT_POLICY_PATH) -> dict[str, Any]:
     data = json.loads(path.read_text(encoding="utf-8-sig"))
-    assert data.get("schema_version") == "sas-hh-cc-reader-firmware-policy/v1"
+    if data.get("schema_version") != POLICY_SCHEMA_VERSION:
+        raise ValueError(
+            f"unexpected firmware policy schema_version: {data.get('schema_version')!r}"
+        )
+    selection = data.get("selection")
+    if not isinstance(selection, dict):
+        raise ValueError("firmware policy missing selection object")
+    if not _norm_text(selection.get("default_target")):
+        raise ValueError("firmware policy missing selection.default_target")
     return data
 
 
 def default_target_firmware(policy: dict[str, Any] | None = None) -> str:
     policy = policy if policy is not None else load_policy()
-    selection = policy.get("selection") or {}
-    target = selection.get("selected_candidate_id") or selection.get("planning_target")
+    target = _norm_text((policy.get("selection") or {}).get("default_target"))
     if not target:
-        # Fall back to the documented governed planning candidate.
-        target = "2.0.15.260522"
-    return str(target)
+        raise ValueError("firmware policy missing selection.default_target")
+    return target
 
 
 def resolve_target_identity(candidate: dict[str, Any]) -> dict[str, Any]:
-    """Correlate tracker/network/management identity; fail closed on ambiguity.
-
-    Acceptance for UNIQUE_TARGET_RESOLVED:
-      - source_serial present
-      - expected_mac present and well-formed
-      - no READERUNK leakage
-      - when live_mac is supplied it must equal expected_mac
-      - when probe_mac_match is supplied it must be True
-      - no conflicting alternate serial/mac pairs
-    """
+    """Correlate tracker/network/management identity; fail closed on ambiguity."""
     source_serial = _norm_text(candidate.get("source_serial"))
     source_name = _norm_text(candidate.get("source_name"))
     expected_mac = _norm_mac(candidate.get("expected_mac"))
@@ -142,8 +212,12 @@ def resolve_target_identity(candidate: dict[str, Any]) -> dict[str, Any]:
 
     if not source_serial:
         reasons.append("missing_source_serial")
-    if not expected_mac:
+    if candidate.get("expected_mac") not in (None, "") and expected_mac is None:
+        reasons.append("malformed_expected_mac")
+    elif not expected_mac:
         reasons.append("missing_or_invalid_expected_mac")
+    if candidate.get("live_mac") not in (None, "") and live_mac is None:
+        reasons.append("malformed_live_mac")
 
     if live_ipv4 == FORBIDDEN_READERUNK_IPV4:
         reasons.append("readerunk_ipv4_leakage_rejected")
@@ -152,18 +226,11 @@ def resolve_target_identity(candidate: dict[str, Any]) -> dict[str, Any]:
 
     if live_mac and expected_mac and live_mac != expected_mac:
         reasons.append("live_mac_mismatch")
-        conflicts.append(
-            {
-                "field": "mac",
-                "expected": expected_mac,
-                "observed": live_mac,
-            }
-        )
+        conflicts.append({"field": "mac", "expected": expected_mac, "observed": live_mac})
 
     if probe_mac_match is False:
         reasons.append("probe_mac_match_false")
     elif probe_mac_match is not True:
-        # UNIQUE_TARGET_RESOLVED requires a MAC-gated Probe-HHCCReader proof.
         reasons.append("probe_mac_match_not_proved")
 
     if live_ipv4 is None:
@@ -185,6 +252,8 @@ def resolve_target_identity(candidate: dict[str, Any]) -> dict[str, Any]:
         in {
             "missing_source_serial",
             "missing_or_invalid_expected_mac",
+            "malformed_expected_mac",
+            "malformed_live_mac",
             "probe_mac_match_not_proved",
             "live_ipv4_missing",
         }
@@ -210,15 +279,25 @@ def resolve_target_identity(candidate: dict[str, Any]) -> dict[str, Any]:
 
 
 def freeze_baseline(observation: dict[str, Any], identity: dict[str, Any] | None = None) -> dict[str, Any]:
-    """Freeze a pre-mutation baseline receipt. Missing fields block mutation."""
+    """Freeze a pre-mutation baseline receipt. Missing/mismatched fields block mutation."""
     identity = identity if identity is not None else resolve_target_identity(observation)
     missing = [field for field in REQUIRED_BASELINE_FIELDS if not _norm_text(observation.get(field))]
     if identity.get("state") != "UNIQUE_TARGET_RESOLVED":
         missing.append("unique_target_identity")
     if observation.get("identity_proof_state") != "UNIQUE_TARGET_RESOLVED":
-        # Observation must explicitly carry the proved identity state.
         if "identity_proof_state" not in missing:
             missing.append("identity_proof_state_not_unique")
+
+    observation_serial, observation_mac = _identity_key(
+        observation.get("source_serial"), observation.get("expected_mac")
+    )
+    identity_serial, identity_mac = _identity_key(
+        identity.get("source_serial"), identity.get("expected_mac")
+    )
+    if observation_serial != identity_serial:
+        missing.append("source_serial_identity_mismatch")
+    if observation_mac is None or identity_mac is None or observation_mac != identity_mac:
+        missing.append("expected_mac_identity_mismatch")
 
     optional_captured = {
         field: observation.get(field)
@@ -247,12 +326,14 @@ def freeze_baseline(observation: dict[str, Any], identity: dict[str, Any] | None
         "baseline_locked": locked,
         "missing_fields": missing,
         "identity": {
-            "source_serial": identity.get("source_serial"),
+            "source_serial": identity_serial,
             "source_name": identity.get("source_name"),
-            "expected_mac": identity.get("expected_mac"),
+            "expected_mac": identity_mac,
             "live_ipv4": identity.get("live_ipv4") or observation.get("reader_ipv4"),
             "state": identity.get("state"),
         },
+        "source_serial": identity_serial,
+        "expected_mac": identity_mac,
         "current_firmware_value": _norm_text(observation.get("current_firmware_value")),
         "target_firmware_value": _norm_text(observation.get("target_firmware_value")),
         "optional_captured": optional_captured,
@@ -263,13 +344,20 @@ def freeze_baseline(observation: dict[str, Any], identity: dict[str, Any] | None
 def evaluate_restore_path(restore_evidence: dict[str, Any], baseline: dict[str, Any] | None = None) -> dict[str, Any]:
     """Prove restoration is possible before any forward mutation."""
     missing = [field for field in REQUIRED_RESTORE_FIELDS if not _norm_text(restore_evidence.get(field))]
-    if baseline is not None and not baseline.get("baseline_locked"):
+    if baseline is None:
+        missing.append("baseline_missing")
+    elif not baseline.get("baseline_locked"):
         missing.append("baseline_not_locked")
-    if baseline is not None:
+    else:
+        missing.extend(_require_same_device(baseline, restore_evidence, label="restore"))
         starting = _norm_text(restore_evidence.get("starting_firmware_value"))
         baseline_fw = _norm_text(baseline.get("current_firmware_value"))
         if starting and baseline_fw and starting != baseline_fw:
             missing.append("starting_firmware_mismatch_vs_baseline")
+
+    serial, mac = _receipt_identity(restore_evidence)
+    if baseline is not None and baseline.get("baseline_locked"):
+        serial, mac = _receipt_identity(baseline)
 
     proved = not missing
     return {
@@ -278,6 +366,9 @@ def evaluate_restore_path(restore_evidence: dict[str, Any], baseline: dict[str, 
         "state": "RESTORE_PATH_PROVED" if proved else "RESTORE_PATH_INCOMPLETE",
         "restore_path_proved": proved,
         "missing_fields": missing,
+        "identity": {"source_serial": serial, "expected_mac": mac},
+        "source_serial": serial,
+        "expected_mac": mac,
         "restore_plan": {
             field: _norm_text(restore_evidence.get(field)) for field in REQUIRED_RESTORE_FIELDS
         },
@@ -291,19 +382,23 @@ def evaluate_outdated_eligibility(
     active_outdated: Any,
     target_firmware: str | None = None,
     policy: dict[str, Any] | None = None,
+    source_serial: str | None = None,
+    expected_mac: str | None = None,
 ) -> dict[str, Any]:
     """Classify OUTDATED under existing tracker/policy rules without inventing."""
-    target = _norm_text(target_firmware) or default_target_firmware(policy)
+    target = _norm_text(target_firmware)
+    if target is None:
+        target = default_target_firmware(policy)
     observed = _norm_text(observed_firmware)
     outdated_text = _norm_text(active_outdated)
     reasons: list[str] = []
+    serial, mac = _identity_key(source_serial, expected_mac)
 
     if not observed:
         reasons.append("observed_firmware_missing")
     if outdated_text is None:
         reasons.append("active_outdated_missing")
 
-    # Do not classify from numeric ordering alone.
     tracker_yes = outdated_text is not None and outdated_text.strip().lower() in {
         "yes",
         "y",
@@ -347,6 +442,9 @@ def evaluate_outdated_eligibility(
         "observed_firmware": observed,
         "target_firmware": target,
         "active_outdated": outdated_text,
+        "identity": {"source_serial": serial, "expected_mac": mac},
+        "source_serial": serial,
+        "expected_mac": mac,
         "reasons": reasons,
         "mutation_authorized": False,
     }
@@ -362,11 +460,7 @@ def evaluate_mutation_admission(
     explicit_one_reader_mutation_authorization: bool,
     dry_run: bool = True,
 ) -> dict[str, Any]:
-    """Admit only a dry-run plan unless every gate is proved.
-
-    Even when all gates pass, this seam never executes mutation. It only emits
-    a plan and a boolean that higher authorized runtimes may consult.
-    """
+    """Admit only a dry-run plan unless every gate is proved for one device."""
     blockers: list[str] = []
     if identity.get("state") != "UNIQUE_TARGET_RESOLVED":
         blockers.append("identity_not_unique")
@@ -381,13 +475,32 @@ def evaluate_mutation_admission(
     if not explicit_one_reader_mutation_authorization:
         blockers.append("explicit_one_reader_mutation_authorization_missing")
 
+    blockers.extend(_require_same_device(identity, baseline, label="identity_baseline"))
+    blockers.extend(_require_same_device(identity, restore_path, label="identity_restore"))
+    blockers.extend(_require_same_device(identity, eligibility, label="identity_eligibility"))
+    blockers.extend(_require_same_device(baseline, restore_path, label="baseline_restore"))
+
+    baseline_fw = _norm_text(baseline.get("current_firmware_value"))
+    target_fw = _norm_text(baseline.get("target_firmware_value")) or _norm_text(
+        eligibility.get("target_firmware")
+    )
+    eligibility_observed = _norm_text(eligibility.get("observed_firmware"))
+    if baseline_fw and eligibility_observed and baseline_fw != eligibility_observed:
+        blockers.append("eligibility_observed_firmware_mismatch")
+    if target_fw and _norm_text(eligibility.get("target_firmware")) and target_fw != _norm_text(
+        eligibility.get("target_firmware")
+    ):
+        blockers.append("eligibility_target_firmware_mismatch")
+    if baseline_fw and target_fw and baseline_fw == target_fw:
+        blockers.append("baseline_already_on_target")
+
     admitted = not blockers
     plan = {
         "mode": "DRY_RUN" if dry_run or not admitted else "APPLY_CANDIDATE",
         "target_source_serial": identity.get("source_serial"),
         "target_mac": identity.get("expected_mac"),
-        "source_firmware": baseline.get("current_firmware_value"),
-        "target_firmware": baseline.get("target_firmware_value") or eligibility.get("target_firmware"),
+        "source_firmware": baseline_fw,
+        "target_firmware": target_fw,
         "rollback_source": restore_path.get("restore_plan"),
         "authority_packet_state": authority_packet_state,
         "blockers": blockers,
@@ -396,7 +509,7 @@ def evaluate_mutation_admission(
         "schema": SCHEMA,
         "artifact": "mutation-preview",
         "state": "MUTATION_PREVIEW_READY" if admitted else "MUTATION_BLOCKED",
-        "mutation_authorized": False,  # this seam never authorizes live mutation
+        "mutation_authorized": False,
         "apply_candidate": admitted and not dry_run,
         "dry_run_plan": plan,
         "blockers": blockers,
@@ -409,44 +522,97 @@ def compare_roundtrip_states(
     post_rollback: dict[str, Any],
 ) -> dict[str, Any]:
     """Compare baseline vs post-update vs post-rollback for controlled fields."""
+    prerequisites: list[str] = []
+    if not isinstance(baseline, dict) or not baseline.get("baseline_locked"):
+        prerequisites.append("baseline_not_locked")
+    baseline_fw = _norm_text(_field_value(baseline, "current_firmware_value")) if isinstance(baseline, dict) else None
+    target_fw = _norm_text(baseline.get("target_firmware_value")) if isinstance(baseline, dict) else None
+    post_update_fw = _norm_text(_field_value(post_update, "current_firmware_value")) if isinstance(post_update, dict) else None
+    post_rollback_fw = _norm_text(_field_value(post_rollback, "current_firmware_value")) if isinstance(post_rollback, dict) else None
+
+    for label, blob in (
+        ("baseline", baseline),
+        ("post_update", post_update),
+        ("post_rollback", post_rollback),
+    ):
+        if not isinstance(blob, dict):
+            prerequisites.append(f"{label}_missing")
+            continue
+        serial, mac = _receipt_identity(blob)
+        if not serial:
+            prerequisites.append(f"{label}_source_serial_missing")
+        if not mac:
+            prerequisites.append(f"{label}_expected_mac_missing")
+
+    if isinstance(baseline, dict) and isinstance(post_update, dict):
+        prerequisites.extend(_require_same_device(baseline, post_update, label="baseline_post_update"))
+    if isinstance(baseline, dict) and isinstance(post_rollback, dict):
+        prerequisites.extend(_require_same_device(baseline, post_rollback, label="baseline_post_rollback"))
+
+    if not baseline_fw:
+        prerequisites.append("baseline_firmware_missing")
+    if not target_fw:
+        prerequisites.append("target_firmware_missing")
+    if not post_update_fw:
+        prerequisites.append("post_update_firmware_missing")
+    if not post_rollback_fw:
+        prerequisites.append("post_rollback_firmware_missing")
+
     deltas: list[dict[str, Any]] = []
     mismatches: list[str] = []
+    if not prerequisites:
+        for field in MATERIAL_COMPARE_FIELDS:
+            b = _field_value(baseline, field)
+            u = _field_value(post_update, field)
+            r = _field_value(post_rollback, field)
+            if field == "expected_mac":
+                b = _norm_mac(b)
+                u = _norm_mac(u)
+                r = _norm_mac(r)
+            deltas.append({"field": field, "baseline": b, "post_update": u, "post_rollback": r})
+            if b in (None, ""):
+                if field in {"source_serial", "expected_mac", "current_firmware_value"}:
+                    mismatches.append(field)
+                continue
+            if r != b:
+                mismatches.append(field)
 
-    def field_value(blob: dict[str, Any], field: str) -> Any:
-        if field in blob:
-            return blob.get(field)
-        optional = blob.get("optional_captured") or {}
-        if field in optional:
-            return optional.get(field)
-        identity = blob.get("identity") or {}
-        if field == "source_serial":
-            return identity.get("source_serial") or blob.get("source_serial")
-        if field == "expected_mac":
-            return identity.get("expected_mac") or blob.get("expected_mac")
-        if field == "reader_ipv4":
-            return identity.get("live_ipv4") or blob.get("reader_ipv4")
-        return None
+    forward_update_proved = (
+        not prerequisites
+        and baseline_fw is not None
+        and target_fw is not None
+        and post_update_fw == target_fw
+        and post_update_fw != baseline_fw
+    )
+    rollback_state_matched = not prerequisites and not mismatches and post_rollback_fw == baseline_fw
+    roundtrip_proven = rollback_state_matched and forward_update_proved
 
-    for field in MATERIAL_COMPARE_FIELDS:
-        b = field_value(baseline, field)
-        u = field_value(post_update, field)
-        r = field_value(post_rollback, field)
-        entry = {"field": field, "baseline": b, "post_update": u, "post_rollback": r}
-        deltas.append(entry)
-        # Only compare fields present on the baseline freeze.
-        if b in (None, ""):
-            continue
-        if r != b:
-            mismatches.append(field)
+    if prerequisites:
+        state = "COMPARE_PREREQUISITES_MISSING"
+    elif not forward_update_proved and rollback_state_matched:
+        state = "ROLLBACK_STATE_MATCHED"
+    elif roundtrip_proven:
+        state = "ROUNDTRIP_PROVEN"
+    elif rollback_state_matched:
+        state = "ORIGINAL_STATE_RESTORED"
+    else:
+        state = "ROLLBACK_DRIFT_DETECTED"
 
-    restored = not mismatches
     return {
         "schema": SCHEMA,
         "artifact": "rollback-comparison",
-        "state": "ORIGINAL_STATE_RESTORED" if restored else "ROLLBACK_DRIFT_DETECTED",
-        "restored": restored,
+        "state": state,
+        "restored": rollback_state_matched,
+        "rollback_state_matched": rollback_state_matched,
+        "forward_update_proved": forward_update_proved,
+        "roundtrip_proven": roundtrip_proven,
+        "prerequisites_missing": prerequisites,
         "mismatched_fields": mismatches,
         "delta": deltas,
+        "baseline_firmware": baseline_fw,
+        "target_firmware": target_fw,
+        "post_update_firmware": post_update_fw,
+        "post_rollback_firmware": post_rollback_fw,
         "mutation_authorized": False,
     }
 
@@ -454,8 +620,10 @@ def compare_roundtrip_states(
 def normalize_batch_rows(rows: list[dict[str, Any]], *, execute_serial: str | None = None) -> dict[str, Any]:
     """Normalize tabular CC-reader batch rows and fail closed on conflicts.
 
-    execute_serial, when provided, restricts the executable set to that one
-    validated serial so a single-device experiment cannot expand silently.
+    execute_serial semantics:
+      - None: no single-device scope filter
+      - non-empty: restrict executable rows to that serial
+      - empty string: explicit empty scope; block all rows
     """
     if not rows:
         return {
@@ -468,8 +636,11 @@ def normalize_batch_rows(rows: list[dict[str, Any]], *, execute_serial: str | No
             "mutation_authorized": False,
         }
 
-    seen_serials: dict[str, int] = {}
-    seen_macs: dict[str, int] = {}
+    serial_values = [_norm_text(row.get("source_serial")) for row in rows]
+    mac_values = [_norm_mac(row.get("expected_mac")) for row in rows]
+    serial_counts = Counter(value for value in serial_values if value)
+    mac_counts = Counter(value for value in mac_values if value)
+
     normalized: list[dict[str, Any]] = []
     blocked: list[dict[str, Any]] = []
 
@@ -486,14 +657,10 @@ def normalize_batch_rows(rows: list[dict[str, Any]], *, execute_serial: str | No
             problems.append("invalid_action")
         if mac is None and _norm_text(row.get("expected_mac")):
             problems.append("invalid_expected_mac")
-        if serial:
-            if serial in seen_serials:
-                problems.append("duplicate_source_serial")
-            seen_serials[serial] = index
-        if mac:
-            if mac in seen_macs:
-                problems.append("duplicate_expected_mac")
-            seen_macs[mac] = index
+        if serial and serial_counts[serial] > 1:
+            problems.append("duplicate_source_serial")
+        if mac and mac_counts[mac] > 1:
+            problems.append("duplicate_expected_mac")
         if mac == FORBIDDEN_READERUNK_MAC:
             problems.append("readerunk_mac_rejected")
 
@@ -516,27 +683,48 @@ def normalize_batch_rows(rows: list[dict[str, Any]], *, execute_serial: str | No
         normalized.append(entry)
 
     executable = [row for row in normalized if row["executable"]]
-    if execute_serial:
-        execute_serial = _norm_text(execute_serial)
+    if execute_serial is not None:
+        scoped = _norm_text(execute_serial)
         narrowed: list[dict[str, Any]] = []
         for row in executable:
-            if row["source_serial"] == execute_serial:
+            if scoped and row["source_serial"] == scoped:
                 narrowed.append(row)
             else:
                 row = dict(row)
                 row["executable"] = False
-                row["problems"] = list(row["problems"]) + ["outside_single_device_execution_scope"]
+                reason = (
+                    "empty_execute_serial_scope"
+                    if not scoped
+                    else "outside_single_device_execution_scope"
+                )
+                row["problems"] = [*row["problems"], reason]
                 blocked.append(row)
         executable = narrowed
+        # Duplicated identities remain non-executable even when selected.
+        still_executable: list[dict[str, Any]] = []
+        for row in executable:
+            if row["source_serial"] and serial_counts[row["source_serial"]] > 1:
+                row = dict(row)
+                row["executable"] = False
+                row["problems"] = [*row["problems"], "duplicate_source_serial"]
+                blocked.append(row)
+            elif row["expected_mac"] and mac_counts[row["expected_mac"]] > 1:
+                row = dict(row)
+                row["executable"] = False
+                row["problems"] = [*row["problems"], "duplicate_expected_mac"]
+                blocked.append(row)
+            else:
+                still_executable.append(row)
+        executable = still_executable
 
     state = "BATCH_PLAN_READY" if executable and not blocked else "BATCH_PLAN_BLOCKED"
     if executable and blocked:
         state = "BATCH_PLAN_PARTIAL"
-    if execute_serial and len(executable) > 1:
+    if execute_serial is not None and len(executable) > 1:
         state = "BATCH_PLAN_BLOCKED"
         for row in executable:
             row["executable"] = False
-            row["problems"] = list(row["problems"]) + ["single_device_scope_expanded"]
+            row["problems"] = [*row["problems"], "single_device_scope_expanded"]
         blocked.extend(executable)
         executable = []
 
@@ -550,7 +738,7 @@ def normalize_batch_rows(rows: list[dict[str, Any]], *, execute_serial: str | No
         "rows": normalized,
         "executable_rows": executable,
         "blocked_rows": blocked,
-        "execute_serial_scope": execute_serial,
+        "execute_serial_scope": None if execute_serial is None else _norm_text(execute_serial),
         "mutation_authorized": False,
     }
 
@@ -558,74 +746,110 @@ def normalize_batch_rows(rows: list[dict[str, Any]], *, execute_serial: str | No
 def load_batch_csv(path: Path) -> list[dict[str, Any]]:
     with path.open(newline="", encoding="utf-8-sig") as handle:
         reader = csv.DictReader(handle)
+        if reader.fieldnames is None:
+            raise ValueError(f"csv_missing_header:{path}")
         return [dict(row) for row in reader]
+
+
+def load_batch_input(path: Path) -> list[dict[str, Any]]:
+    """Load batch rows from JSON or CSV using deterministic extension-based routing."""
+    suffix = path.suffix.lower()
+    if suffix == ".csv":
+        return load_batch_csv(path)
+    if suffix in {".json", ".jsonl"}:
+        payload = json.loads(path.read_text(encoding="utf-8-sig"))
+        if isinstance(payload, list):
+            return payload
+        if isinstance(payload, dict) and isinstance(payload.get("rows"), list):
+            return payload["rows"]
+        raise ValueError("json_batch_requires_rows_array_or_list_root")
+    raise ValueError(f"unsupported_batch_input_extension:{suffix or '<none>'}")
+
+
+def write_receipt(mode: str, result: dict[str, Any], output: Path | None = None) -> Path:
+    if output is not None:
+        out = output
+        out.parent.mkdir(parents=True, exist_ok=True)
+    else:
+        DEFAULT_RECEIPT_DIR.mkdir(parents=True, exist_ok=True)
+        stamp = datetime.now(timezone.utc).strftime("%Y%m%d-%H%M%S")
+        out = DEFAULT_RECEIPT_DIR / f"hh-cc-reader-firmware-roundtrip-{mode}-{stamp}-{secrets.token_hex(4)}.json"
+    text = json.dumps(result, indent=2, sort_keys=True) + "\n"
+    out.write_text(text, encoding="utf-8")
+    return out
 
 
 def main(argv: list[str] | None = None) -> int:
     import argparse
+    import sys
 
     parser = argparse.ArgumentParser(description="H&H CC reader firmware round-trip offline seams")
     parser.add_argument(
         "mode",
         choices=("identity", "baseline", "restore", "eligibility", "preview", "compare", "batch"),
     )
-    parser.add_argument("--input", required=True, help="JSON input path for the selected mode")
-    parser.add_argument("--output", help="Optional JSON output path")
+    parser.add_argument("--input", required=True, help="Input path for the selected mode")
+    parser.add_argument(
+        "--output",
+        help="Optional JSON output path (default: ignored survey/output/hh-cc-reader receipt)",
+    )
     parser.add_argument(
         "--execute-serial",
+        default=None,
         help="For batch mode: restrict executable rows to one validated serial",
     )
     args = parser.parse_args(argv)
+    input_path = Path(args.input)
 
-    payload = json.loads(Path(args.input).read_text(encoding="utf-8-sig"))
-    if args.mode == "identity":
-        result = resolve_target_identity(payload)
-    elif args.mode == "baseline":
-        identity = resolve_target_identity(payload)
-        result = freeze_baseline(payload, identity)
-    elif args.mode == "restore":
-        baseline = payload.get("baseline")
-        result = evaluate_restore_path(payload.get("restore_evidence") or payload, baseline)
-    elif args.mode == "eligibility":
-        result = evaluate_outdated_eligibility(
-            observed_firmware=payload.get("observed_firmware") or payload.get("current_firmware_value"),
-            active_outdated=payload.get("active_outdated"),
-            target_firmware=payload.get("target_firmware") or payload.get("target_firmware_value"),
-        )
-    elif args.mode == "preview":
-        result = evaluate_mutation_admission(
-            identity=payload["identity"],
-            baseline=payload["baseline"],
-            restore_path=payload["restore_path"],
-            eligibility=payload["eligibility"],
-            authority_packet_state=payload.get("authority_packet_state"),
-            explicit_one_reader_mutation_authorization=bool(
-                payload.get("explicit_one_reader_mutation_authorization")
-            ),
-            dry_run=bool(payload.get("dry_run", True)),
-        )
-    elif args.mode == "compare":
-        result = compare_roundtrip_states(
-            payload["baseline"],
-            payload["post_update"],
-            payload["post_rollback"],
-        )
-    else:
-        if isinstance(payload, list):
-            rows = payload
-        elif "rows" in payload:
-            rows = payload["rows"]
+    try:
+        if args.mode == "batch":
+            rows = load_batch_input(input_path)
+            result = normalize_batch_rows(rows, execute_serial=args.execute_serial)
         else:
-            rows = load_batch_csv(Path(args.input))
-        result = normalize_batch_rows(rows, execute_serial=args.execute_serial)
+            payload = json.loads(input_path.read_text(encoding="utf-8-sig"))
+            if args.mode == "identity":
+                result = resolve_target_identity(payload)
+            elif args.mode == "baseline":
+                identity = resolve_target_identity(payload)
+                result = freeze_baseline(payload, identity)
+            elif args.mode == "restore":
+                baseline = payload.get("baseline")
+                result = evaluate_restore_path(payload.get("restore_evidence") or payload, baseline)
+            elif args.mode == "eligibility":
+                result = evaluate_outdated_eligibility(
+                    observed_firmware=payload.get("observed_firmware")
+                    or payload.get("current_firmware_value"),
+                    active_outdated=payload.get("active_outdated"),
+                    target_firmware=payload.get("target_firmware") or payload.get("target_firmware_value"),
+                    source_serial=payload.get("source_serial"),
+                    expected_mac=payload.get("expected_mac"),
+                )
+            elif args.mode == "preview":
+                result = evaluate_mutation_admission(
+                    identity=payload["identity"],
+                    baseline=payload["baseline"],
+                    restore_path=payload["restore_path"],
+                    eligibility=payload["eligibility"],
+                    authority_packet_state=payload.get("authority_packet_state"),
+                    explicit_one_reader_mutation_authorization=bool(
+                        payload.get("explicit_one_reader_mutation_authorization")
+                    ),
+                    dry_run=bool(payload.get("dry_run", True)),
+                )
+            else:
+                result = compare_roundtrip_states(
+                    payload["baseline"],
+                    payload["post_update"],
+                    payload["post_rollback"],
+                )
+    except (OSError, ValueError, json.JSONDecodeError, KeyError, TypeError) as exc:
+        print(f"ERROR: {exc}", file=sys.stderr)
+        return 1
 
-    text = json.dumps(result, indent=2, sort_keys=True) + "\n"
-    if args.output:
-        out = Path(args.output)
-        out.parent.mkdir(parents=True, exist_ok=True)
-        out.write_text(text, encoding="utf-8")
-    else:
-        print(text, end="")
+    out_path = Path(args.output) if args.output else None
+    receipt = write_receipt(args.mode, result, out_path)
+    print(f"ARTIFACT={receipt}")
+    print(json.dumps(result, indent=2, sort_keys=True))
     return 0
 
 

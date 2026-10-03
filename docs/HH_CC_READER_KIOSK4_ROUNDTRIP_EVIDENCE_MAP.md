@@ -11,43 +11,51 @@ Branch floor at map authoring: `origin/main` @ `409f267c`
 Make tracker wiring and Kiosk4 evidence ownership explicit before any firmware mutation.
 This map is not BASELINE_LOCKED and does not authorize mutation.
 
+**Governance:** tracked source must not contain live serials, MACs, IPv4s, credentials, or private Drive object IDs. Correlate the experimental reader through private/local evidence indexes at runtime.
+
 ## Operational tracker (canonical)
 
-| Surface | Location | Readable to this agent runtime | Role |
-| --- | --- | --- | --- |
-| CC Reader Technician Dashboard | Drive file `CC_Reader_Technician_Dashboard_CURRENT_2026-09-21.xlsx` (id `14MQcGtdSR10Q2oe3MOJDFzSk0TDUm_-F`) | No (`readable=false` under current Drive grant) | Human-facing operational authority |
-| Findings Log | Drive spreadsheet id `1E2c7vawypgxXaV19ri_6uwaPLtVRJzq1aRomMxf7xnU` | Not verified this pass | Baseline findings authority |
-| Rolling baseline receipt | Drive doc `20260930_2211 — Kiosk4 Rolling Baseline Execution Receipt — IN_PROGRESS` (id `1EIT-ahfWPrup6k6uMttgNDutMIrEb3pWN-t2uugDHZc`) | Yes | Prior R1 attempt ledger |
+| Surface | Private evidence reference | Role |
+| --- | --- | --- |
+| CC Reader Technician Dashboard | `PRIVATE_EVIDENCE:cc-reader-technician-dashboard-current` | Human-facing operational authority |
+| Findings Log | `PRIVATE_EVIDENCE:cc-reader-baseline-findings-log-current` | Baseline findings authority |
+| Rolling baseline receipt | `PRIVATE_EVIDENCE:kiosk4-rolling-baseline-receipt-20260930` | Prior R1 attempt ledger |
 
 Do not create a second tracker. Repository artifacts are adapters/receipts only.
 
 ## Tracker/source baseline candidate (not live-proved)
 
-Recovered into the round-trip plan from the existing dashboard/source inventory:
+Recovered operator-local candidate fields remain outside Git. Runtime binding uses a private evidence packet such as:
 
-| Field | Candidate value | Proof ceiling |
+```text
+%TEMP%\hh-cc-kiosk4-private-target.json
+```
+
+Required private fields (names only in tracked source):
+
+| Field | Tracked representation | Proof ceiling |
 | --- | --- | --- |
-| source name / alias | Kiosk4 | tracker/source candidate only |
-| source serial / CC identity | 1240473751 | tracker/source candidate only |
-| model | PAX A80 | tracker/source candidate only |
-| source MAC | C8:40:52:3C:93:BA | tracker/source candidate; passive capture later found no usable frame |
-| source firmware/application | 2.0.15.260410 | historical inventory snapshot; must be re-observed live |
-| Active Outdated | Yes | tracker classification candidate |
-| source status | offline (historical snapshot) | must not be promoted to present-tense offline |
-| governed target | 2.0.15.260522 | SETTLED_POLICY via firmware policy |
+| source name / alias | `Kiosk4` (alias label only) | tracker/source candidate label |
+| source serial / CC identity | `PRIVATE_FIELD:source_serial` | private evidence only |
+| model | PAX A80 | model class only |
+| source MAC | `PRIVATE_FIELD:expected_mac` | private evidence only |
+| source firmware/application | `PRIVATE_FIELD:observed_firmware` | must be re-observed live |
+| Active Outdated | `PRIVATE_FIELD:active_outdated` | tracker classification candidate |
+| source status | historical snapshot only | must not be promoted to present tense |
+| governed target | from `selection.default_target` in firmware policy | SETTLED_POLICY |
 
 ## Explicitly rejected identity leakage
 
-| Specimen | Values | Rule |
-| --- | --- | --- |
-| READERUNK legacy | 10.217.101.192 / C8:40:52:3C:54:B6 | Must never be attributed to Kiosk4 |
-| Agent runtime NIC | Wi-Fi ~192.168.1.8x/24 observed on Cursor host | AGENT_RUNTIME_CONTEXT only; not field-workstation proof |
+| Specimen | Rule |
+| --- | --- |
+| READERUNK legacy specimen IP/MAC pair documented in the round-trip plan | Must never be attributed to Kiosk4 |
+| Agent runtime NIC observations | AGENT_RUNTIME_CONTEXT only; not field-workstation proof |
 
-## Prior R1 attempt summary (Drive receipt)
+## Prior R1 attempt summary (private receipt)
 
-RUN_ID `20260930_2211__KIOSK4__BASELINE` remains `BASELINE=IN_PROGRESS`.
+RUN_ID class `KIOSK4__BASELINE` remains `BASELINE=IN_PROGRESS` in private evidence.
 
-Settled from that receipt:
+Settled from that private receipt class:
 
 - Admin unlock path proved on prior Kiosk4 stills
 - Netstat START_TEST satisfied by prior Kiosk4 provenance (do not restage for header behavior)
@@ -73,7 +81,7 @@ Still open for BASELINE_LOCKED:
 | Authority result | `RESULT_BLOCKED_AUTHORITY` / `next_gate=AUTHORIZED_READONLY_SESSION` |
 | Authenticated PFCC session | `INTERACTIVE_AUTH_REQUIRED` |
 | Invented live values | `False` |
-| Axia Gateway | login page only (`https://gateway.paymentfusion.com/ui/Account/Login`) |
+| Axia Gateway | login page only |
 | Browser-saved PFCC credentials usable by agent | none confirmed |
 
 ## Round-trip readiness seams (repository)
@@ -90,11 +98,11 @@ These prove identity fail-closed, baseline requirements, restore-path gating, ro
 ## Next useful actions (ordered)
 
 1. Operator: authenticate PFCC / Control Center (P5-C) and fill live packet observations without inventing values.
-2. Operator/field: capture current Kiosk4 Network/Ethernet identity (IPv4 + MAC) on-device, or recover exact lease for `C8:40:52:3C:93:BA` from an already-authorized DHCP surface.
+2. Operator/field: capture current Kiosk4 Network/Ethernet identity into the private evidence packet (`PRIVATE_FIELD:live_ipv4`, `PRIVATE_FIELD:expected_mac`).
 3. From the technician field PC on the reader network:
 
 ```bat
-Probe-HHCCReader.cmd <LIVE_IPV4> C8-40-52-3C-93-BA
+Probe-HHCCReader.cmd <PRIVATE_LIVE_IPV4> <PRIVATE_EXPECTED_MAC>
 ```
 
 4. Freeze baseline through the round-trip seam only after identity correlation is unique.
