@@ -343,6 +343,7 @@
       "blocking": true,
       "scope": [
         "harness/api/operational-publication-boundary.v1.json",
+        "schemas/harness/operational-publication-boundary.schema.json",
         "harness/validators/validate-operational-publication-boundary.py",
         "Tests/survey/test_operational_publication_boundary_contracts.py"
       ],
