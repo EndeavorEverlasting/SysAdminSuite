@@ -75,6 +75,7 @@ def main() -> int:
         "HOME_LAB_SCOPE_TOO_LARGE",
         "same_oui_candidates",
         "Invoke-SasHhCcReaderProbe.ps1",
+        "-NetworkEnvironment CONSUMER_LAB",
         "BOUNDED_LOCAL_DISCOVERY_EXACT_MAC",
         "CONFIRM_CONSUMER_LAB",
         "SEALED_RUNTIME_REQUIRED",
