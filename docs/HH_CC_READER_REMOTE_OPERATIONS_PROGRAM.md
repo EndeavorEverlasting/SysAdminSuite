@@ -354,3 +354,24 @@ That plan preserves this program as the parent authority while adding the operat
 
 The existing CC Reader Technician Dashboard remains the operational tracker. New batch plans, restore plans, summaries, and HTML receipts are execution artifacts/adapters, not replacement trackers.
 
+### Firmware evidence event producer (cross-repo handoff)
+
+SAS owns the producer contract `hh-cc-reader-firmware-event/v1` via:
+
+- `harness/api/hh_cc_reader_firmware_event.py`
+- `Export-HHCCReaderFirmwareEvent.cmd`
+- `schemas/harness/hh-cc-reader-firmware-event.schema.json`
+- sanitized fixtures under `docs/examples/hh-cc-reader-firmware-event*.json`
+
+Flow:
+
+```text
+SAS canonical execution receipt
+  -> deterministic firmware event
+  -> (downstream) H+H private publication manifest
+  -> operational spreadsheet projection
+  -> manual company-share projection
+```
+
+Downstream publication unavailability must not block or rewrite SAS execution evidence. NYC H&H owns consumer interpretation, tracker reconciliation, and publication state.
+

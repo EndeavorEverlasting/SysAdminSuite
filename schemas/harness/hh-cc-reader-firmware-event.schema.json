@@ -1,0 +1,107 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "sas://schemas/harness/hh-cc-reader-firmware-event.schema.json",
+  "title": "H&H CC Reader Firmware Evidence Event",
+  "description": "SAS producer handoff event for one proved firmware execution transition. Downstream publication systems are consumers only and must not rewrite execution truth.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema",
+    "event_id",
+    "event_class",
+    "producer",
+    "proof_ceiling",
+    "canonical_execution_state",
+    "execution_disposition",
+    "evidence_fingerprint",
+    "authoritative_receipt_refs",
+    "mutation_authorized",
+    "publication_dependency"
+  ],
+  "properties": {
+    "schema": {
+      "const": "hh-cc-reader-firmware-event/v1"
+    },
+    "event_id": {
+      "type": "string",
+      "pattern": "^hh-cc-fw-evt-[0-9a-f]{32}$"
+    },
+    "event_class": {
+      "type": "string",
+      "minLength": 1
+    },
+    "producer": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["repository", "contract_version", "module", "schema"],
+      "properties": {
+        "repository": { "const": "EndeavorEverlasting/SysAdminSuite" },
+        "contract_version": { "type": "string", "minLength": 1 },
+        "module": { "type": "string", "minLength": 1 },
+        "schema": { "const": "hh-cc-reader-firmware-event/v1" }
+      }
+    },
+    "execution_run_id": { "type": ["string", "null"] },
+    "target_logical_ref": { "type": ["string", "null"] },
+    "identity_proof_state": { "type": ["string", "null"] },
+    "baseline_proof_state": { "type": ["string", "null"] },
+    "identity_binding": {
+      "type": "object",
+      "additionalProperties": true
+    },
+    "observed_starting_firmware": { "type": ["string", "null"] },
+    "governed_target_firmware": { "type": ["string", "null"] },
+    "observed_resulting_firmware": { "type": ["string", "null"] },
+    "forward_operation_result": { "type": ["string", "null"] },
+    "restore_operation_result": { "type": ["string", "null"] },
+    "final_runtime_result": { "type": ["string", "null"] },
+    "canonical_execution_state": { "type": "string", "minLength": 1 },
+    "proof_ceiling": { "type": "string", "minLength": 1 },
+    "execution_disposition": {
+      "type": "string",
+      "enum": ["SUCCESS", "FAILED", "BLOCKED", "IN_PROGRESS"]
+    },
+    "downstream_interpretable": { "type": "boolean" },
+    "evidence_complete_for_downstream": { "type": "boolean" },
+    "authoritative_receipt_refs": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": ["receipt_kind", "content_fingerprint"],
+        "properties": {
+          "receipt_kind": { "type": "string" },
+          "artifact": {},
+          "state": {},
+          "content_fingerprint": { "type": ["string", "null"] },
+          "path_ref": { "type": ["string", "null"] }
+        },
+        "additionalProperties": true
+      }
+    },
+    "evidence_fingerprint": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{64}$"
+    },
+    "evidence_timestamps": {
+      "type": "object",
+      "additionalProperties": { "type": ["string", "null"] }
+    },
+    "mutation_authorized": { "const": false },
+    "publication_dependency": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "tracker_required",
+        "google_drive_required",
+        "onedrive_required",
+        "downstream_repo_required"
+      ],
+      "properties": {
+        "tracker_required": { "const": false },
+        "google_drive_required": { "const": false },
+        "onedrive_required": { "const": false },
+        "downstream_repo_required": { "const": false }
+      }
+    }
+  }
+}

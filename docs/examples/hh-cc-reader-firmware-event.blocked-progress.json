@@ -1,0 +1,59 @@
+{
+  "authoritative_receipt_refs": [
+    {
+      "artifact": "target-resolution-receipt",
+      "content_fingerprint": "1154e30e9f99df75c49aa3b88974d2649a327e0675cf8cafc36dd2d8cfe77977",
+      "path_ref": null,
+      "receipt_kind": "identity",
+      "state": "UNIQUE_TARGET_RESOLVED"
+    },
+    {
+      "artifact": "pre-mutation-baseline",
+      "content_fingerprint": "de3929a85cbbc9440f606808e8a839e1e83d8042930c8ba3e9f2f982ec528bb0",
+      "path_ref": null,
+      "receipt_kind": "baseline",
+      "state": "BASELINE_INCOMPLETE"
+    }
+  ],
+  "baseline_proof_state": "BASELINE_INCOMPLETE",
+  "canonical_execution_state": "BASELINE_INCOMPLETE",
+  "downstream_interpretable": true,
+  "event_class": "BASELINE_PROGRESS",
+  "event_id": "hh-cc-fw-evt-1e4b6836871feb27723faf500295d443",
+  "evidence_complete_for_downstream": false,
+  "evidence_fingerprint": "33f2cf7b093b0cd5c20546ffaaa3fdc69039088064688a8fa3d7f7e044c871a8",
+  "evidence_timestamps": {
+    "identity": "2026-10-03T00:00:00Z"
+  },
+  "execution_disposition": "BLOCKED",
+  "execution_run_id": "SYNTH-RUN-IDENTITY-001",
+  "final_runtime_result": null,
+  "forward_operation_result": null,
+  "governed_target_firmware": "2.0.15.260522",
+  "identity_binding": {
+    "expected_mac_ref": "AABBCCDDEE01",
+    "probe_mac_match": true,
+    "source_name": "SYNTH-READER-A",
+    "source_serial_ref": "SYNTH-SERIAL-001"
+  },
+  "identity_proof_state": "UNIQUE_TARGET_RESOLVED",
+  "mutation_authorized": false,
+  "observed_resulting_firmware": null,
+  "observed_starting_firmware": null,
+  "producer": {
+    "contract_version": "1",
+    "module": "harness/api/hh_cc_reader_firmware_event.py",
+    "repository": "EndeavorEverlasting/SysAdminSuite",
+    "schema": "hh-cc-reader-firmware-event/v1"
+  },
+  "proof_ceiling": "BASELINE_INCOMPLETE",
+  "publication_dependency": {
+    "downstream_repo_required": false,
+    "google_drive_required": false,
+    "onedrive_required": false,
+    "tracker_required": false
+  },
+  "restore_operation_result": null,
+  "schema": "hh-cc-reader-firmware-event/v1",
+  "target_logical_ref": "SYNTH-READER-A"
+}
