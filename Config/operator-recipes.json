@@ -1,0 +1,26 @@
+{
+  "schema": 1,
+  "recipes": [
+    {
+      "id": "windows.clipboard.repair",
+      "title": "Repair Windows clipboard",
+      "platform": "windows",
+      "category": "workstation-recovery",
+      "status": "active",
+      "entrypoint": "Repair-Clipboard.cmd",
+      "engine": "scripts/Repair-SasClipboard.ps1",
+      "documentation": "START-HERE-CLIPBOARD-RECOVERY.md",
+      "validation": [
+        "Tests/clipboard/Test-ClipboardRecoveryContracts.ps1",
+        "Tests/survey/test_operator_recipe_registry_contracts.py"
+      ],
+      "runtime": [
+        "pwsh",
+        "powershell.exe"
+      ],
+      "privilege": "current-user",
+      "evidence": "%LOCALAPPDATA%\\SysAdminSuite\\field-runs\\clipboard",
+      "proofCeiling": "Static contracts and Windows parser checks do not prove recovery on a failing workstation; a live interactive Windows run is required."
+    }
+  ]
+}
