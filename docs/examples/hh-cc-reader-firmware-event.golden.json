@@ -1,0 +1,103 @@
+{
+  "authoritative_receipt_refs": [
+    {
+      "artifact": "target-resolution-receipt",
+      "content_fingerprint": "1154e30e9f99df75c49aa3b88974d2649a327e0675cf8cafc36dd2d8cfe77977",
+      "path_ref": null,
+      "receipt_kind": "identity",
+      "state": "UNIQUE_TARGET_RESOLVED"
+    },
+    {
+      "artifact": "pre-mutation-baseline",
+      "content_fingerprint": "7098cedfd4995191d96bb8f54a5d8d7797000de0554bd212c8d89f1262481333",
+      "path_ref": null,
+      "receipt_kind": "baseline",
+      "state": "BASELINE_LOCKED"
+    },
+    {
+      "artifact": "outdated-eligibility",
+      "content_fingerprint": "c95054279eeb62e4cfc380b2aa16bee0b8cd7e699a33551113779f9f7e4866bc",
+      "path_ref": null,
+      "receipt_kind": "eligibility",
+      "state": "OUTDATED_CLASSIFIED"
+    },
+    {
+      "artifact": "restore-path-proof",
+      "content_fingerprint": "e8eb297901fac20c44f97d6128ab84c9b2e9a88cba330bc63f9b1defef7e79cf",
+      "path_ref": null,
+      "receipt_kind": "restore_path",
+      "state": "RESTORE_PATH_PROVED"
+    },
+    {
+      "artifact": "roundtrip-compare",
+      "content_fingerprint": "211f52bad17cef03109b56d16c4929978123bc26d922eb53d9de0ea56bb26bf6",
+      "path_ref": null,
+      "receipt_kind": "compare",
+      "state": "ROUNDTRIP_PROVEN"
+    },
+    {
+      "artifact": null,
+      "content_fingerprint": "13356ebe6f05ac61841af3107f127d7d74b6b477b9360d7bfd57b85ef587c1ba",
+      "path_ref": null,
+      "receipt_kind": "post_update",
+      "state": "TARGET_UPDATE_PROVED"
+    },
+    {
+      "artifact": null,
+      "content_fingerprint": "dc3dac4a3fbc1721c5f6fa1e0d9bcb8a9c05303c4af989bf8c73069c72ea551f",
+      "path_ref": null,
+      "receipt_kind": "post_rollback",
+      "state": "ORIGINAL_STATE_RESTORED"
+    },
+    {
+      "artifact": "final-runtime-verification",
+      "content_fingerprint": "b61dd5cb9bb8e67de9fd32bef0ac23bd3d5e1219f8252f0b631993016f0d98e1",
+      "path_ref": null,
+      "receipt_kind": "final_runtime",
+      "state": "FINAL_TARGET_RUNTIME_VERIFIED"
+    }
+  ],
+  "baseline_proof_state": "BASELINE_LOCKED",
+  "canonical_execution_state": "FINAL_TARGET_RUNTIME_VERIFIED",
+  "downstream_interpretable": true,
+  "event_class": "FINAL_TARGET_RUNTIME_VERIFIED",
+  "event_id": "hh-cc-fw-evt-5d5c8af2831636e9fff294ca9ef1af3c",
+  "evidence_complete_for_downstream": true,
+  "evidence_fingerprint": "aa6702b2e10a94f5ec2dd45412ef9422efcb69398bbeaad574ac83b0f1fb544c",
+  "evidence_timestamps": {
+    "baseline": "2026-10-03T00:01:00Z",
+    "final_runtime": "2026-10-03T00:30:00Z",
+    "identity": "2026-10-03T00:00:00Z"
+  },
+  "execution_disposition": "SUCCESS",
+  "execution_run_id": "SYNTH-RUN-ROUNDTRIP-001",
+  "final_runtime_result": "FINAL_TARGET_RUNTIME_VERIFIED",
+  "forward_operation_result": "TARGET_UPDATE_PROVED",
+  "governed_target_firmware": "2.0.15.260522",
+  "identity_binding": {
+    "expected_mac_ref": "AABBCCDDEE01",
+    "probe_mac_match": true,
+    "source_name": "SYNTH-READER-A",
+    "source_serial_ref": "SYNTH-SERIAL-001"
+  },
+  "identity_proof_state": "UNIQUE_TARGET_RESOLVED",
+  "mutation_authorized": false,
+  "observed_resulting_firmware": "2.0.15.260522",
+  "observed_starting_firmware": "2.0.15.260410",
+  "producer": {
+    "contract_version": "1",
+    "module": "harness/api/hh_cc_reader_firmware_event.py",
+    "repository": "EndeavorEverlasting/SysAdminSuite",
+    "schema": "hh-cc-reader-firmware-event/v1"
+  },
+  "proof_ceiling": "FINAL_TARGET_RUNTIME_VERIFIED",
+  "publication_dependency": {
+    "downstream_repo_required": false,
+    "google_drive_required": false,
+    "onedrive_required": false,
+    "tracker_required": false
+  },
+  "restore_operation_result": "ORIGINAL_STATE_RESTORED",
+  "schema": "hh-cc-reader-firmware-event/v1",
+  "target_logical_ref": "SYNTH-READER-A"
+}

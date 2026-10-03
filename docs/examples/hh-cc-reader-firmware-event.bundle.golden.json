@@ -1,0 +1,114 @@
+{
+  "baseline": {
+    "artifact": "pre-mutation-baseline",
+    "baseline_locked": true,
+    "current_firmware_value": "2.0.15.260410",
+    "expected_mac": "AABBCCDDEE01",
+    "identity": {
+      "expected_mac": "AABBCCDDEE01",
+      "live_ipv4": "192.0.2.10",
+      "source_name": "SYNTH-READER-A",
+      "source_serial": "SYNTH-SERIAL-001",
+      "state": "UNIQUE_TARGET_RESOLVED"
+    },
+    "missing_fields": [],
+    "mutation_authorized": false,
+    "optional_captured": {
+      "captured_at": "2026-10-03T00:01:00Z",
+      "health_status": "online"
+    },
+    "schema": "sas-hh-cc-reader-firmware-roundtrip/v1",
+    "source_serial": "SYNTH-SERIAL-001",
+    "state": "BASELINE_LOCKED",
+    "target_firmware_value": "2.0.15.260522"
+  },
+  "compare": {
+    "artifact": "roundtrip-compare",
+    "expected_mac": "AABBCCDDEE01",
+    "forward_update_proved": true,
+    "mismatched_fields": [],
+    "mutation_authorized": false,
+    "prerequisites_missing": [],
+    "rollback_state_matched": true,
+    "roundtrip_proven": true,
+    "schema": "sas-hh-cc-reader-firmware-roundtrip/v1",
+    "source_serial": "SYNTH-SERIAL-001",
+    "state": "ROUNDTRIP_PROVEN"
+  },
+  "eligibility": {
+    "artifact": "outdated-eligibility",
+    "expected_mac": "AABBCCDDEE01",
+    "mutation_authorized": false,
+    "observed_firmware": "2.0.15.260410",
+    "outdated_classified": true,
+    "schema": "sas-hh-cc-reader-firmware-roundtrip/v1",
+    "source_serial": "SYNTH-SERIAL-001",
+    "state": "OUTDATED_CLASSIFIED",
+    "target_firmware": "2.0.15.260522"
+  },
+  "evidence_timestamps": {
+    "baseline": "2026-10-03T00:01:00Z",
+    "final_runtime": "2026-10-03T00:30:00Z",
+    "identity": "2026-10-03T00:00:00Z"
+  },
+  "execution_run_id": "SYNTH-RUN-ROUNDTRIP-001",
+  "final_runtime": {
+    "artifact": "final-runtime-verification",
+    "captured_at": "2026-10-03T00:30:00Z",
+    "current_firmware_value": "2.0.15.260522",
+    "expected_mac": "AABBCCDDEE01",
+    "final_runtime_verified": true,
+    "operation_result": "FINAL_TARGET_RUNTIME_VERIFIED",
+    "source_serial": "SYNTH-SERIAL-001",
+    "state": "FINAL_TARGET_RUNTIME_VERIFIED"
+  },
+  "identity": {
+    "artifact": "target-resolution-receipt",
+    "expected_mac": "AABBCCDDEE01",
+    "identity_conflicts": [],
+    "live_ipv4": "192.0.2.10",
+    "live_mac": "AABBCCDDEE01",
+    "mutation_authorized": false,
+    "probe_mac_match": true,
+    "rejection_reasons": [],
+    "schema": "sas-hh-cc-reader-firmware-roundtrip/v1",
+    "source_name": "SYNTH-READER-A",
+    "source_serial": "SYNTH-SERIAL-001",
+    "state": "UNIQUE_TARGET_RESOLVED",
+    "unique_target": true
+  },
+  "post_rollback": {
+    "current_firmware_value": "2.0.15.260410",
+    "expected_mac": "AABBCCDDEE01",
+    "operation_result": "ORIGINAL_STATE_RESTORED",
+    "original_state_restored": true,
+    "source_serial": "SYNTH-SERIAL-001",
+    "state": "ORIGINAL_STATE_RESTORED"
+  },
+  "post_update": {
+    "current_firmware_value": "2.0.15.260522",
+    "expected_mac": "AABBCCDDEE01",
+    "forward_update_proved": true,
+    "operation_result": "TARGET_UPDATE_PROVED",
+    "source_serial": "SYNTH-SERIAL-001",
+    "state": "TARGET_UPDATE_PROVED"
+  },
+  "restore_path": {
+    "artifact": "restore-path-proof",
+    "expected_mac": "AABBCCDDEE01",
+    "missing_fields": [],
+    "mutation_authorized": false,
+    "restore_path_proved": true,
+    "restore_plan": {
+      "post_restore_acceptance": "authoritative-firmware-match",
+      "restore_mechanism": "management-plane-reassign",
+      "restore_package_or_release_ref": "SYNTH-PKG-260410",
+      "rollback_verb": "reassign",
+      "starting_firmware_value": "2.0.15.260410"
+    },
+    "schema": "sas-hh-cc-reader-firmware-roundtrip/v1",
+    "source_serial": "SYNTH-SERIAL-001",
+    "state": "RESTORE_PATH_PROVED"
+  },
+  "target_logical_ref": "SYNTH-READER-A"
+}

@@ -356,6 +356,44 @@ Completion gate: receipt validation plus tracker writeback/readback proof.
 
 Repository planning, fixtures, validators, dry runs, and receipt rendering can prove contracts and local behavior. They cannot prove Kiosk4 identity, live package assignment, firmware mutation, restoration, or tracker writeback until those actions are observed in the appropriate runtime.
 
+## Downstream publication handoff (SAS producer boundary)
+
+SAS ends execution authority at a deterministic firmware evidence event:
+
+```text
+canonical SAS receipt(s)
+  -> Export-HHCCReaderFirmwareEvent.cmd
+  -> hh-cc-reader-firmware-event/v1
+```
+
+That event is a handoff artifact for the NYC H&H project-management consumer. It is **not** a second tracker.
+
+Producer rules:
+
+- schema owner: `EndeavorEverlasting/SysAdminSuite` (`hh-cc-reader-firmware-event/v1`);
+- event identity is derived from stable receipt evidence (not wall-clock export time, tracker revision, spreadsheet sync state, company-share state, or publication attempt count);
+- identical canonical evidence re-exports to the same `event_id`;
+- missing tracker / operational spreadsheet / company-share / H+H repo **cannot** block event export;
+- publication metadata must not rewrite execution state, observed firmware, proof ceiling, or receipt binding;
+- incomplete execution evidence remains incomplete (no invented firmware).
+
+Consumer rules (owned by `nyc-hh-fieldops-lab`, not this repository):
+
+- private Tracker Publication Manifest;
+- operational spreadsheet projection;
+- manual company-share projection;
+- publication retry/conflict state.
+
+Firmware execution state, ticket/project state, and publication state remain orthogonal. A publication failure after `TARGET_UPDATE_PROVED` or `SINGLE_READER_ROUNDTRIP_PROVED` does not invalidate the SAS execution proof.
+
+Sanitized interoperability fixtures:
+
+- `docs/examples/hh-cc-reader-firmware-event.golden.json`
+- `docs/examples/hh-cc-reader-firmware-event.blocked-progress.json`
+- `docs/examples/hh-cc-reader-firmware-event.bundle.golden.json`
+
+R7 tracker writeback/readback remains successor work and must not become an availability dependency of SAS execution evidence.
+
 ## Recovered Kiosk4 tracker/source baseline candidate
 
 The existing CC Reader Technician Dashboard and its underlying source inventory identify an experimental Kiosk4 record. Live serial, MAC, IPv4, and firmware values for that record remain in private/operator evidence (`PRIVATE_EVIDENCE:kiosk4-tracker-candidate`) and must not be copied into tracked source.
