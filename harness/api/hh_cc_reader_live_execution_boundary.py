@@ -127,6 +127,11 @@ def route_work_item(item: dict[str, Any]) -> dict[str, Any]:
     if not isinstance(blocks, bool):
         raise ExecutionBoundaryError("blocks_current_gate_must_be_boolean")
 
+    if work_class == "NONE" and blocks:
+        raise ExecutionBoundaryError("none_work_class_cannot_block_current_gate")
+    if work_class in {"NONBLOCKING_HARNESS_IMPROVEMENT", "DOWNSTREAM_PROJECT_OR_PUBLICATION"} and blocks:
+        raise ExecutionBoundaryError("nonblocking_work_class_cannot_block_current_gate")
+
     if work_class == "CONFIRMED_HARNESS_DEFECT":
         evidence_ref, evidence_sha256 = _validate_defect_evidence(item, current_gate)
         if not blocks:
