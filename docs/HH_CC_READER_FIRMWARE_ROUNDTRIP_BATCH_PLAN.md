@@ -244,6 +244,9 @@ Tasks:
 
 Completion gate: tracker wiring and Kiosk4 evidence map are explicit.
 
+R0 evidence map (2026-10-02): docs/HH_CC_READER_KIOSK4_ROUNDTRIP_EVIDENCE_MAP.md
+Offline admission seams (identity/baseline/restore/preview/compare/batch): harness/api/hh_cc_reader_firmware_roundtrip.py
+
 ### R1 — Kiosk4 baseline lock
 
 Runtime: technician/local runtime on the actual experiment network.
