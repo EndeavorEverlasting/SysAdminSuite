@@ -4,6 +4,7 @@ title SysAdminSuite - H^&H CC Reader Read-Only Probe
 cls
 
 if "%~1"=="" goto usage
+if not "%~4"=="" goto usage
 
 set "SAS_EXIT=1"
 
