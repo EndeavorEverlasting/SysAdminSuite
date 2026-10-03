@@ -190,6 +190,7 @@ def test_identity_tranches_preserve_strict_mutation_gate() -> None:
     assert serial_resolve["state"] == "IDENTITY_INCOMPLETE"
     assert serial_resolve["identity_tranche"] == "SERIAL_ONLY"
     assert serial_resolve["unique_target"] is False
+    assert "network_environment_unclassified" not in serial_resolve["rejection_reasons"]
     assert serial_resolve["broad_discovery_authorized"] is False
 
     mac_resolve = resolve_target_identity(
