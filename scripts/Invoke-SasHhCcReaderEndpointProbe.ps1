@@ -14,6 +14,10 @@ param(
     [Parameter(Mandatory=$true, Position=3)]
     [string]$ApprovalRef,
 
+    [Parameter(Position=4)]
+    [ValidateSet('UNCLASSIFIED','HOSPITAL_GUEST_SHARED','CONSUMER_LAB','PROTECTED_ENTERPRISE','OTHER_SHARED')]
+    [string]$NetworkEnvironment = 'UNCLASSIFIED',
+
     [switch]$ValidateOnly
 )
 
@@ -72,6 +76,8 @@ $result = [ordered]@{
     remote_port = $RemotePort
     approval_ref = $approval
     approval_reference_supplied = $true
+    network_environment = $NetworkEnvironment
+    network_environment_classified = ($NetworkEnvironment -ne 'UNCLASSIFIED')
     remote_address = $null
     name_resolution_results = @()
     interface_alias = $null
@@ -88,6 +94,7 @@ Write-Host ("READER={0}" -f $reader)
 Write-Host ("REMOTE_ENDPOINT={0}" -f $endpoint)
 Write-Host ("REMOTE_PORT={0}" -f $RemotePort)
 Write-Host ("APPROVAL_REF={0}" -f $approval)
+Write-Host ("NETWORK_ENVIRONMENT={0}" -f $NetworkEnvironment)
 Write-Host 'NOTE: ApprovalRef records the operator-provided evidence reference; this command does not independently validate the external approval source.'
 
 $exitCode = 0
