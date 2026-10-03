@@ -341,6 +341,20 @@
       "blocking": false,
       "scope": ["src/SysAdminSuite.DashboardHost/**"],
       "proof": "DashboardHost produces the framework-dependent win-x64 publish artifact used by its build contract."
+    },
+    {
+      "id": "operational-publication-boundary",
+      "category": "harness",
+      "platform": "python3",
+      "command": "python harness/validators/validate-operational-publication-boundary.py",
+      "blocking": true,
+      "scope": [
+        "harness/api/operational-publication-boundary.v1.json",
+        "schemas/harness/operational-publication-boundary.schema.json",
+        "harness/validators/validate-operational-publication-boundary.py",
+        "Tests/survey/test_operational_publication_boundary_contracts.py"
+      ],
+      "proof": "Authority and downstream projections remain distinct, logical artifact identity survives provider/revision changes, publication state stays orthogonal to operational state, manual publication is first-class, reverse sync is disabled by default, and downstream unavailability cannot block upstream authority."
     }
   ]
 }
