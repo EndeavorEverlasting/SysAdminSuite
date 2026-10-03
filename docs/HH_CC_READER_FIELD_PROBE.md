@@ -79,7 +79,7 @@ The firmware round-trip/batch seam classifies every reader into one of four oper
 
 Malformed supplied MAC values are classified `IDENTITY_INVALID` and must be corrected rather than downgraded into another tranche.
 
-The batch planner exposes tranche counts and recovery rows so site work can be staged deliberately: automate the strong dual-identifier population first, then work the serial-only and MAC-only populations through their explicit recovery gates. **None of these tranche labels authorizes broad discovery or firmware mutation.**
+The batch planner exposes tranche counts plus a separate identity-admission summary so site work can be staged deliberately: automate only the **admissible** dual-identifier population first, then work serial-only, MAC-only, missing-identity, malformed, duplicate, forbidden, or otherwise conflicted rows through their explicit recovery gates. A row does not become easy merely because both cells are populated. **None of these tranche labels authorizes broad discovery or firmware mutation.**
 
 ## 2026-10-01 Netstat / Connectivity Test continuation
 
