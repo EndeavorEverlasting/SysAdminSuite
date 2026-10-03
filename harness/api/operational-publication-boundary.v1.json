@@ -1,0 +1,100 @@
+{
+  "schema_version": "sas-operational-publication-boundary/v1",
+  "version": 1,
+  "status": "IMPLEMENTED",
+  "purpose": "Provide a reusable fail-closed contract for promoting operational facts from an authoritative working system into downstream projections without allowing downstream visibility, provider availability, filenames, or human-friendly status to become upstream authority.",
+  "principles": {
+    "authority_projection_separation": true,
+    "downstream_visibility_must_not_be_upstream_availability_dependency": true,
+    "manual_publication_gate_is_first_class": true,
+    "private_publication_manifest_is_allowed": true,
+    "reverse_sync_default": "DISABLED",
+    "projection_receives_operational_contract_not_internal_implementation": true,
+    "proof_must_flow_from_authority_to_projection": true,
+    "projection_status_must_not_promote_authoritative_state": true
+  },
+  "artifact_identity": {
+    "logical_artifact_key_is_provider_independent": true,
+    "revision_is_separate_from_logical_identity": true,
+    "provider_object_id_is_separate_from_logical_identity": true,
+    "filename_is_not_identity": true,
+    "hash_binds_a_specific_snapshot_not_the_logical_artifact": true
+  },
+  "state_dimensions": {
+    "orthogonal": true,
+    "rule": "Operational, workflow, and publication state remain independently typed. One dimension may change another only through an explicit evidence-backed transition.",
+    "minimum_dimensions": [
+      "operational_state",
+      "publication_state"
+    ]
+  },
+  "event_contract": {
+    "schema": "sas-operational-event/v1",
+    "required_fields": [
+      "event_id",
+      "logical_subject_key",
+      "event_type",
+      "occurred_at",
+      "evidence_ref"
+    ],
+    "idempotency_key": "event_id",
+    "duplicate_rule": "An identical event_id+payload is idempotent. The same event_id with a materially different payload is CONFLICT and must not be applied.",
+    "promotion_rule": "An event may promote only the state dimension and authoritative artifact explicitly named by its governing binding contract."
+  },
+  "publication_lifecycle": [
+    "WORKING",
+    "CANDIDATE",
+    "VALIDATED",
+    "APPROVED_FOR_PUBLICATION",
+    "PUBLISHED_UNVERIFIED",
+    "PUBLISH_VERIFIED",
+    "SUPERSEDED"
+  ],
+  "publication_manifest_contract": {
+    "schema": "sas-tracker-publication-manifest/v1",
+    "privacy": "The manifest may remain private even when the published projection is company-visible.",
+    "required_fields": [
+      "logical_artifact_key",
+      "source_provider",
+      "source_object_id",
+      "source_revision",
+      "source_hash",
+      "schema_version",
+      "evidence_watermark",
+      "generated_at",
+      "validation_state",
+      "publication"
+    ],
+    "publication_required_fields": [
+      "target_provider",
+      "expected_filename",
+      "state",
+      "manual_gate",
+      "published_at",
+      "published_hash",
+      "verified_at"
+    ],
+    "rules": {
+      "logical_artifact_key_stable_across_revisions": true,
+      "source_hash_required_for_validated_or_later": true,
+      "validation_pass_required_before_approval": true,
+      "manual_gate_may_promote_approved_to_published_unverified": true,
+      "publish_verified_requires_independent_target_readback": true,
+      "published_unverified_does_not_block_upstream_work": true,
+      "target_provider_unavailable_is_not_source_failure": true
+    }
+  },
+  "drift_rules": {
+    "downstream_change_is_input_evidence_not_automatic_writeback": true,
+    "two_sided_divergence": "CONFLICT",
+    "timestamp_newer_is_not_merge_authority": true,
+    "unknown_target_state": "UNVERIFIED"
+  },
+  "privacy_boundary": {
+    "secrets_and_credentials_never_enter_projection": true,
+    "private_evidence_paths_need_not_enter_projection": true,
+    "internal_orchestration_details_need_not_enter_projection": true,
+    "operational_facts_required_by_downstream_consumers_may_enter_projection": true
+  },
+  "proof_ceiling": "This contract proves publication semantics and validation rules. It does not prove that any specific downstream provider received, retained, opened, or independently verified a publication."
+}
