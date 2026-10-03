@@ -539,6 +539,10 @@ def test_batch_duplicate_groups_block_all_members_and_scope() -> None:
     assert plan["identity_ready_count"] == 0
     assert plan["identity_recovery_count"] == len(rows)
     assert all(row["identity_recovery_required"] for row in plan["identity_recovery_rows"])
+    assert all(
+        row["identity_next_gate"] == "RECONCILE_IDENTITY_CONFLICTS_BEFORE_NETWORK_PROBE"
+        for row in plan["identity_recovery_rows"]
+    )
     assert all(not row["executable"] for row in plan["rows"])
     assert "duplicate_source_serial" in plan["rows"][0]["problems"]
     assert "duplicate_source_serial" in plan["rows"][1]["problems"]
