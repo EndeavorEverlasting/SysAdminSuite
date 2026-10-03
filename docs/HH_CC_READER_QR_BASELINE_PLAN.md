@@ -45,7 +45,7 @@ Existing repository doctrine applies:
 The merged field front door is:
 
 ```text
-Probe-HHCCReader.cmd TARGET_IPV4 [EXPECTED_MAC]
+Probe-HHCCReader.cmd TARGET_IPV4 [EXPECTED_MAC] [NETWORK_ENVIRONMENT]
 ```
 
 This launcher is the current technician authority for the read-only workstation-side reader probe. A device-specific QR may eventually carry a resolved invocation of this launcher because a tracked CMD contract already exists.
