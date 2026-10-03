@@ -5,6 +5,8 @@ from __future__ import annotations
 import ipaddress
 import json
 import re
+import shutil
+import subprocess
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[2]
@@ -52,6 +54,8 @@ def main() -> int:
         "ENDPOINT_INPUT_VALID",
         "NetworkEnvironment",
         "network_environment_classified",
+        "ExpectedMac",
+        "NetworkEnvironment must be explicitly classified when ExpectedMac is supplied.",
         "[Guid]::NewGuid()",
         "yyyyMMdd-HHmmss-fff",
         "survey\\output\\hh-cc-reader",
@@ -80,11 +84,12 @@ def main() -> int:
     # Shell metacharacters must remain inside quoted positional expansions until
     # the PowerShell validator applies the stricter endpoint/reference grammar.
     assert 'call "C:\\SASAL\\Probe-HHCCReaderEndpoint.cmd" "%~1" "%~2" "%~3" "%~4" "%~5" "%~6"' in launcher
-    assert '-ReaderIPAddress "%~1" -RemoteEndpoint "%~2" -RemotePort "%~3" -ApprovalRef "%~4" -NetworkEnvironment "%NETWORK_ENVIRONMENT%" -ValidateOnly' in launcher
+    assert '-ReaderIPAddress "%~1" -RemoteEndpoint "%~2" -RemotePort "%~3" -ApprovalRef "%~4" -ExpectedMac "%~5" -NetworkEnvironment "%NETWORK_ENVIRONMENT%" -ValidateOnly' in launcher
     assert 'call "%~dp0Probe-HHCCReader.cmd" "%~1" "%~5" "%~6"' in launcher
+    assert 'call "%~dp0Probe-HHCCReader.cmd" "%~1" "" "%~6"' in launcher
     launcher_lines = {line.strip() for line in launcher.splitlines()}
     assert 'call "%~dp0Probe-HHCCReader.cmd" "%~1" "%~5"' not in launcher_lines
-    assert 'if "%~6"=="" goto usage' in launcher
+    assert 'if not "%~7"=="" goto usage' in launcher
     assert 'Probe-HHCCReaderEndpoint.cmd" %*' not in launcher
     assert "-ReaderIPAddress %1" not in launcher
     assert "-RemoteEndpoint %2" not in launcher
@@ -95,6 +100,35 @@ def main() -> int:
     assert "CIDRs, ranges, wildcards" in script
     assert "ApprovalRef must be a non-secret" in script
     assert "network_environment = $NetworkEnvironment" in script
+    assert "$expectedMacSupplied -and $NetworkEnvironment -eq 'UNCLASSIFIED'" in script
+
+    # Behavior-level validation is safe: -ValidateOnly exits before any network contact.
+    pwsh = shutil.which("pwsh")
+    if pwsh:
+        base = [
+            pwsh, "-NoLogo", "-NoProfile", "-File", str(ROOT / "scripts/Invoke-SasHhCcReaderEndpointProbe.ps1"),
+            "-ReaderIPAddress", "192.0.2.10",
+            "-RemoteEndpoint", "service.example.invalid",
+            "-RemotePort", "443",
+            "-ApprovalRef", "EVIDENCE-REF-001",
+        ]
+        cases = (
+            ("network-only unclassified", [], True),
+            ("network-only classified", ["-NetworkEnvironment", "HOSPITAL_GUEST_SHARED"], True),
+            ("mac plus classified", ["-ExpectedMac", "AA-BB-CC-DD-EE-FF", "-NetworkEnvironment", "HOSPITAL_GUEST_SHARED"], True),
+            ("mac missing environment", ["-ExpectedMac", "AA-BB-CC-DD-EE-FF"], False),
+            ("invalid environment", ["-NetworkEnvironment", "NOT_A_REAL_CLASS"], False),
+        )
+        for label, extra, should_pass in cases:
+            proc = subprocess.run(base + extra + ["-ValidateOnly"], capture_output=True, text=True)
+            if should_pass:
+                assert proc.returncode == 0, f"{label} unexpectedly failed: {proc.stdout}\n{proc.stderr}"
+                assert "CLASSIFICATION=ENDPOINT_INPUT_VALID" in proc.stdout
+            else:
+                assert proc.returncode != 0, f"{label} unexpectedly passed"
+    else:
+        print("[SKIP] pwsh unavailable; endpoint ValidateOnly behavior matrix not executed")
+
     assert "one observed REMOTE_ENDPOINT + one explicit PORT + one APPROVAL_REF" in docs
     assert "cannot independently validate the external human approval source" in docs
     assert "CC-reader software/firmware deployment" in docs
