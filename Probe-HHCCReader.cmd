@@ -12,6 +12,7 @@ echo  SYSADMINSUITE H^&H CC READER READ-ONLY PROBE
 echo ================================================================
 echo  Target: %~1
 if not "%~2"=="" echo  Expected MAC supplied: yes
+if not "%~3"=="" echo  Network environment: %~3
 echo.
 echo  Scope: one explicit IPv4 target; read-only network observation.
 echo  No reader configuration, payment action, reset, or firmware mutation.
@@ -40,9 +41,14 @@ if not exist "C:\SASAL\Probe-HHCCReader.cmd" (
 
 set "SAS_HH_CC_READER_REFRESHED=1"
 if "%~2"=="" (
+    if not "%~3"=="" goto usage
     call "C:\SASAL\Probe-HHCCReader.cmd" "%~1"
 ) else (
-    call "C:\SASAL\Probe-HHCCReader.cmd" "%~1" "%~2"
+    if "%~3"=="" (
+        call "C:\SASAL\Probe-HHCCReader.cmd" "%~1" "%~2"
+    ) else (
+        call "C:\SASAL\Probe-HHCCReader.cmd" "%~1" "%~2" "%~3"
+    )
 )
 set "SAS_EXIT=!ERRORLEVEL!"
 goto finish
@@ -55,9 +61,14 @@ if not exist "%~dp0scripts\Invoke-SasHhCcReaderProbe.ps1" (
 )
 
 if "%~2"=="" (
+    if not "%~3"=="" goto usage
     "%SystemRoot%\System32\WindowsPowerShell\v1.0\powershell.exe" -NoLogo -NoProfile -ExecutionPolicy Bypass -File "%~dp0scripts\Invoke-SasHhCcReaderProbe.ps1" -IPAddress "%~1"
 ) else (
-    "%SystemRoot%\System32\WindowsPowerShell\v1.0\powershell.exe" -NoLogo -NoProfile -ExecutionPolicy Bypass -File "%~dp0scripts\Invoke-SasHhCcReaderProbe.ps1" -IPAddress "%~1" -ExpectedMac "%~2"
+    if "%~3"=="" (
+        "%SystemRoot%\System32\WindowsPowerShell\v1.0\powershell.exe" -NoLogo -NoProfile -ExecutionPolicy Bypass -File "%~dp0scripts\Invoke-SasHhCcReaderProbe.ps1" -IPAddress "%~1" -ExpectedMac "%~2"
+    ) else (
+        "%SystemRoot%\System32\WindowsPowerShell\v1.0\powershell.exe" -NoLogo -NoProfile -ExecutionPolicy Bypass -File "%~dp0scripts\Invoke-SasHhCcReaderProbe.ps1" -IPAddress "%~1" -ExpectedMac "%~2" -NetworkEnvironment "%~3"
+    )
 )
 set "SAS_EXIT=!ERRORLEVEL!"
 goto finish
@@ -67,10 +78,13 @@ echo ================================================================
 echo  SYSADMINSUITE H^&H CC READER READ-ONLY PROBE
 echo ================================================================
 echo  Usage:
-echo    Probe-HHCCReader.cmd IPV4 [EXPECTED-MAC]
+echo    Probe-HHCCReader.cmd IPV4 [EXPECTED-MAC] [NETWORK-ENVIRONMENT]
+echo.
+echo  NETWORK-ENVIRONMENT for expected-MAC identity:
+echo    HOSPITAL_GUEST_SHARED ^| CONSUMER_LAB ^| PROTECTED_ENTERPRISE ^| OTHER_SHARED
 echo.
 echo  Example with documentation-only TEST-NET data:
-echo    Probe-HHCCReader.cmd 192.0.2.10 AA-BB-CC-DD-EE-FF
+echo    Probe-HHCCReader.cmd 192.0.2.10 AA-BB-CC-DD-EE-FF HOSPITAL_GUEST_SHARED
 echo.
 echo  Supply one explicit IPv4 address only. CIDRs, ranges, wildcards,
 echo  host discovery, and scanner/generator behavior are outside this lane.
