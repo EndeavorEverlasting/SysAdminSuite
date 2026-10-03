@@ -312,7 +312,7 @@ if ($targetIp) {
 
     Write-Host ("READER_IPV4={0}" -f $targetIp)
     Write-Host 'Exact MAC match recovered; invoking the existing canonical reader probe from the sealed runtime.'
-    & powershell.exe -NoLogo -NoProfile -ExecutionPolicy Bypass -File $probe -IPAddress $targetIp -ExpectedMac $normalizedExpectedMac
+    & powershell.exe -NoLogo -NoProfile -ExecutionPolicy Bypass -File $probe -IPAddress $targetIp -ExpectedMac $normalizedExpectedMac -NetworkEnvironment CONSUMER_LAB
     $probeExit = [int]$LASTEXITCODE
     $probeClassification = if ($probeExit -eq 0) { 'READ_ONLY_PROBE_COMPLETE' } else { 'PROBE_BLOCKED_OR_FAILED' }
     $classification = if ($probeExit -eq 0) {
