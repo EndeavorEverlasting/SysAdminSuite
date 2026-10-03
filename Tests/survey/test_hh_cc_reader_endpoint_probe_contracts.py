@@ -82,7 +82,8 @@ def main() -> int:
     assert 'call "C:\\SASAL\\Probe-HHCCReaderEndpoint.cmd" "%~1" "%~2" "%~3" "%~4" "%~5" "%~6"' in launcher
     assert '-ReaderIPAddress "%~1" -RemoteEndpoint "%~2" -RemotePort "%~3" -ApprovalRef "%~4" -NetworkEnvironment "%NETWORK_ENVIRONMENT%" -ValidateOnly' in launcher
     assert 'call "%~dp0Probe-HHCCReader.cmd" "%~1" "%~5" "%~6"' in launcher
-    assert 'call "%~dp0Probe-HHCCReader.cmd" "%~1" "%~5"' not in launcher
+    launcher_lines = {line.strip() for line in launcher.splitlines()}
+    assert 'call "%~dp0Probe-HHCCReader.cmd" "%~1" "%~5"' not in launcher_lines
     assert 'if "%~6"=="" goto usage' in launcher
     assert 'Probe-HHCCReaderEndpoint.cmd" %*' not in launcher
     assert "-ReaderIPAddress %1" not in launcher
