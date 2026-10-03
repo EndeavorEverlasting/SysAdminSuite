@@ -13,6 +13,17 @@ This program separates two goals that must not be conflated:
 
 Live H&H values and private external evidence remain outside tracked source.
 
+
+## P95 live-execution boundary
+
+The live firmware program is execution-first. Load `harness/api/hh-cc-reader-live-execution-boundary.v1.json` and `docs/HH_CC_READER_LIVE_EXECUTION_BOUNDARY.md` when deciding whether a side task may interrupt the current firmware gate.
+
+A harness task may preempt only for a **confirmed harness defect** that blocks the current live gate and has a concrete evidence reference. Repair only that blocker, validate it, then **resume the same live gate**.
+
+Missing credentials/MFA, an uncaptured live firmware value, physical observation, downstream project/publication work, repository-independent architecture improvements, or downstream publication-provider availability are not harness defects. Route them according to the P95 boundary instead of turning them into generic repository development.
+
+For the current Kiosk4 state, `BASELINE_LOCKED` remains the next gate. The missing authoritative `current_firmware_value` is an external live-evidence/access boundary, so the next work is authenticated estate observation or the same-device physical Software versions fallback, not another harness sprint.
+
 ## Daily bookmark contract
 
 The external technician runbook owns the operator's dated re-entry point:

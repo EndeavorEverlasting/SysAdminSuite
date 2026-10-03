@@ -211,6 +211,23 @@
       "proof": "Active Outdated remains a client classification signal, both observed client-accepted firmware candidates stay explicit, 2.0.15.260522 remains the numeric-highest default candidate, the 2.0.14 ambiguity stays open, firmware mutation remains gated on authoritative package/update evidence plus a controlled pilot, PROVEN_PATH acceptance plus the read-only estate checklist are owned by executable seams, Normalize-HHCCReaderEstatePacket.cmd owns P5-B settled/derivable normalization, and Evaluate-HHCCReaderEstateAuthority.cmd is the operator packet-evaluation front door."
     },
     {
+      "id": "hh-cc-reader-live-execution-boundary-contracts",
+      "category": "harness",
+      "platform": "python3",
+      "command": "python Tests/survey/test_hh_cc_reader_live_execution_boundary_contracts.py",
+      "blocking": true,
+      "scope": [
+        "harness/api/hh-cc-reader-live-execution-boundary.v1.json",
+        "harness/api/hh_cc_reader_live_execution_boundary.py",
+        "Tests/survey/test_hh_cc_reader_live_execution_boundary_contracts.py",
+        "docs/HH_CC_READER_LIVE_EXECUTION_BOUNDARY.md",
+        "docs/HH_CC_READER_REMOTE_OPERATIONS_PROGRAM.md",
+        "docs/HH_CC_READER_FIRMWARE_ROUNDTRIP_BATCH_PLAN.md",
+        ".claude/skills/field-workflow/SKILL.md"
+      ],
+      "proof": "P95 routing keeps live firmware execution primary, allows harness preemption only for an evidenced current-gate blocker, defers nonblocking harness and downstream publication work, and resumes the same live gate after bounded repair."
+    },
+    {
       "id": "printer-mapping-use-case-contracts",
       "category": "harness",
       "platform": "python3+git",

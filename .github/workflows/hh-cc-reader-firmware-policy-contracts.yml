@@ -12,6 +12,8 @@ on:
       - 'harness/api/hh_cc_reader_estate_packet_normalize.py'
       - 'harness/api/hh_cc_reader_firmware_roundtrip.py'
       - 'harness/api/hh_cc_reader_firmware_event.py'
+      - 'harness/api/hh_cc_reader_live_execution_boundary.py'
+      - 'harness/api/hh-cc-reader-live-execution-boundary.v1.json'
       - 'schemas/harness/hh-cc-reader-firmware-event.schema.json'
       - 'Evaluate-HHCCReaderEstateAuthority.cmd'
       - 'Normalize-HHCCReaderEstatePacket.cmd'
@@ -25,12 +27,14 @@ on:
       - 'Tests/survey/test_hh_cc_reader_estate_packet_normalize_contracts.py'
       - 'Tests/survey/test_hh_cc_reader_firmware_roundtrip_contracts.py'
       - 'Tests/survey/test_hh_cc_reader_firmware_event_contracts.py'
+      - 'Tests/survey/test_hh_cc_reader_live_execution_boundary_contracts.py'
       - 'Tests/survey/fixtures/hh-cc-reader-estate-authority/**'
       - 'docs/HH_CC_READER_NETSTAT_BASELINE.md'
       - 'docs/HH_CC_READER_REMOTE_OPERATIONS_PROGRAM.md'
       - 'docs/HH_CC_READER_P5_READONLY_SESSION_RUNBOOK.md'
       - 'docs/HH_CC_READER_FIRMWARE_ROUNDTRIP_BATCH_PLAN.md'
       - 'docs/HH_CC_READER_KIOSK4_ROUNDTRIP_EVIDENCE_MAP.md'
+      - 'docs/HH_CC_READER_LIVE_EXECUTION_BOUNDARY.md'
       - 'docs/examples/hh-cc-reader-firmware-batch.example.csv'
       - 'docs/examples/hh-cc-reader-firmware-event.golden.json'
       - 'docs/examples/hh-cc-reader-firmware-event.blocked-progress.json'
@@ -55,6 +59,8 @@ on:
       - 'harness/api/hh_cc_reader_estate_packet_normalize.py'
       - 'harness/api/hh_cc_reader_firmware_roundtrip.py'
       - 'harness/api/hh_cc_reader_firmware_event.py'
+      - 'harness/api/hh_cc_reader_live_execution_boundary.py'
+      - 'harness/api/hh-cc-reader-live-execution-boundary.v1.json'
       - 'schemas/harness/hh-cc-reader-firmware-event.schema.json'
       - 'Evaluate-HHCCReaderEstateAuthority.cmd'
       - 'Normalize-HHCCReaderEstatePacket.cmd'
@@ -68,12 +74,14 @@ on:
       - 'Tests/survey/test_hh_cc_reader_estate_packet_normalize_contracts.py'
       - 'Tests/survey/test_hh_cc_reader_firmware_roundtrip_contracts.py'
       - 'Tests/survey/test_hh_cc_reader_firmware_event_contracts.py'
+      - 'Tests/survey/test_hh_cc_reader_live_execution_boundary_contracts.py'
       - 'Tests/survey/fixtures/hh-cc-reader-estate-authority/**'
       - 'docs/HH_CC_READER_NETSTAT_BASELINE.md'
       - 'docs/HH_CC_READER_REMOTE_OPERATIONS_PROGRAM.md'
       - 'docs/HH_CC_READER_P5_READONLY_SESSION_RUNBOOK.md'
       - 'docs/HH_CC_READER_FIRMWARE_ROUNDTRIP_BATCH_PLAN.md'
       - 'docs/HH_CC_READER_KIOSK4_ROUNDTRIP_EVIDENCE_MAP.md'
+      - 'docs/HH_CC_READER_LIVE_EXECUTION_BOUNDARY.md'
       - 'docs/examples/hh-cc-reader-firmware-batch.example.csv'
       - 'docs/examples/hh-cc-reader-firmware-event.golden.json'
       - 'docs/examples/hh-cc-reader-firmware-event.blocked-progress.json'
@@ -105,7 +113,7 @@ jobs:
         with:
           python-version: '3.12'
       - name: Compile policy validator
-        run: python -m py_compile harness/validators/validate-hh-cc-reader-firmware-policy.py Tests/survey/test_hh_cc_reader_firmware_policy_contracts.py harness/api/hh_cc_reader_estate_authority.py harness/api/hh_cc_reader_estate_packet_normalize.py harness/api/hh_cc_reader_firmware_roundtrip.py harness/api/hh_cc_reader_firmware_event.py Tests/survey/test_hh_cc_reader_estate_authority_contracts.py Tests/survey/test_hh_cc_reader_estate_authority_launcher_contracts.py Tests/survey/test_hh_cc_reader_estate_packet_normalize_contracts.py Tests/survey/test_hh_cc_reader_firmware_roundtrip_contracts.py Tests/survey/test_hh_cc_reader_firmware_event_contracts.py
+        run: python -m py_compile harness/validators/validate-hh-cc-reader-firmware-policy.py Tests/survey/test_hh_cc_reader_firmware_policy_contracts.py harness/api/hh_cc_reader_estate_authority.py harness/api/hh_cc_reader_estate_packet_normalize.py harness/api/hh_cc_reader_firmware_roundtrip.py harness/api/hh_cc_reader_firmware_event.py Tests/survey/test_hh_cc_reader_estate_authority_contracts.py Tests/survey/test_hh_cc_reader_estate_authority_launcher_contracts.py Tests/survey/test_hh_cc_reader_estate_packet_normalize_contracts.py Tests/survey/test_hh_cc_reader_firmware_roundtrip_contracts.py Tests/survey/test_hh_cc_reader_firmware_event_contracts.py harness/api/hh_cc_reader_live_execution_boundary.py Tests/survey/test_hh_cc_reader_live_execution_boundary_contracts.py
       - name: Validate firmware decision policy
         run: python harness/validators/validate-hh-cc-reader-firmware-policy.py
       - name: Run focused firmware policy contracts
@@ -120,5 +128,16 @@ jobs:
         run: python Tests/survey/test_hh_cc_reader_firmware_roundtrip_contracts.py
       - name: Run firmware evidence event producer contracts
         run: python Tests/survey/test_hh_cc_reader_firmware_event_contracts.py
-      - name: Check whitespace
-        run: git show --check --oneline --no-renames HEAD
+      - name: Run P95 live execution boundary contracts
+        run: python Tests/survey/test_hh_cc_reader_live_execution_boundary_contracts.py
+      - name: Check pull-request whitespace
+        if: github.event_name == 'pull_request'
+        run: git diff --check "${{ github.event.pull_request.base.sha }}" "${{ github.event.pull_request.head.sha }}"
+      - name: Check pushed commit whitespace
+        if: github.event_name != 'pull_request'
+        run: |
+          if git rev-parse --verify HEAD^ >/dev/null 2>&1; then
+            git diff --check HEAD^ HEAD
+          else
+            git show --check --oneline --no-renames HEAD
+          fi

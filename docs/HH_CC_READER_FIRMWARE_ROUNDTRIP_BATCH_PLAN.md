@@ -21,6 +21,17 @@ Prove one known H&H PAX A80 end to end before scaling:
 
 A successful forward update without a successful restoration does not close the experiment.
 
+
+## P95 live-execution boundary
+
+This plan is subordinate to `harness/api/hh-cc-reader-live-execution-boundary.v1.json`.
+
+Live Kiosk4 progression owns the critical path. Non-blocking harness improvements and downstream project/publication work are deferred. Missing live evidence or credentials are operator/runtime boundaries, not reasons to redesign the harness.
+
+Only a confirmed harness defect that blocks the current gate may interrupt R1-R4. The defect must have a concrete evidence reference, the repair must stay bounded to the blocked gate, and execution must **resume the same live gate** after focused validation.
+
+Current application: Kiosk4 remains at `BASELINE_INCOMPLETE`; the immediate target is `BASELINE_LOCKED` by observing authoritative `current_firmware_value`. Do not substitute another network probe, tracker/publication task, generic public package search, or unrelated architecture work for that live evidence.
+
 ## Existing operational tracker remains canonical
 
 Do not create a second CC-reader tracker.

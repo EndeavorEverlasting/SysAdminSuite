@@ -25,6 +25,7 @@ Load only the references that match the selected field lane:
 - Northwell printer evidence precedence: [`harness/api/northwell-printer-mapping-evidence-policy.json`](../../../harness/api/northwell-printer-mapping-evidence-policy.json)
 - Copy-safe capsule source policy: [`harness/api/copy-safe-operator-command-policy.json`](../../../harness/api/copy-safe-operator-command-policy.json)
 - H&H CC-reader firmware decision policy: [`harness/api/hh-cc-reader-firmware-policy.json`](../../../harness/api/hh-cc-reader-firmware-policy.json)
+- H&H CC-reader live-execution boundary: [`harness/api/hh-cc-reader-live-execution-boundary.v1.json`](../../../harness/api/hh-cc-reader-live-execution-boundary.v1.json)
 - Dashboard front door and fallback: [`docs/DASHBOARD_ENTRYPOINT.md`](../../../docs/DASHBOARD_ENTRYPOINT.md)
 - Software deployment tutorial: [`docs/tutorials/SOFTWARE_DEPLOYMENT_DRY_RUN_AND_PILOT.md`](../../../docs/tutorials/SOFTWARE_DEPLOYMENT_DRY_RUN_AND_PILOT.md)
 - Software installation safety contract: [`docs/SOFTWARE_INSTALL_HARNESS.md`](../../../docs/SOFTWARE_INSTALL_HARNESS.md)
@@ -36,6 +37,15 @@ Load only the references that match the selected field lane:
 For NYC Health + Hospitals PAX A80 firmware planning, load `harness/api/hh-cc-reader-firmware-policy.json` before proposing, changing, or describing the target firmware. The machine policy is the source of truth for the current `Active Outdated` interpretation, accepted-candidate set, fleet-level default-target selection rule, site/hospital discovery state, open ambiguities, supersession conditions, pre-mutation gates, and PROVEN_PATH acceptance. Resolve organization and site/hospital context before treating any fleet planning candidate as an execution target.
 
 Do not restate current firmware values or candidate lists in this skill. Read them from the policy at execution time so a policy update cannot leave field guidance stale. If the policy and any prose disagree, stop and surface the conflict rather than choosing a convenient value.
+
+
+### H&H live-execution priority
+
+When the selected field lane is H&H CC-reader firmware execution, load the live-execution boundary before starting side work.
+
+The firmware gate is primary. A harness task may interrupt only when a demonstrated harness defect blocks the current gate and is backed by an existing local evidence artifact whose SHA-256 matches the supplied digest and whose gate binding matches the current gate. Missing credentials/MFA, missing live firmware observation, physical device access, downstream tracker/publication work, and non-blocking architecture improvements do not qualify.
+
+If a blocking harness defect is repaired, rerun the narrow gate and resume the same live gate. Do not restart already-proven identity/network work merely because repository code changed.
 
 
 ### Mechanism-first update-path exhaustion
