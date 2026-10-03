@@ -2,8 +2,10 @@
 """P95 recurrence contracts for the H&H CC-reader live-execution boundary."""
 from __future__ import annotations
 
+import hashlib
 import json
 import sys
+import tempfile
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[2]
@@ -20,6 +22,18 @@ ROUNDTRIP = ROOT / "docs/HH_CC_READER_FIRMWARE_ROUNDTRIP_BATCH_PLAN.md"
 BOUNDARY_DOC = ROOT / "docs/HH_CC_READER_LIVE_EXECUTION_BOUNDARY.md"
 
 
+def _evidence_file(tmp: str, gate: str = "BASELINE_LOCKED") -> tuple[str, str]:
+    path = Path(tmp) / "gate-blocker.json"
+    payload = {
+        "schema": "test-gate-blocker/v1",
+        "gate": gate,
+        "classification": "VALID_EVIDENCE_REJECTED_BY_HARNESS",
+    }
+    path.write_text(json.dumps(payload, sort_keys=True), encoding="utf-8")
+    digest = hashlib.sha256(path.read_bytes()).hexdigest()
+    return str(path), digest
+
+
 def test_contract_shape_and_invariants() -> None:
     payload = json.loads(CONTRACT.read_text(encoding="utf-8"))
     assert payload["schema_version"] == "sas-hh-cc-reader-live-execution-boundary/v1"
@@ -30,6 +44,7 @@ def test_contract_shape_and_invariants() -> None:
     assert invariants["external_access_or_missing_live_evidence_is_not_a_harness_defect"] is True
     assert invariants["downstream_tracker_or_publication_state_cannot_block_sas_execution"] is True
     assert invariants["confirmed_harness_defect_may_preempt_only_when_it_blocks_current_gate"] is True
+    assert invariants["harness_preemption_requires_evidence_artifact_sha256_and_gate_binding"] is True
     assert invariants["after_harness_repair_resume_same_gate"] is True
 
 
@@ -51,47 +66,93 @@ def test_current_kiosk4_routes_to_live_runtime_not_harness() -> None:
     assert "current firmware" in result["next_action"]
 
 
-def test_confirmed_gate_blocking_harness_defect_may_preempt_then_resume() -> None:
-    result = route_work_item(
-        {
-            "current_gate": "BASELINE_LOCKED",
-            "work_class": "CONFIRMED_HARNESS_DEFECT",
-            "blocks_current_gate": True,
-            "demonstrated_defect": True,
-            "defect_evidence_ref": "TEST:valid-live-firmware-rejected",
-        }
-    )
+def test_confirmed_gate_blocking_harness_defect_requires_artifact_and_may_preempt() -> None:
+    with tempfile.TemporaryDirectory() as tmp:
+        evidence_ref, digest = _evidence_file(tmp)
+        result = route_work_item(
+            {
+                "current_gate": "BASELINE_LOCKED",
+                "work_class": "CONFIRMED_HARNESS_DEFECT",
+                "blocks_current_gate": True,
+                "demonstrated_defect": True,
+                "defect_evidence_ref": evidence_ref,
+                "defect_evidence_sha256": digest,
+                "defect_evidence_gate": "BASELINE_LOCKED",
+            }
+        )
     assert result["route"] == "HARNESS_REPAIR_THEN_RESUME"
     assert result["may_preempt_live_execution"] is True
     assert result["resume_gate"] == "BASELINE_LOCKED"
 
 
-def test_unproved_harness_defect_cannot_preempt() -> None:
+def test_plain_claim_cannot_preempt_without_artifact_proof() -> None:
     try:
         route_work_item(
             {
                 "current_gate": "BASELINE_LOCKED",
                 "work_class": "CONFIRMED_HARNESS_DEFECT",
                 "blocks_current_gate": True,
-                "demonstrated_defect": False,
-                "defect_evidence_ref": "",
+                "demonstrated_defect": True,
+                "defect_evidence_ref": "TEST:claimed-defect",
+                "defect_evidence_sha256": "0" * 64,
+                "defect_evidence_gate": "BASELINE_LOCKED",
             }
         )
-        raise AssertionError("expected fail-closed defect evidence requirement")
+        raise AssertionError("expected concrete evidence artifact requirement")
     except ExecutionBoundaryError as exc:
-        assert "demonstrated_defect" in str(exc)
+        assert "artifact_missing" in str(exc)
+
+
+def test_wrong_gate_or_digest_cannot_preempt() -> None:
+    with tempfile.TemporaryDirectory() as tmp:
+        evidence_ref, digest = _evidence_file(tmp)
+        try:
+            route_work_item(
+                {
+                    "current_gate": "BASELINE_LOCKED",
+                    "work_class": "CONFIRMED_HARNESS_DEFECT",
+                    "blocks_current_gate": True,
+                    "demonstrated_defect": True,
+                    "defect_evidence_ref": evidence_ref,
+                    "defect_evidence_sha256": digest,
+                    "defect_evidence_gate": "TARGET_UPDATE_PROVED",
+                }
+            )
+            raise AssertionError("expected same-gate binding failure")
+        except ExecutionBoundaryError as exc:
+            assert "gate_must_match" in str(exc)
+
+        try:
+            route_work_item(
+                {
+                    "current_gate": "BASELINE_LOCKED",
+                    "work_class": "CONFIRMED_HARNESS_DEFECT",
+                    "blocks_current_gate": True,
+                    "demonstrated_defect": True,
+                    "defect_evidence_ref": evidence_ref,
+                    "defect_evidence_sha256": "f" * 64,
+                    "defect_evidence_gate": "BASELINE_LOCKED",
+                }
+            )
+            raise AssertionError("expected digest mismatch")
+        except ExecutionBoundaryError as exc:
+            assert "sha256_mismatch" in str(exc)
 
 
 def test_real_nonblocking_defect_is_deferred() -> None:
-    result = route_work_item(
-        {
-            "current_gate": "BASELINE_LOCKED",
-            "work_class": "CONFIRMED_HARNESS_DEFECT",
-            "blocks_current_gate": False,
-            "demonstrated_defect": True,
-            "defect_evidence_ref": "TEST:unrelated-renderer-bug",
-        }
-    )
+    with tempfile.TemporaryDirectory() as tmp:
+        evidence_ref, digest = _evidence_file(tmp)
+        result = route_work_item(
+            {
+                "current_gate": "BASELINE_LOCKED",
+                "work_class": "CONFIRMED_HARNESS_DEFECT",
+                "blocks_current_gate": False,
+                "demonstrated_defect": True,
+                "defect_evidence_ref": evidence_ref,
+                "defect_evidence_sha256": digest,
+                "defect_evidence_gate": "BASELINE_LOCKED",
+            }
+        )
     assert result["route"] == "DEFER_HARNESS_MAINTENANCE"
     assert result["may_preempt_live_execution"] is False
 
@@ -152,6 +213,7 @@ def test_docs_bind_p95_decision() -> None:
         "confirmed harness defect",
         "resume the same live gate",
         "BASELINE_LOCKED",
+        "SHA-256",
     ):
         assert marker.casefold() in boundary.casefold()
     assert "P95 live-execution boundary" in program
@@ -162,8 +224,9 @@ def main() -> int:
     tests = [
         test_contract_shape_and_invariants,
         test_current_kiosk4_routes_to_live_runtime_not_harness,
-        test_confirmed_gate_blocking_harness_defect_may_preempt_then_resume,
-        test_unproved_harness_defect_cannot_preempt,
+        test_confirmed_gate_blocking_harness_defect_requires_artifact_and_may_preempt,
+        test_plain_claim_cannot_preempt_without_artifact_proof,
+        test_wrong_gate_or_digest_cannot_preempt,
         test_real_nonblocking_defect_is_deferred,
         test_architecture_improvement_is_deferred,
         test_downstream_publication_is_deferred_and_cannot_block_sas,
