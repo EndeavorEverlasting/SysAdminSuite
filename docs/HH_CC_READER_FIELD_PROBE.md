@@ -12,15 +12,15 @@ SysAdminSuite does not know or require the provider, account, folder hierarchy, 
 The tracked Windows front door is:
 
 ```text
-Probe-HHCCReader.cmd IPV4 [EXPECTED-MAC]
+Probe-HHCCReader.cmd IPV4 [EXPECTED-MAC] [NETWORK-ENVIRONMENT]
 ```
 
-Use one explicit authorized CC-reader IPv4 address. When the device's expected MAC is known from approved field evidence, supply it so the probe can fail closed before higher-layer interpretation if the IP resolves to the wrong device.
+Use one explicit authorized CC-reader IPv4 address. When the device's expected MAC is known from approved field evidence, supply it together with an explicit network environment class so the probe can fail closed before higher-layer interpretation if the IP resolves to the wrong device. Accepted identity-bearing classes are `HOSPITAL_GUEST_SHARED`, `CONSUMER_LAB`, `PROTECTED_ENTERPRISE`, and `OTHER_SHARED`; `UNCLASSIFIED` cannot satisfy expected-MAC identity interpretation.
 
 Documentation-only example:
 
 ```text
-Probe-HHCCReader.cmd 192.0.2.10 AA-BB-CC-DD-EE-FF
+Probe-HHCCReader.cmd 192.0.2.10 AA-BB-CC-DD-EE-FF HOSPITAL_GUEST_SHARED
 ```
 
 The example uses TEST-NET data and is not an operational target.
@@ -58,6 +58,7 @@ Hospital guest Wi-Fi is treated as a **shared non-domain network environment**, 
 The field rules are therefore:
 
 - preserve the canonical one-explicit-IPv4 target contract;
+- require an explicit network environment class before an expected MAC can become identity assurance; Windows network profile/category alone is observational and must not silently choose the class;
 - never widen a missing-identity problem into subnet/range discovery on a hospital guest/shared network;
 - record `identity_assurance` separately from reachability;
 - treat `MAC_MATCHED` as stronger same-L2 identity evidence, not firmware authority;
@@ -110,7 +111,7 @@ The bounded endpoint continuation is tracked separately as `Probe-HHCCReaderEndp
 
 ## Authorized consumer-lab bridge
 
-The canonical `Probe-HHCCReader.cmd` remains one-target and does not discover an IP.
+The canonical `Probe-HHCCReader.cmd` remains one-target and does not discover an IP. The separate consumer-lab discovery bridge invokes the canonical probe with `NetworkEnvironment=CONSUMER_LAB`; it does not make consumer discovery portable to a hospital guest/shared network.
 
 When the technician is deliberately reproducing the reader on an authorized private/home lab LAN and the reader IPv4 is not yet known, use the separate tracked workflow:
 
