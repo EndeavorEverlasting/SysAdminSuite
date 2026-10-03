@@ -74,6 +74,17 @@ BATCH_REQUIRED_COLUMNS = (
 
 BATCH_ACTIONS = frozenset({"PLAN", "UPDATE", "RESTORE"})
 
+IDENTITY_RECOVERY_PROBLEMS = frozenset(
+    {
+        "missing_source_serial",
+        "missing_expected_mac",
+        "invalid_expected_mac",
+        "duplicate_source_serial",
+        "duplicate_expected_mac",
+        "readerunk_mac_rejected",
+    }
+)
+
 IDENTITY_TRANCHE_SERIAL_AND_MAC = "SERIAL_AND_MAC"
 IDENTITY_TRANCHE_SERIAL_ONLY = "SERIAL_ONLY"
 IDENTITY_TRANCHE_MAC_ONLY = "MAC_ONLY"
@@ -698,9 +709,17 @@ def normalize_batch_rows(rows: list[dict[str, Any]], *, execute_serial: str | No
             "schema": BATCH_SCHEMA,
             "artifact": "batch-plan",
             "state": "BATCH_EMPTY",
+            "row_count": 0,
+            "executable_count": 0,
+            "blocked_count": 0,
+            "identity_tranche_counts": {},
+            "identity_ready_count": 0,
+            "identity_recovery_count": 0,
+            "identity_recovery_rows": [],
             "rows": [],
             "executable_rows": [],
             "blocked_rows": [],
+            "execute_serial_scope": None if execute_serial is None else _norm_text(execute_serial),
             "mutation_authorized": False,
         }
 
@@ -733,12 +752,22 @@ def normalize_batch_rows(rows: list[dict[str, Any]], *, execute_serial: str | No
         if mac == FORBIDDEN_READERUNK_MAC:
             problems.append("readerunk_mac_rejected")
 
+        identity_recovery_required = (
+            tranche["tranche"] != IDENTITY_TRANCHE_SERIAL_AND_MAC
+            or any(problem in IDENTITY_RECOVERY_PROBLEMS for problem in problems)
+        )
+        identity_admission_state = (
+            "RECOVERY_REQUIRED" if identity_recovery_required else "READY_FOR_IDENTITY_PROBE"
+        )
+
         entry = {
             "row_index": index,
             "source_serial": serial,
             "source_name": _norm_text(row.get("source_name")),
             "identity_tranche": tranche["tranche"],
             "identity_next_gate": tranche["next_gate"],
+            "identity_admission_state": identity_admission_state,
+            "identity_recovery_required": identity_recovery_required,
             "broad_discovery_authorized": False,
             "expected_mac": mac,
             "observed_firmware": _norm_text(row.get("observed_firmware")),
@@ -801,10 +830,9 @@ def normalize_batch_rows(rows: list[dict[str, Any]], *, execute_serial: str | No
         executable = []
 
     tranche_counts = dict(Counter(row["identity_tranche"] for row in normalized))
-    recovery_rows = [
-        row
-        for row in normalized
-        if row["identity_tranche"] != IDENTITY_TRANCHE_SERIAL_AND_MAC
+    recovery_rows = [row for row in normalized if row["identity_recovery_required"]]
+    ready_identity_rows = [
+        row for row in normalized if row["identity_admission_state"] == "READY_FOR_IDENTITY_PROBE"
     ]
 
     return {
@@ -815,6 +843,7 @@ def normalize_batch_rows(rows: list[dict[str, Any]], *, execute_serial: str | No
         "executable_count": len(executable),
         "blocked_count": len(blocked),
         "identity_tranche_counts": tranche_counts,
+        "identity_ready_count": len(ready_identity_rows),
         "identity_recovery_count": len(recovery_rows),
         "identity_recovery_rows": recovery_rows,
         "rows": normalized,
