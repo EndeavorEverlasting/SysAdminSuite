@@ -130,5 +130,14 @@ jobs:
         run: python Tests/survey/test_hh_cc_reader_firmware_event_contracts.py
       - name: Run P95 live execution boundary contracts
         run: python Tests/survey/test_hh_cc_reader_live_execution_boundary_contracts.py
-      - name: Check whitespace
-        run: git show --check --oneline --no-renames HEAD
+      - name: Check pull-request whitespace
+        if: github.event_name == 'pull_request'
+        run: git diff --check "${{ github.event.pull_request.base.sha }}" "${{ github.event.pull_request.head.sha }}"
+      - name: Check pushed commit whitespace
+        if: github.event_name != 'pull_request'
+        run: |
+          if git rev-parse --verify HEAD^ >/dev/null 2>&1; then
+            git diff --check HEAD^ HEAD
+          else
+            git show --check --oneline --no-renames HEAD
+          fi
