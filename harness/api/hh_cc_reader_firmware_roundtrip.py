@@ -286,10 +286,10 @@ def resolve_target_identity(candidate: dict[str, Any]) -> dict[str, Any]:
         reasons.append("missing_or_invalid_expected_mac")
     if candidate.get("live_mac") not in (None, "") and live_mac is None:
         reasons.append("malformed_live_mac")
-    if network_environment is None:
-        reasons.append("network_environment_unclassified")
-    elif network_environment not in NETWORK_ENVIRONMENTS:
+    if network_environment is not None and network_environment not in NETWORK_ENVIRONMENTS:
         reasons.append("network_environment_invalid")
+    elif expected_mac and network_environment is None:
+        reasons.append("network_environment_unclassified")
 
     if live_ipv4 == FORBIDDEN_READERUNK_IPV4:
         reasons.append("readerunk_ipv4_leakage_rejected")
