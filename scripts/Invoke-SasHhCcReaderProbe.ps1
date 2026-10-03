@@ -89,6 +89,10 @@ $result = [ordered]@{
     mode = 'read-only'
     target_ip = $target.ToString()
     expected_mac_supplied = -not [string]::IsNullOrWhiteSpace($normalizedExpectedMac)
+    identity_assurance = if ($normalizedExpectedMac) { 'PENDING_MAC_CORRELATION' } else { 'NETWORK_ONLY_MAC_NOT_SUPPLIED' }
+    identity_transport = if ($normalizedExpectedMac) { 'L2_NEIGHBOR_EXACT_TARGET' } else { 'NOT_REQUESTED' }
+    broad_discovery_performed = $false
+    network_environment_assumption = 'NONE'
     network = @()
     selected_interface = $null
     neighbor = $null
@@ -172,14 +176,22 @@ Write-Host ("MAC={0}" -f $(if ($observedMac) { $observedMac } else { 'UNRESOLVED
 if ($normalizedExpectedMac) {
     Write-Host ("DEVICE_MATCH={0}" -f [bool]$deviceMatch)
     if (-not $deviceMatch) {
+        $result.identity_assurance = if ($observedMac) { 'MAC_MISMATCH' } else { 'MAC_UNRESOLVED' }
         $result.classification = if ($observedMac) { 'DEVICE_MISMATCH' } else { 'DEVICE_UNRESOLVED' }
+        Write-Host ("IDENTITY_ASSURANCE={0}" -f $result.identity_assurance)
         Write-Host ("CLASSIFICATION={0}" -f $result.classification)
         Write-Host 'STOP: expected device identity was not proven. No higher-layer target interpretation follows.'
+        if (-not $observedMac) {
+            Write-Host 'NOTE: shared/guest networks can suppress same-L2 neighbor evidence. Do not widen scope or scan the subnet; recover identity through approved physical, tracker, or management evidence.'
+        }
         Write-SasProbeResult -Result $result -RepoRoot $repoRoot
         exit 5
     }
+    $result.identity_assurance = 'MAC_MATCHED'
+    Write-Host 'IDENTITY_ASSURANCE=MAC_MATCHED'
 } else {
     Write-Host 'DEVICE_MATCH=UNVERIFIED (no expected MAC supplied)'
+    Write-Host 'IDENTITY_ASSURANCE=NETWORK_ONLY_MAC_NOT_SUPPLIED'
 }
 
 $pingReplies = @(Test-Connection -ComputerName $target.ToString() -Count $PingCount -ErrorAction SilentlyContinue)
@@ -211,6 +223,8 @@ Write-Host ("TCP_{0}={1}" -f $TcpPort,$result.tcp.tcp_test_succeeded)
 
 $result.classification = 'READ_ONLY_PROBE_COMPLETE'
 Write-Host 'CLASSIFICATION=READ_ONLY_PROBE_COMPLETE'
+Write-Host ("IDENTITY_ASSURANCE={0}" -f $result.identity_assurance)
 Write-Host 'NOTE: reachability does not identify service ownership or prove a firmware-management path.'
+Write-Host 'NOTE: this one-target probe performs no subnet discovery; shared/guest network crowding does not change that scope.'
 Write-SasProbeResult -Result $result -RepoRoot $repoRoot
 exit 0
