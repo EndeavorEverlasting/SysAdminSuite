@@ -121,6 +121,7 @@
     "python Tests/survey/test_evidence_provenance_reuse_contracts.py",
     "python Tests/survey/test_autologon_crash_safe_field_runner_contracts.py",
     "python Tests/survey/test_operational_harness_completeness_contracts.py",
+    "python Tests/survey/test_hh_cc_reader_live_execution_boundary_contracts.py",
     "python scripts/check-repo-text-policy.py --commit HEAD",
     "python Tests/survey/test_local_harness_contracts.py",
     "bash tests/survey/run_offline_survey_tests.sh",
