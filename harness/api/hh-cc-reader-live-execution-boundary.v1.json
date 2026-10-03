@@ -1,0 +1,79 @@
+{
+  "schema_version": "sas-hh-cc-reader-live-execution-boundary/v1",
+  "version": 1,
+  "status": "IMPLEMENTED",
+  "purpose": "Keep the H&H CC-reader firmware program execution-first: live firmware work remains the primary lane, while harness maintenance may preempt only for a demonstrated harness defect that blocks the current live gate.",
+  "program_owner": {
+    "live_execution": "HH_CC_READER_REMOTE_OPERATIONS_PROGRAM",
+    "roundtrip_execution": "HH_CC_READER_FIRMWARE_ROUNDTRIP_BATCH_PLAN",
+    "harness_maintenance": "SEPARATE_SUCCESSOR_LANE",
+    "downstream_project_management": "EndeavorEverlasting/nyc-hh-fieldops-lab"
+  },
+  "invariants": {
+    "live_firmware_execution_is_primary": true,
+    "nonblocking_harness_work_must_be_deferred": true,
+    "external_access_or_missing_live_evidence_is_not_a_harness_defect": true,
+    "downstream_tracker_or_publication_state_cannot_block_sas_execution": true,
+    "confirmed_harness_defect_may_preempt_only_when_it_blocks_current_gate": true,
+    "harness_preemption_requires_evidence_reference": true,
+    "harness_repair_must_be_bounded_to_current_gate": true,
+    "after_harness_repair_resume_same_gate": true,
+    "architecture_improvement_without_gate_blocker_is_deferred": true,
+    "no_restart_of_proven_prior_gates_without_invalidation_evidence": true
+  },
+  "work_classes": [
+    "NONE",
+    "EXTERNAL_ACCESS_OR_LIVE_EVIDENCE",
+    "CONFIRMED_HARNESS_DEFECT",
+    "NONBLOCKING_HARNESS_IMPROVEMENT",
+    "DOWNSTREAM_PROJECT_OR_PUBLICATION",
+    "REPOSITORY_STALENESS",
+    "LIVE_AUTHORITY_OR_SAFETY_GAP"
+  ],
+  "routes": {
+    "CONTINUE_LIVE_EXECUTION": {
+      "may_preempt_live_execution": false,
+      "meaning": "Proceed directly to the next live firmware gate using current canonical tooling and evidence."
+    },
+    "LIVE_RUNTIME_OR_OPERATOR_BOUNDARY": {
+      "may_preempt_live_execution": false,
+      "meaning": "The next progress requires authorized live observation, credentials/MFA, physical device access, or other external evidence. Do not build harness code around the absence."
+    },
+    "HARNESS_REPAIR_THEN_RESUME": {
+      "may_preempt_live_execution": true,
+      "meaning": "Repair only the demonstrated harness defect that blocks the current gate, validate the repair, then resume the same live gate."
+    },
+    "DEFER_HARNESS_MAINTENANCE": {
+      "may_preempt_live_execution": false,
+      "meaning": "Record the improvement for a separate harness-maintenance sprint; do not divert the live firmware sprint."
+    },
+    "DEFER_DOWNSTREAM_PROJECT_WORK": {
+      "may_preempt_live_execution": false,
+      "meaning": "Route tracker/publication/project work to the downstream H&H lane. SAS live firmware execution continues independently."
+    },
+    "REFRESH_RUNTIME_THEN_CONTINUE": {
+      "may_preempt_live_execution": false,
+      "meaning": "Refresh repository/runtime truth without redesigning the program, then continue the same live gate."
+    },
+    "STOP_MUTATION_RESOLVE_AUTHORITY": {
+      "may_preempt_live_execution": false,
+      "meaning": "Do not mutate until live authority/safety is resolved. This is an operational authority boundary, not permission for unrelated harness development."
+    }
+  },
+  "current_kiosk4_example": {
+    "evidence_date": "2026-10-03",
+    "proof_ceiling": "UNIQUE_TARGET_RESOLVED",
+    "current_gate": "BASELINE_LOCKED",
+    "missing_evidence": "authoritative current_firmware_value for the same Kiosk4 identity",
+    "work_class": "EXTERNAL_ACCESS_OR_LIVE_EVIDENCE",
+    "expected_route": "LIVE_RUNTIME_OR_OPERATOR_BOUNDARY",
+    "next_action": "Authenticate to the authoritative estate surface and observe current firmware; if unavailable, capture Software versions on the same physical Kiosk4.",
+    "explicitly_not_next": [
+      "generic harness refactor",
+      "tracker/publication work",
+      "another endpoint/network discovery pass",
+      "generic public package search"
+    ]
+  },
+  "proof_ceiling": "This contract proves deterministic work routing and lane ownership. It does not prove management-plane access, current firmware, mutation authorization, firmware deployment, rollback, or final runtime verification."
+}
