@@ -21,6 +21,9 @@ Documentation-only example:
 
 ```text
 Probe-HHCCReader.cmd 192.0.2.10 AA-BB-CC-DD-EE-FF HOSPITAL_GUEST_SHARED
+
+# classified network-only observation when MAC is not yet known
+Probe-HHCCReader.cmd 192.0.2.10 "" HOSPITAL_GUEST_SHARED
 ```
 
 The example uses TEST-NET data and is not an operational target.
@@ -63,7 +66,7 @@ The field rules are therefore:
 - record `identity_assurance` separately from reachability;
 - treat `MAC_MATCHED` as stronger same-L2 identity evidence, not firmware authority;
 - treat `MAC_UNRESOLVED` as an identity-transport limitation that can occur on shared/guest networks; it is not permission to guess, scan, or substitute a nearby device;
-- when no expected MAC is supplied, `NETWORK_ONLY_MAC_NOT_SUPPLIED` is reachability evidence only and cannot satisfy the round-trip identity lock;
+- when no expected MAC is supplied, the environment class may still be recorded, but `NETWORK_ONLY_MAC_NOT_SUPPLIED` remains reachability evidence only and cannot satisfy the round-trip identity lock;
 - if the target IPv4 is unknown on a hospital guest/shared network, recover it from approved physical reader UI, private tracker/evidence, or an authorized management surface. The consumer-lab active discovery bridge below is not portable to this environment.
 
 ### Inventory identity tranches
