@@ -759,13 +759,19 @@ def normalize_batch_rows(rows: list[dict[str, Any]], *, execute_serial: str | No
         identity_admission_state = (
             "RECOVERY_REQUIRED" if identity_recovery_required else "READY_FOR_IDENTITY_PROBE"
         )
+        identity_next_gate = tranche["next_gate"]
+        if (
+            identity_recovery_required
+            and tranche["tranche"] == IDENTITY_TRANCHE_SERIAL_AND_MAC
+        ):
+            identity_next_gate = "RECONCILE_IDENTITY_CONFLICTS_BEFORE_NETWORK_PROBE"
 
         entry = {
             "row_index": index,
             "source_serial": serial,
             "source_name": _norm_text(row.get("source_name")),
             "identity_tranche": tranche["tranche"],
-            "identity_next_gate": tranche["next_gate"],
+            "identity_next_gate": identity_next_gate,
             "identity_admission_state": identity_admission_state,
             "identity_recovery_required": identity_recovery_required,
             "broad_discovery_authorized": False,
