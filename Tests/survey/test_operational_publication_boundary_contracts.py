@@ -82,6 +82,16 @@ class OperationalPublicationBoundaryContracts(unittest.TestCase):
             self.validator.validate_contract(candidate),
         )
 
+    def test_event_rule_substring_tricks_fail_closed(self) -> None:
+        candidate = copy.deepcopy(self.payload)
+        candidate["event_contract"]["duplicate_rule"] = "Never idempotent; no conflict handling."
+        candidate["event_contract"]["promotion_rule"] = (
+            "Explicit arbitrary state dimension promotion is allowed."
+        )
+        errors = self.validator.validate_contract(candidate)
+        self.assertIn("event_contract.duplicate_rule", errors)
+        self.assertIn("event_contract.promotion_rule", errors)
+
 
 if __name__ == "__main__":
     unittest.main()
