@@ -6,10 +6,14 @@ access, tracker publication, or generic harness maintenance.
 """
 from __future__ import annotations
 
+import hashlib
+import re
 from dataclasses import dataclass
+from pathlib import Path
 from typing import Any
 
 SCHEMA = "sas-hh-cc-reader-live-execution-boundary/v1"
+SHA256 = re.compile(r"^[0-9a-f]{64}$")
 
 WORK_CLASSES = {
     "NONE",
@@ -59,6 +63,41 @@ def _text(value: Any) -> str:
     return str(value or "").strip()
 
 
+def _sha256_file(path: Path) -> str:
+    digest = hashlib.sha256()
+    with path.open("rb") as handle:
+        for chunk in iter(lambda: handle.read(1024 * 1024), b""):
+            digest.update(chunk)
+    return digest.hexdigest()
+
+
+def _validate_defect_evidence(item: dict[str, Any], current_gate: str) -> tuple[str, str]:
+    if item.get("demonstrated_defect") is not True:
+        raise ExecutionBoundaryError("confirmed_harness_defect_requires_demonstrated_defect")
+
+    evidence_ref = _text(item.get("defect_evidence_ref"))
+    if not evidence_ref:
+        raise ExecutionBoundaryError("confirmed_harness_defect_requires_evidence_ref")
+
+    evidence_gate = _text(item.get("defect_evidence_gate"))
+    if evidence_gate != current_gate:
+        raise ExecutionBoundaryError("defect_evidence_gate_must_match_current_gate")
+
+    evidence_sha256 = _text(item.get("defect_evidence_sha256")).lower()
+    if SHA256.fullmatch(evidence_sha256) is None:
+        raise ExecutionBoundaryError("defect_evidence_sha256_required")
+
+    evidence_path = Path(evidence_ref).expanduser()
+    if not evidence_path.is_file():
+        raise ExecutionBoundaryError("defect_evidence_artifact_missing")
+
+    observed = _sha256_file(evidence_path)
+    if observed != evidence_sha256:
+        raise ExecutionBoundaryError("defect_evidence_sha256_mismatch")
+
+    return str(evidence_path), observed
+
+
 def route_work_item(item: dict[str, Any]) -> dict[str, Any]:
     """Classify one proposed interruption of the live firmware lane.
 
@@ -67,10 +106,11 @@ def route_work_item(item: dict[str, Any]) -> dict[str, Any]:
       work_class
       blocks_current_gate
 
-    CONFIRMED_HARNESS_DEFECT additionally requires demonstrated_defect=True and
-    a non-empty defect_evidence_ref. A missing credential, live observation,
-    physical interaction, downstream publication problem, or architecture idea
-    cannot be upgraded into a harness defect.
+    CONFIRMED_HARNESS_DEFECT additionally requires a demonstrated defect plus
+    an existing local evidence artifact, its SHA-256, and explicit binding to
+    the same current gate. Missing credentials, live observations, physical
+    interaction, downstream publication problems, or architecture ideas cannot
+    be upgraded into a harness defect.
     """
     if not isinstance(item, dict):
         raise ExecutionBoundaryError("work_item_must_be_object")
@@ -88,25 +128,27 @@ def route_work_item(item: dict[str, Any]) -> dict[str, Any]:
         raise ExecutionBoundaryError("blocks_current_gate_must_be_boolean")
 
     if work_class == "CONFIRMED_HARNESS_DEFECT":
-        if item.get("demonstrated_defect") is not True:
-            raise ExecutionBoundaryError("confirmed_harness_defect_requires_demonstrated_defect")
-        evidence_ref = _text(item.get("defect_evidence_ref"))
-        if not evidence_ref:
-            raise ExecutionBoundaryError("confirmed_harness_defect_requires_evidence_ref")
+        evidence_ref, evidence_sha256 = _validate_defect_evidence(item, current_gate)
         if not blocks:
             return ExecutionRoute(
                 "DEFER_HARNESS_MAINTENANCE",
                 False,
                 current_gate,
                 "Record the defect for the harness-maintenance lane and continue live firmware execution.",
-                "The defect is real but does not block the current live gate.",
+                (
+                    "The defect is evidenced but does not block the current live gate; "
+                    f"artifact={evidence_ref}; sha256={evidence_sha256}."
+                ),
             ).as_dict()
         return ExecutionRoute(
             "HARNESS_REPAIR_THEN_RESUME",
             True,
             current_gate,
             "Repair only the demonstrated blocker, validate the narrow gate, then resume the same live gate.",
-            f"Confirmed harness defect blocks {current_gate}; evidence={evidence_ref}.",
+            (
+                f"Confirmed harness defect blocks {current_gate}; "
+                f"artifact={evidence_ref}; sha256={evidence_sha256}."
+            ),
         ).as_dict()
 
     if work_class == "EXTERNAL_ACCESS_OR_LIVE_EVIDENCE":
