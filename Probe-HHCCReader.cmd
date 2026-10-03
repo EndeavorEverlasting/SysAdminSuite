@@ -41,8 +41,11 @@ if not exist "C:\SASAL\Probe-HHCCReader.cmd" (
 
 set "SAS_HH_CC_READER_REFRESHED=1"
 if "%~2"=="" (
-    if not "%~3"=="" goto usage
-    call "C:\SASAL\Probe-HHCCReader.cmd" "%~1"
+    if "%~3"=="" (
+        call "C:\SASAL\Probe-HHCCReader.cmd" "%~1"
+    ) else (
+        call "C:\SASAL\Probe-HHCCReader.cmd" "%~1" "" "%~3"
+    )
 ) else (
     if "%~3"=="" (
         call "C:\SASAL\Probe-HHCCReader.cmd" "%~1" "%~2"
@@ -61,8 +64,11 @@ if not exist "%~dp0scripts\Invoke-SasHhCcReaderProbe.ps1" (
 )
 
 if "%~2"=="" (
-    if not "%~3"=="" goto usage
-    "%SystemRoot%\System32\WindowsPowerShell\v1.0\powershell.exe" -NoLogo -NoProfile -ExecutionPolicy Bypass -File "%~dp0scripts\Invoke-SasHhCcReaderProbe.ps1" -IPAddress "%~1"
+    if "%~3"=="" (
+        "%SystemRoot%\System32\WindowsPowerShell\v1.0\powershell.exe" -NoLogo -NoProfile -ExecutionPolicy Bypass -File "%~dp0scripts\Invoke-SasHhCcReaderProbe.ps1" -IPAddress "%~1"
+    ) else (
+        "%SystemRoot%\System32\WindowsPowerShell\v1.0\powershell.exe" -NoLogo -NoProfile -ExecutionPolicy Bypass -File "%~dp0scripts\Invoke-SasHhCcReaderProbe.ps1" -IPAddress "%~1" -NetworkEnvironment "%~3"
+    )
 ) else (
     if "%~3"=="" (
         "%SystemRoot%\System32\WindowsPowerShell\v1.0\powershell.exe" -NoLogo -NoProfile -ExecutionPolicy Bypass -File "%~dp0scripts\Invoke-SasHhCcReaderProbe.ps1" -IPAddress "%~1" -ExpectedMac "%~2"
@@ -80,11 +86,13 @@ echo ================================================================
 echo  Usage:
 echo    Probe-HHCCReader.cmd IPV4 [EXPECTED-MAC] [NETWORK-ENVIRONMENT]
 echo.
-echo  NETWORK-ENVIRONMENT for expected-MAC identity:
+echo  NETWORK-ENVIRONMENT may be recorded for network-only evidence and is
+echo  required before EXPECTED-MAC can become identity assurance:
 echo    HOSPITAL_GUEST_SHARED ^| CONSUMER_LAB ^| PROTECTED_ENTERPRISE ^| OTHER_SHARED
 echo.
-echo  Example with documentation-only TEST-NET data:
+echo  Documentation-only TEST-NET examples:
 echo    Probe-HHCCReader.cmd 192.0.2.10 AA-BB-CC-DD-EE-FF HOSPITAL_GUEST_SHARED
+echo    Probe-HHCCReader.cmd 192.0.2.10 "" HOSPITAL_GUEST_SHARED
 echo.
 echo  Supply one explicit IPv4 address only. CIDRs, ranges, wildcards,
 echo  host discovery, and scanner/generator behavior are outside this lane.
