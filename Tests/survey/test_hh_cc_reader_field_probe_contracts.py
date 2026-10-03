@@ -28,7 +28,8 @@ def main() -> int:
         'Invoke-SasNetworkAwareField.ps1" refresh',
         "C:\\SASAL\\Probe-HHCCReader.cmd",
         "Invoke-SasHhCcReaderProbe.ps1",
-        "Probe-HHCCReader.cmd IPV4 [EXPECTED-MAC]",
+        "Probe-HHCCReader.cmd IPV4 [EXPECTED-MAC] [NETWORK-ENVIRONMENT]",
+        "HOSPITAL_GUEST_SHARED",
     ):
         assert marker in launcher, f"launcher missing marker: {marker}"
 
@@ -52,6 +53,9 @@ def main() -> int:
         "MAC_MATCHED",
         "MAC_UNRESOLVED",
         "NETWORK_ONLY_MAC_NOT_SUPPLIED",
+        "NETWORK_ENVIRONMENT_UNCLASSIFIED",
+        "NetworkEnvironment",
+        "network_environment_classified",
         "broad_discovery_performed = $false",
         "survey\\output\\hh-cc-reader",
     ):
@@ -210,6 +214,8 @@ def main() -> int:
     assert "hh-cc-reader-probe" in entries, "command registry missing hh-cc-reader-probe"
     entry = entries["hh-cc-reader-probe"]
     assert entry["source_of_truth"] == "Probe-HHCCReader.cmd"
+    assert "[NETWORK_ENVIRONMENT]" in entry["command"]
+    assert "explicit network environment class" in entry["purpose"]
     assert entry["mutation"] == "local_runtime"
     assert entry["network"] is True
 
