@@ -14,6 +14,7 @@ on:
       - 'harness/api/harness-artifact-registry.json'
       - 'harness/api/harness-outcome-registry.json'
       - 'harness/api/deployment-state-registry.json'
+      - 'harness/api/operational-publication-boundary.v1.json'
       - 'harness/workflows/fresh-agent-intake.yaml'
       - 'harness/workflows/repository-freshness-before-launch.yaml'
       - 'harness/workflows/operational-harness-maintenance.yaml'
@@ -41,6 +42,7 @@ on:
       - 'docs/tutorials/CYBERNET_SOFTWARE_DEPLOYMENT.md'
       - 'docs/HARNESS_STATUS.md'
       - 'Tests/survey/test_operational_harness_completeness_contracts.py'
+      - 'Tests/survey/test_operational_publication_boundary_contracts.py'
       - 'Tests/survey/test_portable_onsite_operator_contracts.py'
       - 'Tests/survey/test_technician_deployment_guidance_contracts.py'
       - 'Tests/survey/test_autologon_kerberos_s4u_contracts.py'
@@ -59,6 +61,7 @@ on:
       - 'harness/api/harness-artifact-registry.json'
       - 'harness/api/harness-outcome-registry.json'
       - 'harness/api/deployment-state-registry.json'
+      - 'harness/api/operational-publication-boundary.v1.json'
       - 'harness/workflows/fresh-agent-intake.yaml'
       - 'harness/workflows/repository-freshness-before-launch.yaml'
       - 'harness/workflows/operational-harness-maintenance.yaml'
@@ -86,6 +89,7 @@ on:
       - 'docs/tutorials/CYBERNET_SOFTWARE_DEPLOYMENT.md'
       - 'docs/HARNESS_STATUS.md'
       - 'Tests/survey/test_operational_harness_completeness_contracts.py'
+      - 'Tests/survey/test_operational_publication_boundary_contracts.py'
       - 'Tests/survey/test_portable_onsite_operator_contracts.py'
       - 'Tests/survey/test_technician_deployment_guidance_contracts.py'
       - 'Tests/survey/test_autologon_kerberos_s4u_contracts.py'
@@ -116,6 +120,7 @@ jobs:
           python -m py_compile harness/validators/validate-repository-freshness-contracts.py
           python -m py_compile harness/validators/validate-outcome-contracts.py
           python -m py_compile harness/validators/validate-deployment-state-contracts.py
+          python -m py_compile harness/validators/validate-operational-publication-boundary.py
           python -m py_compile harness/reports/render-harness-status.py
       - name: Validate registry JSON schemas
         run: |
@@ -145,6 +150,10 @@ jobs:
         run: python harness/validators/validate-outcome-contracts.py
       - name: Validate deployment-state contracts
         run: python harness/validators/validate-deployment-state-contracts.py
+      - name: Validate operational publication boundary
+        run: python harness/validators/validate-operational-publication-boundary.py
+      - name: Run publication boundary regressions
+        run: python Tests/survey/test_operational_publication_boundary_contracts.py
       - name: Run operational harness completeness
         run: python Tests/survey/test_operational_harness_completeness_contracts.py
       - name: Render operator status
