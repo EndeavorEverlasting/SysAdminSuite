@@ -369,7 +369,7 @@ Each complete phase starts at the absolute top. Adjacent frames must overlap eno
 Use the existing tracked technician front door for the reader-side time window:
 
 ```text
-Probe-HHCCReader.cmd IPV4 [EXPECTED-MAC]
+Probe-HHCCReader.cmd IPV4 [EXPECTED-MAC] [NETWORK-ENVIRONMENT]
 ```
 
 The launcher delegates to `scripts/Invoke-SasHhCcReaderProbe.ps1` and records:
