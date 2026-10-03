@@ -81,6 +81,9 @@ if (-not [System.Net.IPAddress]::TryParse($IPAddress, [ref]$target) -or
 
 $normalizedExpectedMac = ConvertTo-SasNormalizedMac -Value $ExpectedMac
 $repoRoot = (Resolve-Path -LiteralPath (Join-Path $PSScriptRoot '..')).Path
+$expectedMacSupplied = -not [string]::IsNullOrWhiteSpace($normalizedExpectedMac)
+$initialIdentityAssurance = if ($expectedMacSupplied) { 'PENDING_MAC_CORRELATION' } else { 'NETWORK_ONLY_MAC_NOT_SUPPLIED' }
+$identityTransport = if ($expectedMacSupplied) { 'L2_NEIGHBOR_EXACT_TARGET' } else { 'NOT_REQUESTED' }
 
 $result = [ordered]@{
     schema_version = 'sas-hh-cc-reader-probe/v1'
@@ -88,9 +91,9 @@ $result = [ordered]@{
     organization = 'health-and-hospitals'
     mode = 'read-only'
     target_ip = $target.ToString()
-    expected_mac_supplied = -not [string]::IsNullOrWhiteSpace($normalizedExpectedMac)
-    identity_assurance = if ($normalizedExpectedMac) { 'PENDING_MAC_CORRELATION' } else { 'NETWORK_ONLY_MAC_NOT_SUPPLIED' }
-    identity_transport = if ($normalizedExpectedMac) { 'L2_NEIGHBOR_EXACT_TARGET' } else { 'NOT_REQUESTED' }
+    expected_mac_supplied = $expectedMacSupplied
+    identity_assurance = $initialIdentityAssurance
+    identity_transport = $identityTransport
     broad_discovery_performed = $false
     network_environment_assumption = 'NONE'
     network = @()
