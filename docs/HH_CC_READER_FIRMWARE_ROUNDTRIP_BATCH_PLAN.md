@@ -309,7 +309,7 @@ Tasks:
 - define canonical batch-input schema from existing dashboard fields;
 - support CSV and XLSX/dashboard export normalization;
 - classify every row into SERIAL_AND_MAC, SERIAL_ONLY, MAC_ONLY, IDENTITY_INSUFFICIENT, or IDENTITY_INVALID before execution admission;
-- expose tranche counts and identity-recovery rows so site work can stage the strong dual-identifier population separately from recovery-heavy tranches;
+- expose tranche counts plus identity-admission state/recovery rows so site work can stage only admissible dual-identifier rows separately from serial-only, MAC-only, missing, malformed, duplicate, forbidden, or conflicted identity rows;
 - generate dry-run BatchPlan;
 - bind every executable row to baseline/identity and restore references;
 - keep SERIAL_ONLY, MAC_ONLY, IDENTITY_INSUFFICIENT, and IDENTITY_INVALID rows non-executable until their explicit recovery gate is satisfied;
