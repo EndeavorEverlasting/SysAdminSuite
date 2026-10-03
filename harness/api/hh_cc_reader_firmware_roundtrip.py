@@ -80,6 +80,15 @@ IDENTITY_TRANCHE_MAC_ONLY = "MAC_ONLY"
 IDENTITY_TRANCHE_INSUFFICIENT = "IDENTITY_INSUFFICIENT"
 IDENTITY_TRANCHE_INVALID = "IDENTITY_INVALID"
 
+NETWORK_ENVIRONMENTS = frozenset(
+    {
+        "HOSPITAL_GUEST_SHARED",
+        "CONSUMER_LAB",
+        "PROTECTED_ENTERPRISE",
+        "OTHER_SHARED",
+    }
+)
+
 # Approved MAC forms only (colon, hyphen, or compact). No arbitrary stripping.
 _MAC_COLON = re.compile(r"^(?:[0-9A-Fa-f]{2}:){5}[0-9A-Fa-f]{2}$")
 _MAC_HYPHEN = re.compile(r"^(?:[0-9A-Fa-f]{2}-){5}[0-9A-Fa-f]{2}$")
@@ -252,6 +261,8 @@ def resolve_target_identity(candidate: dict[str, Any]) -> dict[str, Any]:
     else:
         live_ipv4 = None
     probe_mac_match = candidate.get("probe_mac_match")
+    raw_network_environment = _norm_text(candidate.get("network_environment"))
+    network_environment = raw_network_environment.upper() if raw_network_environment else None
     conflicts = list(candidate.get("identity_conflicts") or [])
     reasons: list[str] = []
     tranche = classify_identity_tranche(candidate)
@@ -264,6 +275,10 @@ def resolve_target_identity(candidate: dict[str, Any]) -> dict[str, Any]:
         reasons.append("missing_or_invalid_expected_mac")
     if candidate.get("live_mac") not in (None, "") and live_mac is None:
         reasons.append("malformed_live_mac")
+    if network_environment is None:
+        reasons.append("network_environment_unclassified")
+    elif network_environment not in NETWORK_ENVIRONMENTS:
+        reasons.append("network_environment_invalid")
 
     if live_ipv4 == FORBIDDEN_READERUNK_IPV4:
         reasons.append("readerunk_ipv4_leakage_rejected")
@@ -302,6 +317,8 @@ def resolve_target_identity(candidate: dict[str, Any]) -> dict[str, Any]:
             "malformed_live_mac",
             "probe_mac_match_not_proved",
             "live_ipv4_missing",
+            "network_environment_unclassified",
+            "network_environment_invalid",
         }
         for reason in reasons
     ):
@@ -321,6 +338,8 @@ def resolve_target_identity(candidate: dict[str, Any]) -> dict[str, Any]:
         "live_mac": live_mac,
         "live_ipv4": live_ipv4,
         "probe_mac_match": probe_mac_match,
+        "network_environment": network_environment,
+        "network_environment_classified": network_environment in NETWORK_ENVIRONMENTS,
         "rejection_reasons": reasons,
         "identity_conflicts": conflicts,
         "mutation_authorized": False,
