@@ -5,11 +5,10 @@ cls
 
 set "SAS_EXIT=1"
 set "NETWORK_ENVIRONMENT=%~6"
-if "%~5"=="" (
-    if not "%~6"=="" goto usage
+set "NETWORK_ENVIRONMENT_SUPPLIED=1"
+if "%~6"=="" (
     set "NETWORK_ENVIRONMENT=UNCLASSIFIED"
-) else (
-    if "%~6"=="" goto usage
+    set "NETWORK_ENVIRONMENT_SUPPLIED=0"
 )
 
 echo ================================================================
@@ -59,7 +58,7 @@ if not exist "%~dp0scripts\Invoke-SasHhCcReaderEndpointProbe.ps1" (
 )
 
 echo Validating endpoint correlation inputs before any target contact...
-"%SystemRoot%\System32\WindowsPowerShell\v1.0\powershell.exe" -NoLogo -NoProfile -ExecutionPolicy Bypass -File "%~dp0scripts\Invoke-SasHhCcReaderEndpointProbe.ps1" -ReaderIPAddress "%~1" -RemoteEndpoint "%~2" -RemotePort "%~3" -ApprovalRef "%~4" -NetworkEnvironment "%NETWORK_ENVIRONMENT%" -ValidateOnly
+"%SystemRoot%\System32\WindowsPowerShell\v1.0\powershell.exe" -NoLogo -NoProfile -ExecutionPolicy Bypass -File "%~dp0scripts\Invoke-SasHhCcReaderEndpointProbe.ps1" -ReaderIPAddress "%~1" -RemoteEndpoint "%~2" -RemotePort "%~3" -ApprovalRef "%~4" -ExpectedMac "%~5" -NetworkEnvironment "%NETWORK_ENVIRONMENT%" -ValidateOnly
 set "SAS_EXIT=!ERRORLEVEL!"
 if not "!SAS_EXIT!"=="0" (
     echo STOP: endpoint correlation input validation failed.
@@ -69,7 +68,11 @@ if not "!SAS_EXIT!"=="0" (
 echo Running the canonical reader same-subnet/device gate first...
 set "SAS_HH_CC_READER_REFRESHED=1"
 if "%~5"=="" (
-    call "%~dp0Probe-HHCCReader.cmd" "%~1"
+    if "%NETWORK_ENVIRONMENT_SUPPLIED%"=="0" (
+        call "%~dp0Probe-HHCCReader.cmd" "%~1"
+    ) else (
+        call "%~dp0Probe-HHCCReader.cmd" "%~1" "" "%~6"
+    )
 ) else (
     call "%~dp0Probe-HHCCReader.cmd" "%~1" "%~5" "%~6"
 )
@@ -79,7 +82,7 @@ if not "!SAS_EXIT!"=="0" (
     goto finish
 )
 
-"%SystemRoot%\System32\WindowsPowerShell\v1.0\powershell.exe" -NoLogo -NoProfile -ExecutionPolicy Bypass -File "%~dp0scripts\Invoke-SasHhCcReaderEndpointProbe.ps1" -ReaderIPAddress "%~1" -RemoteEndpoint "%~2" -RemotePort "%~3" -ApprovalRef "%~4" -NetworkEnvironment "%NETWORK_ENVIRONMENT%"
+"%SystemRoot%\System32\WindowsPowerShell\v1.0\powershell.exe" -NoLogo -NoProfile -ExecutionPolicy Bypass -File "%~dp0scripts\Invoke-SasHhCcReaderEndpointProbe.ps1" -ReaderIPAddress "%~1" -RemoteEndpoint "%~2" -RemotePort "%~3" -ApprovalRef "%~4" -ExpectedMac "%~5" -NetworkEnvironment "%NETWORK_ENVIRONMENT%"
 set "SAS_EXIT=!ERRORLEVEL!"
 goto finish
 
@@ -92,10 +95,12 @@ if not "!SAS_EXIT!"=="0" (
     echo H^&H CC-reader endpoint correlation did not finish successfully.
     echo Usage:
     echo   Probe-HHCCReaderEndpoint.cmd READER_IPV4 REMOTE_ENDPOINT PORT APPROVAL_REF [EXPECTED-MAC] [NETWORK-ENVIRONMENT]
-    echo   When EXPECTED-MAC is supplied, NETWORK-ENVIRONMENT is required.
+    echo   NETWORK-ENVIRONMENT may accompany network-only evidence and is required
+    echo   when EXPECTED-MAC is supplied.
     echo   HOSPITAL_GUEST_SHARED ^| CONSUMER_LAB ^| PROTECTED_ENTERPRISE ^| OTHER_SHARED
-    echo Documentation-only example:
+    echo Documentation-only examples:
     echo   Probe-HHCCReaderEndpoint.cmd 192.0.2.10 service.example.invalid 443 EVIDENCE-REF-001 AA-BB-CC-DD-EE-FF HOSPITAL_GUEST_SHARED
+    echo   Probe-HHCCReaderEndpoint.cmd 192.0.2.10 service.example.invalid 443 EVIDENCE-REF-001 "" HOSPITAL_GUEST_SHARED
     echo CIDRs, ranges, wildcards, port sweeps, and host discovery are refused.
     echo No failed stage may be promoted to endpoint reachability or ownership proof.
 )
