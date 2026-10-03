@@ -155,12 +155,10 @@
           "const": "event_id"
         },
         "duplicate_rule": {
-          "type": "string",
-          "minLength": 1
+          "const": "An identical event_id+payload is idempotent. The same event_id with a materially different payload is CONFLICT and must not be applied."
         },
         "promotion_rule": {
-          "type": "string",
-          "minLength": 1
+          "const": "An event may promote only the state dimension and authoritative artifact explicitly named by its governing binding contract."
         }
       }
     },
