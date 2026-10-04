@@ -1,0 +1,10 @@
+{
+  "businessCode": 0,
+  "data": {
+    "serialNo": "OTHER-SERIAL-999",
+    "macAddress": "C840523C93BA",
+    "installedFirmware": {
+      "firmwareName": "A80_PayDroid_should_not_bind"
+    }
+  }
+}
