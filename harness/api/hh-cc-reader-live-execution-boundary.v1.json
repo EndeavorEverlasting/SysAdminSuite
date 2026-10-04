@@ -7,7 +7,8 @@
     "live_execution": "HH_CC_READER_REMOTE_OPERATIONS_PROGRAM",
     "roundtrip_execution": "HH_CC_READER_FIRMWARE_ROUNDTRIP_BATCH_PLAN",
     "harness_maintenance": "SEPARATE_SUCCESSOR_LANE",
-    "downstream_project_management": "EndeavorEverlasting/nyc-hh-fieldops-lab"
+    "downstream_project_management": "EndeavorEverlasting/nyc-hh-fieldops-lab",
+    "protocol_selection": "HH_CC_READER_FIRMWARE_PROTOCOL_PORTFOLIO"
   },
   "invariants": {
     "live_firmware_execution_is_primary": true,
@@ -20,7 +21,10 @@
     "after_harness_repair_resume_same_gate": true,
     "architecture_improvement_without_gate_blocker_is_deferred": true,
     "no_restart_of_proven_prior_gates_without_invalidation_evidence": true,
-    "harness_preemption_requires_evidence_artifact_sha256_and_gate_binding": true
+    "harness_preemption_requires_evidence_artifact_sha256_and_gate_binding": true,
+    "protocol_selection_preserves_all_configured_paths": true,
+    "protocol_selection_never_authorizes_mutation": true,
+    "site_specific_protocol_order_is_allowed": true
   },
   "work_classes": [
     "NONE",
@@ -69,15 +73,19 @@
     "work_class": "EXTERNAL_ACCESS_OR_LIVE_EVIDENCE",
     "expected_route": "LIVE_RUNTIME_OR_OPERATOR_BOUNDARY",
     "estate_access_disposition": "AUTHORIZED_ACCESS_SETUP_REQUIRED",
-    "next_action": "Observe current firmware in owned PAXSTORE Administrator Center: Terminal Management -> serial 1240473751 -> App & Firmware -> capture labeled_observations (section/field_heading/value for Installed Firmware and Installed Apps, plus Push Firmware/App package evidence without submitting) into private JSON and run Ingest-HHCCReaderPaxstoreUiObservation.cmd --input <capture> --expected-serial 1240473751 --expected-mac C840523C93BA --live-ipv4 192.168.1.68 --freeze.",
+    "next_action": "Run Select-HHCCReaderFirmwareProtocol.cmd with one sanitized context JSON. The launcher must preserve every configured protocol, consume a proven H&H site_profile when mutation-readiness is evaluated, and dispatch the first evidenced production protocol to a read-only observation route. Prefer an evidenced estate-specific technical control plane (Experian/AxiaMed Control Center, provider TMS/NTMS, or provider-managed update path); retain PAXSTORE reseller/Admin Center as a production-capable corroboration/fallback path and PAX Partner/PayDroid tooling as lab-only. Capture authoritative current_firmware_value and labeled version-domain evidence without mutation, then resume BASELINE_LOCKED.",
     "explicitly_not_next": [
-      "classify missing ESI keys as external CREDENTIAL_GATE when operator owns the estate",
+      "hard-code PAXSTORE as the only firmware protocol across hospitals",
+      "discard a protocol merely because another protocol is currently preferred",
+      "treat protocol selection as mutation authority",
       "generic harness refactor",
       "tracker/publication work",
-      "another endpoint/network discovery pass",
-      "generic public package search",
-      "Push Firmware during observation"
-    ]
+      "another broad endpoint/network discovery pass",
+      "submit Push Firmware or another mutation during observation",
+      "auto-promote PAX Partner/PayDroid tooling onto a production hospital reader"
+    ],
+    "protocol_selection_contract": "sas-hh-cc-reader-firmware-protocols/v1",
+    "protocol_selection_disposition": "SELECT_NEXT_OBSERVATION_FROM_SITE_EVIDENCE"
   },
   "proof_ceiling": "This contract proves deterministic work routing and lane ownership. It does not prove management-plane access, current firmware, mutation authorization, firmware deployment, rollback, or final runtime verification."
 }
