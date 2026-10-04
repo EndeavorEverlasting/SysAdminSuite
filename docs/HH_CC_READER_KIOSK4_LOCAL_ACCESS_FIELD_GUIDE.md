@@ -127,26 +127,44 @@ Navigate only through read-only information surfaces, for example:
 - Terminal information; or
 - a provider/payment application's read-only Info surface.
 
-Capture:
+Capture into the classifier-native private record shape. Start from:
+
+`docs/examples/hh-cc-reader-kiosk4-version-evidence-capture.template.json`
+
+Top-level capture context:
 
 ```text
+source_protocol
 source_surface
 navigation_path
-section_heading
-field_label
-displayed_value
-captured_at
+observed_at
 identity_binding_reference
 notes
 ```
 
+Each item in `labeled_observations` must use the exact classifier keys:
+
+```text
+section
+field_heading
+value
+package_name   # optional
+package_id     # optional
+install_time   # optional
+```
+
+Do **not** translate those keys to `section_heading`, `field_label`, or `displayed_value`. The version-domain classifier consumes `section / field_heading / value` directly.
+
 Requirements:
 
-- preserve the exact section/title and exact field label;
+- leave `labeled_observations=[]` until a real labeled value is observed;
+- preserve the exact section/title in `section` and exact visible field label in `field_heading`;
 - capture every relevant visible version string rather than choosing one in the field;
 - preserve the raw image privately;
-- bind the observation to the existing private identity receipt;
+- bind the observation to the existing private identity receipt through `identity_binding_reference`;
+- keep `mutation_authorized=false`;
 - do not copy live serial, MAC, IPv4, credentials, session data, or private evidence URLs into Git;
+- do not add or prefill `current_firmware_value` in the capture template;
 - do not promote Android build, application version, package version, or another numeric string to `current_firmware_value` until version-domain classification proves the mapping.
 
 ## 6. Classify first; freeze second

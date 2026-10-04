@@ -25,7 +25,10 @@
     "artifact_acquisition_is_independent_from_observation_and_deployment_transport": true,
     "public_search_absence_is_not_global_package_absence": true,
     "paxstore_presentation_completeness_cannot_block_firmware_execution": true,
-    "observation_refresh_does_not_wait_for_artifact_acquisition": true
+    "observation_refresh_does_not_wait_for_artifact_acquisition": true,
+    "presentation_is_projection_not_authority": true,
+    "version_evidence_capture_defaults_fail_closed": true,
+    "presentation_projection_never_promotes_technical_evidence": true
   },
   "default_preference_order": [
     "experian_control_center",
@@ -293,5 +296,112 @@
       "observed_at",
       "source_protocol"
     ]
+  },
+  "version_evidence_capture_contract": {
+    "schema_version": "sas-hh-cc-reader-kiosk4-version-evidence-capture/v1",
+    "template_path": "docs/examples/hh-cc-reader-kiosk4-version-evidence-capture.template.json",
+    "purpose": "Give the Kiosk4 field/operator lane a deterministic, classifier-native private capture shape for the bounded input check and labeled version observation without pre-filling current firmware or mutation authority.",
+    "default_capture_state": "AWAITING_FIELD_OBSERVATION",
+    "allowed_capture_states": [
+      "AWAITING_FIELD_OBSERVATION",
+      "INPUT_PATH_CLASSIFIED",
+      "LABELED_OBSERVATION_CAPTURED",
+      "VERSION_DOMAIN_CLASSIFIED",
+      "BASELINE_LOCKED",
+      "BLOCKED_INPUT_METHOD",
+      "BLOCKED_CREDENTIAL",
+      "BLOCKED_MANAGEMENT_SURFACE"
+    ],
+    "input_gate_fields": [
+      "ime_selector_state",
+      "wired_hid_state",
+      "credential_state"
+    ],
+    "capture_context_fields": [
+      "source_protocol",
+      "source_surface",
+      "navigation_path",
+      "observed_at",
+      "identity_binding_reference",
+      "notes"
+    ],
+    "classifier_input_key": "labeled_observations",
+    "classifier_required_observation_fields": [
+      "section",
+      "field_heading",
+      "value"
+    ],
+    "classifier_optional_observation_fields": [
+      "package_name",
+      "package_id",
+      "install_time"
+    ],
+    "rules": {
+      "template_contains_no_live_identity": true,
+      "template_contains_no_current_firmware_value": true,
+      "template_labeled_observations_start_empty": true,
+      "campaign_target_must_not_be_prefilled_as_current": true,
+      "capture_must_use_classifier_native_keys": true,
+      "mutation_authorized_must_default_false": true,
+      "presentation_projection_is_downstream_only": true,
+      "presentation_may_not_infer_missing_firmware_or_baseline_state": true
+    },
+    "ordered_success_transitions": [
+      {
+        "from": "AWAITING_FIELD_OBSERVATION",
+        "to": "INPUT_PATH_CLASSIFIED",
+        "gate": "one bounded IME-selector check and one wired USB-HOST classification are dispositioned"
+      },
+      {
+        "from": "INPUT_PATH_CLASSIFIED",
+        "to": "LABELED_OBSERVATION_CAPTURED",
+        "gate": "same Kiosk4 identity has at least one exact labeled read-only version observation"
+      },
+      {
+        "from": "LABELED_OBSERVATION_CAPTURED",
+        "to": "VERSION_DOMAIN_CLASSIFIED",
+        "gate": "Classify-HHCCReaderVersionDomain consumes labeled_observations without alias translation"
+      },
+      {
+        "from": "VERSION_DOMAIN_CLASSIFIED",
+        "to": "BASELINE_LOCKED",
+        "gate": "authoritative current value is domain-bound to the same identity and the existing baseline evaluator freezes it"
+      }
+    ]
+  },
+  "presentation_showcase_contract": {
+    "owner": "Google Drive: CC Reader Firmware Protocol Portfolio — Presentation Source",
+    "role": "ultimate showcasing layer over typed technical evidence",
+    "source_authority": "P95/P111 technical receipts, version-domain receipts, baseline receipts, and private evidence references",
+    "rules": {
+      "presentation_is_not_a_technical_authority": true,
+      "only_typed_source_states_may_be_projected": true,
+      "explored_and_exhausted_branches_remain_visible_when_material": true,
+      "unknown_and_blocked_states_must_remain_explicit": true,
+      "downstream_presentation_cannot_select_protocol_or_authorize_mutation": true,
+      "successful_visual_narrative_must_not_promote_unproven_runtime_state": true
+    },
+    "state_projection": {
+      "AWAITING_FIELD_OBSERVATION": {
+        "typed_state": "BLOCKED_EVIDENCE",
+        "presentation_meaning": "The critical path is narrowed and prepared, but the installed value is not yet observed."
+      },
+      "INPUT_PATH_CLASSIFIED": {
+        "typed_state": "PARTIAL",
+        "presentation_meaning": "The local access branch is dispositioned; the next proof is the labeled installed-version observation."
+      },
+      "LABELED_OBSERVATION_CAPTURED": {
+        "typed_state": "PARTIAL",
+        "presentation_meaning": "An exact version value was captured, but its version domain is not yet promoted."
+      },
+      "VERSION_DOMAIN_CLASSIFIED": {
+        "typed_state": "PARTIAL",
+        "presentation_meaning": "The observed value has a proven version domain; baseline freeze is the next transition."
+      },
+      "BASELINE_LOCKED": {
+        "typed_state": "PROVEN",
+        "presentation_meaning": "The same-reader current firmware baseline is locked; package/restore/authority gates become the next story."
+      }
+    }
   }
 }

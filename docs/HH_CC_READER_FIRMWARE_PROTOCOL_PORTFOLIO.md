@@ -186,9 +186,65 @@ P04 may **not** independently rename a P95 protocol, manufacture technical evide
 
 The missing authoritative `current_firmware_value` still blocks `BASELINE_LOCKED`.
 
-The next live observation should be selected from current site/device management evidence rather than hard-coded to PAXSTORE.
+On the current evidence set, protocol selection is **settled and closed until a new evidence signal appears**. The immediate bounded operator path is:
 
-PAXSTORE remains available for corroboration/fallback and support escalation. Partner tooling remains lab-only. No protocol selection permits a push/update during the observation pass.
+1. one visible input-method-selector check at the second Settings password prompt;
+2. one known-good wired USB-HOST classification;
+3. if alphanumeric input succeeds, one authorized credential attempt;
+4. exact read-only labeled version capture using the classifier-native `section / field_heading / value` keys;
+5. version-domain classification;
+6. baseline freeze only from an authoritative same-identity value.
+
+If the local-input branch closes, P95 protocol selection resumes only with new management-plane evidence. PAXSTORE remains available for corroboration/fallback and support escalation. Partner tooling remains lab-only. No protocol selection or observation permits a push/update.
+
+### Version-evidence capture contract
+
+The public-safe template is:
+
+`docs/examples/hh-cc-reader-kiosk4-version-evidence-capture.template.json`
+
+It starts fail-closed:
+
+- `capture_state=AWAITING_FIELD_OBSERVATION`;
+- `labeled_observations=[]`;
+- no `current_firmware_value` field;
+- no live identity value;
+- `version_domain_state=VERSION_DOMAIN_UNRESOLVED`;
+- `baseline_state=BLOCKED_EVIDENCE`;
+- `mutation_authorized=false`.
+
+A field capture becomes classifier-ready without alias translation by filling `labeled_observations` with `section`, `field_heading`, and `value` plus optional package metadata.
+
+## Presentation showcase projection
+
+The presentation is the **ultimate showcasing layer**, not a technical authority.
+
+Its job is to make the work legible:
+
+```text
+P95 protocol dendrite + bounded local branch
+        ↓
+private labeled evidence capture
+        ↓
+version-domain receipt
+        ↓
+BASELINE_LOCKED receipt
+        ↓
+package / restore / authority / controlled deployment
+        ↓
+presentation projection
+```
+
+Presentation rules:
+
+- project only typed technical states and their evidence references;
+- keep explored, exhausted, fallback, blocked, and proven branches visible when they explain the trajectory;
+- show `UNKNOWN`, `BLOCKED_EVIDENCE`, and `PARTIAL` explicitly rather than smoothing them into completion;
+- never use visual polish, narrative momentum, or screenshot volume to promote an unproven firmware value;
+- never allow presentation state to select a protocol or authorize mutation;
+- after `BASELINE_LOCKED`, shift the showcase's critical-path emphasis to package mapping, restore proof, mutation authority, controlled deployment, and post-deployment observation.
+
+This keeps the presentation sophisticated without turning it into a second source of truth.
 
 ## Proof ceiling
 

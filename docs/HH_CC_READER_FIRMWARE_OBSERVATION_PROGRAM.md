@@ -1,8 +1,8 @@
 # H&H CC Reader Firmware Observation Program
 
-Status: DESIGNED + THIN PROTOTYPE (UI ingest + OpenAPI observe + version-domain classify)
+Status: IMPLEMENTED OBSERVATION SEAMS + CURRENT P95 KIOSK4 FIELD GATE
 Date: 2026-10-04
-Floor: `main` containing P95 + PAXSTORE observe (PR #480) + TM UI ingest (PR #481) + version-domain labels
+Floor: P95 multi-protocol portfolio + local-access field guide + PAXSTORE observe/UI fallback seams + version-domain classifier
 Mission owner: live Kiosk4 firmware/package deployment (not harness theater)
 
 ## User outcomes / invariants
@@ -69,20 +69,38 @@ install_time
 
 If Installed Firmware is PayDroid/`PX7A_A80_...` and `2.0.15.x` appears under Installed Apps / Push App, those are different domains. Campaign `2.0.15.260522` may be an Experian/Control Center/payment package mediated by PAXSTORE, not PTS/PayDroid flash firmware.
 
-## Two-layer critical path
+## Current critical path + retained remote seams
+
+The current Kiosk4 gate is no longer PAXSTORE-first. The already-settled P95 evidence set keeps the immediate path local and bounded:
 
 ```text
-PAXSTORE Terminal Management UI (fast truth + labels)
+same proven Kiosk4 identity
+  -> one visible IME-selector check
+  -> one wired USB-HOST classification
+  -> one authorized credential attempt only if alphanumeric input is proved
+  -> private classifier-native capture
+       labeled_observations[].section
+       labeled_observations[].field_heading
+       labeled_observations[].value
+  -> Classify-HHCCReaderVersionDomain.cmd
+  -> authoritative domain-bound current value
+  -> BASELINE_LOCKED
+```
+
+If that local branch closes, resume P95 protocol selection only when **new management-plane evidence** exists. The following remote seams remain valid fallbacks/corroboration and deterministic repeat paths:
+
+```text
+PAXSTORE Terminal Management UI
   -> private capture JSON with labeled_observations
   -> Ingest-HHCCReaderPaxstoreUiObservation.cmd --freeze
-  -> BASELINE_LOCKED
-  -> campaign_target_domain_state BOUND|VERSION_DOMAIN_UNRESOLVED
 
-External System Integration (deterministic repeat)
+External System Integration
   -> SAS_PAXSTORE_API_KEY / SECRET / BASE_URL
   -> Observe-HHCCReaderPaxstoreTerminal.cmd --freeze
-  -> UI/API parity PASS before mutation
+  -> optional UI/API parity
 ```
+
+Neither fallback is a prerequisite for the current local observation gate.
 
 ## Success call stack (Terminal Management UI)
 
@@ -136,8 +154,8 @@ Capture on the UI ingest schema as `target_package_*` and `current_package_resto
 
 | Candidate | Verdict |
 |---|---|
-| A. PAXSTORE TM UI ingest + OpenAPI `getTerminalBySn(+installedFirmware)` | **Selected** — complementary layers; UI unsticks fastest; API repeats |
-| B. API-only wait until ESI configured | Rejected — slower unstick when operator already owns the marketplace |
+| A. PAXSTORE TM UI ingest + OpenAPI `getTerminalBySn(+installedFirmware)` | **Retained fallback/corroboration** — complementary read-only seams when PAXSTORE becomes evidenced again |
+| B. API-only wait until ESI configured | Not current critical path — deterministic repeat only after a real PAXSTORE route is evidenced |
 | C. Repeat inbound TCP sweeps | Rejected as exhausted for common ports |
 | D. Tracker/history inference | Forbidden — not authoritative |
 | E. Physical Software versions / AirViewer | Retained alternate when estate API/UI unavailable |
@@ -151,7 +169,9 @@ Capture on the UI ingest schema as `target_package_*` and `current_package_resto
 
 ## Implementation seam ready for next live gate
 
-1. Operator: Terminal Management → serial `1240473751` → App & Firmware → private capture JSON.
-2. Agent: `Ingest-HHCCReaderPaxstoreUiObservation.cmd --input <capture> --freeze` → `BASELINE_LOCKED`.
-3. Operator: enable External System Integration; bind `SAS_PAXSTORE_*` locally; set `SAS_PAXSTORE_ESTATE_AUTHORITY=OWNED_ADMINISTERING`.
-4. Agent: `Observe-HHCCReaderPaxstoreTerminal.cmd --serial ... --freeze`, then `Ingest-HHCCReaderPaxstoreUiObservation.cmd --input <capture> --compare-api <api-receipt.json>` for UI/API parity → continue deployment gates.
+1. Operator: use `docs/HH_CC_READER_KIOSK4_LOCAL_ACCESS_FIELD_GUIDE.md`; perform the one IME-selector check and one wired USB-HOST classification.
+2. Operator: if alphanumeric input is accepted, make one authorized credential attempt and stay read-only.
+3. Operator: start from `docs/examples/hh-cc-reader-kiosk4-version-evidence-capture.template.json`; populate the private copy with the same-identity source context and exact `section / field_heading / value` observations.
+4. Agent: run `Classify-HHCCReaderVersionDomain.cmd --input <private-capture.json>`; accept no alias translation or numeric-similarity shortcut.
+5. Agent: populate the private baseline only from the authoritative domain-bound observation and run the existing baseline evaluator to reach `BASELINE_LOCKED`.
+6. If the local-input branch closes, collect new management-plane evidence and only then rerun P95 protocol selection; retain PAXSTORE UI/OpenAPI as fallback/corroboration, not a mandatory prerequisite.

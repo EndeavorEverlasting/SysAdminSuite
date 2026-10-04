@@ -48,6 +48,20 @@ def test_contract_shape_and_invariants() -> None:
     assert invariants["after_harness_repair_resume_same_gate"] is True
     assert invariants["local_research_capability_gap_must_emit_successor_sprint"] is True
     assert invariants["research_capability_gap_is_not_terminal_blocker"] is True
+    assert invariants["settled_protocol_selection_not_rerun_without_new_evidence"] is True
+    assert invariants["current_gate_operator_path_must_match_latest_field_guide"] is True
+
+
+def test_current_kiosk4_example_uses_bounded_local_capture_before_selector_replay() -> None:
+    payload = json.loads(CONTRACT.read_text(encoding="utf-8"))
+    example = payload["current_kiosk4_example"]
+    assert example["protocol_selection_disposition"] == "CLOSED_UNTIL_NEW_EVIDENCE_SIGNAL"
+    assert "IME-selector" in example["next_action"]
+    assert "wired USB-HOST" in example["next_action"]
+    assert "section/field_heading/value" in example["next_action"]
+    assert "unchanged evidence set" in example["next_action"]
+    assert example["capture_template"].endswith("version-evidence-capture.template.json")
+    assert "rerun P95 protocol selection against the same unchanged evidence set" in example["explicitly_not_next"]
 
 
 def test_current_kiosk4_routes_to_live_runtime_not_harness() -> None:
@@ -334,6 +348,7 @@ def test_docs_bind_p95_decision() -> None:
 def main() -> int:
     tests = [
         test_contract_shape_and_invariants,
+        test_current_kiosk4_example_uses_bounded_local_capture_before_selector_replay,
         test_current_kiosk4_routes_to_live_runtime_not_harness,
         test_confirmed_gate_blocking_harness_defect_requires_artifact_and_may_preempt,
         test_plain_claim_cannot_preempt_without_artifact_proof,
