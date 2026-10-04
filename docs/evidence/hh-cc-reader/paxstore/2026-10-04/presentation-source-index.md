@@ -7,7 +7,7 @@ Status: EVIDENCE SOURCE INDEX ONLY — no presentation created in this sprint.
 - **PHOTO-20261004-002** — Developer registration company-profile gate: Business License/Certificate of Incorporation requirement.
 - **PHOTO-20261004-003** — Global Developer Center landing: clear evidence of the off-path developer onboarding surface.
 - **PHOTO-20261004-004** — PAXSTORE App Store landing: establishes the marketplace surface actually reached.
-- **PHOTO-20261004-005 + PHOTO-20261004-012** — first/final captured `Terminal` search pages: demonstrate the application-search behavior and failure to surface Terminal Management.
+- **PHOTO-20261004-005 + PHOTO-20261004-012** — first/final captured `Terminal` search pages: demonstrate the application-search behavior across captured pages. Page 7 is missing, so do not present this as an exhaustive negative result for Terminal Management.
 - **PHOTO-20261004-013** — `BroadPOS` application hits: demonstrates namespace collision between catalog apps and the documented BroadPOS Marketplace Administrator Center.
 - **PHOTO-20261004-014 + PHOTO-20261004-018** — `Center` search first/final pages: five-page manual exploration with application hits, not admin navigation.
 - **PHOTO-20261004-019** — `PAXSTORE` keyword results plus captured support email/footer build label.
