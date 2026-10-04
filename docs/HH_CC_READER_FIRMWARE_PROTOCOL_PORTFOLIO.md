@@ -1,7 +1,7 @@
 # H&H CC Reader Firmware Protocol Portfolio
 
-Date: 2026-10-04  
-Status: P95 IMPLEMENTED — protocol inventory + deterministic selector  
+Date: 2026-10-04
+Status: P95 IMPLEMENTED — protocol inventory + deterministic selector
 Repository: `EndeavorEverlasting/SysAdminSuite`
 
 ## Mission
