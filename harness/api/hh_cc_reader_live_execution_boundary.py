@@ -50,9 +50,10 @@ class ExecutionRoute:
     next_action: str
     reason: str
     successor_sprint_required: bool = False
+    successor_handoff: dict[str, Any] | None = None
 
     def as_dict(self) -> dict[str, Any]:
-        return {
+        result = {
             "schema": SCHEMA,
             "route": self.route,
             "may_preempt_live_execution": self.may_preempt_live_execution,
@@ -61,6 +62,9 @@ class ExecutionRoute:
             "reason": self.reason,
             "successor_sprint_required": self.successor_sprint_required,
         }
+        if self.successor_handoff is not None:
+            result["successor_handoff"] = self.successor_handoff
+        return result
 
 
 def _text(value: Any) -> str:
@@ -199,28 +203,48 @@ def route_work_item(item: dict[str, Any]) -> dict[str, Any]:
 
 
     if work_class == "LOCAL_RESEARCH_CAPABILITY_GAP":
-        required_text = ("research_question", "target_runtime")
-        for field in required_text:
-            if not _text(item.get(field)):
+        for field in ("research_question", "target_runtime"):
+            value = item.get(field)
+            if not isinstance(value, str) or not value.strip():
                 raise ExecutionBoundaryError("research_capability_handoff_incomplete")
+
+        handoff: dict[str, Any] = {
+            "research_question": item["research_question"].strip(),
+            "resume_gate": current_gate,
+            "target_runtime": item["target_runtime"].strip(),
+        }
         for field in ("attempted_queries", "sources_attempted", "missing_capabilities"):
             value = item.get(field)
-            if not isinstance(value, list) or not value or any(not _text(entry) for entry in value):
+            if (
+                not isinstance(value, list)
+                or not value
+                or any(not isinstance(entry, str) or not entry.strip() for entry in value)
+            ):
                 raise ExecutionBoundaryError("research_capability_handoff_incomplete")
-        unresolved = item.get("unresolved_hypotheses", [])
-        if not isinstance(unresolved, list) or any(not _text(entry) for entry in unresolved):
-            raise ExecutionBoundaryError("research_capability_handoff_incomplete")
+            handoff[field] = [entry.strip() for entry in value]
+
+        for field in ("exhausted_findings", "unresolved_hypotheses"):
+            if field not in item:
+                raise ExecutionBoundaryError("research_capability_handoff_incomplete")
+            value = item[field]
+            if (
+                not isinstance(value, list)
+                or any(not isinstance(entry, str) or not entry.strip() for entry in value)
+            ):
+                raise ExecutionBoundaryError("research_capability_handoff_incomplete")
+            handoff[field] = [entry.strip() for entry in value]
+
         return ExecutionRoute(
             "ESCALATE_RESEARCH_SUCCESSOR",
             False,
             current_gate,
             (
-                f"Persist the exact research question, attempted queries/sources, unresolved hypotheses, "
-                f"and missing capabilities; execute the successor research sprint in {_text(item.get('target_runtime'))}; "
-                f"then resume {current_gate} without restarting prior proved gates."
+                f"Persist the structured successor handoff and execute the research sprint in "
+                f"{handoff['target_runtime']}; then resume {current_gate} without restarting prior proved gates."
             ),
             "The current runtime's research capability is insufficient for this proof-relevant question; capability limits are successor work, not global absence or a terminal blocker.",
             True,
+            handoff,
         ).as_dict()
 
     if work_class == "LIVE_AUTHORITY_OR_SAFETY_GAP":
