@@ -7,8 +7,8 @@ Preserve the operator-led PAXSTORE access investigation as presentation-ready ev
 ## P111 boundary
 
 - **Private/raw authority:** H&H Google Drive evidence workspace.
-- **Public repository:** reviewed sanitized screenshot derivatives, hashes, classifications, and findings only.
-- Raw SHA-256 values in `manifest.json` bind every tracked derivative to its source capture.
+- **Public repository:** a reviewed 19-page sanitized screenshot appendix plus hashes, classifications, and findings.
+- Raw SHA-256 values in `manifest.json` bind every appendix page to its source capture.
 - Sanitization removes browser address bars/session-looking URLs, unrelated Cursor/desktop content, personal account identity, and entered contact/company data.
 
 ## Captured findings
@@ -23,9 +23,10 @@ Preserve the operator-led PAXSTORE access investigation as presentation-ready ev
 
 ## Repository contents
 
-- `sanitized/*.webp` — all 19 reviewed screenshot derivatives, individually addressable for future presentation work.
-- `manifest.json` — Photo IDs, raw/sanitized SHA-256, claim boundaries, privacy treatment, and duplicate relationships.
+- `paxstore-access-discovery-sanitized-review-pack.pdf` — all 19 reviewed screenshot frames, one stable Photo ID per page. SHA-256: `bf56e67a9ff9a96ec1d3416e9d61f48641e68b1704b5e2beb6b9dbd49b5c293f`.
+- `manifest.json` — Photo IDs, raw/sanitized-frame SHA-256, PDF page mapping, claim boundaries, privacy treatment, and duplicate relationships.
 - `presentation-source-index.md` — ranked visual/story beats for later senior-level presentation work.
+- Individual sanitized frame files remain in the private evidence workspace/staging lane for later presentation extraction; they are not separately tracked in this public repository.
 
 Raw originals are intentionally not tracked here.
 
