@@ -1,8 +1,8 @@
 # H&H CC Reader Firmware Observation Program
 
-Status: DESIGNED + THIN PROTOTYPE
+Status: DESIGNED + THIN PROTOTYPE (UI ingest + OpenAPI observe)
 Date: 2026-10-03
-Floor: `main` containing P95 + this observe seam
+Floor: `main` containing P95 + PAXSTORE observe seam (PR #480) + TM UI ingest
 Mission owner: live Kiosk4 firmware deployment (not harness theater)
 
 ## User outcomes / invariants
@@ -12,6 +12,7 @@ Mission owner: live Kiosk4 firmware deployment (not harness theater)
 3. Prefer non-mutating cloud/TMS/Android/POS observation over inbound LAN guessing.
 4. Keep `2.0.15.260522` as the campaign **target**, not an assumed current value.
 5. Do not silently violate restore-first mutation policy; surface an explicit operator decision if restore proof is the sole remaining blocker after a ready forward path.
+6. When the operator owns/administers the PAXSTORE marketplace, missing External System Integration keys are `AUTHORIZED_ACCESS_SETUP_REQUIRED`, not an external `CREDENTIAL_GATE`.
 
 ## Domain vocabulary
 
@@ -20,28 +21,59 @@ Mission owner: live Kiosk4 firmware deployment (not harness theater)
 | `TerminalIdentity` | serial, MAC, live IPv4, unique-target proof |
 | `FirmwareObservation` | value + version domain + source surface + timestamp |
 | `VersionDomain` | PayDroid/firmwareName vs campaign package vs Android OS vs payment app |
-| `ManagementSurface` | PAXSTORE / PFCC-IngEstate / AirViewer / USB-ADB / POS / egress telemetry |
+| `ManagementSurface` | PAXSTORE TM UI / PAXSTORE OpenAPI / PFCC-IngEstate / AirViewer / USB-ADB / POS |
+| `EstateAccessDisposition` | `AUTHORIZED_ACCESS_SETUP_REQUIRED` (owned estate setup) vs `CREDENTIAL_GATE` (external owner) |
+| `PackageMapping` | observed package identity for campaign target; starts `UNPROVEN` |
+| `UiApiParity` | serial/firmware/status/check-in compare; `PASS` or `DIVERGENCE` |
 | `BaselineFreeze` | offline round-trip admission (`freeze_baseline`) |
-| `CredentialGate` | missing authorized read rights (not “human-only forever”) |
 
 ## Module / interface map
 
 | Module | Responsibility | Side effects |
 |---|---|---|
-| `hh_cc_reader_paxstore_terminal_observe.py` | serial → installedFirmware observe | optional HTTPS GET with env credentials |
-| `Observe-HHCCReaderPaxstoreTerminal.cmd` | operator entrypoint | launches Python seam |
+| `hh_cc_reader_paxstore_ui_observation.py` | TM UI capture → observation receipt + parity | local ingest only |
+| `Ingest-HHCCReaderPaxstoreUiObservation.cmd` | operator UI ingest entrypoint | launches Python seam |
+| `hh_cc_reader_paxstore_terminal_observe.py` | serial → installedFirmware OpenAPI observe | optional HTTPS GET with env credentials |
+| `Observe-HHCCReaderPaxstoreTerminal.cmd` | operator API entrypoint | launches Python seam |
 | `hh_cc_reader_firmware_roundtrip.py` | identity + baseline freeze | local ignored receipt |
 | `hh_cc_reader_estate_authority.py` | PROVEN_PATH classifier | offline only |
-| Future PFCC/AirViewer/ADB adapters | alternate observation ports | same observation contract |
 
 Dependency direction:
 
 ```text
-CMD/CLI -> observe adapter -> (transport port) -> PAXSTORE
-                         \-> map observation -> freeze_baseline (offline)
+CMD/CLI -> UI ingest OR OpenAPI observe adapter
+                 \-> FirmwareObservation receipt
+                 \-> freeze_baseline (offline)
+                 \-> optional UI/API parity (pure)
 ```
 
-## Success call stack (PAXSTORE)
+## Two-layer critical path
+
+```text
+PAXSTORE Terminal Management UI (fast truth)
+  -> private capture JSON
+  -> Ingest-HHCCReaderPaxstoreUiObservation.cmd --freeze
+  -> BASELINE_LOCKED
+
+External System Integration (deterministic repeat)
+  -> SAS_PAXSTORE_API_KEY / SECRET / BASE_URL
+  -> Observe-HHCCReaderPaxstoreTerminal.cmd --freeze
+  -> UI/API parity PASS before mutation
+```
+
+## Success call stack (Terminal Management UI)
+
+```text
+OPERATOR captures App & Firmware fields
+  -> Ingest-HHCCReaderPaxstoreUiObservation.cmd --input <private.json> --freeze
+  -> ingest_ui_observation
+  -> map_ui_capture (identity bind + Installed Firmware extract)
+  -> to_baseline_observation
+  -> resolve_target_identity + freeze_baseline
+  -> receipt: access_state=OBSERVED, baseline.state=BASELINE_LOCKED
+```
+
+## Success call stack (PAXSTORE OpenAPI)
 
 ```text
 OPERATOR / CMD
@@ -60,32 +92,43 @@ OPERATOR / CMD
 
 | Failure | Classification | Return |
 |---|---|---|
-| Missing API key/secret | `CREDENTIAL_GATE` | exit 3; no network |
+| Missing API key/secret, estate owned (`SAS_PAXSTORE_ESTATE_AUTHORITY=OWNED_ADMINISTERING`) | `AUTHORIZED_ACCESS_SETUP_REQUIRED` | exit 3; no network |
+| Missing API key/secret, estate not marked owned | `CREDENTIAL_GATE` | exit 3; no network |
 | HTTP/business error | `API_CALL_FAILED` / `TERMINAL_NOT_FOUND` | exit 2 |
-| Serial/MAC mismatch | `IDENTITY_MISMATCH` | reject firmware |
-| Identity OK, no firmwareName | `FIRMWARE_FIELD_ABSENT` | keep searching surfaces |
+| Serial/MAC mismatch (UI or API) | `IDENTITY_MISMATCH` | reject firmware |
+| Identity OK, no firmware field | `FIRMWARE_FIELD_ABSENT` | keep searching surfaces |
+| UI/API disagree after both observed | `DIVERGENCE` | do not pick a winner; refresh/resolve |
 | Firmware observed but wrong version domain for eligibility | observation retained; eligibility remains separate | do not rewrite to `.260522` |
+
+## Package mapping and restore (same UI session)
+
+While App & Firmware is open, inspect Push Firmware **without submitting**:
+
+- whether package/version for `2.0.15.260522` is selectable
+- whether the current installed package remains selectable for restore
+
+Capture on the UI ingest schema as `target_package_*` and `current_package_restorable`. Do not invent mapping from numeric similarity. If restore proof is the only remaining blocker after baseline + mapped target + mutation authority, surface that operator decision explicitly.
 
 ## Alternatives compared
 
 | Candidate | Verdict |
 |---|---|
-| A. PAXSTORE OpenAPI `getTerminalBySn(+installedFirmware)` | **Selected primary** — serial-bound, explicit firmware field, no inbound listener required |
-| B. Repeat inbound TCP sweeps | Rejected as exhausted for common ports |
-| C. Tracker/history inference | Forbidden — not authoritative |
-| D. Physical Software versions / AirViewer | Retained alternate when estate API unavailable |
-| E. USB ADB property dump | Retained; different version domain risk |
+| A. PAXSTORE TM UI ingest + OpenAPI `getTerminalBySn(+installedFirmware)` | **Selected** — complementary layers; UI unsticks fastest; API repeats |
+| B. API-only wait until ESI configured | Rejected — slower unstick when operator already owns the marketplace |
+| C. Repeat inbound TCP sweeps | Rejected as exhausted for common ports |
+| D. Tracker/history inference | Forbidden — not authoritative |
+| E. Physical Software versions / AirViewer | Retained alternate when estate API/UI unavailable |
+| F. USB ADB property dump | Retained; different version domain risk |
 
 ## Proof ceiling
 
-- Prototype proves the **executable observation seam** and fail-closed credential/identity behavior with fixtures.
-- Live `current_firmware_value` remains **UNOBSERVED** until an authorized PAXSTORE (or alternate) read returns a serial-bound firmware field.
+- Prototypes prove UI ingest, owned-estate setup disposition, OpenAPI observe, freeze, and UI/API parity with fixtures.
+- Live `current_firmware_value` remains **UNOBSERVED** until Terminal Management (or authorized API) returns a serial-bound firmware field.
 - Deployment readiness still requires package mapping for `2.0.15.260522`, mutation authority, and restore-path policy disposition.
 
-## Implementation seam ready for next build
+## Implementation seam ready for next live gate
 
-Broaden only after a live observe succeeds or credentials prove the API path:
-
-1. Register command/validator in harness registries if the seam becomes the permanent owner.
-2. Add PFCC Settings-by-serial adapter behind the same observation receipt shape.
-3. Keep AirViewer/ADB as alternate producers of `FirmwareObservation`, not parallel baseline engines.
+1. Operator: Terminal Management → serial `1240473751` → App & Firmware → private capture JSON.
+2. Agent: `Ingest-HHCCReaderPaxstoreUiObservation.cmd --input <capture> --freeze` → `BASELINE_LOCKED`.
+3. Operator: enable External System Integration; bind `SAS_PAXSTORE_*` locally; set `SAS_PAXSTORE_ESTATE_AUTHORITY=OWNED_ADMINISTERING`.
+4. Agent: `Observe-HHCCReaderPaxstoreTerminal.cmd --serial ... --freeze` then `--compare-api` / parity → continue deployment gates.

@@ -1,0 +1,9 @@
+{
+  "serial": "9999999999",
+  "expected_mac": "C840523C93BA",
+  "live_ipv4": "192.168.1.68",
+  "installed_firmware": "A80_PayDroid_should_not_bind",
+  "terminal_status": "Active",
+  "target_package_visible": "UNKNOWN",
+  "current_package_restorable": "UNKNOWN"
+}

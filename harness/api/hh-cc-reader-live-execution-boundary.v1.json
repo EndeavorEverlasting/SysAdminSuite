@@ -68,12 +68,15 @@
     "missing_evidence": "authoritative current_firmware_value for the same Kiosk4 identity",
     "work_class": "EXTERNAL_ACCESS_OR_LIVE_EVIDENCE",
     "expected_route": "LIVE_RUNTIME_OR_OPERATOR_BOUNDARY",
-    "next_action": "Authenticate to the authoritative estate surface and observe current firmware; if unavailable, capture Software versions on the same physical Kiosk4.",
+    "estate_access_disposition": "AUTHORIZED_ACCESS_SETUP_REQUIRED",
+    "next_action": "Observe current firmware in owned PAXSTORE Administrator Center: Terminal Management -> Terminal List -> serial 1240473751 -> App & Firmware -> capture Installed Firmware into private JSON, then Ingest-HHCCReaderPaxstoreUiObservation.cmd --input <capture> --freeze. In parallel/as follow-on enable External System Integration and bind SAS_PAXSTORE_* locally for deterministic Observe-HHCCReaderPaxstoreTerminal.cmd parity.",
     "explicitly_not_next": [
+      "classify missing ESI keys as external CREDENTIAL_GATE when operator owns the estate",
       "generic harness refactor",
       "tracker/publication work",
       "another endpoint/network discovery pass",
-      "generic public package search"
+      "generic public package search",
+      "Push Firmware during observation"
     ]
   },
   "proof_ceiling": "This contract proves deterministic work routing and lane ownership. It does not prove management-plane access, current firmware, mutation authorization, firmware deployment, rollback, or final runtime verification."

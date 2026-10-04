@@ -42,6 +42,8 @@ TERMINAL_BY_SN_PATH = "/v1/3rdsys/terminal"
 ENV_API_KEY = "SAS_PAXSTORE_API_KEY"
 ENV_API_SECRET = "SAS_PAXSTORE_API_SECRET"
 ENV_BASE_URL = "SAS_PAXSTORE_BASE_URL"
+ENV_ESTATE_AUTHORITY = "SAS_PAXSTORE_ESTATE_AUTHORITY"
+ESTATE_AUTHORITY_OWNED = "OWNED_ADMINISTERING"
 VERSION_DOMAIN = "paxstore_installed_firmware_name"
 
 Transport = Callable[[str, dict[str, str]], dict[str, Any]]
@@ -67,7 +69,22 @@ def credentials_from_env(environ: dict[str, str] | None = None) -> dict[str, str
         "api_key": _norm_text(env.get(ENV_API_KEY)),
         "api_secret": _norm_text(env.get(ENV_API_SECRET)),
         "base_url": _norm_text(env.get(ENV_BASE_URL)) or DEFAULT_BASE_URL,
+        "estate_authority": _norm_text(env.get(ENV_ESTATE_AUTHORITY)),
     }
+
+
+def missing_credential_access_state(environ: dict[str, str] | None = None) -> str:
+    """Classify missing ESI credentials by estate ownership.
+
+    AUTHORIZED_ACCESS_SETUP_REQUIRED — operator owns/administers the marketplace
+    and must enable External System Integration / bind local keys.
+
+    CREDENTIAL_GATE — rights belong to an external owner the operator does not possess.
+    """
+    creds = credentials_from_env(environ)
+    if creds.get("estate_authority") == ESTATE_AUTHORITY_OWNED:
+        return "AUTHORIZED_ACCESS_SETUP_REQUIRED"
+    return "CREDENTIAL_GATE"
 
 
 def build_signed_get(
@@ -265,20 +282,34 @@ def observe_terminal_by_sn(
     else:
         creds = credentials_from_env(environ)
         if not creds["api_key"] or not creds["api_secret"]:
+            access_state = missing_credential_access_state(environ)
+            if access_state == "AUTHORIZED_ACCESS_SETUP_REQUIRED":
+                message = (
+                    f"Estate authority is {ESTATE_AUTHORITY_OWNED}: enable PAXSTORE "
+                    "External System Integration, then bind "
+                    f"{ENV_API_KEY}/{ENV_API_SECRET} locally (optional "
+                    f"{ENV_BASE_URL}; default {DEFAULT_BASE_URL}). "
+                    "Missing API keys are setup work, not an external credential gate."
+                )
+            else:
+                message = (
+                    f"Set {ENV_API_KEY} and {ENV_API_SECRET} for an authorized "
+                    "PAXSTORE External System read; optional "
+                    f"{ENV_BASE_URL} (default {DEFAULT_BASE_URL}). "
+                    f"If you own/administer this marketplace, set "
+                    f"{ENV_ESTATE_AUTHORITY}={ESTATE_AUTHORITY_OWNED}."
+                )
             return {
                 "schema": SCHEMA,
                 "artifact": "paxstore-terminal-observation",
-                "access_state": "CREDENTIAL_GATE",
+                "access_state": access_state,
                 "identity_bound": False,
                 "current_firmware_value": None,
                 "version_domain": VERSION_DOMAIN,
                 "mutation_performed": False,
                 "network_contacted": False,
-                "message": (
-                    f"Set {ENV_API_KEY} and {ENV_API_SECRET} for an authorized "
-                    "PAXSTORE External System read; optional "
-                    f"{ENV_BASE_URL} (default {DEFAULT_BASE_URL})."
-                ),
+                "estate_authority": creds.get("estate_authority"),
+                "message": message,
                 "minimum_role": "Readonly Firmware List + Terminal Management / External System Access",
                 "expected_serial": serial,
                 "expected_mac": _norm_mac(expected_mac),
@@ -364,7 +395,7 @@ def main(argv: list[str] | None = None) -> int:
     print(json.dumps(result, indent=2))
     print(f"RECEIPT={path}", file=sys.stderr)
 
-    if result.get("access_state") == "CREDENTIAL_GATE":
+    if result.get("access_state") in ("CREDENTIAL_GATE", "AUTHORIZED_ACCESS_SETUP_REQUIRED"):
         return 3
     if result.get("access_state") == "OBSERVED" and result.get("current_firmware_value"):
         if args.freeze and not (result.get("baseline") or {}).get("baseline_locked"):

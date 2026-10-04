@@ -1,0 +1,16 @@
+{
+  "schema": "sas-hh-cc-reader-paxstore-terminal-observe/v1",
+  "artifact": "paxstore-terminal-observation",
+  "access_state": "OBSERVED",
+  "identity_bound": true,
+  "source_serial": "1240473751",
+  "expected_serial": "1240473751",
+  "returned_mac": "C840523C93BA",
+  "expected_mac": "C840523C93BA",
+  "current_firmware_value": "A80_PayDroid_ui_fixture_firmware_name_NOT_CAMPAIGN_TARGET",
+  "terminal_status": "Active",
+  "last_access_time": "2026-10-03T18:00:00Z",
+  "version_domain": "paxstore_installed_firmware_name",
+  "surface": "paxstore_openapi_getTerminalBySn",
+  "mutation_performed": false
+}
