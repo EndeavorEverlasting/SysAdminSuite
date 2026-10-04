@@ -10,6 +10,18 @@ For PR #142, generated harness output is expected under local output folders fir
 
 Do not treat this folder as a dumping ground. Add only reviewed summaries that are safe to track.
 
+## Latest reviewed H&H evidence
+
+PAXSTORE access-discovery evidence synchronized under P111 on 2026-10-04:
+
+- `docs/HH_CC_READER_PAXSTORE_ACCESS_DISCOVERY.md`
+- `docs/evidence/hh-cc-reader/paxstore/2026-10-04/README.md`
+- `docs/evidence/hh-cc-reader/paxstore/2026-10-04/manifest.json`
+- `docs/evidence/hh-cc-reader/paxstore/2026-10-04/presentation-source-index.md`
+- `docs/evidence/hh-cc-reader/paxstore/2026-10-04/sanitized/*.webp`
+
+Raw screenshots remain in the private H&H Drive evidence workspace; only reviewed sanitized derivatives are tracked.
+
 Current local validation commands:
 
 ```bash
