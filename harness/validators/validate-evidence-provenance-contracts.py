@@ -67,6 +67,29 @@ def tracked(path: Path) -> bool:
     return result.returncode == 0
 
 
+def tracked_basename(name: str) -> bool:
+    result = subprocess.run(
+        ["git", "-C", str(ROOT), "ls-files", "--full-name"],
+        text=True,
+        capture_output=True,
+        check=False,
+    )
+    return result.returncode == 0 and any(
+        Path(path).name == name for path in result.stdout.splitlines()
+    )
+
+
+def parsed_pdf_page_count(path: Path) -> int:
+    try:
+        from pypdf import PdfReader  # type: ignore
+    except ImportError as exc:
+        raise AssertionError(
+            "pypdf is required for PAXSTORE PDF page-count validation; "
+            "install requirements-test.txt"
+        ) from exc
+    return len(PdfReader(str(path)).pages)
+
+
 def satisfied_baseline(**overrides) -> dict:
     inputs = {
         "artifact_run_id": "OLD_RUN",
@@ -232,7 +255,7 @@ def test_paxstore_evidence_manifest_integrity() -> None:
         f"PAXSTORE evidence artifact SHA-256 mismatch: {actual_sha256} != {artifact['sha256']}"
     )
 
-    actual_page_count = len(re.findall(rb"/Type\s*/Page(?!s)\b", artifact_bytes))
+    actual_page_count = parsed_pdf_page_count(artifact_path)
     items = manifest["items"]
     assert actual_page_count == artifact["page_count"], (
         f"PAXSTORE evidence PDF page count mismatch: {actual_page_count} != {artifact['page_count']}"
@@ -264,7 +287,7 @@ def test_paxstore_evidence_manifest_integrity() -> None:
         assert Path(item["raw_source_name"]).name == item["raw_source_name"], (
             f"raw source must be a basename only: {item['photo_id']}"
         )
-        assert not tracked(ROOT / item["raw_source_name"]), (
+        assert not tracked_basename(item["raw_source_name"]), (
             f"raw private capture was accidentally tracked: {item['raw_source_name']}"
         )
         duplicate_of = item.get("sanitized_duplicate_of")
@@ -316,6 +339,11 @@ def test_wiring() -> None:
     assert "Tests/survey/test_evidence_provenance_reuse_contracts.py" in read(OFFLINE)
 
 
+def test_tracked_basename_guard() -> None:
+    assert tracked_basename(Path(__file__).name)
+    assert not tracked_basename("private-paxstore-capture-not-tracked.png")
+
+
 def test_components_are_tracked() -> None:
     for path in (
         REGISTRY, SCHEMA, POLICY, Path(__file__), TEST, HH_DOC, FIELD_SKILL, CI, HH_TEST,
@@ -339,6 +367,7 @@ def main() -> int:
     test_paxstore_evidence_manifest_integrity()
     test_provider_neutrality_and_offline_posture()
     test_wiring()
+    test_tracked_basename_guard()
     test_components_are_tracked()
     print("PASS: evidence provenance reuse and no-restage contracts")
     return 0
