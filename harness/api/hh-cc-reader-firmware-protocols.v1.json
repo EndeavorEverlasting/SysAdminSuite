@@ -1,0 +1,166 @@
+{
+  "schema_version": "sas-hh-cc-reader-firmware-protocols/v1",
+  "version": 1,
+  "status": "IMPLEMENTED",
+  "selection_schema": "sas-hh-cc-reader-firmware-protocol-selection/v1",
+  "purpose": "Model firmware-management protocols as additive, site-selectable adapters so H&H can preserve every credible control plane, rank the next observation path from local evidence, and switch protocol by hospital/device configuration without treating protocol selection as mutation authority.",
+  "owner": {
+    "program": "P95",
+    "repository": "EndeavorEverlasting/SysAdminSuite",
+    "downstream_project_consumer": "EndeavorEverlasting/nyc-hh-fieldops-lab"
+  },
+  "invariants": {
+    "protocols_are_additive_not_mutually_destructive": true,
+    "site_specific_preference_may_reorder_protocols": true,
+    "unobserved_protocols_remain_preserved": true,
+    "selection_never_authorizes_mutation": true,
+    "mutation_requires_separate_authority_and_live_gates": true,
+    "lab_only_protocols_never_auto_select_for_production": true,
+    "paxstore_is_default_fallback_not_global_default": true,
+    "unknown_or_missing_evidence_fails_closed": true,
+    "protocol_switch_does_not_rewrite_prior_protocol_evidence": true,
+    "downstream_tracker_or_presentation_state_cannot_change_technical_selection": true
+  },
+  "default_preference_order": [
+    "experian_control_center",
+    "provider_tms_ntms",
+    "provider_managed_automatic",
+    "paxstore_reseller_push",
+    "pax_partner_paydroid_tool"
+  ],
+  "protocols": {
+    "experian_control_center": {
+      "label": "Experian / AxiaMed Control Center",
+      "control_plane": "REMOTE_HEALTHCARE_DEVICE_MANAGEMENT",
+      "operational_tier": "PREFERRED_WHEN_EVIDENCED",
+      "observation_capabilities": [
+        "CURRENT_VERSION",
+        "PACKAGE_LABELS",
+        "DEVICE_STATE",
+        "REMOTE_MANAGEMENT_STATE"
+      ],
+      "mutation_capabilities": [
+        "REMOTE_UPDATE"
+      ],
+      "required_evidence_any": [
+        "EXPERIAN_CONTROL_CENTER_PRESENT",
+        "AXIAMED_CONTROL_CENTER_PRESENT",
+        "CONTROL_CENTER_DEVICE_ENROLLED"
+      ],
+      "required_authority_for_mutation": [
+        "CONTROL_CENTER_MUTATION_AUTHORIZED"
+      ],
+      "required_gates_for_mutation": [
+        "BASELINE_LOCKED",
+        "RESTORE_PATH_PROVED"
+      ],
+      "presentation_role": "Primary healthcare-estate management candidate when estate evidence binds the reader to Control Center."
+    },
+    "provider_tms_ntms": {
+      "label": "Provider TMS / NTMS",
+      "control_plane": "DEVICE_INITIATED_PROVIDER_TMS",
+      "operational_tier": "PREFERRED_WHEN_EVIDENCED",
+      "observation_capabilities": [
+        "CURRENT_VERSION",
+        "TMS_CONFIGURATION",
+        "PROVIDER_IDENTITY"
+      ],
+      "mutation_capabilities": [
+        "DEVICE_INITIATED_FIRMWARE_PULL"
+      ],
+      "required_evidence_any": [
+        "TMS_ENDPOINT_CONFIGURED",
+        "TMS_TID_PRESENT",
+        "NTMS_AGENT_PRESENT"
+      ],
+      "required_authority_for_mutation": [
+        "TMS_UPDATE_AUTHORIZED"
+      ],
+      "required_gates_for_mutation": [
+        "BASELINE_LOCKED",
+        "RESTORE_PATH_PROVED"
+      ],
+      "presentation_role": "Technical device/provider path; preferred over generic marketplace escalation when the hospital/device is already bound to a TMS."
+    },
+    "provider_managed_automatic": {
+      "label": "Provider-managed automatic update",
+      "control_plane": "PROVIDER_MANAGED_AUTOMATIC",
+      "operational_tier": "PREFERRED_WHEN_PROVIDER_OWNED",
+      "observation_capabilities": [
+        "PROVIDER_UPDATE_POLICY",
+        "CURRENT_VERSION",
+        "UPDATE_HISTORY"
+      ],
+      "mutation_capabilities": [
+        "PROVIDER_TRIGGERED_UPDATE"
+      ],
+      "required_evidence_any": [
+        "PROVIDER_MANAGED_UPDATES_CONFIRMED",
+        "AUTOMATIC_UPDATE_POLICY_OBSERVED"
+      ],
+      "required_authority_for_mutation": [
+        "PROVIDER_UPDATE_REQUEST_AUTHORIZED"
+      ],
+      "required_gates_for_mutation": [
+        "BASELINE_LOCKED",
+        "RESTORE_PATH_PROVED"
+      ],
+      "presentation_role": "Valid when the processor/acquirer owns update delivery and operators do not directly handle a firmware artifact."
+    },
+    "paxstore_reseller_push": {
+      "label": "PAXSTORE reseller / Administrator Center push",
+      "control_plane": "PAXSTORE_REMOTE_PUSH",
+      "operational_tier": "LAST_RESORT_OR_CORROBORATION",
+      "observation_capabilities": [
+        "CURRENT_VERSION",
+        "INSTALLED_APPS",
+        "AVAILABLE_FIRMWARE",
+        "PUSH_HISTORY",
+        "PACKAGE_LABELS"
+      ],
+      "mutation_capabilities": [
+        "REMOTE_FIRMWARE_PUSH"
+      ],
+      "required_evidence_any": [
+        "PAXSTORE_TERMINAL_PRESENT",
+        "PAXSTORE_RESELLER_ENTITLEMENT",
+        "PAXSTORE_ADMINISTRATOR_CENTER_PRESENT"
+      ],
+      "required_authority_for_mutation": [
+        "PAXSTORE_PUSH_AUTHORIZED"
+      ],
+      "required_gates_for_mutation": [
+        "BASELINE_LOCKED",
+        "RESTORE_PATH_PROVED"
+      ],
+      "presentation_role": "Authoritative corroboration, support/email evidence, and production-capable fallback; not the default technical path when a more estate-specific control plane is evidenced."
+    },
+    "pax_partner_paydroid_tool": {
+      "label": "PAX Partner Network / PayDroid Tool",
+      "control_plane": "LOCAL_OR_PARTNER_TOOLING",
+      "operational_tier": "LAB_ONLY",
+      "observation_capabilities": [
+        "PACKAGE_METADATA",
+        "SIGNATURE_METADATA",
+        "DEVICE_BUILD_INFO"
+      ],
+      "mutation_capabilities": [
+        "LOCAL_SIGNED_FIRMWARE_UPDATE"
+      ],
+      "required_evidence_any": [
+        "PAX_PARTNER_TOOL_AVAILABLE",
+        "PAYDROID_TOOL_AVAILABLE"
+      ],
+      "required_authority_for_mutation": [
+        "PARTNER_LAB_MUTATION_AUTHORIZED"
+      ],
+      "required_gates_for_mutation": [
+        "BASELINE_LOCKED",
+        "RESTORE_PATH_PROVED",
+        "CONTROLLED_LAB_TARGET"
+      ],
+      "presentation_role": "Retained technical fallback for authorized lab/partner work; never auto-promoted to a production hospital reader."
+    }
+  },
+  "proof_ceiling": "This contract and selector can prove protocol inventory, evidence-based ranking, site-specific preference behavior, and mutation-readiness gaps. They do not prove live entitlement, a package/version-domain bind, mutation authority, firmware deployment, rollback, or post-update runtime verification."
+}
