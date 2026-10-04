@@ -3,11 +3,15 @@
 from __future__ import annotations
 
 import json
+import sys
 import tempfile
 import unittest
 from pathlib import Path
 
-from harness.api.hh_cc_reader_firmware_protocols import (
+ROOT = Path(__file__).resolve().parents[2]
+sys.path.insert(0, str(ROOT))
+
+from harness.api.hh_cc_reader_firmware_protocols import (  # noqa: E402
     CONTRACT,
     FirmwareProtocolError,
     dispatch_protocol_observation,
@@ -16,7 +20,6 @@ from harness.api.hh_cc_reader_firmware_protocols import (
     select_firmware_protocols,
 )
 
-ROOT = Path(__file__).resolve().parents[2]
 LAUNCHER = ROOT / "Select-HHCCReaderFirmwareProtocol.cmd"
 COMMAND_REGISTRY = ROOT / "harness/api/harness-command-registry.json"
 
