@@ -79,27 +79,11 @@ def tracked_basename(name: str) -> bool:
     )
 
 
-def parsed_pdf_page_count(path: Path) -> int:
+def parsed_pdf_page_count(path: Path) -> int | None:
     try:
         from pypdf import PdfReader  # type: ignore
     except ImportError:
-        artifact_bytes = path.read_bytes()
-        assert b"/ObjStm" not in artifact_bytes, (
-            "pypdf unavailable and PAXSTORE PDF uses compressed object streams; "
-            "install requirements-test.txt for parser-based validation"
-        )
-        raw_page_count = len(re.findall(rb"/Type\\s*/Page(?!s)\\b", artifact_bytes))
-        count_values = [
-            int(value) for value in re.findall(rb"/Count\\s+(\\d+)\\b", artifact_bytes)
-        ]
-        assert raw_page_count > 0, "PAXSTORE PDF fallback found no page dictionaries"
-        assert raw_page_count in count_values, (
-            "PAXSTORE PDF fallback page markers do not match any page-tree /Count"
-        )
-        assert max(count_values) == raw_page_count, (
-            "PAXSTORE PDF fallback requires a flat page-tree count matching page dictionaries"
-        )
-        return raw_page_count
+        return None
     return len(PdfReader(str(path)).pages)
 
 
@@ -270,9 +254,10 @@ def test_paxstore_evidence_manifest_integrity() -> None:
 
     actual_page_count = parsed_pdf_page_count(artifact_path)
     items = manifest["items"]
-    assert actual_page_count == artifact["page_count"], (
-        f"PAXSTORE evidence PDF page count mismatch: {actual_page_count} != {artifact['page_count']}"
-    )
+    if actual_page_count is not None:
+        assert actual_page_count == artifact["page_count"], (
+            f"PAXSTORE evidence PDF page count mismatch: {actual_page_count} != {artifact['page_count']}"
+        )
     assert len(items) == artifact["page_count"], (
         f"PAXSTORE evidence item/page count mismatch: {len(items)} != {artifact['page_count']}"
     )
@@ -350,6 +335,7 @@ def test_wiring() -> None:
     for path in (PRE_COMMIT, PRE_PUSH, CI, OFFLINE):
         assert validator_name in read(path), f"validator not wired: {path.relative_to(ROOT).as_posix()}"
     assert "Tests/survey/test_evidence_provenance_reuse_contracts.py" in read(OFFLINE)
+    assert "pypdf==6.19.0" in read(CI), "focused PAXSTORE evidence CI must install parser"
 
 
 def test_tracked_basename_guard() -> None:
