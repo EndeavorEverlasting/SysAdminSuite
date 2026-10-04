@@ -65,6 +65,10 @@ class FirmwareProtocolContracts(unittest.TestCase):
         self.assertTrue(contract["invariants"]["artifact_acquisition_is_independent_from_observation_and_deployment_transport"])
         self.assertTrue(contract["invariants"]["public_search_absence_is_not_global_package_absence"])
         self.assertTrue(contract["invariants"]["paxstore_presentation_completeness_cannot_block_firmware_execution"])
+        self.assertTrue(contract["invariants"]["observation_refresh_does_not_wait_for_artifact_acquisition"])
+        self.assertEqual(contract["observation_refresh_policy"]["state"], "REPEATABLE_INDEPENDENT_LANE")
+        self.assertIn("BEFORE_CONTROLLED_MUTATION", contract["observation_refresh_policy"]["required_triggers"])
+        self.assertIn("AFTER_CONTROLLED_MUTATION", contract["observation_refresh_policy"]["required_triggers"])
         self.assertEqual(
             contract["dendritic_execution_model"]["axes"],
             ["OBSERVE_CURRENT_STATE", "ACQUIRE_FIRMWARE_ARTIFACT_OR_PROVIDER_DELIVERY", "SELECT_DEPLOYMENT_TRANSPORT"],
