@@ -22,6 +22,15 @@ PAXSTORE access-discovery evidence synchronized under P111 on 2026-10-04:
 
 Raw screenshots remain in the private H&H Drive evidence workspace; the public repo tracks the reviewed 19-page sanitized appendix plus its manifest and source index.
 
+### Kiosk4 local-access / input-method continuity
+
+The current local firmware-baseline continuation was synchronized under P111 on 2026-10-04:
+
+- `docs/HH_CC_READER_KIOSK4_LOCAL_ACCESS_FIELD_GUIDE.md`
+- `docs/plans/hh-cc-p111-kiosk4-local-access-sync-20261004.plan.md`
+
+The private H&H Drive guide owns credentials, live identity binding, and raw field evidence. The public derivative records only the sanitized decision contract: native alphanumeric entry on the observed Kiosk4 path is retired as proved-blocked; the remaining local branch is one bounded input-method-selector check plus one wired-HID classification before pivoting to an authorized management surface. The firmware gate remains `BASELINE_LOCKED / BLOCKED_EVIDENCE` until a labeled, identity-bound current value is captured and classified.
+
 Current local validation commands:
 
 ```bash
