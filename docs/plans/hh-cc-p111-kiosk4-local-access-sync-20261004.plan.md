@@ -123,3 +123,14 @@ Classify-HHCCReaderVersionDomain
   -> Evaluate-HHCCReaderFirmwareRoundtrip baseline
   -> BASELINE_LOCKED or exact fail-closed blocker
 ```
+
+
+## Closeout state — current run
+
+- Private Drive operator guide: WRITTEN + STYLED + READBACK_VERIFIED.
+- Sanitized repository derivative: REMOTE_DURABLE on isolated branch.
+- Privacy readback: PASS for the tracked derivative set; no internal credential value, live reader IP/MAC/serial, or private Drive URL detected.
+- Pull request: #488 OPEN.
+- Repository integration: NOT CLAIMED until provider state proves merge.
+- Private P111 sync receipt: WRITTEN + READBACK_VERIFIED in the H&H 90_SYNC_RECEIPTS lane.
+- Critical path unchanged: labeled installed value -> version-domain classification -> BASELINE_LOCKED.
