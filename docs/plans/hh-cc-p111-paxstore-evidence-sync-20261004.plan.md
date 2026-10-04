@@ -1,6 +1,6 @@
 # P111 PAXSTORE Evidence Synchronization Plan — 2026-10-04
 
-Status: IMPLEMENTED — integration/proof state recorded in PR
+Status: IMPLEMENTED ON BRANCH — PR / integration proof pending
 Floor at start: `main@a026d2d171c1730ccdd36c04ffc46392f2614dd1`
 Owner: H&H CC-reader live firmware program evidence lane
 
@@ -17,7 +17,7 @@ Owner: H&H CC-reader live firmware program evidence lane
 - 19 current PAXSTORE/Developer screenshots.
 - Private Drive run folder + raw evidence packet.
 - Canonical H&H PhotoLog registration.
-- Sanitized WebP derivatives for public Git.
+- Reviewed 19-page sanitized screenshot appendix for public Git; individual raw/sanitized frame sources stay private/staged.
 - Manifest, source index, evidence summary, and latest-evidence pointer.
 - Captured PAXSTORE support/footer metadata plus public PAX corroboration.
 
@@ -34,8 +34,8 @@ Owner: H&H CC-reader live firmware program evidence lane
 
 1. All 19 raw captures have SHA-256 and durable private Drive evidence.
 2. All 19 have canonical PhotoLog rows with proof statement, privacy class, and raw hash.
-3. All 19 public derivatives are reviewed/cropped/redacted and individually tracked.
-4. Manifest maps Photo ID -> raw SHA -> sanitized SHA -> tracked path.
+3. All 19 frames are reviewed/cropped/redacted and represented one-per-page in the tracked sanitized appendix.
+4. Manifest maps Photo ID -> raw SHA -> sanitized-frame SHA -> tracked PDF page.
 5. Sanitized duplicate convergence is recorded rather than hidden.
 6. Repository policy validators accept the tracked evidence.
 7. PR integrates to main before PhotoLog registry status is promoted to Registered.
