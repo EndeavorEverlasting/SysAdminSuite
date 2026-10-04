@@ -27,9 +27,10 @@ Do not promote App Store search behavior into a claim that the account has no po
 Nineteen operator screenshots were ingested through the P111 evidence contract.
 
 - Raw originals remain private in Drive and are bound by SHA-256.
-- Public Git contains reviewed, cropped/redacted WebP derivatives only.
-- Browser address bars/session-looking URLs, personal identity, entered contact/company data, and unrelated Cursor/desktop content were removed from tracked derivatives.
-- Every derivative has a Photo ID plus raw/sanitized hashes in the evidence manifest.
+- Public Git contains one reviewed 19-page sanitized screenshot appendix: `docs/evidence/hh-cc-reader/paxstore/2026-10-04/paxstore-access-discovery-sanitized-review-pack.pdf`.
+- Browser address bars/session-looking URLs, personal identity, entered contact/company data, and unrelated Cursor/desktop content were removed before the appendix was admitted.
+- Every appendix page has a stable Photo ID; `manifest.json` binds each page to its raw SHA-256 and sanitized-frame SHA-256.
+- Appendix SHA-256: `bf56e67a9ff9a96ec1d3416e9d61f48641e68b1704b5e2beb6b9dbd49b5c293f`.
 
 Evidence directory:
 
