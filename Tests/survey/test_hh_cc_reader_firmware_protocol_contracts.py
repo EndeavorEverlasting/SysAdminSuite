@@ -62,6 +62,19 @@ class FirmwareProtocolContracts(unittest.TestCase):
         self.assertTrue(contract["invariants"]["paxstore_is_default_fallback_not_global_default"])
         self.assertTrue(contract["invariants"]["unknown_or_unproven_site_profile_blocks_mutation_readiness"])
         self.assertTrue(contract["invariants"]["observation_dispatch_never_performs_mutation"])
+        self.assertTrue(contract["invariants"]["artifact_acquisition_is_independent_from_observation_and_deployment_transport"])
+        self.assertTrue(contract["invariants"]["public_search_absence_is_not_global_package_absence"])
+        self.assertTrue(contract["invariants"]["paxstore_presentation_completeness_cannot_block_firmware_execution"])
+        self.assertTrue(contract["invariants"]["observation_refresh_does_not_wait_for_artifact_acquisition"])
+        self.assertEqual(contract["observation_refresh_policy"]["state"], "REPEATABLE_INDEPENDENT_LANE")
+        self.assertIn("BEFORE_CONTROLLED_MUTATION", contract["observation_refresh_policy"]["required_triggers"])
+        self.assertIn("AFTER_CONTROLLED_MUTATION", contract["observation_refresh_policy"]["required_triggers"])
+        self.assertEqual(
+            contract["dendritic_execution_model"]["axes"],
+            ["OBSERVE_CURRENT_STATE", "ACQUIRE_FIRMWARE_ARTIFACT_OR_PROVIDER_DELIVERY", "SELECT_DEPLOYMENT_TRANSPORT"],
+        )
+        self.assertEqual(contract["artifact_acquisition"]["sources"]["public_web_research"]["role"], "DISCOVERY_ONLY")
+        self.assertEqual(contract["artifact_acquisition"]["sources"]["paxstore_firmware_list"]["role"], "FALLBACK_OR_CORROBORATION")
         self.assertEqual(contract["protocols"]["paxstore_reseller_push"]["operational_tier"], "LAST_RESORT_OR_CORROBORATION")
         self.assertEqual(contract["protocols"]["pax_partner_paydroid_tool"]["operational_tier"], "LAB_ONLY")
 

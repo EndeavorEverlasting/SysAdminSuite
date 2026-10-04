@@ -54,6 +54,40 @@ A hospital/site profile may reorder known production protocols when current evid
 
 PAXSTORE therefore remains fully represented and production-capable while serving as a default fallback/corroboration path rather than the mandatory first technical path.
 
+## Dendritic execution model — observe / acquire / transport
+
+Firmware execution now has three independent branches that converge only when mutation is ready:
+
+```text
+                         controlled firmware outcome
+                           /        |        \
+                          /         |         \
+              OBSERVE CURRENT   ACQUIRE       TRANSPORT
+                  STATE         PACKAGE/       UPDATE
+                               DELIVERY
+                   |              |              |
+          Control Center     provider/PSP     Control Center
+          provider TMS      TMS catalog      TMS pull
+          provider state    partner portal   provider-managed
+          device-local      vendor support   PAXSTORE fallback
+          PAXSTORE fallback PAXSTORE fallback lab tool
+```
+
+A branch can be supplied by a different authorized system than the others. For example, Kiosk4 current firmware may be observed locally or in Control Center while the package/version mapping comes from the provider or authorized partner channel and deployment uses TMS.
+
+### Artifact-acquisition portfolio
+
+| Acquisition source | Posture | Actionable output |
+| --- | --- | --- |
+| estate provider / acquirer / PSP / ISO support | primary when provider owns delivery | approved package/version mapping, provider-supplied package, or provider-triggered delivery |
+| provider TMS / NTMS catalog | primary when device is TMS-bound | package identity plus device-initiated/provider delivery |
+| authorized PAX partner/dealer portal | authorized artifact source | signed PAX software/firmware plus metadata |
+| PAX/vendor support channel | escalation source | supported version path, package guidance, or correct channel owner |
+| PAXSTORE firmware list | fallback/corroboration | firmware inventory/package labels and optional remote-push candidate |
+| public web | discovery only | protocol manuals, support routes, version-domain clues; never global package-absence proof |
+
+This is why PAXSTORE search completeness is not the technical critical path.
+
 ## Selection contract
 
 Input is sanitized configuration/evidence, not credentials:
@@ -87,6 +121,22 @@ Output includes:
 - `mutation_authorized=false` unconditionally.
 
 `ELIGIBLE_FOR_SEPARATE_MUTATION_DECISION` is not mutation authority. It means only that evidence/authority/gate prerequisites represented by this selector are present and the independent live mutation decision may proceed.
+
+## Repeatable observation refresh
+
+Baseline observation is an independent lane. It does not wait for package acquisition.
+
+Refresh the same reader's authoritative current state:
+
+- before a controlled mutation;
+- after a controlled mutation;
+- when device identity/enrollment changes;
+- when the management plane/provider changes;
+- whenever prior observation is explicitly invalidated.
+
+The observation receipt should bind device identity, current firmware value, version-domain label, observation time, and source protocol.
+
+No universal calendar cadence is hard-coded here. A hospital/provider-specific scheduled cadence may be added later only when the authenticated runtime and its authority are proven. Until then, event-driven refresh is mandatory at the proof transitions above.
 
 ## Site-switch examples
 

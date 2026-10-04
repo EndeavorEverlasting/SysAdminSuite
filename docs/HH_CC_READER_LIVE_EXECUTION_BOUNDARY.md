@@ -52,6 +52,11 @@ current proved live state
         -> DEFER_DOWNSTREAM_PROJECT_WORK
      -> stale repository/runtime
         -> REFRESH_RUNTIME_THEN_CONTINUE
+     -> local research/search capability is insufficient for a proof-relevant technical question
+        -> ESCALATE_RESEARCH_SUCCESSOR
+        -> persist exact question + queries + sources + unresolved hypotheses + missing capability
+        -> execute in the named stronger research runtime
+        -> resume the same gate
      -> mutation authority or safety gap
         -> STOP_MUTATION_RESOLVE_AUTHORITY
 ```
@@ -84,6 +89,8 @@ These are operational boundaries and must not trigger a coding detour:
 - OneDrive unavailability;
 - Google Drive/tracker publication delay;
 - a desire for better generic architecture when the current live command already works.
+
+A limited local web/search runtime is also **not** permission to conclude that an artifact, package, protocol, or answer does not exist. When that limitation blocks a proof-relevant technical question, classify it as `LOCAL_RESEARCH_CAPABILITY_GAP` and emit `ESCALATE_RESEARCH_SUCCESSOR`. The handoff must preserve the exact research question, attempted queries and sources, unresolved hypotheses, missing capabilities, stronger target runtime, and the gate to resume. The successor sprint is the continuation of the technical lane—not a dead-end report.
 
 ## Current Kiosk4 application
 
@@ -147,3 +154,16 @@ The repair does not authorize redesign of unrelated firmware, publication, dashb
 This decision proves lane ownership and deterministic routing only.
 
 It does not prove current Kiosk4 firmware, estate access, package entitlement, mutation authorization, forward deployment, rollback, final target deployment, or runtime verification.
+
+
+## Dendritic firmware execution
+
+The firmware program is not a single vendor funnel. Three branches may advance independently and converge later:
+
+1. **Observe current state** — authoritative current firmware/build and device identity.
+2. **Acquire artifact/provider delivery** — obtain a signed firmware artifact, authoritative package/version mapping, or a provider-owned delivery path from any authorized source.
+3. **Select deployment transport** — Control Center, provider TMS/NTMS, provider-managed delivery, PAXSTORE fallback, or controlled partner/lab tooling as allowed by the site/device context.
+
+The observation source, artifact source, and deployment transport do not need to be the same system. Public-web research is discovery/corroboration only. A public search miss is never global package-absence proof.
+
+PAXSTORE screenshot/page completeness is presentation evidence. It must not block Kiosk4 baseline, firmware acquisition, version-domain binding, restore proof, or controlled deployment through another authorized path.

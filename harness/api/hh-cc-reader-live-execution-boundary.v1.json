@@ -24,7 +24,10 @@
     "harness_preemption_requires_evidence_artifact_sha256_and_gate_binding": true,
     "protocol_selection_preserves_all_configured_paths": true,
     "protocol_selection_never_authorizes_mutation": true,
-    "site_specific_protocol_order_is_allowed": true
+    "site_specific_protocol_order_is_allowed": true,
+    "local_research_capability_gap_must_emit_successor_sprint": true,
+    "research_capability_gap_is_not_terminal_blocker": true,
+    "research_successor_must_preserve_resume_gate": true
   },
   "work_classes": [
     "NONE",
@@ -33,7 +36,8 @@
     "NONBLOCKING_HARNESS_IMPROVEMENT",
     "DOWNSTREAM_PROJECT_OR_PUBLICATION",
     "REPOSITORY_STALENESS",
-    "LIVE_AUTHORITY_OR_SAFETY_GAP"
+    "LIVE_AUTHORITY_OR_SAFETY_GAP",
+    "LOCAL_RESEARCH_CAPABILITY_GAP"
   ],
   "routes": {
     "CONTINUE_LIVE_EXECUTION": {
@@ -63,6 +67,10 @@
     "STOP_MUTATION_RESOLVE_AUTHORITY": {
       "may_preempt_live_execution": false,
       "meaning": "Do not mutate until live authority/safety is resolved. This is an operational authority boundary, not permission for unrelated harness development."
+    },
+    "ESCALATE_RESEARCH_SUCCESSOR": {
+      "may_preempt_live_execution": false,
+      "meaning": "The current runtime cannot complete a proof-relevant technical research question with adequate search/retrieval capability. Persist an exact research handoff and route it to a stronger research runtime as the next technical successor sprint; this is not a dead end and does not restart proven gates."
     }
   },
   "current_kiosk4_example": {
@@ -82,10 +90,27 @@
       "tracker/publication work",
       "another broad endpoint/network discovery pass",
       "submit Push Firmware or another mutation during observation",
-      "auto-promote PAX Partner/PayDroid tooling onto a production hospital reader"
+      "auto-promote PAX Partner/PayDroid tooling onto a production hospital reader",
+      "treat a weak local web-search boundary as a terminal dead end instead of emitting an exact successor research sprint"
     ],
     "protocol_selection_contract": "sas-hh-cc-reader-firmware-protocols/v1",
     "protocol_selection_disposition": "SELECT_NEXT_OBSERVATION_FROM_SITE_EVIDENCE"
   },
-  "proof_ceiling": "This contract proves deterministic work routing and lane ownership. It does not prove management-plane access, current firmware, mutation authorization, firmware deployment, rollback, or final runtime verification."
+  "proof_ceiling": "This contract proves deterministic work routing and lane ownership. It does not prove management-plane access, current firmware, mutation authorization, firmware deployment, rollback, or final runtime verification.",
+  "research_successor_contract": {
+    "required_fields": [
+      "research_question",
+      "attempted_queries",
+      "sources_attempted",
+      "exhausted_findings",
+      "unresolved_hypotheses",
+      "missing_capabilities",
+      "target_runtime",
+      "resume_gate"
+    ],
+    "rule": "A local/opaque runtime must not claim research exhaustion from a capability-limited search. The router returns a structured successor_handoff preserving the exact question, queries and sources attempted, exhausted findings, unresolved hypotheses, capability gaps, stronger target runtime, and gate to resume.",
+    "terminal_blocker": false,
+    "may_infer_global_absence": false,
+    "output_field": "successor_handoff"
+  }
 }

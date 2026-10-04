@@ -23,6 +23,7 @@ WORK_CLASSES = {
     "DOWNSTREAM_PROJECT_OR_PUBLICATION",
     "REPOSITORY_STALENESS",
     "LIVE_AUTHORITY_OR_SAFETY_GAP",
+    "LOCAL_RESEARCH_CAPABILITY_GAP",
 }
 
 ROUTES = {
@@ -33,6 +34,7 @@ ROUTES = {
     "DEFER_DOWNSTREAM_PROJECT_WORK",
     "REFRESH_RUNTIME_THEN_CONTINUE",
     "STOP_MUTATION_RESOLVE_AUTHORITY",
+    "ESCALATE_RESEARCH_SUCCESSOR",
 }
 
 
@@ -47,16 +49,22 @@ class ExecutionRoute:
     resume_gate: str
     next_action: str
     reason: str
+    successor_sprint_required: bool = False
+    successor_handoff: dict[str, Any] | None = None
 
     def as_dict(self) -> dict[str, Any]:
-        return {
+        result = {
             "schema": SCHEMA,
             "route": self.route,
             "may_preempt_live_execution": self.may_preempt_live_execution,
             "resume_gate": self.resume_gate,
             "next_action": self.next_action,
             "reason": self.reason,
+            "successor_sprint_required": self.successor_sprint_required,
         }
+        if self.successor_handoff is not None:
+            result["successor_handoff"] = self.successor_handoff
+        return result
 
 
 def _text(value: Any) -> str:
@@ -191,6 +199,52 @@ def route_work_item(item: dict[str, Any]) -> dict[str, Any]:
             current_gate,
             "Refresh provider/worktree truth without redesigning the program, then resume the same gate.",
             "Runtime freshness is required, but it does not authorize a harness redesign.",
+        ).as_dict()
+
+
+    if work_class == "LOCAL_RESEARCH_CAPABILITY_GAP":
+        for field in ("research_question", "target_runtime"):
+            value = item.get(field)
+            if not isinstance(value, str) or not value.strip():
+                raise ExecutionBoundaryError("research_capability_handoff_incomplete")
+
+        handoff: dict[str, Any] = {
+            "research_question": item["research_question"].strip(),
+            "resume_gate": current_gate,
+            "target_runtime": item["target_runtime"].strip(),
+        }
+        for field in ("attempted_queries", "sources_attempted", "missing_capabilities"):
+            value = item.get(field)
+            if (
+                not isinstance(value, list)
+                or not value
+                or any(not isinstance(entry, str) or not entry.strip() for entry in value)
+            ):
+                raise ExecutionBoundaryError("research_capability_handoff_incomplete")
+            handoff[field] = [entry.strip() for entry in value]
+
+        for field in ("exhausted_findings", "unresolved_hypotheses"):
+            if field not in item:
+                raise ExecutionBoundaryError("research_capability_handoff_incomplete")
+            value = item[field]
+            if (
+                not isinstance(value, list)
+                or any(not isinstance(entry, str) or not entry.strip() for entry in value)
+            ):
+                raise ExecutionBoundaryError("research_capability_handoff_incomplete")
+            handoff[field] = [entry.strip() for entry in value]
+
+        return ExecutionRoute(
+            "ESCALATE_RESEARCH_SUCCESSOR",
+            False,
+            current_gate,
+            (
+                f"Persist the structured successor handoff and execute the research sprint in "
+                f"{handoff['target_runtime']}; then resume {current_gate} without restarting prior proved gates."
+            ),
+            "The current runtime's research capability is insufficient for this proof-relevant question; capability limits are successor work, not global absence or a terminal blocker.",
+            True,
+            handoff,
         ).as_dict()
 
     if work_class == "LIVE_AUTHORITY_OR_SAFETY_GAP":
