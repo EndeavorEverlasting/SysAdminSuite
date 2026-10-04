@@ -21,7 +21,10 @@
     "protocol_switch_does_not_rewrite_prior_protocol_evidence": true,
     "downstream_tracker_or_presentation_state_cannot_change_technical_selection": true,
     "unknown_or_unproven_site_profile_blocks_mutation_readiness": true,
-    "observation_dispatch_never_performs_mutation": true
+    "observation_dispatch_never_performs_mutation": true,
+    "artifact_acquisition_is_independent_from_observation_and_deployment_transport": true,
+    "public_search_absence_is_not_global_package_absence": true,
+    "paxstore_presentation_completeness_cannot_block_firmware_execution": true
   },
   "default_preference_order": [
     "experian_control_center",
@@ -212,5 +215,56 @@
       "disabled_protocols"
     ],
     "rule": "Read-only protocol ranking may proceed without a proven site profile, but mutation readiness must remain BLOCKED_SITE_PROFILE until a proven H&H organization/site profile artifact is supplied. A site override may reorder or disable known protocols without erasing them."
+  },
+  "dendritic_execution_model": {
+    "axes": [
+      "OBSERVE_CURRENT_STATE",
+      "ACQUIRE_FIRMWARE_ARTIFACT_OR_PROVIDER_DELIVERY",
+      "SELECT_DEPLOYMENT_TRANSPORT"
+    ],
+    "rule": "Observation, artifact acquisition/provider delivery, and deployment transport are independent branches. Evidence may come from different authorized sources; no branch is required to use the same provider or portal as another.",
+    "convergence_gate": "Before mutation, bind one authoritative current-state observation, one package/version-domain or provider-delivery proof, one selected transport, a protocol-specific authority signal, and the required restore/live gates.",
+    "presentation_rule": "Render explored, exhausted, fallback, and proven branches dendritically rather than as a single linear PAXSTORE funnel."
+  },
+  "artifact_acquisition": {
+    "state": "MULTI_SOURCE_PORTFOLIO",
+    "sources": {
+      "provider_acquirer_support": {
+        "role": "PRIMARY_WHEN_ESTATE_PROVIDER_OWNS_DELIVERY",
+        "evidence_class": "AUTHORIZED_PROVIDER_CHANNEL",
+        "output": "provider-supplied package, package identity, approved delivery request, or authoritative package/version mapping",
+        "rule": "Use the hospital/acquirer/PSP/ISO support owner when it owns the deployed estate. Acquisition can succeed even when PAXSTORE is not used."
+      },
+      "provider_tms_catalog": {
+        "role": "PRIMARY_WHEN_TMS_BOUND",
+        "evidence_class": "AUTHORIZED_PROVIDER_TMS",
+        "output": "TMS package/version mapping or provider-delivered firmware pull",
+        "rule": "TMS evidence may supply package identity and transport independently of marketplace evidence."
+      },
+      "authorized_pax_partner_portal": {
+        "role": "AUTHORIZED_ARTIFACT_SOURCE",
+        "evidence_class": "AUTHORIZED_PARTNER_CHANNEL",
+        "output": "signed PAX software/firmware artifact and metadata",
+        "rule": "Partner/dealer access is authorization-gated; a public-web miss is not evidence that the authorized portal lacks the artifact."
+      },
+      "pax_support_channel": {
+        "role": "VENDOR_ESCALATION_SOURCE",
+        "evidence_class": "AUTHORIZED_SUPPORT_CHANNEL",
+        "output": "supported version path, package guidance, or channel-owner referral",
+        "rule": "Use for vendor-supported package/version path and large-version-gap guidance."
+      },
+      "paxstore_firmware_list": {
+        "role": "FALLBACK_OR_CORROBORATION",
+        "evidence_class": "AUTHORIZED_PAXSTORE",
+        "output": "firmware inventory/package labels and optional remote-push candidate",
+        "rule": "Useful but not required for the technical critical path."
+      },
+      "public_web_research": {
+        "role": "DISCOVERY_ONLY",
+        "evidence_class": "PUBLIC_CORROBORATION",
+        "output": "protocol-family evidence, manuals, version-domain clues, support routes",
+        "rule": "Failure to find an exact package publicly never proves package absence. Capability-limited search routes to a successor research sprint rather than terminal exhaustion."
+      }
+    }
   }
 }
