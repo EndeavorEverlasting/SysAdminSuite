@@ -1,8 +1,8 @@
 # H&H CC Reader Firmware Observation Program
 
-Status: DESIGNED + THIN PROTOTYPE  
-Date: 2026-10-03  
-Floor: `main` containing P95 + this observe seam  
+Status: DESIGNED + THIN PROTOTYPE
+Date: 2026-10-03
+Floor: `main` containing P95 + this observe seam
 Mission owner: live Kiosk4 firmware deployment (not harness theater)
 
 ## User outcomes / invariants
