@@ -18,9 +18,9 @@ PAXSTORE access-discovery evidence synchronized under P111 on 2026-10-04:
 - `docs/evidence/hh-cc-reader/paxstore/2026-10-04/README.md`
 - `docs/evidence/hh-cc-reader/paxstore/2026-10-04/manifest.json`
 - `docs/evidence/hh-cc-reader/paxstore/2026-10-04/presentation-source-index.md`
-- `docs/evidence/hh-cc-reader/paxstore/2026-10-04/sanitized/*.webp`
+- `docs/evidence/hh-cc-reader/paxstore/2026-10-04/paxstore-access-discovery-sanitized-review-pack.pdf`
 
-Raw screenshots remain in the private H&H Drive evidence workspace; only reviewed sanitized derivatives are tracked.
+Raw screenshots remain in the private H&H Drive evidence workspace; the public repo tracks the reviewed 19-page sanitized appendix plus its manifest and source index.
 
 Current local validation commands:
 
