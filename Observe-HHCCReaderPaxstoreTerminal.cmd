@@ -41,6 +41,8 @@ echo Usage:
 echo   Observe-HHCCReaderPaxstoreTerminal.cmd --serial SERIAL [--expected-mac MAC]
 echo       [--live-ipv4 IPv4] [--freeze] [--fixture JSON] [--output OUT]
 echo.
-echo Without API credentials the seam fails closed with CREDENTIAL_GATE.
-echo Use --fixture for offline contract proof. Live reads require estate keys.
+echo Without API credentials the seam fails closed:
+echo   CREDENTIAL_GATE when estate rights are external/unowned
+echo   AUTHORIZED_ACCESS_SETUP_REQUIRED when SAS_PAXSTORE_ESTATE_AUTHORITY=OWNED_ADMINISTERING
+echo Use --fixture for offline contract proof. Live reads require ESI keys.
 exit /b 2

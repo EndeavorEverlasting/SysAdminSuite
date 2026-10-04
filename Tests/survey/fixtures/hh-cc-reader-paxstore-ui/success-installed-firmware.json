@@ -1,0 +1,19 @@
+{
+  "serial": "1240473751",
+  "mac": "C840523C93BA",
+  "expected_mac": "C840523C93BA",
+  "live_ipv4": "192.168.1.68",
+  "installed_firmware": "A80_PayDroid_ui_fixture_firmware_name_NOT_CAMPAIGN_TARGET",
+  "firmware_install_time": "2026-01-15T12:00:00Z",
+  "terminal_status": "Active",
+  "last_access_time": "2026-10-03T18:00:00Z",
+  "model_name": "A80",
+  "terminal_name": "fixture-kiosk4",
+  "tid": "BTG7KFTY",
+  "target_package_visible": "YES",
+  "target_package_id": "fixture-pkg-260522",
+  "target_package_version": "2.0.15.260522",
+  "current_package_restorable": "YES",
+  "restorable_package_id": "fixture-pkg-current",
+  "freshness_notes": "fixture capture only"
+}

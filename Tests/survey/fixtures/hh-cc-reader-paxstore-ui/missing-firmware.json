@@ -1,0 +1,10 @@
+{
+  "serial": "1240473751",
+  "mac": "C840523C93BA",
+  "expected_mac": "C840523C93BA",
+  "live_ipv4": "192.168.1.68",
+  "installed_firmware": null,
+  "terminal_status": "Active",
+  "target_package_visible": "NO",
+  "current_package_restorable": "UNKNOWN"
+}

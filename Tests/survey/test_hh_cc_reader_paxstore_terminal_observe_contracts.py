@@ -35,6 +35,20 @@ def test_credential_gate_without_env() -> None:
     assert result["mutation_performed"] is False
 
 
+def test_owned_estate_missing_keys_is_setup_required() -> None:
+    result = observe_terminal_by_sn(
+        serial_no=SERIAL,
+        expected_mac=MAC,
+        environ={"SAS_PAXSTORE_ESTATE_AUTHORITY": "OWNED_ADMINISTERING"},
+    )
+    assert result["access_state"] == "AUTHORIZED_ACCESS_SETUP_REQUIRED"
+    assert result["network_contacted"] is False
+    assert result["current_firmware_value"] is None
+    assert result["mutation_performed"] is False
+    assert result["estate_authority"] == "OWNED_ADMINISTERING"
+    assert "setup work" in result["message"].lower()
+
+
 def test_fixture_success_maps_firmware_and_domain() -> None:
     result = observe_terminal_by_sn(
         serial_no=SERIAL,
