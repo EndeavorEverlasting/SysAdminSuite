@@ -16,6 +16,8 @@ ROOT = Path(__file__).resolve().parents[2]
 CONTRACT = ROOT / "harness/api/hh-cc-reader-firmware-protocols.v1.json"
 SCHEMA = "sas-hh-cc-reader-firmware-protocol-selection/v1"
 DISPATCH_SCHEMA = "sas-hh-cc-reader-firmware-protocol-dispatch/v1"
+RECEIPT_SCHEMA = "sas-hh-cc-reader-firmware-protocol-receipt/v1"
+DEFAULT_RECEIPT_DIR = ROOT / "survey/output/hh-cc-reader"
 
 
 class FirmwareProtocolError(ValueError):
@@ -333,6 +335,37 @@ def _load_json_object(path: Path) -> dict[str, Any]:
     return payload
 
 
+def write_dispatch_receipt(
+    payload: dict[str, Any],
+    *,
+    output_path: Path | None = None,
+) -> Path:
+    """Persist one ignored local read-only selection/dispatch receipt."""
+    from datetime import datetime, timezone
+    import secrets
+
+    if output_path is None:
+        DEFAULT_RECEIPT_DIR.mkdir(parents=True, exist_ok=True)
+        stamp = datetime.now(timezone.utc).strftime("%Y%m%d-%H%M%S")
+        output_path = DEFAULT_RECEIPT_DIR / (
+            f"hh-cc-reader-firmware-protocol-{stamp}-{secrets.token_hex(4)}.json"
+        )
+    else:
+        output_path = output_path.expanduser().resolve()
+        output_path.parent.mkdir(parents=True, exist_ok=True)
+
+    receipt = {
+        "schema": RECEIPT_SCHEMA,
+        "mutation": "NONE",
+        **payload,
+    }
+    output_path.write_text(
+        json.dumps(receipt, indent=2, sort_keys=True) + "\n",
+        encoding="utf-8",
+    )
+    return output_path
+
+
 def main(argv: list[str] | None = None) -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     sub = parser.add_subparsers(dest="command", required=True)
@@ -342,6 +375,7 @@ def main(argv: list[str] | None = None) -> int:
     select.add_argument("--input", required=True, type=Path)
     dispatch = sub.add_parser("dispatch")
     dispatch.add_argument("--input", required=True, type=Path)
+    dispatch.add_argument("--output", type=Path)
 
     args = parser.parse_args(argv)
     try:
@@ -354,11 +388,12 @@ def main(argv: list[str] | None = None) -> int:
             }
         else:
             payload = _load_json_object(args.input)
-            output = (
-                select_firmware_protocols(payload)
-                if args.command == "select"
-                else select_and_dispatch(payload)
-            )
+            if args.command == "select":
+                output = select_firmware_protocols(payload)
+            else:
+                output = select_and_dispatch(payload)
+                receipt_path = write_dispatch_receipt(output, output_path=args.output)
+                output = {**output, "receipt_path": str(receipt_path)}
         print(json.dumps(output, indent=2, sort_keys=True))
         return 0
     except (OSError, json.JSONDecodeError, FirmwareProtocolError) as exc:
