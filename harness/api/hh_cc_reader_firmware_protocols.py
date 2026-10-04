@@ -104,9 +104,70 @@ def load_protocol_contract(path: Path = CONTRACT) -> dict[str, Any]:
         "paxstore_is_default_fallback_not_global_default",
         "unknown_or_unproven_site_profile_blocks_mutation_readiness",
         "observation_dispatch_never_performs_mutation",
+        "presentation_is_projection_not_authority",
+        "version_evidence_capture_defaults_fail_closed",
+        "presentation_projection_never_promotes_technical_evidence",
     ):
         if invariants.get(required_true) is not True:
             raise FirmwareProtocolError(f"required_invariant_missing:{required_true}")
+
+    capture_contract = payload.get("version_evidence_capture_contract")
+    if not isinstance(capture_contract, dict):
+        raise FirmwareProtocolError("version_evidence_capture_contract_required")
+    if capture_contract.get("schema_version") != "sas-hh-cc-reader-kiosk4-version-evidence-capture/v1":
+        raise FirmwareProtocolError("version_evidence_capture_schema_invalid")
+    if capture_contract.get("default_capture_state") != "AWAITING_FIELD_OBSERVATION":
+        raise FirmwareProtocolError("version_evidence_capture_default_must_fail_closed")
+    if capture_contract.get("classifier_input_key") != "labeled_observations":
+        raise FirmwareProtocolError("version_evidence_capture_classifier_input_invalid")
+    if capture_contract.get("classifier_required_observation_fields") != ["section", "field_heading", "value"]:
+        raise FirmwareProtocolError("version_evidence_capture_classifier_keys_invalid")
+    capture_rules = capture_contract.get("rules")
+    if not isinstance(capture_rules, dict):
+        raise FirmwareProtocolError("version_evidence_capture_rules_required")
+    for rule in (
+        "template_contains_no_live_identity",
+        "template_contains_no_current_firmware_value",
+        "template_labeled_observations_start_empty",
+        "campaign_target_must_not_be_prefilled_as_current",
+        "capture_must_use_classifier_native_keys",
+        "mutation_authorized_must_default_false",
+        "presentation_projection_is_downstream_only",
+        "presentation_may_not_infer_missing_firmware_or_baseline_state",
+    ):
+        if capture_rules.get(rule) is not True:
+            raise FirmwareProtocolError(f"version_evidence_capture_rule_missing:{rule}")
+
+    showcase = payload.get("presentation_showcase_contract")
+    if not isinstance(showcase, dict):
+        raise FirmwareProtocolError("presentation_showcase_contract_required")
+    showcase_rules = showcase.get("rules")
+    if not isinstance(showcase_rules, dict):
+        raise FirmwareProtocolError("presentation_showcase_rules_required")
+    for rule in (
+        "presentation_is_not_a_technical_authority",
+        "only_typed_source_states_may_be_projected",
+        "unknown_and_blocked_states_must_remain_explicit",
+        "downstream_presentation_cannot_select_protocol_or_authorize_mutation",
+        "successful_visual_narrative_must_not_promote_unproven_runtime_state",
+    ):
+        if showcase_rules.get(rule) is not True:
+            raise FirmwareProtocolError(f"presentation_showcase_rule_missing:{rule}")
+    projection = showcase.get("state_projection")
+    if not isinstance(projection, dict):
+        raise FirmwareProtocolError("presentation_showcase_state_projection_required")
+    expected_projection = {
+        "AWAITING_FIELD_OBSERVATION": "BLOCKED_EVIDENCE",
+        "INPUT_PATH_CLASSIFIED": "PARTIAL",
+        "LABELED_OBSERVATION_CAPTURED": "PARTIAL",
+        "VERSION_DOMAIN_CLASSIFIED": "PARTIAL",
+        "BASELINE_LOCKED": "PROVEN",
+    }
+    for state, typed_state in expected_projection.items():
+        row = projection.get(state)
+        if not isinstance(row, dict) or row.get("typed_state") != typed_state:
+            raise FirmwareProtocolError(f"presentation_showcase_projection_invalid:{state}")
+
     return payload
 
 
