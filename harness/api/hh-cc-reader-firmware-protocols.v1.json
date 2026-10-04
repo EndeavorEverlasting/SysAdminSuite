@@ -24,7 +24,8 @@
     "observation_dispatch_never_performs_mutation": true,
     "artifact_acquisition_is_independent_from_observation_and_deployment_transport": true,
     "public_search_absence_is_not_global_package_absence": true,
-    "paxstore_presentation_completeness_cannot_block_firmware_execution": true
+    "paxstore_presentation_completeness_cannot_block_firmware_execution": true,
+    "observation_refresh_does_not_wait_for_artifact_acquisition": true
   },
   "default_preference_order": [
     "experian_control_center",
@@ -266,5 +267,31 @@
         "rule": "Failure to find an exact package publicly never proves package absence. Capability-limited search routes to a successor research sprint rather than terminal exhaustion."
       }
     }
+  },
+  "observation_refresh_policy": {
+    "state": "REPEATABLE_INDEPENDENT_LANE",
+    "fixed_calendar_cadence": null,
+    "rule": "Refresh authoritative current-state observation independently of package acquisition or mutation planning. A site/provider-specific scheduled cadence may be added only when its authenticated runtime and authority are proven.",
+    "required_triggers": [
+      "BEFORE_CONTROLLED_MUTATION",
+      "AFTER_CONTROLLED_MUTATION",
+      "DEVICE_IDENTITY_OR_ENROLLMENT_CHANGED",
+      "MANAGEMENT_PLANE_OR_PROVIDER_CHANGED",
+      "PRIOR_OBSERVATION_INVALIDATED"
+    ],
+    "allowed_sources": [
+      "experian_control_center",
+      "provider_tms_ntms",
+      "provider_managed_automatic",
+      "device_local_software_versions",
+      "paxstore_reseller_push"
+    ],
+    "proof_output": [
+      "device_identity_binding",
+      "current_firmware_value",
+      "version_domain_label",
+      "observed_at",
+      "source_protocol"
+    ]
   }
 }
