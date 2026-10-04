@@ -57,7 +57,9 @@
         "portal_footer_build_label",
         "portal_footer_build_semantics",
         "keyword_result_sets_captured",
-        "terminal_management_app_search_hit"
+        "terminal_search_pages_captured",
+        "terminal_search_pages_unobserved",
+        "terminal_management_app_search_state"
       ],
       "properties": {
         "support_email": {
@@ -80,8 +82,26 @@
             "minLength": 1
           }
         },
-        "terminal_management_app_search_hit": {
-          "type": "boolean"
+        "terminal_search_pages_captured": {
+          "type": "array",
+          "minItems": 1,
+          "uniqueItems": true,
+          "items": {
+            "type": "integer",
+            "minimum": 1
+          }
+        },
+        "terminal_search_pages_unobserved": {
+          "type": "array",
+          "minItems": 1,
+          "uniqueItems": true,
+          "items": {
+            "type": "integer",
+            "minimum": 1
+          }
+        },
+        "terminal_management_app_search_state": {
+          "const": "UNKNOWN_INCOMPLETE_RESULT_SET"
         }
       }
     },
