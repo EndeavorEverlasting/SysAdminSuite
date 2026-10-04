@@ -82,11 +82,24 @@ def tracked_basename(name: str) -> bool:
 def parsed_pdf_page_count(path: Path) -> int:
     try:
         from pypdf import PdfReader  # type: ignore
-    except ImportError as exc:
-        raise AssertionError(
-            "pypdf is required for PAXSTORE PDF page-count validation; "
-            "install requirements-test.txt"
-        ) from exc
+    except ImportError:
+        artifact_bytes = path.read_bytes()
+        assert b"/ObjStm" not in artifact_bytes, (
+            "pypdf unavailable and PAXSTORE PDF uses compressed object streams; "
+            "install requirements-test.txt for parser-based validation"
+        )
+        raw_page_count = len(re.findall(rb"/Type\\s*/Page(?!s)\\b", artifact_bytes))
+        count_values = [
+            int(value) for value in re.findall(rb"/Count\\s+(\\d+)\\b", artifact_bytes)
+        ]
+        assert raw_page_count > 0, "PAXSTORE PDF fallback found no page dictionaries"
+        assert raw_page_count in count_values, (
+            "PAXSTORE PDF fallback page markers do not match any page-tree /Count"
+        )
+        assert max(count_values) == raw_page_count, (
+            "PAXSTORE PDF fallback requires a flat page-tree count matching page dictionaries"
+        )
+        return raw_page_count
     return len(PdfReader(str(path)).pages)
 
 
