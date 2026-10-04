@@ -1,0 +1,249 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://sysadminsuite.invalid/schemas/harness/hh-cc-reader-paxstore-evidence-manifest.schema.json",
+  "title": "H&H CC reader PAXSTORE sanitized evidence manifest",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema",
+    "authority_packet_id",
+    "date",
+    "raw_authority",
+    "repository_visibility",
+    "evidence_semantics",
+    "captured_portal_facts",
+    "public_corroboration",
+    "non_claims",
+    "items",
+    "repository_artifact",
+    "capture_time_semantics"
+  ],
+  "properties": {
+    "schema": {
+      "const": "sas-hh-cc-reader-paxstore-evidence-manifest/v1"
+    },
+    "authority_packet_id": {
+      "type": "string",
+      "pattern": "^HHCC-PAXSTORE-[0-9]{8}-[0-9]{3}$"
+    },
+    "date": {
+      "type": "string",
+      "format": "date"
+    },
+    "raw_authority": {
+      "const": "external_private_google_drive_evidence_packet"
+    },
+    "repository_visibility": {
+      "const": "public"
+    },
+    "evidence_semantics": {
+      "type": "array",
+      "minItems": 4,
+      "uniqueItems": true,
+      "items": {
+        "enum": [
+          "CAPTURED_FACT",
+          "EXTERNAL_CORROBORATION",
+          "INFERENCE",
+          "UNRESOLVED"
+        ]
+      }
+    },
+    "captured_portal_facts": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "support_email",
+        "portal_footer_build_label",
+        "portal_footer_build_semantics",
+        "keyword_result_sets_captured",
+        "terminal_search_pages_captured",
+        "terminal_search_pages_unobserved",
+        "terminal_management_app_search_state"
+      ],
+      "properties": {
+        "support_email": {
+          "type": "string",
+          "format": "email"
+        },
+        "portal_footer_build_label": {
+          "type": "string",
+          "minLength": 4
+        },
+        "portal_footer_build_semantics": {
+          "const": "CAPTURED_UI_LABEL_ONLY"
+        },
+        "keyword_result_sets_captured": {
+          "type": "array",
+          "minItems": 1,
+          "uniqueItems": true,
+          "items": {
+            "type": "string",
+            "minLength": 1
+          }
+        },
+        "terminal_search_pages_captured": {
+          "type": "array",
+          "minItems": 1,
+          "uniqueItems": true,
+          "items": {
+            "type": "integer",
+            "minimum": 1
+          }
+        },
+        "terminal_search_pages_unobserved": {
+          "type": "array",
+          "minItems": 1,
+          "uniqueItems": true,
+          "items": {
+            "type": "integer",
+            "minimum": 1
+          }
+        },
+        "terminal_management_app_search_state": {
+          "const": "UNKNOWN_INCOMPLETE_RESULT_SET"
+        }
+      }
+    },
+    "public_corroboration": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "source",
+          "url",
+          "claim"
+        ],
+        "properties": {
+          "source": {
+            "type": "string",
+            "minLength": 3
+          },
+          "url": {
+            "type": "string",
+            "format": "uri"
+          },
+          "claim": {
+            "type": "string",
+            "minLength": 12
+          }
+        }
+      }
+    },
+    "non_claims": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "type": "string",
+        "minLength": 12
+      }
+    },
+    "repository_artifact": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "path",
+        "sha256",
+        "page_count",
+        "format",
+        "review_state"
+      ],
+      "properties": {
+        "path": {
+          "type": "string",
+          "pattern": "^docs/evidence/hh-cc-reader/paxstore/[0-9]{4}-[0-9]{2}-[0-9]{2}/[^/]+\\.pdf$"
+        },
+        "sha256": {
+          "type": "string",
+          "pattern": "^[0-9a-f]{64}$"
+        },
+        "page_count": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "format": {
+          "const": "application/pdf"
+        },
+        "review_state": {
+          "const": "RENDER_VERIFIED_SANITIZED"
+        }
+      }
+    },
+    "capture_time_semantics": {
+      "type": "string",
+      "minLength": 24
+    },
+    "items": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "photo_id",
+          "raw_source_name",
+          "raw_sha256",
+          "privacy_class_raw",
+          "privacy_treatment",
+          "what_it_proves",
+          "captured_at",
+          "source_filename_timestamp",
+          "sanitized_frame_sha256",
+          "tracked_artifact",
+          "tracked_page"
+        ],
+        "properties": {
+          "photo_id": {
+            "type": "string",
+            "pattern": "^PHOTO-[0-9]{8}-[0-9]{3}$"
+          },
+          "raw_source_name": {
+            "type": "string",
+            "pattern": "^[^/\\\\]+\\.(?:png|jpg|jpeg|webp)$"
+          },
+          "raw_sha256": {
+            "type": "string",
+            "pattern": "^[0-9a-f]{64}$"
+          },
+          "privacy_class_raw": {
+            "const": "PRIVATE / DO-NOT-SYNC"
+          },
+          "privacy_treatment": {
+            "type": "string",
+            "minLength": 24
+          },
+          "what_it_proves": {
+            "type": "string",
+            "minLength": 12
+          },
+          "captured_at": {
+            "type": "string",
+            "minLength": 12
+          },
+          "source_filename_timestamp": {
+            "type": "string",
+            "pattern": "^[0-9]{6}$"
+          },
+          "sanitized_frame_sha256": {
+            "type": "string",
+            "pattern": "^[0-9a-f]{64}$"
+          },
+          "tracked_artifact": {
+            "type": "string",
+            "minLength": 12
+          },
+          "tracked_page": {
+            "type": "integer",
+            "minimum": 1
+          },
+          "sanitized_duplicate_of": {
+            "type": "string",
+            "pattern": "^PHOTO-[0-9]{8}-[0-9]{3}$"
+          }
+        }
+      }
+    }
+  }
+}

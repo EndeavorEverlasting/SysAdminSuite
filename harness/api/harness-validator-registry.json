@@ -159,9 +159,12 @@
         ".claude/skills/field-workflow/SKILL.md",
         "Tests/survey/test_hh_cc_reader_field_probe_contracts.py",
         ".githooks/**",
-        ".github/workflows/evidence-provenance-contracts.yml"
+        ".github/workflows/evidence-provenance-contracts.yml",
+        "docs/evidence/hh-cc-reader/paxstore/2026-10-04/manifest.json",
+        "schemas/harness/hh-cc-reader-paxstore-evidence-manifest.schema.json",
+        "docs/evidence/hh-cc-reader/paxstore/2026-10-04/paxstore-access-discovery-sanitized-review-pack.pdf"
       ],
-      "proof": "Artifact provenance and discriminator satisfaction stay separate states, a PRIOR_RUN artifact can satisfy a current discriminator without RUN_ID mutation, missing same-run duplication alone never forces restage, explicit invalidation and conflict still reopen or block reuse, cross-window reuse fails closed, and the H&H and field-workflow bindings plus hook, offline, and CI wiring are present."
+      "proof": "Artifact provenance and discriminator satisfaction stay separate states; prior evidence reuse remains fail-closed; the PAXSTORE P111 evidence manifest is schema-validated and its tracked sanitized PDF SHA-256, page count, one-to-one Photo ID/page bindings, privacy class, and duplicate-frame provenance are verified offline."
     },
     {
       "id": "hh-cc-reader-firmware-policy-contracts",
