@@ -1,0 +1,19 @@
+{
+  "schema": "sas-hh-cc-reader-kiosk4-version-evidence-capture/v1",
+  "capture_state": "AWAITING_FIELD_OBSERVATION",
+  "source_protocol": null,
+  "source_surface": null,
+  "navigation_path": [],
+  "observed_at": null,
+  "identity_binding_reference": null,
+  "input_gate": {
+    "ime_selector_state": "NOT_OBSERVED",
+    "wired_hid_state": "NOT_OBSERVED",
+    "credential_state": "NOT_ATTEMPTED"
+  },
+  "labeled_observations": [],
+  "version_domain_state": "VERSION_DOMAIN_UNRESOLVED",
+  "baseline_state": "BLOCKED_EVIDENCE",
+  "mutation_authorized": false,
+  "notes": []
+}
