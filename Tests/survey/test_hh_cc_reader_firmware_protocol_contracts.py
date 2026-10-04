@@ -18,6 +18,7 @@ from harness.api.hh_cc_reader_firmware_protocols import (
 
 ROOT = Path(__file__).resolve().parents[2]
 LAUNCHER = ROOT / "Select-HHCCReaderFirmwareProtocol.cmd"
+COMMAND_REGISTRY = ROOT / "harness/api/harness-command-registry.json"
 
 
 def proven_site(
@@ -190,6 +191,16 @@ class FirmwareProtocolContracts(unittest.TestCase):
         self.assertIn(" dispatch --input ", text)
         self.assertIn("exit /b %ERRORLEVEL%", text)
         self.assertIn("Protocol selection NEVER authorizes firmware mutation.", text)
+
+    def test_launcher_is_registered_as_read_only_command(self) -> None:
+        registry = json.loads(COMMAND_REGISTRY.read_text(encoding="utf-8"))
+        row = next(
+            item for item in registry["commands"]
+            if item["id"] == "hh-cc-reader-firmware-protocol-select"
+        )
+        self.assertEqual(row["source_of_truth"], "Select-HHCCReaderFirmwareProtocol.cmd")
+        self.assertEqual(row["mutation"], "none")
+        self.assertFalse(row["network"])
 
     def test_contract_file_is_valid_json(self) -> None:
         payload = json.loads(CONTRACT.read_text(encoding="utf-8"))
