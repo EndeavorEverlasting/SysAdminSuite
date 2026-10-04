@@ -1,9 +1,9 @@
 #!/usr/bin/env python3
-"""P95 additive firmware-protocol selector for H&H CC-reader work.
+"""P95 additive firmware-protocol selector and read-only dispatcher.
 
-The selector ranks the next protocol to observe from site/device evidence while
-preserving every configured protocol as a candidate. It never performs a live
-mutation and never turns protocol selection into mutation authorization.
+Ranks the next observation protocol from site/device evidence while preserving
+all configured paths. Selection and dispatch never perform or authorize a live
+firmware mutation.
 """
 from __future__ import annotations
 
@@ -15,6 +15,7 @@ from typing import Any
 ROOT = Path(__file__).resolve().parents[2]
 CONTRACT = ROOT / "harness/api/hh-cc-reader-firmware-protocols.v1.json"
 SCHEMA = "sas-hh-cc-reader-firmware-protocol-selection/v1"
+DISPATCH_SCHEMA = "sas-hh-cc-reader-firmware-protocol-dispatch/v1"
 
 
 class FirmwareProtocolError(ValueError):
@@ -36,6 +37,8 @@ def _string_list(value: Any, field: str) -> list[str]:
 
 def load_protocol_contract(path: Path = CONTRACT) -> dict[str, Any]:
     payload = json.loads(path.read_text(encoding="utf-8"))
+    if not isinstance(payload, dict):
+        raise FirmwareProtocolError("protocol_contract_root_must_be_object")
     if payload.get("schema_version") != "sas-hh-cc-reader-firmware-protocols/v1":
         raise FirmwareProtocolError("unsupported_protocol_contract")
     if payload.get("status") != "IMPLEMENTED":
@@ -53,6 +56,12 @@ def load_protocol_contract(path: Path = CONTRACT) -> dict[str, Any]:
     if set(default_order) != set(protocols):
         raise FirmwareProtocolError("default_preference_order_must_cover_catalog")
 
+    profile_contract = payload.get("site_profile_contract")
+    if not isinstance(profile_contract, dict):
+        raise FirmwareProtocolError("site_profile_contract_required")
+    if profile_contract.get("required_for_mutation_readiness") is not True:
+        raise FirmwareProtocolError("site_profile_must_gate_mutation_readiness")
+
     for protocol_id, spec in protocols.items():
         if not isinstance(spec, dict):
             raise FirmwareProtocolError(f"protocol_spec_invalid:{protocol_id}")
@@ -65,25 +74,23 @@ def load_protocol_contract(path: Path = CONTRACT) -> dict[str, Any]:
             "required_evidence_any",
             "required_authority_for_mutation",
             "required_gates_for_mutation",
+            "observation_dispatch",
             "presentation_role",
         ):
             if field not in spec:
-                raise FirmwareProtocolError(
-                    f"protocol_field_missing:{protocol_id}:{field}"
-                )
+                raise FirmwareProtocolError(f"protocol_field_missing:{protocol_id}:{field}")
         _string_list(spec["observation_capabilities"], f"{protocol_id}.observation_capabilities")
         _string_list(spec["mutation_capabilities"], f"{protocol_id}.mutation_capabilities")
         evidence = _string_list(spec["required_evidence_any"], f"{protocol_id}.required_evidence_any")
         if not evidence:
             raise FirmwareProtocolError(f"protocol_evidence_signal_required:{protocol_id}")
-        _string_list(
-            spec["required_authority_for_mutation"],
-            f"{protocol_id}.required_authority_for_mutation",
-        )
-        _string_list(
-            spec["required_gates_for_mutation"],
-            f"{protocol_id}.required_gates_for_mutation",
-        )
+        _string_list(spec["required_authority_for_mutation"], f"{protocol_id}.required_authority_for_mutation")
+        _string_list(spec["required_gates_for_mutation"], f"{protocol_id}.required_gates_for_mutation")
+        dispatch = spec["observation_dispatch"]
+        if not isinstance(dispatch, dict) or not str(dispatch.get("mode") or "").strip():
+            raise FirmwareProtocolError(f"observation_dispatch_invalid:{protocol_id}")
+        if not str(dispatch.get("next_action") or "").strip():
+            raise FirmwareProtocolError(f"observation_dispatch_action_required:{protocol_id}")
 
     invariants = payload.get("invariants", {})
     for required_true in (
@@ -93,22 +100,58 @@ def load_protocol_contract(path: Path = CONTRACT) -> dict[str, Any]:
         "selection_never_authorizes_mutation",
         "lab_only_protocols_never_auto_select_for_production",
         "paxstore_is_default_fallback_not_global_default",
+        "unknown_or_unproven_site_profile_blocks_mutation_readiness",
+        "observation_dispatch_never_performs_mutation",
     ):
         if invariants.get(required_true) is not True:
             raise FirmwareProtocolError(f"required_invariant_missing:{required_true}")
     return payload
 
 
-def _resolved_order(
-    catalog: dict[str, Any],
-    preference_order: list[str],
-) -> list[str]:
+def _validate_site_profile(value: Any, catalog: dict[str, Any]) -> dict[str, Any] | None:
+    if value is None:
+        return None
+    if not isinstance(value, dict):
+        raise FirmwareProtocolError("site_profile_must_be_object_or_null")
+
+    contract = catalog["site_profile_contract"]
+    missing = [
+        field for field in contract["required_fields"]
+        if not isinstance(value.get(field), str) or not str(value.get(field)).strip()
+    ]
+    if missing:
+        raise FirmwareProtocolError("site_profile_missing_fields:" + ",".join(sorted(missing)))
+
+    if value["organization_id"] != contract["organization_id"]:
+        raise FirmwareProtocolError("site_profile_wrong_organization")
+    if value["scope_type"] not in contract["allowed_scope_types"]:
+        raise FirmwareProtocolError("site_profile_scope_type_invalid")
+
+    profile = {
+        "profile_id": value["profile_id"].strip(),
+        "organization_id": value["organization_id"],
+        "scope_type": value["scope_type"],
+        "status": value["status"],
+        "profile_authority_ref": value["profile_authority_ref"].strip(),
+        "site_id": None,
+        "preference_order": _string_list(value.get("preference_order"), "site_profile.preference_order"),
+        "disabled_protocols": _string_list(value.get("disabled_protocols"), "site_profile.disabled_protocols"),
+    }
+    if value.get("site_id") is not None:
+        if not isinstance(value["site_id"], str) or not value["site_id"].strip():
+            raise FirmwareProtocolError("site_profile_site_id_must_be_non_empty_string_or_null")
+        profile["site_id"] = value["site_id"].strip()
+
+    if profile["scope_type"] == "site_override" and profile["site_id"] is None:
+        raise FirmwareProtocolError("site_override_requires_site_id")
+    return profile
+
+
+def _resolved_order(catalog: dict[str, Any], preference_order: list[str]) -> list[str]:
     known = set(catalog["protocols"])
     unknown = [protocol_id for protocol_id in preference_order if protocol_id not in known]
     if unknown:
-        raise FirmwareProtocolError(
-            "unknown_protocol_in_preference_order:" + ",".join(unknown)
-        )
+        raise FirmwareProtocolError("unknown_protocol_in_preference_order:" + ",".join(unknown))
     resolved = list(preference_order)
     for protocol_id in catalog["default_preference_order"]:
         if protocol_id not in resolved:
@@ -121,19 +164,7 @@ def select_firmware_protocols(
     *,
     contract_path: Path = CONTRACT,
 ) -> dict[str, Any]:
-    """Return an additive, evidence-ranked protocol selection receipt.
-
-    Input keys:
-      site_profile_id: optional sanitized identifier
-      evidence_signals: observed technical/control-plane signals
-      authority_signals: independently proven mutation-authority signals
-      proven_gates: live execution gates already proven
-      preference_order: optional site-specific ordering of known protocol IDs
-      disabled_protocols: optional site-policy exclusions; excluded protocols
-        remain present in the output rather than disappearing.
-
-    The output always sets mutation_authorized=false.
-    """
+    """Return an additive, evidence-ranked protocol selection receipt."""
     if not isinstance(context, dict):
         raise FirmwareProtocolError("selection_context_must_be_object")
 
@@ -141,19 +172,20 @@ def select_firmware_protocols(
     evidence_signals = set(_string_list(context.get("evidence_signals"), "evidence_signals"))
     authority_signals = set(_string_list(context.get("authority_signals"), "authority_signals"))
     proven_gates = set(_string_list(context.get("proven_gates"), "proven_gates"))
-    preference_order = _string_list(context.get("preference_order"), "preference_order")
-    disabled_protocols = set(
-        _string_list(context.get("disabled_protocols"), "disabled_protocols")
-    )
+    site_profile = _validate_site_profile(context.get("site_profile"), catalog)
 
+    preference_order = site_profile["preference_order"] if site_profile else []
+    disabled_protocols = set(site_profile["disabled_protocols"] if site_profile else [])
     known = set(catalog["protocols"])
     unknown_disabled = sorted(disabled_protocols - known)
     if unknown_disabled:
-        raise FirmwareProtocolError(
-            "unknown_disabled_protocol:" + ",".join(unknown_disabled)
-        )
+        raise FirmwareProtocolError("unknown_disabled_protocol:" + ",".join(unknown_disabled))
 
     order = _resolved_order(catalog, preference_order)
+    profile_proven = bool(
+        site_profile
+        and site_profile["status"] == catalog["site_profile_contract"]["proven_status"]
+    )
     candidates: list[dict[str, Any]] = []
 
     for rank, protocol_id in enumerate(order, start=1):
@@ -173,15 +205,17 @@ def select_firmware_protocols(
         else:
             observation_state = "UNOBSERVED"
 
-        required_authority = set(spec["required_authority_for_mutation"])
-        missing_authority = sorted(required_authority - authority_signals)
-        required_gates = set(spec["required_gates_for_mutation"])
-        missing_gates = sorted(required_gates - proven_gates)
+        missing_authority = sorted(
+            set(spec["required_authority_for_mutation"]) - authority_signals
+        )
+        missing_gates = sorted(set(spec["required_gates_for_mutation"]) - proven_gates)
 
         if disabled:
             mutation_readiness = "BLOCKED_SITE_POLICY"
         elif not evidence_observed:
             mutation_readiness = "BLOCKED_EVIDENCE"
+        elif not profile_proven:
+            mutation_readiness = "BLOCKED_SITE_PROFILE"
         elif lab_only and "CONTROLLED_LAB_TARGET" in missing_gates:
             mutation_readiness = "BLOCKED_LAB_BOUNDARY"
         elif missing_authority:
@@ -191,36 +225,31 @@ def select_firmware_protocols(
         else:
             mutation_readiness = "ELIGIBLE_FOR_SEPARATE_MUTATION_DECISION"
 
-        candidates.append(
-            {
-                "protocol_id": protocol_id,
-                "label": spec["label"],
-                "rank": rank,
-                "control_plane": spec["control_plane"],
-                "operational_tier": spec["operational_tier"],
-                "observation_state": observation_state,
-                "matched_evidence_signals": matched_evidence,
-                "required_evidence_any": spec["required_evidence_any"],
-                "mutation_readiness": mutation_readiness,
-                "missing_authority_signals": missing_authority,
-                "missing_gates": missing_gates,
-                "observation_capabilities": spec["observation_capabilities"],
-                "mutation_capabilities": spec["mutation_capabilities"],
-                "presentation_role": spec["presentation_role"],
-            }
-        )
+        candidates.append({
+            "protocol_id": protocol_id,
+            "label": spec["label"],
+            "rank": rank,
+            "control_plane": spec["control_plane"],
+            "operational_tier": spec["operational_tier"],
+            "observation_state": observation_state,
+            "matched_evidence_signals": matched_evidence,
+            "required_evidence_any": spec["required_evidence_any"],
+            "mutation_readiness": mutation_readiness,
+            "missing_authority_signals": missing_authority,
+            "missing_gates": missing_gates,
+            "observation_capabilities": spec["observation_capabilities"],
+            "mutation_capabilities": spec["mutation_capabilities"],
+            "presentation_role": spec["presentation_role"],
+        })
 
     evidenced_production = [
-        candidate
-        for candidate in candidates
+        candidate for candidate in candidates
         if candidate["observation_state"] == "EVIDENCED"
     ]
     evidenced_lab = [
-        candidate
-        for candidate in candidates
+        candidate for candidate in candidates
         if candidate["observation_state"] == "LAB_ONLY_EVIDENCED"
     ]
-
     primary = evidenced_production[0]["protocol_id"] if evidenced_production else None
     if primary is not None:
         selection_state = "EVIDENCED_PROTOCOL_SELECTED"
@@ -229,30 +258,79 @@ def select_firmware_protocols(
     else:
         selection_state = "NO_EVIDENCED_PROTOCOL"
 
-    evidenced_fallbacks = [
-        candidate["protocol_id"]
-        for candidate in evidenced_production
-        if candidate["protocol_id"] != primary
-    ]
-
-    site_profile_id = context.get("site_profile_id")
-    if site_profile_id is not None and (
-        not isinstance(site_profile_id, str) or not site_profile_id.strip()
-    ):
-        raise FirmwareProtocolError("site_profile_id_must_be_non_empty_string_or_null")
-
     return {
         "schema": SCHEMA,
-        "site_profile_id": site_profile_id.strip() if isinstance(site_profile_id, str) else None,
+        "site_profile": site_profile,
+        "site_profile_proven": profile_proven,
         "selection_state": selection_state,
         "primary_protocol": primary,
-        "evidenced_fallback_protocols": evidenced_fallbacks,
+        "evidenced_fallback_protocols": [
+            candidate["protocol_id"] for candidate in evidenced_production
+            if candidate["protocol_id"] != primary
+        ],
         "preserved_protocols": [candidate["protocol_id"] for candidate in candidates],
         "candidate_count": len(candidates),
         "candidates": candidates,
         "mutation_authorized": False,
         "proof_ceiling": catalog["proof_ceiling"],
     }
+
+
+def dispatch_protocol_observation(
+    selection: dict[str, Any],
+    *,
+    contract_path: Path = CONTRACT,
+) -> dict[str, Any]:
+    """Translate a selection receipt into one read-only observation route."""
+    if not isinstance(selection, dict) or selection.get("schema") != SCHEMA:
+        raise FirmwareProtocolError("valid_selection_receipt_required")
+    if selection.get("mutation_authorized") is not False:
+        raise FirmwareProtocolError("selection_receipt_must_deny_mutation")
+
+    catalog = load_protocol_contract(contract_path)
+    primary = selection.get("primary_protocol")
+    if primary is None:
+        return {
+            "schema": DISPATCH_SCHEMA,
+            "dispatch_state": "NO_PRODUCTION_PROTOCOL_SELECTED",
+            "protocol_id": None,
+            "mode": "READONLY_DISCOVERY",
+            "front_door": None,
+            "alternate_front_door": None,
+            "next_action": "Collect additional site/device management-plane evidence; do not mutate the reader.",
+            "mutation_authorized": False,
+        }
+    if primary not in catalog["protocols"]:
+        raise FirmwareProtocolError("selection_primary_protocol_unknown")
+
+    route = catalog["protocols"][primary]["observation_dispatch"]
+    return {
+        "schema": DISPATCH_SCHEMA,
+        "dispatch_state": "READONLY_OBSERVATION_READY",
+        "protocol_id": primary,
+        "mode": route["mode"],
+        "front_door": route.get("front_door"),
+        "alternate_front_door": route.get("alternate_front_door"),
+        "next_action": route["next_action"],
+        "mutation_authorized": False,
+    }
+
+
+def select_and_dispatch(
+    context: dict[str, Any],
+    *,
+    contract_path: Path = CONTRACT,
+) -> dict[str, Any]:
+    selection = select_firmware_protocols(context, contract_path=contract_path)
+    dispatch = dispatch_protocol_observation(selection, contract_path=contract_path)
+    return {"selection": selection, "dispatch": dispatch}
+
+
+def _load_json_object(path: Path) -> dict[str, Any]:
+    payload = json.loads(path.read_text(encoding="utf-8"))
+    if not isinstance(payload, dict):
+        raise FirmwareProtocolError("input_root_must_be_object")
+    return payload
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -262,6 +340,8 @@ def main(argv: list[str] | None = None) -> int:
     sub.add_parser("validate-contract")
     select = sub.add_parser("select")
     select.add_argument("--input", required=True, type=Path)
+    dispatch = sub.add_parser("dispatch")
+    dispatch.add_argument("--input", required=True, type=Path)
 
     args = parser.parse_args(argv)
     try:
@@ -273,8 +353,12 @@ def main(argv: list[str] | None = None) -> int:
                 "protocol_count": len(contract["protocols"]),
             }
         else:
-            payload = json.loads(args.input.read_text(encoding="utf-8"))
-            output = select_firmware_protocols(payload)
+            payload = _load_json_object(args.input)
+            output = (
+                select_firmware_protocols(payload)
+                if args.command == "select"
+                else select_and_dispatch(payload)
+            )
         print(json.dumps(output, indent=2, sort_keys=True))
         return 0
     except (OSError, json.JSONDecodeError, FirmwareProtocolError) as exc:
