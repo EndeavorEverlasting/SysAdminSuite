@@ -9,6 +9,7 @@ still reopen or block reuse.
 """
 from __future__ import annotations
 
+import hashlib
 import ipaddress
 import json
 import re
@@ -28,6 +29,8 @@ PRE_COMMIT = ROOT / ".githooks/pre-commit"
 PRE_PUSH = ROOT / ".githooks/pre-push"
 OFFLINE = ROOT / "tests/survey/run_offline_survey_tests.sh"
 CI = ROOT / ".github/workflows/evidence-provenance-contracts.yml"
+PAXSTORE_MANIFEST = ROOT / "docs/evidence/hh-cc-reader/paxstore/2026-10-04/manifest.json"
+PAXSTORE_SCHEMA = ROOT / "schemas/harness/hh-cc-reader-paxstore-evidence-manifest.schema.json"
 
 PROVIDER_MARKERS = (
     "drive" + ".google.com",
@@ -203,6 +206,76 @@ def test_bindings_resolve() -> None:
     assert "SATISFIED_BY_PRIOR_PROVENANCE" in read(HH_TEST)
 
 
+
+def test_paxstore_evidence_manifest_integrity() -> None:
+    manifest = load(PAXSTORE_MANIFEST)
+    schema = load(PAXSTORE_SCHEMA)
+    assert manifest["schema"] == "sas-hh-cc-reader-paxstore-evidence-manifest/v1"
+    assert schema["$schema"].endswith("draft/2020-12/schema")
+    assert schema["properties"]["schema"]["const"] == manifest["schema"]
+
+    try:
+        import jsonschema  # type: ignore
+    except ImportError:
+        pass
+    else:
+        jsonschema.Draft202012Validator(schema).validate(manifest)
+
+    artifact = manifest["repository_artifact"]
+    artifact_path = ROOT / artifact["path"]
+    assert artifact_path.is_file(), f"PAXSTORE evidence artifact missing: {artifact['path']}"
+    assert tracked(artifact_path), f"PAXSTORE evidence artifact is not tracked: {artifact['path']}"
+
+    artifact_bytes = artifact_path.read_bytes()
+    actual_sha256 = hashlib.sha256(artifact_bytes).hexdigest()
+    assert actual_sha256 == artifact["sha256"], (
+        f"PAXSTORE evidence artifact SHA-256 mismatch: {actual_sha256} != {artifact['sha256']}"
+    )
+
+    actual_page_count = len(re.findall(rb"/Type\s*/Page(?!s)\b", artifact_bytes))
+    items = manifest["items"]
+    assert actual_page_count == artifact["page_count"], (
+        f"PAXSTORE evidence PDF page count mismatch: {actual_page_count} != {artifact['page_count']}"
+    )
+    assert len(items) == artifact["page_count"], (
+        f"PAXSTORE evidence item/page count mismatch: {len(items)} != {artifact['page_count']}"
+    )
+
+    photo_ids = [item["photo_id"] for item in items]
+    pages = [item["tracked_page"] for item in items]
+    assert len(photo_ids) == len(set(photo_ids)), "duplicate PAXSTORE evidence Photo ID"
+    assert len(pages) == len(set(pages)), "duplicate PAXSTORE evidence PDF page binding"
+    assert sorted(pages) == list(range(1, artifact["page_count"] + 1)), (
+        "PAXSTORE evidence pages must bind exactly once from 1..page_count"
+    )
+
+    by_photo_id = {item["photo_id"]: item for item in items}
+    sha256_pattern = re.compile(r"^[0-9a-f]{64}$")
+    for item in items:
+        assert item["tracked_artifact"] == artifact["path"], (
+            f"Photo ID points at a different tracked artifact: {item['photo_id']}"
+        )
+        assert sha256_pattern.fullmatch(item["raw_sha256"]), f"invalid raw hash: {item['photo_id']}"
+        assert sha256_pattern.fullmatch(item["sanitized_frame_sha256"]), (
+            f"invalid sanitized-frame hash: {item['photo_id']}"
+        )
+        assert item["privacy_class_raw"] == "PRIVATE / DO-NOT-SYNC"
+        assert "captured_at_et" not in item, f"fabricated timezone field returned: {item['photo_id']}"
+        assert Path(item["raw_source_name"]).name == item["raw_source_name"], (
+            f"raw source must be a basename only: {item['photo_id']}"
+        )
+        assert not tracked(ROOT / item["raw_source_name"]), (
+            f"raw private capture was accidentally tracked: {item['raw_source_name']}"
+        )
+        duplicate_of = item.get("sanitized_duplicate_of")
+        if duplicate_of:
+            assert duplicate_of in by_photo_id, f"unknown duplicate target: {duplicate_of}"
+            assert duplicate_of != item["photo_id"], f"self duplicate: {item['photo_id']}"
+            assert item["sanitized_frame_sha256"] == by_photo_id[duplicate_of]["sanitized_frame_sha256"], (
+                f"duplicate sanitized hash mismatch: {item['photo_id']} -> {duplicate_of}"
+            )
+
+
 def test_provider_neutrality_and_offline_posture() -> None:
     # HH_TEST intentionally holds the provider-marker literal for its own scan;
     # it audits only the tracked field docs, so it is excluded from this join.
@@ -232,6 +305,9 @@ def test_wiring() -> None:
         "harness/api/evidence_provenance_policy.py",
         "docs/HH_CC_READER_NETSTAT_BASELINE.md",
         ".claude/skills/field-workflow/SKILL.md",
+        "docs/evidence/hh-cc-reader/paxstore/2026-10-04/manifest.json",
+        "schemas/harness/hh-cc-reader-paxstore-evidence-manifest.schema.json",
+        "docs/evidence/hh-cc-reader/paxstore/2026-10-04/paxstore-access-discovery-sanitized-review-pack.pdf",
     ):
         assert required_scope in entry["scope"], f"validator scope missing: {required_scope}"
     validator_name = "validate-evidence-provenance-contracts.py"
@@ -241,7 +317,11 @@ def test_wiring() -> None:
 
 
 def test_components_are_tracked() -> None:
-    for path in (REGISTRY, SCHEMA, POLICY, Path(__file__), TEST, HH_DOC, FIELD_SKILL, CI, HH_TEST):
+    for path in (
+        REGISTRY, SCHEMA, POLICY, Path(__file__), TEST, HH_DOC, FIELD_SKILL, CI, HH_TEST,
+        PAXSTORE_MANIFEST, PAXSTORE_SCHEMA,
+        ROOT / "docs/evidence/hh-cc-reader/paxstore/2026-10-04/paxstore-access-discovery-sanitized-review-pack.pdf",
+    ):
         assert tracked(path), f"evidence-provenance component is not tracked: {path.relative_to(ROOT)}"
 
 
@@ -256,6 +336,7 @@ def main() -> int:
 
     test_semantic_invariants(evaluate)
     test_bindings_resolve()
+    test_paxstore_evidence_manifest_integrity()
     test_provider_neutrality_and_offline_posture()
     test_wiring()
     test_components_are_tracked()
