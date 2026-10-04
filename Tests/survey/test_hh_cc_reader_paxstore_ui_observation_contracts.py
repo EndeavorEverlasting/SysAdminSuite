@@ -41,7 +41,11 @@ def test_ui_success_maps_firmware_and_freezes_baseline() -> None:
     assert result["surface"] == "paxstore_terminal_ui_app_firmware"
     assert result["network_contacted"] is False
     assert result["mutation_performed"] is False
-    assert result["package_mapping"]["state"] == "PROVEN"
+    # Campaign package visible without labeled domain bind remains PARTIAL.
+    assert result["package_mapping"]["state"] == "PARTIAL"
+    assert result["package_mapping"]["campaign_target_domain_state"] == (
+        "VERSION_DOMAIN_UNRESOLVED"
+    )
     assert result["restore_disposition"]["current_package_restorable"] == "YES"
     assert result["baseline"]["baseline_locked"] is True
     assert result["baseline"]["state"] == "BASELINE_LOCKED"
@@ -124,3 +128,39 @@ def test_package_mapping_proven_requires_campaign_version() -> None:
     capture["target_package_version"] = "9.9.9.999999"
     result = ingest_ui_observation(capture, expected_serial=SERIAL, expected_mac=MAC)
     assert result["package_mapping"]["state"] == "PARTIAL"
+
+
+def test_labeled_dual_domain_capture_binds_campaign_and_can_prove_package() -> None:
+    capture = {
+        "serial": SERIAL,
+        "mac": MAC,
+        "live_ipv4": "192.168.1.68",
+        "labeled_observations": [
+            {
+                "section": "Installed Firmware",
+                "field_heading": "Installed Firmware",
+                "value": "PX7A_A80_PayDroid_fixture_NOT_CAMPAIGN",
+            },
+            {
+                "section": "Push App",
+                "field_heading": "Available Version",
+                "package_name": "PaymentSafe",
+                "package_id": "pkg-260522",
+                "value": "2.0.15.260522",
+            },
+        ],
+        "target_package_visible": "YES",
+        "target_package_id": "pkg-260522",
+        "target_package_version": "2.0.15.260522",
+        "target_push_surface": "Push App",
+        "current_package_restorable": "UNKNOWN",
+    }
+    result = ingest_ui_observation(capture, expected_serial=SERIAL, expected_mac=MAC, freeze=True)
+    assert result["access_state"] == "OBSERVED"
+    assert result["version_domain"] == "paydroid_os_build"
+    assert result["version_domain_evaluation"]["campaign_target_domain_state"] == "BOUND"
+    assert result["version_domain_evaluation"]["campaign_target_version_domain"] == (
+        "experian_control_center_payment_package"
+    )
+    assert result["package_mapping"]["state"] == "PROVEN"
+    assert result["baseline"]["state"] == "BASELINE_LOCKED"
