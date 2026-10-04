@@ -16,6 +16,7 @@ AUTHENTICATED_PAXSTORE_SURFACE = APP_STORE
 GLOBAL_DEVELOPER_ONBOARDING = OBSERVED
 ADMINISTRATOR_CENTER_ENTITLEMENT = UNPROVEN
 TERMINAL_MANAGEMENT_ENTITLEMENT = UNPROVEN
+TERMINAL_MANAGEMENT_APP_SEARCH = UNKNOWN_INCOMPLETE_RESULT_SET
 KIOSK4_CURRENT_FIRMWARE = UNOBSERVED
 BASELINE_LOCKED = BLOCKED
 ```
@@ -28,9 +29,9 @@ Nineteen operator screenshots were ingested through the P111 evidence contract.
 
 - Raw originals remain private in Drive and are bound by SHA-256.
 - Public Git contains one reviewed 19-page sanitized screenshot appendix: `docs/evidence/hh-cc-reader/paxstore/2026-10-04/paxstore-access-discovery-sanitized-review-pack.pdf`.
-- Browser address bars/session-looking URLs, personal identity, entered contact/company data, and unrelated Cursor/desktop content were removed before the appendix was admitted.
+- Browser address/navigation chrome, personal identity, entered contact/company data, and unrelated Cursor/desktop content were removed before the appendix was admitted. The final reviewed appendix contains no captured browser URL.
 - Every appendix page has a stable Photo ID; `manifest.json` binds each page to its raw SHA-256 and sanitized-frame SHA-256.
-- Appendix SHA-256: `bf56e67a9ff9a96ec1d3416e9d61f48641e68b1704b5e2beb6b9dbd49b5c293f`.
+- Appendix SHA-256: `a8ff9d35204de3ed1bc0f0e070c9a20d4874575025219c27c3663f39502acb3c`.
 
 Evidence directory:
 
@@ -41,7 +42,7 @@ Evidence directory:
 1. **Developer registration is a separate path.** The Global Developer flow requests company/business-registration information and a Business License/Certificate of Incorporation image.
 2. **The authenticated portal surface reached is the App Store.** Its visible search control returns applications.
 3. Searches were captured for `Terminal`, `BroadPOS`, `Center`, and `PAXSTORE`.
-4. `Terminal Management` did not appear through the App Store application-search path.
+4. In the captured `Terminal` catalog pages (1–6 and 8), `Terminal Management` was not observed. Page 7 was not captured, so the exhaustive catalog result is `UNKNOWN_INCOMPLETE_RESULT_SET`.
 5. `BroadPOS` produced BroadPOS-named applications rather than Administrator Center navigation.
 6. `Center` produced five captured pages of application results.
 7. The portal footer visibly exposes PAXSTORE support email `paxstore.support@pax.us`.
