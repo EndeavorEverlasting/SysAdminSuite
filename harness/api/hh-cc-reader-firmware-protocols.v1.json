@@ -19,7 +19,9 @@
     "paxstore_is_default_fallback_not_global_default": true,
     "unknown_or_missing_evidence_fails_closed": true,
     "protocol_switch_does_not_rewrite_prior_protocol_evidence": true,
-    "downstream_tracker_or_presentation_state_cannot_change_technical_selection": true
+    "downstream_tracker_or_presentation_state_cannot_change_technical_selection": true,
+    "unknown_or_unproven_site_profile_blocks_mutation_readiness": true,
+    "observation_dispatch_never_performs_mutation": true
   },
   "default_preference_order": [
     "experian_control_center",
@@ -54,7 +56,12 @@
         "BASELINE_LOCKED",
         "RESTORE_PATH_PROVED"
       ],
-      "presentation_role": "Primary healthcare-estate management candidate when estate evidence binds the reader to Control Center."
+      "presentation_role": "Primary healthcare-estate management candidate when estate evidence binds the reader to Control Center.",
+      "observation_dispatch": {
+        "mode": "EXTERNAL_READONLY_UI",
+        "front_door": null,
+        "next_action": "Open the authorized Experian/AxiaMed Control Center for the same reader and capture current version, package/domain labels, enrollment state, and update/history metadata without submitting an update."
+      }
     },
     "provider_tms_ntms": {
       "label": "Provider TMS / NTMS",
@@ -80,7 +87,12 @@
         "BASELINE_LOCKED",
         "RESTORE_PATH_PROVED"
       ],
-      "presentation_role": "Technical device/provider path; preferred over generic marketplace escalation when the hospital/device is already bound to a TMS."
+      "presentation_role": "Technical device/provider path; preferred over generic marketplace escalation when the hospital/device is already bound to a TMS.",
+      "observation_dispatch": {
+        "mode": "DEVICE_LOCAL_READONLY_UI",
+        "front_door": null,
+        "next_action": "On the same authorized reader, inspect the existing TMS/NTMS configuration and software/firmware information without changing endpoint, TID, policy, or requesting an update."
+      }
     },
     "provider_managed_automatic": {
       "label": "Provider-managed automatic update",
@@ -105,7 +117,12 @@
         "BASELINE_LOCKED",
         "RESTORE_PATH_PROVED"
       ],
-      "presentation_role": "Valid when the processor/acquirer owns update delivery and operators do not directly handle a firmware artifact."
+      "presentation_role": "Valid when the processor/acquirer owns update delivery and operators do not directly handle a firmware artifact.",
+      "observation_dispatch": {
+        "mode": "PROVIDER_READONLY_CONFIRMATION",
+        "front_door": null,
+        "next_action": "Use the authorized provider/acquirer support surface to confirm current version, update policy, and update history for the same reader without requesting an update."
+      }
     },
     "paxstore_reseller_push": {
       "label": "PAXSTORE reseller / Administrator Center push",
@@ -133,7 +150,13 @@
         "BASELINE_LOCKED",
         "RESTORE_PATH_PROVED"
       ],
-      "presentation_role": "Authoritative corroboration, support/email evidence, and production-capable fallback; not the default technical path when a more estate-specific control plane is evidenced."
+      "presentation_role": "Authoritative corroboration, support/email evidence, and production-capable fallback; not the default technical path when a more estate-specific control plane is evidenced.",
+      "observation_dispatch": {
+        "mode": "PAXSTORE_READONLY_OBSERVATION",
+        "front_door": "Observe-HHCCReaderPaxstoreTerminal.cmd",
+        "alternate_front_door": "Ingest-HHCCReaderPaxstoreUiObservation.cmd",
+        "next_action": "Observe the same terminal in authorized PAXSTORE Administrator Center/OpenAPI and capture installed firmware/apps plus labeled package evidence without submitting Push Firmware/App."
+      }
     },
     "pax_partner_paydroid_tool": {
       "label": "PAX Partner Network / PayDroid Tool",
@@ -159,8 +182,35 @@
         "RESTORE_PATH_PROVED",
         "CONTROLLED_LAB_TARGET"
       ],
-      "presentation_role": "Retained technical fallback for authorized lab/partner work; never auto-promoted to a production hospital reader."
+      "presentation_role": "Retained technical fallback for authorized lab/partner work; never auto-promoted to a production hospital reader.",
+      "observation_dispatch": {
+        "mode": "LAB_ONLY_READONLY_INSPECTION",
+        "front_door": null,
+        "next_action": "On an explicitly controlled lab target with authorized partner tooling, inspect package/signature/build metadata only; do not use this route on a production hospital reader."
+      }
     }
   },
-  "proof_ceiling": "This contract and selector can prove protocol inventory, evidence-based ranking, site-specific preference behavior, and mutation-readiness gaps. They do not prove live entitlement, a package/version-domain bind, mutation authority, firmware deployment, rollback, or post-update runtime verification."
+  "proof_ceiling": "This contract and selector can prove protocol inventory, evidence-based ranking, site-specific preference behavior, and mutation-readiness gaps. They do not prove live entitlement, a package/version-domain bind, mutation authority, firmware deployment, rollback, or post-update runtime verification.",
+  "site_profile_contract": {
+    "required_for_mutation_readiness": true,
+    "organization_id": "health-and-hospitals",
+    "allowed_scope_types": [
+      "organization_default",
+      "site_override"
+    ],
+    "proven_status": "PROVEN",
+    "required_fields": [
+      "profile_id",
+      "organization_id",
+      "scope_type",
+      "status",
+      "profile_authority_ref"
+    ],
+    "optional_fields": [
+      "site_id",
+      "preference_order",
+      "disabled_protocols"
+    ],
+    "rule": "Read-only protocol ranking may proceed without a proven site profile, but mutation readiness must remain BLOCKED_SITE_PROFILE until a proven H&H organization/site profile artifact is supplied. A site override may reorder or disable known protocols without erasing them."
+  }
 }
