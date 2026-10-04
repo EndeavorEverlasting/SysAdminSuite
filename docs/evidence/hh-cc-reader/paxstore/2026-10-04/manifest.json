@@ -20,7 +20,19 @@
       "Center",
       "PAXSTORE"
     ],
-    "terminal_management_app_search_hit": false
+    "terminal_search_pages_captured": [
+      1,
+      2,
+      3,
+      4,
+      5,
+      6,
+      8
+    ],
+    "terminal_search_pages_unobserved": [
+      7
+    ],
+    "terminal_management_app_search_state": "UNKNOWN_INCOMPLETE_RESULT_SET"
   },
   "public_corroboration": [
     {
@@ -45,7 +57,7 @@
     }
   ],
   "non_claims": [
-    "App Store search results do not prove absence of all Administrator Center entitlements.",
+    "Terminal search page 7 was not captured; the catalog result is UNKNOWN_INCOMPLETE_RESULT_SET and cannot support an exhaustive negative claim about Terminal Management.",
     "These captures do not prove membership in the estate that owns Kiosk4.",
     "These captures do not prove Kiosk4 current firmware or installed app/package state.",
     "The captured v11.0.4_20260814180314 footer string is not promoted to official release semantics."
@@ -256,7 +268,7 @@
       "what_it_proves": "Center keyword result page 3 of five.",
       "captured_at": "2026-10-04 (operator session; exact source timezone not asserted)",
       "source_filename_timestamp": "072501",
-      "sanitized_frame_sha256": "1abcd88e9e0f49e9ffccd48f70c8906e1db720c3710a5a24500b744baa2c59e8",
+      "sanitized_frame_sha256": "8eb91a2d49a6b6a227afeb35c342d4fc1eefc9b26afacb2c1456ca72a4ffc2ca",
       "tracked_artifact": "docs/evidence/hh-cc-reader/paxstore/2026-10-04/paxstore-access-discovery-sanitized-review-pack.pdf",
       "tracked_page": 16
     },
@@ -269,7 +281,7 @@
       "what_it_proves": "Center keyword result page 4 of five.",
       "captured_at": "2026-10-04 (operator session; exact source timezone not asserted)",
       "source_filename_timestamp": "072521",
-      "sanitized_frame_sha256": "9e5e33e60129e389cd8ef9ed1adf0ef64042871a231ca0288495780cc8fe0b18",
+      "sanitized_frame_sha256": "72fd79bc78d193a4cbd44927a7fb253a30d0048549f0f0a39d35d65d21735105",
       "tracked_artifact": "docs/evidence/hh-cc-reader/paxstore/2026-10-04/paxstore-access-discovery-sanitized-review-pack.pdf",
       "tracked_page": 17
     },
@@ -282,7 +294,7 @@
       "what_it_proves": "Center keyword result page 5 of five; unrelated workspace cropped.",
       "captured_at": "2026-10-04 (operator session; exact source timezone not asserted)",
       "source_filename_timestamp": "072614",
-      "sanitized_frame_sha256": "72c3a34305fde5c60847592f8590b9ae8637a6696e78f7011324f6d71f1bcc8f",
+      "sanitized_frame_sha256": "b55cffc20db24be75eb532b3da60cc8af6c80a7eb2cbd0d4606060c83e0643aa",
       "tracked_artifact": "docs/evidence/hh-cc-reader/paxstore/2026-10-04/paxstore-access-discovery-sanitized-review-pack.pdf",
       "tracked_page": 18
     },
@@ -302,7 +314,7 @@
   ],
   "repository_artifact": {
     "path": "docs/evidence/hh-cc-reader/paxstore/2026-10-04/paxstore-access-discovery-sanitized-review-pack.pdf",
-    "sha256": "bf56e67a9ff9a96ec1d3416e9d61f48641e68b1704b5e2beb6b9dbd49b5c293f",
+    "sha256": "a8ff9d35204de3ed1bc0f0e070c9a20d4874575025219c27c3663f39502acb3c",
     "page_count": 19,
     "format": "application/pdf",
     "review_state": "RENDER_VERIFIED_SANITIZED"
