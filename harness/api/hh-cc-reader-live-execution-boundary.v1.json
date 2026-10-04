@@ -27,7 +27,9 @@
     "site_specific_protocol_order_is_allowed": true,
     "local_research_capability_gap_must_emit_successor_sprint": true,
     "research_capability_gap_is_not_terminal_blocker": true,
-    "research_successor_must_preserve_resume_gate": true
+    "research_successor_must_preserve_resume_gate": true,
+    "settled_protocol_selection_not_rerun_without_new_evidence": true,
+    "current_gate_operator_path_must_match_latest_field_guide": true
   },
   "work_classes": [
     "NONE",
@@ -74,27 +76,30 @@
     }
   },
   "current_kiosk4_example": {
-    "evidence_date": "2026-10-03",
-    "proof_ceiling": "UNIQUE_TARGET_RESOLVED",
+    "evidence_date": "2026-10-04",
+    "proof_ceiling": "UNIQUE_TARGET_RESOLVED + NATIVE_ALPHA_ENTRY_PROVEN_BLOCKED",
     "current_gate": "BASELINE_LOCKED",
-    "missing_evidence": "authoritative current_firmware_value for the same Kiosk4 identity",
+    "missing_evidence": "authoritative labeled current_firmware_value for the same Kiosk4 identity",
     "work_class": "EXTERNAL_ACCESS_OR_LIVE_EVIDENCE",
     "expected_route": "LIVE_RUNTIME_OR_OPERATOR_BOUNDARY",
     "estate_access_disposition": "AUTHORIZED_ACCESS_SETUP_REQUIRED",
-    "next_action": "Run Select-HHCCReaderFirmwareProtocol.cmd with one sanitized context JSON. The launcher must preserve every configured protocol, consume a proven H&H site_profile when mutation-readiness is evaluated, and dispatch the first evidenced production protocol to a read-only observation route. Prefer an evidenced estate-specific technical control plane (Experian/AxiaMed Control Center, provider TMS/NTMS, or provider-managed update path); retain PAXSTORE reseller/Admin Center as a production-capable corroboration/fallback path and PAX Partner/PayDroid tooling as lab-only. Capture authoritative current_firmware_value and labeled version-domain evidence without mutation, then resume BASELINE_LOCKED.",
+    "next_action": "Use the bounded Kiosk4 local-access field guide: perform one visible IME-selector check and one known-good wired USB-HOST classification. If alphanumeric input succeeds, make one authorized credential attempt and capture exact read-only version labels into the classifier-native private capture record using section/field_heading/value. Run Classify-HHCCReaderVersionDomain on that capture, then freeze BASELINE_LOCKED only from an authoritative domain-bound value for the same identity. If the local-input branch closes, return to P95 protocol selection only when new management-plane evidence signals exist; do not rerun the selector against the unchanged evidence set.",
     "explicitly_not_next": [
+      "rerun P95 protocol selection against the same unchanged evidence set",
       "hard-code PAXSTORE as the only firmware protocol across hospitals",
       "discard a protocol merely because another protocol is currently preferred",
       "treat protocol selection as mutation authority",
-      "generic harness refactor",
-      "tracker/publication work",
+      "generic harness refactor unrelated to the current gate",
+      "tracker/publication work as a prerequisite for firmware execution",
       "another broad endpoint/network discovery pass",
+      "repeat FUNC/ALPHA/tap/hold/simultaneous-key discovery on the second password prompt",
       "submit Push Firmware or another mutation during observation",
       "auto-promote PAX Partner/PayDroid tooling onto a production hospital reader",
       "treat a weak local web-search boundary as a terminal dead end instead of emitting an exact successor research sprint"
     ],
     "protocol_selection_contract": "sas-hh-cc-reader-firmware-protocols/v1",
-    "protocol_selection_disposition": "SELECT_NEXT_OBSERVATION_FROM_SITE_EVIDENCE"
+    "protocol_selection_disposition": "CLOSED_UNTIL_NEW_EVIDENCE_SIGNAL",
+    "capture_template": "docs/examples/hh-cc-reader-kiosk4-version-evidence-capture.template.json"
   },
   "proof_ceiling": "This contract proves deterministic work routing and lane ownership. It does not prove management-plane access, current firmware, mutation authorization, firmware deployment, rollback, or final runtime verification.",
   "research_successor_contract": {
