@@ -1,0 +1,18 @@
+{
+  "businessCode": 0,
+  "message": null,
+  "data": {
+    "id": 908627,
+    "name": "fixture-terminal",
+    "tid": "BTG7KFTY",
+    "serialNo": "1240473751",
+    "modelName": "A80",
+    "osVersion": "7.1.2",
+    "ip": "192.168.1.68",
+    "macAddress": "C840523C93BA",
+    "installedFirmware": {
+      "firmwareName": "A80_PayDroid_fixture_firmware_name_NOT_CAMPAIGN_TARGET",
+      "installTime": "2026-01-15T12:00:00Z"
+    }
+  }
+}
