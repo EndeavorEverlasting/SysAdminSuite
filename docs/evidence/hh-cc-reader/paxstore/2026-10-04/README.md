@@ -9,7 +9,7 @@ Preserve the operator-led PAXSTORE access investigation as presentation-ready ev
 - **Private/raw authority:** H&H Google Drive evidence workspace.
 - **Public repository:** a reviewed 19-page sanitized screenshot appendix plus hashes, classifications, and findings.
 - Raw SHA-256 values in `manifest.json` bind every appendix page to its source capture.
-- Sanitization removes browser address bars/session-looking URLs, unrelated Cursor/desktop content, personal account identity, and entered contact/company data.
+- Sanitization removes browser address/navigation chrome, unrelated Cursor/desktop content, personal account identity, and entered contact/company data. The final reviewed appendix contains no captured browser URL.
 
 ## Captured findings
 
@@ -17,13 +17,13 @@ Preserve the operator-led PAXSTORE access investigation as presentation-ready ev
 2. The authenticated PAXSTORE surface reached by the operator is the App Store/application marketplace.
 3. The App Store search box returns applications; it is not Administrator Center feature navigation.
 4. Captured searches include `Terminal`, `BroadPOS`, `Center`, and `PAXSTORE`.
-5. `Terminal Management` did not surface through App Store application search.
+5. `Terminal Management` was not observed in captured `Terminal` result pages 1–6 and 8; page 7 was not captured, so the exhaustive search result remains `UNKNOWN_INCOMPLETE_RESULT_SET`.
 6. Multiple captures visibly show PAXSTORE support email `paxstore.support@pax.us`.
 7. Captured portal footer label: `v11.0.4_20260814180314`. Treat as **CAPTURED_UI_LABEL_ONLY**.
 
 ## Repository contents
 
-- `paxstore-access-discovery-sanitized-review-pack.pdf` — all 19 reviewed screenshot frames, one stable Photo ID per page. SHA-256: `bf56e67a9ff9a96ec1d3416e9d61f48641e68b1704b5e2beb6b9dbd49b5c293f`.
+- `paxstore-access-discovery-sanitized-review-pack.pdf` — all 19 reviewed screenshot frames, one stable Photo ID per page. SHA-256: `a8ff9d35204de3ed1bc0f0e070c9a20d4874575025219c27c3663f39502acb3c`.
 - `manifest.json` — Photo IDs, raw/sanitized-frame SHA-256, PDF page mapping, claim boundaries, privacy treatment, and duplicate relationships.
 - `presentation-source-index.md` — ranked visual/story beats for later senior-level presentation work.
 - Individual sanitized frame files remain in the private evidence workspace/staging lane for later presentation extraction; they are not separately tracked in this public repository.
