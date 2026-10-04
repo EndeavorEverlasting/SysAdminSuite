@@ -101,3 +101,26 @@ def test_parity_divergence_does_not_pick_winner() -> None:
     assert parity["overall"] == "DIVERGENCE"
     assert "installed_firmware" in parity["divergences"]
     assert "do not guess" in parity["resolution_rule"].lower()
+
+
+def test_capture_serial_required_not_inferred_from_expected() -> None:
+    result = ingest_ui_observation(
+        {
+            "mac": MAC,
+            "installed_firmware": "A80_PayDroid_no_serial",
+            "live_ipv4": "192.168.1.68",
+        },
+        expected_serial=SERIAL,
+        expected_mac=MAC,
+        freeze=True,
+    )
+    assert result["access_state"] == "IDENTITY_MISMATCH"
+    assert "capture_missing_serial" in result["identity_rejection_reasons"]
+    assert "baseline" not in result
+
+
+def test_package_mapping_proven_requires_campaign_version() -> None:
+    capture = load("success-installed-firmware.json")
+    capture["target_package_version"] = "9.9.9.999999"
+    result = ingest_ui_observation(capture, expected_serial=SERIAL, expected_mac=MAC)
+    assert result["package_mapping"]["state"] == "PARTIAL"

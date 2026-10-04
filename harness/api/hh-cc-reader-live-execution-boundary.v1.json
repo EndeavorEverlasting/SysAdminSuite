@@ -69,7 +69,7 @@
     "work_class": "EXTERNAL_ACCESS_OR_LIVE_EVIDENCE",
     "expected_route": "LIVE_RUNTIME_OR_OPERATOR_BOUNDARY",
     "estate_access_disposition": "AUTHORIZED_ACCESS_SETUP_REQUIRED",
-    "next_action": "Observe current firmware in owned PAXSTORE Administrator Center: Terminal Management -> Terminal List -> serial 1240473751 -> App & Firmware -> capture Installed Firmware into private JSON, then Ingest-HHCCReaderPaxstoreUiObservation.cmd --input <capture> --freeze. In parallel/as follow-on enable External System Integration and bind SAS_PAXSTORE_* locally for deterministic Observe-HHCCReaderPaxstoreTerminal.cmd parity.",
+    "next_action": "Observe current firmware in owned PAXSTORE Administrator Center: Terminal Management -> Terminal List -> serial 1240473751 -> App & Firmware -> capture Installed Firmware (plus MAC/status/check-in) into private JSON and run Ingest-HHCCReaderPaxstoreUiObservation.cmd --input <capture> --expected-serial 1240473751 --expected-mac C840523C93BA --live-ipv4 192.168.1.68 --freeze.",
     "explicitly_not_next": [
       "classify missing ESI keys as external CREDENTIAL_GATE when operator owns the estate",
       "generic harness refactor",

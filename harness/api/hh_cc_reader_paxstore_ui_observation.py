@@ -35,6 +35,7 @@ SCHEMA = "sas-hh-cc-reader-paxstore-ui-observation/v1"
 SURFACE = "paxstore_terminal_ui_app_firmware"
 MECHANISM_ID = "paxstore-terminal-management-ui"
 YES_NO_UNKNOWN = frozenset({"YES", "NO", "UNKNOWN"})
+CAMPAIGN_TARGET = "2.0.15.260522"
 
 
 def _norm_mac(value: Any) -> str | None:
@@ -68,12 +69,13 @@ def map_ui_capture(
     expected_mac: str | None = None,
 ) -> dict[str, Any]:
     """Map operator-captured Terminal Management fields to an observation receipt."""
-    serial = _norm_text(capture.get("serial") or capture.get("source_serial") or expected_serial)
-    expected_serial_n = _norm_text(expected_serial) or serial
+    # Serial/MAC must come from the UI capture; expected_* are bind checks only.
+    serial = _norm_text(capture.get("serial") or capture.get("source_serial"))
+    expected_serial_n = _norm_text(expected_serial)
     expected_mac_n = _norm_mac(
         expected_mac if expected_mac is not None else capture.get("expected_mac")
     )
-    returned_mac = _norm_mac(capture.get("mac") or capture.get("returned_mac") or expected_mac_n)
+    returned_mac = _norm_mac(capture.get("mac") or capture.get("returned_mac") or capture.get("live_mac"))
     firmware_name = _norm_text(
         capture.get("installed_firmware")
         or capture.get("current_firmware_value")
@@ -85,7 +87,9 @@ def map_ui_capture(
         reasons.append("capture_missing_serial")
     elif expected_serial_n and serial != expected_serial_n:
         reasons.append("serial_mismatch")
-    if expected_mac_n and returned_mac and returned_mac != expected_mac_n:
+    if expected_mac_n and not returned_mac:
+        reasons.append("capture_missing_mac")
+    elif expected_mac_n and returned_mac and returned_mac != expected_mac_n:
         reasons.append("mac_mismatch")
 
     identity_bound = not reasons and bool(serial)
@@ -99,7 +103,11 @@ def map_ui_capture(
     restorable = _tri_state(capture.get("current_package_restorable"))
     package_id = _norm_text(capture.get("target_package_id"))
     package_version = _norm_text(capture.get("target_package_version"))
-    if target_visible == "YES" and (package_id or package_version):
+    if (
+        target_visible == "YES"
+        and package_id
+        and package_version == CAMPAIGN_TARGET
+    ):
         package_mapping = "PROVEN"
     elif target_visible == "YES":
         package_mapping = "PARTIAL"
@@ -113,7 +121,7 @@ def map_ui_capture(
         "identity_bound": identity_bound,
         "identity_rejection_reasons": reasons,
         "source_serial": serial,
-        "expected_serial": expected_serial_n,
+        "expected_serial": expected_serial_n or serial,
         "returned_mac": returned_mac,
         "expected_mac": expected_mac_n,
         "model_name": _norm_text(capture.get("model_name") or capture.get("model")),
@@ -127,7 +135,7 @@ def map_ui_capture(
         "version_domain": VERSION_DOMAIN,
         "version_domain_note": (
             "PAXSTORE UI Installed Firmware is not automatically equal to "
-            "campaign target 2.0.15.260522; map domains explicitly before eligibility."
+            f"campaign target {CAMPAIGN_TARGET}; map domains explicitly before eligibility."
         ),
         "mutation_performed": False,
         "network_contacted": False,
@@ -139,7 +147,7 @@ def map_ui_capture(
             "target_package_visible": target_visible,
             "target_package_id": package_id,
             "target_package_version": package_version,
-            "campaign_target": "2.0.15.260522",
+            "campaign_target": CAMPAIGN_TARGET,
         },
         "restore_disposition": {
             "current_package_restorable": restorable,
@@ -154,26 +162,34 @@ def compare_ui_api_parity(
     api_receipt: dict[str, Any],
 ) -> dict[str, Any]:
     """Compare UI and API observation receipts without choosing a winner on divergence."""
-    ui_serial = _norm_text(ui_receipt.get("source_serial") or ui_receipt.get("expected_serial"))
-    api_serial = _norm_text(api_receipt.get("source_serial") or api_receipt.get("expected_serial"))
+    ui_serial = _norm_text(ui_receipt.get("source_serial"))
+    api_serial = _norm_text(api_receipt.get("source_serial"))
+    ui_mac = _norm_mac(ui_receipt.get("returned_mac"))
+    api_mac = _norm_mac(api_receipt.get("returned_mac"))
     ui_fw = _norm_text(ui_receipt.get("current_firmware_value"))
     api_fw = _norm_text(api_receipt.get("current_firmware_value"))
     ui_status = _norm_text(ui_receipt.get("terminal_status"))
     api_status = _norm_text(api_receipt.get("terminal_status") or api_receipt.get("status"))
     ui_last = ui_receipt.get("last_access_time")
     api_last = api_receipt.get("last_access_time") or api_receipt.get("lastAccessTime")
+    ui_bound = ui_receipt.get("identity_bound") is True
+    api_bound = api_receipt.get("identity_bound") is True
 
-    identity_parity = (
-        "PASS"
-        if ui_serial and api_serial and ui_serial == api_serial
-        else "FAIL"
-    )
+    identity_parity = "FAIL"
+    if ui_bound and api_bound and ui_serial and api_serial and ui_serial == api_serial:
+        if ui_mac and api_mac and ui_mac != api_mac:
+            identity_parity = "FAIL"
+        elif ui_mac and api_mac and ui_mac == api_mac:
+            identity_parity = "PASS"
+        elif not ui_mac or not api_mac:
+            identity_parity = "INCOMPLETE"
+        else:
+            identity_parity = "PASS"
+
     if ui_fw and api_fw:
         firmware_parity = "PASS" if ui_fw == api_fw else "FAIL"
-    elif not ui_fw and not api_fw:
-        firmware_parity = "UNKNOWN"
     else:
-        firmware_parity = "UNKNOWN"
+        firmware_parity = "INCOMPLETE"
 
     status_parity = "UNKNOWN"
     if ui_status and api_status:
@@ -185,7 +201,7 @@ def compare_ui_api_parity(
 
     divergences: list[str] = []
     if identity_parity == "FAIL":
-        divergences.append("serial")
+        divergences.append("identity")
     if firmware_parity == "FAIL":
         divergences.append("installed_firmware")
     if status_parity == "FAIL":
@@ -193,11 +209,13 @@ def compare_ui_api_parity(
     if checkin_parity == "FAIL":
         divergences.append("last_access_time")
 
-    overall = "DIVERGENCE" if divergences else (
-        "PASS"
-        if identity_parity == "PASS" and firmware_parity == "PASS"
-        else "INCOMPLETE"
-    )
+    if divergences:
+        overall = "DIVERGENCE"
+    elif identity_parity == "PASS" and firmware_parity == "PASS":
+        # STATUS/CHECKIN may remain UNKNOWN until API maps those fields.
+        overall = "PASS"
+    else:
+        overall = "INCOMPLETE"
 
     return {
         "schema": "sas-hh-cc-reader-paxstore-ui-api-parity/v1",
@@ -210,11 +228,14 @@ def compare_ui_api_parity(
         "divergences": divergences,
         "ui_serial": ui_serial,
         "api_serial": api_serial,
+        "ui_mac": ui_mac,
+        "api_mac": api_mac,
         "ui_firmware": ui_fw,
         "api_firmware": api_fw,
         "resolution_rule": (
             "On DIVERGENCE do not guess which surface wins; "
-            "inspect timestamps and refresh/sync state before mutation."
+            "inspect timestamps and refresh/sync state before mutation. "
+            "STATUS/CHECKIN UNKNOWN does not grant PASS by itself."
         ),
         "mutation_performed": False,
     }
@@ -316,8 +337,12 @@ def main(argv: list[str] | None = None) -> int:
     if result.get("access_state") == "OBSERVED" and result.get("current_firmware_value"):
         if args.freeze and not (result.get("baseline") or {}).get("baseline_locked"):
             return 4
-        if result.get("parity") and result["parity"].get("overall") == "DIVERGENCE":
-            return 5
+        if args.compare_api:
+            overall = (result.get("parity") or {}).get("overall")
+            if overall == "DIVERGENCE":
+                return 5
+            if overall != "PASS":
+                return 6
         return 0
     return 2
 

@@ -131,4 +131,4 @@ Capture on the UI ingest schema as `target_package_*` and `current_package_resto
 1. Operator: Terminal Management → serial `1240473751` → App & Firmware → private capture JSON.
 2. Agent: `Ingest-HHCCReaderPaxstoreUiObservation.cmd --input <capture> --freeze` → `BASELINE_LOCKED`.
 3. Operator: enable External System Integration; bind `SAS_PAXSTORE_*` locally; set `SAS_PAXSTORE_ESTATE_AUTHORITY=OWNED_ADMINISTERING`.
-4. Agent: `Observe-HHCCReaderPaxstoreTerminal.cmd --serial ... --freeze` then `--compare-api` / parity → continue deployment gates.
+4. Agent: `Observe-HHCCReaderPaxstoreTerminal.cmd --serial ... --freeze`, then `Ingest-HHCCReaderPaxstoreUiObservation.cmd --input <capture> --compare-api <api-receipt.json>` for UI/API parity → continue deployment gates.

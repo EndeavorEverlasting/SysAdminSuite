@@ -1,5 +1,6 @@
 {
   "serial": "9999999999",
+  "mac": "C840523C93BA",
   "expected_mac": "C840523C93BA",
   "live_ipv4": "192.168.1.68",
   "installed_firmware": "A80_PayDroid_should_not_bind",
