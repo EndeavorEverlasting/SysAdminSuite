@@ -151,6 +151,30 @@ class FirmwareProtocolContracts(unittest.TestCase):
             "BLOCKED_EVIDENCE",
         )
 
+    def test_capture_contract_key_drift_fails_closed(self) -> None:
+        payload = json.loads(CONTRACT.read_text(encoding="utf-8"))
+        payload["version_evidence_capture_contract"]["classifier_required_observation_fields"] = [
+            "section_heading",
+            "field_label",
+            "displayed_value",
+        ]
+        with tempfile.TemporaryDirectory() as tmp:
+            bad = Path(tmp) / "bad-capture-contract.json"
+            bad.write_text(json.dumps(payload), encoding="utf-8")
+            with self.assertRaisesRegex(FirmwareProtocolError, "classifier_keys_invalid"):
+                load_protocol_contract(bad)
+
+    def test_showcase_contract_cannot_drop_no_promotion_rule(self) -> None:
+        payload = json.loads(CONTRACT.read_text(encoding="utf-8"))
+        payload["presentation_showcase_contract"]["rules"][
+            "successful_visual_narrative_must_not_promote_unproven_runtime_state"
+        ] = False
+        with tempfile.TemporaryDirectory() as tmp:
+            bad = Path(tmp) / "bad-showcase-contract.json"
+            bad.write_text(json.dumps(payload), encoding="utf-8")
+            with self.assertRaisesRegex(FirmwareProtocolError, "presentation_showcase_rule_missing"):
+                load_protocol_contract(bad)
+
     def test_malformed_contract_root_fails_closed(self) -> None:
         with tempfile.TemporaryDirectory() as tmp:
             bad = Path(tmp) / "bad.json"
