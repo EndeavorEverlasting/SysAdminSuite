@@ -1,0 +1,265 @@
+{
+  "schema": "sas-hh-cc-reader-paxstore-evidence-manifest/v1",
+  "authority_packet_id": "HHCC-PAXSTORE-20261004-001",
+  "date": "2026-10-04",
+  "raw_authority": "external_private_google_drive_evidence_packet",
+  "repository_visibility": "public",
+  "evidence_semantics": [
+    "CAPTURED_FACT",
+    "EXTERNAL_CORROBORATION",
+    "INFERENCE",
+    "UNRESOLVED"
+  ],
+  "captured_portal_facts": {
+    "support_email": "paxstore.support@pax.us",
+    "portal_footer_build_label": "v11.0.4_20260814180314",
+    "portal_footer_build_semantics": "CAPTURED_UI_LABEL_ONLY",
+    "keyword_result_sets_captured": [
+      "Terminal",
+      "BroadPOS",
+      "Center",
+      "PAXSTORE"
+    ],
+    "terminal_management_app_search_hit": false
+  },
+  "public_corroboration": [
+    {
+      "source": "PAXSTORE Reseller Admin Guide",
+      "url": "https://faqs.pax.us/wp-content/uploads/2020/05/PAXSTORE-Reseller-Admin-Guide_v1.0.pdf",
+      "claim": "Administrator Center contains Firmware List, Terminal Management, User Management, Role Management; grid selects available marketplaces/portals; support email is paxstore.support@pax.us."
+    },
+    {
+      "source": "PAXSTORE Role Management User Guide",
+      "url": "https://faqs.pax.us/wp-content/uploads/2021/05/PAXSTORE-Role-Management-User-Guide-Reseller-V1.0_10-19-2020.pdf",
+      "claim": "Terminal Management and Firmware List are role-controlled and may be Full or Readonly."
+    },
+    {
+      "source": "PAXSTORE Knowledge Base",
+      "url": "https://www.pax.us/paxstore-knowledge-base/",
+      "claim": "Current public knowledge base exposes Terminal Management training material."
+    },
+    {
+      "source": "PAXSTORE Release V 10.0",
+      "url": "https://www.pax.us/knowledge-base/paxstore-release/",
+      "claim": "Official public release article is V10.0 posted 2026-01-06; this does not redefine the separately captured portal footer build label."
+    }
+  ],
+  "non_claims": [
+    "App Store search results do not prove absence of all Administrator Center entitlements.",
+    "These captures do not prove membership in the estate that owns Kiosk4.",
+    "These captures do not prove Kiosk4 current firmware or installed app/package state.",
+    "The captured v11.0.4_20260814180314 footer string is not promoted to official release semantics."
+  ],
+  "items": [
+    {
+      "photo_id": "PHOTO-20261004-001",
+      "captured_at_et": "2026-10-04 06:59:41 ET",
+      "raw_source_name": "image(20261004-065941).png",
+      "raw_sha256": "0d356a890c65d61c203721dbd6ff007e60286b9ea44e5f7913ddc2c2231bb1fe",
+      "sanitized_sha256": "2fd045848d9ec5dcd1b6b8d04c3dec90855591106341526a17eeef05c0a82832",
+      "tracked_path": "docs/evidence/hh-cc-reader/paxstore/2026-10-04/sanitized/001__developer-registration-contact.webp",
+      "privacy_class_raw": "PRIVATE / DO-NOT-SYNC",
+      "privacy_treatment": "session/address-bar chrome cropped; personal identity/contact data redacted where present; unrelated workspace cropped where present",
+      "what_it_proves": "Global Developer registration contact/reason; personal values removed from tracked derivative."
+    },
+    {
+      "photo_id": "PHOTO-20261004-002",
+      "captured_at_et": "2026-10-04 07:00:30 ET",
+      "raw_source_name": "image(20261004-070030).png",
+      "raw_sha256": "7c6bd6f43346e2c63f6b914064d00acf9054559fa51ae1f714fb4aa91b8e9766",
+      "sanitized_sha256": "cc08d7d6eaba7881ece15263c5f6ea6a4bc4d52fc053e455a60776abfa1c4de6",
+      "tracked_path": "docs/evidence/hh-cc-reader/paxstore/2026-10-04/sanitized/002__developer-registration-company-profile.webp",
+      "privacy_class_raw": "PRIVATE / DO-NOT-SYNC",
+      "privacy_treatment": "session/address-bar chrome cropped; personal identity/contact data redacted where present; unrelated workspace cropped where present",
+      "what_it_proves": "Global Developer company-profile gate; Business License/Certificate and business-registration requirements visible; entered values removed."
+    },
+    {
+      "photo_id": "PHOTO-20261004-003",
+      "captured_at_et": "2026-10-04 07:00:39 ET",
+      "raw_source_name": "image(20261004-070039).png",
+      "raw_sha256": "12e5e21f6ef2e7c7a82339c42fab07bc52acfc634ea04113fb61cffe5895ee1c",
+      "sanitized_sha256": "151fb0d0af3b7d4b286855fa8ca6f6bd354f91258e574d1bb764fde21521c1a6",
+      "tracked_path": "docs/evidence/hh-cc-reader/paxstore/2026-10-04/sanitized/003__global-developer-center.webp",
+      "privacy_class_raw": "PRIVATE / DO-NOT-SYNC",
+      "privacy_treatment": "session/address-bar chrome cropped; personal identity/contact data redacted where present; unrelated workspace cropped where present",
+      "what_it_proves": "Global Developer Center landing and registration path."
+    },
+    {
+      "photo_id": "PHOTO-20261004-004",
+      "captured_at_et": "2026-10-04 07:05:58 ET",
+      "raw_source_name": "image(20261004-070558).png",
+      "raw_sha256": "0c182ce5c10fea0c2e35397b355dc4bbaa864c5f362b0aab0229c2ad4d301c20",
+      "sanitized_sha256": "fdabb3a562647a0fdc0e8c83135bd7a9630fcba2bb6be7ae5ff852f798ab2674",
+      "tracked_path": "docs/evidence/hh-cc-reader/paxstore/2026-10-04/sanitized/004__appstore-latest.webp",
+      "privacy_class_raw": "PRIVATE / DO-NOT-SYNC",
+      "privacy_treatment": "session/address-bar chrome cropped; personal identity/contact data redacted where present; unrelated workspace cropped where present",
+      "what_it_proves": "Authenticated PAXSTORE App Store ranking/latest surface."
+    },
+    {
+      "photo_id": "PHOTO-20261004-005",
+      "captured_at_et": "2026-10-04 07:11:59 ET",
+      "raw_source_name": "image(20261004-071159).png",
+      "raw_sha256": "5537e97da5db4db6678afa4d4a90a19f00273dbb9b3daa4ce26dfb1a05bb2e5d",
+      "sanitized_sha256": "518446d39b197233cc655459a98a326959ba5ea6b7f28aa0d1b9122c2037d4e2",
+      "tracked_path": "docs/evidence/hh-cc-reader/paxstore/2026-10-04/sanitized/005__terminal-search-p01.webp",
+      "privacy_class_raw": "PRIVATE / DO-NOT-SYNC",
+      "privacy_treatment": "session/address-bar chrome cropped; personal identity/contact data redacted where present; unrelated workspace cropped where present",
+      "what_it_proves": "App Store keyword Terminal result page 1."
+    },
+    {
+      "photo_id": "PHOTO-20261004-006",
+      "captured_at_et": "2026-10-04 07:12:15 ET",
+      "raw_source_name": "image(20261004-071215).png",
+      "raw_sha256": "702b717e9ec28f5b8e972f4b476c1159c5719005935962fa3dcc0bad60e45243",
+      "sanitized_sha256": "00e3470c261914f9ea578bdf0d6202e5747bde2ecc6bc5ae755b624498b92c29",
+      "tracked_path": "docs/evidence/hh-cc-reader/paxstore/2026-10-04/sanitized/006__terminal-search-p02.webp",
+      "privacy_class_raw": "PRIVATE / DO-NOT-SYNC",
+      "privacy_treatment": "session/address-bar chrome cropped; personal identity/contact data redacted where present; unrelated workspace cropped where present",
+      "what_it_proves": "App Store keyword Terminal result page 2."
+    },
+    {
+      "photo_id": "PHOTO-20261004-007",
+      "captured_at_et": "2026-10-04 07:16:50 ET",
+      "raw_source_name": "image(20261004-071650).png",
+      "raw_sha256": "b161ba93b9c83d22f78e97ba69c7e460a93ea4021c972164f05bd09564fb7ae3",
+      "sanitized_sha256": "04072f518f80fb2e7e0a22a276f9be72434577884b439457d487b686b7f0d13c",
+      "tracked_path": "docs/evidence/hh-cc-reader/paxstore/2026-10-04/sanitized/007__terminal-search-p03.webp",
+      "privacy_class_raw": "PRIVATE / DO-NOT-SYNC",
+      "privacy_treatment": "session/address-bar chrome cropped; personal identity/contact data redacted where present; unrelated workspace cropped where present",
+      "what_it_proves": "App Store keyword Terminal result page 3."
+    },
+    {
+      "photo_id": "PHOTO-20261004-008",
+      "captured_at_et": "2026-10-04 07:17:16 ET",
+      "raw_source_name": "image(20261004-071716).png",
+      "raw_sha256": "0552e9d551247e9ce093c391748425292d30c00ebf006d25e3ca8a8fcef0306d",
+      "sanitized_sha256": "afb4d890df79c3511076170fdc821967cbe1ac9bba942d9ae9b5e80f1f9ca582",
+      "tracked_path": "docs/evidence/hh-cc-reader/paxstore/2026-10-04/sanitized/008__terminal-search-p04.webp",
+      "privacy_class_raw": "PRIVATE / DO-NOT-SYNC",
+      "privacy_treatment": "session/address-bar chrome cropped; personal identity/contact data redacted where present; unrelated workspace cropped where present",
+      "what_it_proves": "App Store keyword Terminal result page 4."
+    },
+    {
+      "photo_id": "PHOTO-20261004-009",
+      "captured_at_et": "2026-10-04 07:17:41 ET",
+      "raw_source_name": "image(20261004-071741).png",
+      "raw_sha256": "941186c87a9803283c974ffd13c504ce3298f52bddb69a7191ed15ffb215e06d",
+      "sanitized_sha256": "2a33daa977dd9e85045b22a76dbd7ff562ecb6e3bb3cbb9d3b5ddfb0a67a9b9d",
+      "tracked_path": "docs/evidence/hh-cc-reader/paxstore/2026-10-04/sanitized/009__terminal-search-p05a.webp",
+      "privacy_class_raw": "PRIVATE / DO-NOT-SYNC",
+      "privacy_treatment": "session/address-bar chrome cropped; personal identity/contact data redacted where present; unrelated workspace cropped where present",
+      "what_it_proves": "App Store keyword Terminal page 5 capture A; footer/support evidence visible."
+    },
+    {
+      "photo_id": "PHOTO-20261004-010",
+      "captured_at_et": "2026-10-04 07:18:39 ET",
+      "raw_source_name": "image(20261004-071839).png",
+      "raw_sha256": "7cac715786b3813d5ac9070da84db6478ab7f86dd3414b195be2496867f1afd6",
+      "sanitized_sha256": "2a33daa977dd9e85045b22a76dbd7ff562ecb6e3bb3cbb9d3b5ddfb0a67a9b9d",
+      "tracked_path": "docs/evidence/hh-cc-reader/paxstore/2026-10-04/sanitized/010__terminal-search-p05b.webp",
+      "privacy_class_raw": "PRIVATE / DO-NOT-SYNC",
+      "privacy_treatment": "session/address-bar chrome cropped; personal identity/contact data redacted where present; unrelated workspace cropped where present",
+      "what_it_proves": "Distinct raw capture converging to the same sanitized pixels as PHOTO-20261004-009.",
+      "sanitized_duplicate_of": "PHOTO-20261004-009"
+    },
+    {
+      "photo_id": "PHOTO-20261004-011",
+      "captured_at_et": "2026-10-04 07:18:58 ET",
+      "raw_source_name": "image(20261004-071858).png",
+      "raw_sha256": "3ced965d6f8ab561902794f5f1b7b20a8d61fc22dc2ea1666cff3578cd9381ea",
+      "sanitized_sha256": "372d6010d585a58f6991ebaeb430c90db92195e8da601d263cdae5ad8bbc5a0f",
+      "tracked_path": "docs/evidence/hh-cc-reader/paxstore/2026-10-04/sanitized/011__terminal-search-p06.webp",
+      "privacy_class_raw": "PRIVATE / DO-NOT-SYNC",
+      "privacy_treatment": "session/address-bar chrome cropped; personal identity/contact data redacted where present; unrelated workspace cropped where present",
+      "what_it_proves": "App Store keyword Terminal result page 6."
+    },
+    {
+      "photo_id": "PHOTO-20261004-012",
+      "captured_at_et": "2026-10-04 07:19:15 ET",
+      "raw_source_name": "image(20261004-071915).png",
+      "raw_sha256": "4d2d66d69bd35231b9dec2d17b96e49548e7c1f9556cd421a452fdfb4254da61",
+      "sanitized_sha256": "0254b7f9df58833c665ffed43d64b215a11d3e84f24f0bd01377078087b34a33",
+      "tracked_path": "docs/evidence/hh-cc-reader/paxstore/2026-10-04/sanitized/012__terminal-search-p08.webp",
+      "privacy_class_raw": "PRIVATE / DO-NOT-SYNC",
+      "privacy_treatment": "session/address-bar chrome cropped; personal identity/contact data redacted where present; unrelated workspace cropped where present",
+      "what_it_proves": "Final captured Terminal keyword result page (page 8)."
+    },
+    {
+      "photo_id": "PHOTO-20261004-013",
+      "captured_at_et": "2026-10-04 07:20:43 ET",
+      "raw_source_name": "image(20261004-072043).png",
+      "raw_sha256": "a4a216625e2b89a97f9dbffead8ab513f8ead625a16f0ec5cf8226de939206fe",
+      "sanitized_sha256": "36e74bf3666744dba30ea39c81438f264f412c17b1255cdc91a0e2186be5466b",
+      "tracked_path": "docs/evidence/hh-cc-reader/paxstore/2026-10-04/sanitized/013__broadpos-search.webp",
+      "privacy_class_raw": "PRIVATE / DO-NOT-SYNC",
+      "privacy_treatment": "session/address-bar chrome cropped; personal identity/contact data redacted where present; unrelated workspace cropped where present",
+      "what_it_proves": "BroadPOS keyword results are applications rather than Administrator Center navigation."
+    },
+    {
+      "photo_id": "PHOTO-20261004-014",
+      "captured_at_et": "2026-10-04 07:22:44 ET",
+      "raw_source_name": "image(20261004-072244).png",
+      "raw_sha256": "0b9f933b04bd7510d42e30a557def6bf5572e8320e9a21f6d90896081b2c84f5",
+      "sanitized_sha256": "7c49cfe784d953cfabf58e98fe7be25d808d498fd70cdd96ab6cc9225dc47c1d",
+      "tracked_path": "docs/evidence/hh-cc-reader/paxstore/2026-10-04/sanitized/014__center-search-p01.webp",
+      "privacy_class_raw": "PRIVATE / DO-NOT-SYNC",
+      "privacy_treatment": "session/address-bar chrome cropped; personal identity/contact data redacted where present; unrelated workspace cropped where present",
+      "what_it_proves": "Center keyword result page 1 of five."
+    },
+    {
+      "photo_id": "PHOTO-20261004-015",
+      "captured_at_et": "2026-10-04 07:23:16 ET",
+      "raw_source_name": "image(20261004-072316).png",
+      "raw_sha256": "888ee8c7dd0468c65b17d0edb7f14bc195c4f447b2ffd8991cf14b6835a2feb5",
+      "sanitized_sha256": "b247a7fc7cf27505b1964b620b7db5df3f9faff4e0a566f2f9fd7f404f284a7c",
+      "tracked_path": "docs/evidence/hh-cc-reader/paxstore/2026-10-04/sanitized/015__center-search-p02.webp",
+      "privacy_class_raw": "PRIVATE / DO-NOT-SYNC",
+      "privacy_treatment": "session/address-bar chrome cropped; personal identity/contact data redacted where present; unrelated workspace cropped where present",
+      "what_it_proves": "Center keyword result page 2 of five; unrelated workspace cropped."
+    },
+    {
+      "photo_id": "PHOTO-20261004-016",
+      "captured_at_et": "2026-10-04 07:25:01 ET",
+      "raw_source_name": "image(20261004-072501).png",
+      "raw_sha256": "1b0e1b5af8c7189e0092fb647cf32b78ced8f9f73c05e1d85bcff974af3c9942",
+      "sanitized_sha256": "1abcd88e9e0f49e9ffccd48f70c8906e1db720c3710a5a24500b744baa2c59e8",
+      "tracked_path": "docs/evidence/hh-cc-reader/paxstore/2026-10-04/sanitized/016__center-search-p03.webp",
+      "privacy_class_raw": "PRIVATE / DO-NOT-SYNC",
+      "privacy_treatment": "session/address-bar chrome cropped; personal identity/contact data redacted where present; unrelated workspace cropped where present",
+      "what_it_proves": "Center keyword result page 3 of five."
+    },
+    {
+      "photo_id": "PHOTO-20261004-017",
+      "captured_at_et": "2026-10-04 07:25:21 ET",
+      "raw_source_name": "image(20261004-072521).png",
+      "raw_sha256": "34c2dd8e50663941aed8029e93e12bf31ecbce1e17a4a40bc602d2051afb3ec8",
+      "sanitized_sha256": "9e5e33e60129e389cd8ef9ed1adf0ef64042871a231ca0288495780cc8fe0b18",
+      "tracked_path": "docs/evidence/hh-cc-reader/paxstore/2026-10-04/sanitized/017__center-search-p04.webp",
+      "privacy_class_raw": "PRIVATE / DO-NOT-SYNC",
+      "privacy_treatment": "session/address-bar chrome cropped; personal identity/contact data redacted where present; unrelated workspace cropped where present",
+      "what_it_proves": "Center keyword result page 4 of five."
+    },
+    {
+      "photo_id": "PHOTO-20261004-018",
+      "captured_at_et": "2026-10-04 07:26:14 ET",
+      "raw_source_name": "image(20261004-072614).png",
+      "raw_sha256": "9b843008fa71c0b9a4d1c33174260304b9c3f90b1bd932e82f6b1c6ed87b253d",
+      "sanitized_sha256": "72c3a34305fde5c60847592f8590b9ae8637a6696e78f7011324f6d71f1bcc8f",
+      "tracked_path": "docs/evidence/hh-cc-reader/paxstore/2026-10-04/sanitized/018__center-search-p05.webp",
+      "privacy_class_raw": "PRIVATE / DO-NOT-SYNC",
+      "privacy_treatment": "session/address-bar chrome cropped; personal identity/contact data redacted where present; unrelated workspace cropped where present",
+      "what_it_proves": "Center keyword result page 5 of five; unrelated workspace cropped."
+    },
+    {
+      "photo_id": "PHOTO-20261004-019",
+      "captured_at_et": "2026-10-04 07:27:00 ET",
+      "raw_source_name": "image(20261004-072700).png",
+      "raw_sha256": "b113f320f5bc395c3d2075f59dc155fe5c0fe91f4b6186c80eea68358138a3dc",
+      "sanitized_sha256": "847532d9bbf3384a0958c9d971fbc2cf69169567b7afdefb6ddfd5d552ca4424",
+      "tracked_path": "docs/evidence/hh-cc-reader/paxstore/2026-10-04/sanitized/019__paxstore-search.webp",
+      "privacy_class_raw": "PRIVATE / DO-NOT-SYNC",
+      "privacy_treatment": "session/address-bar chrome cropped; personal identity/contact data redacted where present; unrelated workspace cropped where present",
+      "what_it_proves": "PAXSTORE keyword results plus visible support email and portal footer build label."
+    }
+  ]
+}
