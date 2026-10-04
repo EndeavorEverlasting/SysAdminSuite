@@ -46,6 +46,8 @@ def test_contract_shape_and_invariants() -> None:
     assert invariants["confirmed_harness_defect_may_preempt_only_when_it_blocks_current_gate"] is True
     assert invariants["harness_preemption_requires_evidence_artifact_sha256_and_gate_binding"] is True
     assert invariants["after_harness_repair_resume_same_gate"] is True
+    assert invariants["local_research_capability_gap_must_emit_successor_sprint"] is True
+    assert invariants["research_capability_gap_is_not_terminal_blocker"] is True
 
 
 def test_current_kiosk4_routes_to_live_runtime_not_harness() -> None:
@@ -233,6 +235,46 @@ def test_authority_gap_stops_mutation_without_inviting_harness_work() -> None:
     assert result["may_preempt_live_execution"] is False
 
 
+
+def test_local_research_capability_gap_routes_to_successor_not_dead_end() -> None:
+    result = route_work_item(
+        {
+            "current_gate": "PACKAGE_DOMAIN_BOUND",
+            "work_class": "LOCAL_RESEARCH_CAPABILITY_GAP",
+            "blocks_current_gate": True,
+            "research_question": "Locate an authorized or provider-backed A80 firmware source for the target version domain.",
+            "attempted_queries": ["exact target version", "A80 firmware target version"],
+            "sources_attempted": ["public vendor support", "public manuals"],
+            "missing_capabilities": ["broader indexed web corpus", "authenticated partner/provider portal"],
+            "unresolved_hypotheses": ["provider TMS catalog may carry the package", "authorized partner portal may expose the artifact"],
+            "target_runtime": "frontier web-research runtime",
+        }
+    )
+    assert result["route"] == "ESCALATE_RESEARCH_SUCCESSOR"
+    assert result["successor_sprint_required"] is True
+    assert result["may_preempt_live_execution"] is False
+    assert result["resume_gate"] == "PACKAGE_DOMAIN_BOUND"
+    assert "frontier web-research runtime" in result["next_action"]
+
+
+def test_research_successor_requires_exact_handoff_evidence() -> None:
+    try:
+        route_work_item(
+            {
+                "current_gate": "PACKAGE_DOMAIN_BOUND",
+                "work_class": "LOCAL_RESEARCH_CAPABILITY_GAP",
+                "blocks_current_gate": True,
+                "research_question": "Find firmware.",
+                "attempted_queries": [],
+                "sources_attempted": ["public web"],
+                "missing_capabilities": ["authenticated provider portal"],
+                "target_runtime": "frontier web-research runtime",
+            }
+        )
+        raise AssertionError("expected incomplete research handoff rejection")
+    except ExecutionBoundaryError as exc:
+        assert "research_capability_handoff_incomplete" in str(exc)
+
 def test_docs_bind_p95_decision() -> None:
     boundary = BOUNDARY_DOC.read_text(encoding="utf-8")
     program = PROGRAM.read_text(encoding="utf-8")
@@ -263,6 +305,8 @@ def main() -> int:
         test_downstream_publication_is_deferred_and_cannot_block_sas,
         test_repository_staleness_refreshes_without_redesign,
         test_authority_gap_stops_mutation_without_inviting_harness_work,
+        test_local_research_capability_gap_routes_to_successor_not_dead_end,
+        test_research_successor_requires_exact_handoff_evidence,
         test_docs_bind_p95_decision,
     ]
     failed = 0
