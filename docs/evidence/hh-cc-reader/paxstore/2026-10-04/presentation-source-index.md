@@ -28,4 +28,4 @@ PHOTO-20261004-009 and PHOTO-20261004-010 are distinct raw captures that converg
 
 ## Presentation safety
 
-Use the sanitized derivatives in this directory only. Do not display raw email/phone/company-entered registration data, account identity, credentials, session-looking URLs, terminal secrets, or private Drive identifiers in external/client-facing material.
+Use the reviewed sanitized appendix as the public-repository source. Each Photo ID maps directly to the same-numbered PDF page (001 -> page 1, …, 019 -> page 19). For a future presentation, extract only the selected page/frame and preserve its Photo ID in speaker notes or source metadata. Do not display raw email/phone/company-entered registration data, account identity, credentials, session-looking URLs, terminal secrets, or private Drive identifiers in external/client-facing material.
