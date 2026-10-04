@@ -122,6 +122,22 @@ Output includes:
 
 `ELIGIBLE_FOR_SEPARATE_MUTATION_DECISION` is not mutation authority. It means only that evidence/authority/gate prerequisites represented by this selector are present and the independent live mutation decision may proceed.
 
+## Repeatable observation refresh
+
+Baseline observation is an independent lane. It does not wait for package acquisition.
+
+Refresh the same reader's authoritative current state:
+
+- before a controlled mutation;
+- after a controlled mutation;
+- when device identity/enrollment changes;
+- when the management plane/provider changes;
+- whenever prior observation is explicitly invalidated.
+
+The observation receipt should bind device identity, current firmware value, version-domain label, observation time, and source protocol.
+
+No universal calendar cadence is hard-coded here. A hospital/provider-specific scheduled cadence may be added later only when the authenticated runtime and its authority are proven. Until then, event-driven refresh is mandatory at the proof transitions above.
+
 ## Site-switch examples
 
 ### Site A — Control Center + TMS evidence
