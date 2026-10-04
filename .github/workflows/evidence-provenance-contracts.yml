@@ -8,6 +8,12 @@ on:
     paths:
       - 'harness/api/evidence-provenance-registry.json'
       - 'schemas/harness/evidence-provenance-registry.schema.json'
+      - 'schemas/harness/hh-cc-reader-paxstore-evidence-manifest.schema.json'
+      - 'docs/evidence/hh-cc-reader/paxstore/2026-10-04/manifest.json'
+      - 'docs/evidence/hh-cc-reader/paxstore/2026-10-04/paxstore-access-discovery-sanitized-review-pack.pdf'
+      - 'schemas/harness/hh-cc-reader-paxstore-evidence-manifest.schema.json'
+      - 'docs/evidence/hh-cc-reader/paxstore/2026-10-04/manifest.json'
+      - 'docs/evidence/hh-cc-reader/paxstore/2026-10-04/paxstore-access-discovery-sanitized-review-pack.pdf'
       - 'harness/api/evidence_provenance_policy.py'
       - 'harness/validators/validate-evidence-provenance-contracts.py'
       - 'Tests/survey/test_evidence_provenance_reuse_contracts.py'
@@ -63,7 +69,7 @@ jobs:
           jsonschema.Draft202012Validator(schema).validate(document)
           print('PASS: evidence provenance registry schema')
           PY
-      - name: Validate evidence provenance reuse contracts
+      - name: Validate evidence provenance reuse and PAXSTORE artifact integrity
         run: python harness/validators/validate-evidence-provenance-contracts.py
       - name: Validate provenance reuse fixtures
         run: python Tests/survey/test_evidence_provenance_reuse_contracts.py
