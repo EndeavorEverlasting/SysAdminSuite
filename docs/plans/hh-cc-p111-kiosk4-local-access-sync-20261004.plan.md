@@ -1,6 +1,6 @@
 # P111 Kiosk4 Local-Access Guide Synchronization — 2026-10-04
 
-Status: REMOTE SYNC IN PROGRESS  
+Status: INTEGRATED — private Drive guide + sanitized repository derivative readback complete  
 Floor at start: `main@696d1382d094373c6de76e2eaa59b1fd0331421e`  
 Owner: H&H CC-reader live firmware evidence/continuity lane
 
@@ -130,7 +130,19 @@ Classify-HHCCReaderVersionDomain
 - Private Drive operator guide: WRITTEN + STYLED + READBACK_VERIFIED.
 - Sanitized repository derivative: REMOTE_DURABLE on isolated branch.
 - Privacy readback: PASS for the tracked derivative set; no internal credential value, live reader IP/MAC/serial, or private Drive URL detected.
-- Pull request: #488 OPEN.
-- Repository integration: NOT CLAIMED until provider state proves merge.
+- Pull request: #488 MERGED.
+- Repository integration: PROVEN at merge commit `c6b6d146f5455b5fd3c7c7e102087c06db729722`.
 - Private P111 sync receipt: WRITTEN + READBACK_VERIFIED in the H&H 90_SYNC_RECEIPTS lane.
 - Critical path unchanged: labeled installed value -> version-domain classification -> BASELINE_LOCKED.
+
+
+## Integration closeout evidence
+
+- SysAdminSuite PR #488 merged to `main` as `c6b6d146f5455b5fd3c7c7e102087c06db729722`.
+- Exact PR head `b34cbbcd3c40f932dceae4f933322d83db3bdd2d` completed all observed hosted workflows successfully before integration:
+  - AutoLogon Field Path Regression — SUCCESS.
+  - AutoLogon Field Path Windows Parse — SUCCESS.
+  - Pester — SUCCESS.
+- Provider readback confirmed PR #488 closed with `merged=true` and the merge commit above became the newest `main` commit.
+- Private Drive guide and P111 sync receipt were both read back after their final updates.
+- Documentation synchronization is therefore closed. The **firmware outcome remains open** at the unchanged live gate: authoritative labeled current value -> version-domain classification -> `BASELINE_LOCKED`.
