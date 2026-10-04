@@ -73,7 +73,7 @@
     "work_class": "EXTERNAL_ACCESS_OR_LIVE_EVIDENCE",
     "expected_route": "LIVE_RUNTIME_OR_OPERATOR_BOUNDARY",
     "estate_access_disposition": "AUTHORIZED_ACCESS_SETUP_REQUIRED",
-    "next_action": "Run the P95 firmware-protocol selector against current site/device evidence. Prefer an evidenced estate-specific technical control plane (Experian/AxiaMed Control Center, provider TMS/NTMS, or provider-managed update path); retain PAXSTORE reseller/Admin Center as a production-capable corroboration/fallback path and PAX Partner/PayDroid tooling as lab-only. Observe the selected protocol without mutation to capture the authoritative current_firmware_value and labeled version domain, then resume BASELINE_LOCKED.",
+    "next_action": "Run Select-HHCCReaderFirmwareProtocol.cmd with one sanitized context JSON. The launcher must preserve every configured protocol, consume a proven H&H site_profile when mutation-readiness is evaluated, and dispatch the first evidenced production protocol to a read-only observation route. Prefer an evidenced estate-specific technical control plane (Experian/AxiaMed Control Center, provider TMS/NTMS, or provider-managed update path); retain PAXSTORE reseller/Admin Center as a production-capable corroboration/fallback path and PAX Partner/PayDroid tooling as lab-only. Capture authoritative current_firmware_value and labeled version-domain evidence without mutation, then resume BASELINE_LOCKED.",
     "explicitly_not_next": [
       "hard-code PAXSTORE as the only firmware protocol across hospitals",
       "discard a protocol merely because another protocol is currently preferred",
