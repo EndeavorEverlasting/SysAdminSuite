@@ -58,14 +58,22 @@ PAXSTORE therefore remains fully represented and production-capable while servin
 
 Input is sanitized configuration/evidence, not credentials:
 
-- `site_profile_id` — optional non-secret site/profile key;
+- `site_profile` — optional H&H organization/site profile artifact with profile id, organization id, scope, status, authority reference, optional site id, preference order, and disabled protocols;
 - `evidence_signals` — observed management-plane/device signals;
 - `authority_signals` — independently proven mutation-authority signals;
-- `proven_gates` — live execution gates already proven;
-- `preference_order` — optional site-specific ranking;
-- `disabled_protocols` — explicit site-policy exclusions.
+- `proven_gates` — live execution gates already proven.
+
+Read-only ranking may proceed without a proven site profile, but mutation-readiness remains `BLOCKED_SITE_PROFILE` until the supplied profile is H&H-scoped and status `PROVEN`. Site overrides require an explicit site id. This preserves discovery usefulness without allowing an arbitrary or unknown hospital context to inherit mutation assumptions.
 
 Disabled or unobserved protocols remain in the output. They do not disappear.
+
+The governed Windows front door is:
+
+```cmd
+Select-HHCCReaderFirmwareProtocol.cmd CONTEXT_JSON
+```
+
+It runs deterministic selection plus a protocol-specific **read-only observation dispatcher** and propagates nonzero exit codes. The dispatcher consumes `primary_protocol`; it does not perform a firmware update.
 
 Output includes:
 
