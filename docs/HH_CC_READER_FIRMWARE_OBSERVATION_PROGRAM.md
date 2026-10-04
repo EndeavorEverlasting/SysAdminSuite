@@ -1,18 +1,19 @@
 # H&H CC Reader Firmware Observation Program
 
-Status: DESIGNED + THIN PROTOTYPE (UI ingest + OpenAPI observe)
-Date: 2026-10-03
-Floor: `main` containing P95 + PAXSTORE observe seam (PR #480) + TM UI ingest
-Mission owner: live Kiosk4 firmware deployment (not harness theater)
+Status: DESIGNED + THIN PROTOTYPE (UI ingest + OpenAPI observe + version-domain classify)
+Date: 2026-10-04
+Floor: `main` containing P95 + PAXSTORE observe (PR #480) + TM UI ingest (PR #481) + version-domain labels
+Mission owner: live Kiosk4 firmware/package deployment (not harness theater)
 
 ## User outcomes / invariants
 
-1. Bind the already-proved Kiosk4 identity to an **authoritative** installed firmware/software value.
+1. Bind the already-proved Kiosk4 identity to an **authoritative** installed value with its **version domain**.
 2. Reach `BASELINE_LOCKED` without inventing values from trackers, fixtures, or chronology.
 3. Prefer non-mutating cloud/TMS/Android/POS observation over inbound LAN guessing.
-4. Keep `2.0.15.260522` as the campaign **target**, not an assumed current value.
+4. Keep `2.0.15.260522` as the campaign **target**, not an assumed current value, and as `VERSION_DOMAIN_UNRESOLVED` until labeled bind.
 5. Do not silently violate restore-first mutation policy; surface an explicit operator decision if restore proof is the sole remaining blocker after a ready forward path.
 6. When the operator owns/administers the PAXSTORE marketplace, missing External System Integration keys are `AUTHORIZED_ACCESS_SETUP_REQUIRED`, not an external `CREDENTIAL_GATE`.
+7. Never source or deploy an unlabeled public/leaked A80 image; marketplace-mediated packages only.
 
 ## Domain vocabulary
 
@@ -20,17 +21,21 @@ Mission owner: live Kiosk4 firmware deployment (not harness theater)
 |---|---|
 | `TerminalIdentity` | serial, MAC, live IPv4, unique-target proof |
 | `FirmwareObservation` | value + version domain + source surface + timestamp |
-| `VersionDomain` | PayDroid/firmwareName vs campaign package vs Android OS vs payment app |
+| `VersionDomain` | `pax_pts_device_firmware` / `paydroid_os_build` / `experian_control_center_payment_package` / `payment_application` / `VERSION_DOMAIN_UNRESOLVED` |
+| `LabeledObservation` | section + field_heading + value (+ package name/id); label required for bind |
 | `ManagementSurface` | PAXSTORE TM UI / PAXSTORE OpenAPI / PFCC-IngEstate / AirViewer / USB-ADB / POS |
 | `EstateAccessDisposition` | `AUTHORIZED_ACCESS_SETUP_REQUIRED` (owned estate setup) vs `CREDENTIAL_GATE` (external owner) |
-| `PackageMapping` | observed package identity for campaign target; starts `UNPROVEN` |
+| `PackageMapping` | observed package identity for campaign target; `PROVEN` requires domain-bound campaign target |
 | `UiApiParity` | serial/firmware/status/check-in compare; `PASS` or `DIVERGENCE` |
 | `BaselineFreeze` | offline round-trip admission (`freeze_baseline`) |
+| `SourcingPath` | Experian/Control Center → PAXSTORE marketplace → Push Firmware/App → terminal |
 
 ## Module / interface map
 
 | Module | Responsibility | Side effects |
 |---|---|---|
+| `hh_cc_reader_version_domain.py` | labeled classify + campaign domain state | local only |
+| `Classify-HHCCReaderVersionDomain.cmd` | operator classify entrypoint | launches Python seam |
 | `hh_cc_reader_paxstore_ui_observation.py` | TM UI capture → observation receipt + parity | local ingest only |
 | `Ingest-HHCCReaderPaxstoreUiObservation.cmd` | operator UI ingest entrypoint | launches Python seam |
 | `hh_cc_reader_paxstore_terminal_observe.py` | serial → installedFirmware OpenAPI observe | optional HTTPS GET with env credentials |
@@ -41,19 +46,37 @@ Mission owner: live Kiosk4 firmware deployment (not harness theater)
 Dependency direction:
 
 ```text
-CMD/CLI -> UI ingest OR OpenAPI observe adapter
+CMD/CLI -> UI ingest
+                 \-> version-domain evaluate (labeled_observations)
                  \-> FirmwareObservation receipt
                  \-> freeze_baseline (offline)
                  \-> optional UI/API parity (pure)
+         -> OpenAPI observe adapter (deterministic repeat)
 ```
+
+## Version-domain critical observation
+
+Capture **labels**, not bare numbers:
+
+```text
+section (Installed Firmware | Installed Apps | Push Firmware | Push App)
+field_heading
+value
+package_name / application_name
+package_id
+install_time
+```
+
+If Installed Firmware is PayDroid/`PX7A_A80_...` and `2.0.15.x` appears under Installed Apps / Push App, those are different domains. Campaign `2.0.15.260522` may be an Experian/Control Center/payment package mediated by PAXSTORE, not PTS/PayDroid flash firmware.
 
 ## Two-layer critical path
 
 ```text
-PAXSTORE Terminal Management UI (fast truth)
-  -> private capture JSON
+PAXSTORE Terminal Management UI (fast truth + labels)
+  -> private capture JSON with labeled_observations
   -> Ingest-HHCCReaderPaxstoreUiObservation.cmd --freeze
   -> BASELINE_LOCKED
+  -> campaign_target_domain_state BOUND|VERSION_DOMAIN_UNRESOLVED
 
 External System Integration (deterministic repeat)
   -> SAS_PAXSTORE_API_KEY / SECRET / BASE_URL

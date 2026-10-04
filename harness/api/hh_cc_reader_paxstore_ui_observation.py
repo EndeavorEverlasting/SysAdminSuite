@@ -30,12 +30,18 @@ from harness.api.hh_cc_reader_paxstore_terminal_observe import (
     VERSION_DOMAIN,
     to_baseline_observation,
 )
+from harness.api.hh_cc_reader_version_domain import (
+    CAMPAIGN_TARGET as VERSION_CAMPAIGN_TARGET,
+    DOMAIN_UNRESOLVED,
+    evaluate_version_domains,
+    observations_from_ui_capture,
+)
 
 SCHEMA = "sas-hh-cc-reader-paxstore-ui-observation/v1"
 SURFACE = "paxstore_terminal_ui_app_firmware"
 MECHANISM_ID = "paxstore-terminal-management-ui"
 YES_NO_UNKNOWN = frozenset({"YES", "NO", "UNKNOWN"})
-CAMPAIGN_TARGET = "2.0.15.260522"
+CAMPAIGN_TARGET = VERSION_CAMPAIGN_TARGET
 
 
 def _norm_mac(value: Any) -> str | None:
@@ -76,11 +82,18 @@ def map_ui_capture(
         expected_mac if expected_mac is not None else capture.get("expected_mac")
     )
     returned_mac = _norm_mac(capture.get("mac") or capture.get("returned_mac") or capture.get("live_mac"))
-    firmware_name = _norm_text(
+    domain_eval = evaluate_version_domains(observations_from_ui_capture(capture))
+    primary = domain_eval.get("primary_observation") or {}
+    firmware_name = _norm_text(primary.get("value")) or _norm_text(
         capture.get("installed_firmware")
         or capture.get("current_firmware_value")
         or capture.get("installedFirmware")
     )
+    version_domain = _norm_text(primary.get("version_domain")) or DOMAIN_UNRESOLVED
+    if version_domain == DOMAIN_UNRESOLVED and firmware_name and not primary:
+        # Legacy unlabeled single-field capture: keep prior surface token only as a
+        # non-authoritative placeholder when the value is not campaign-like.
+        version_domain = VERSION_DOMAIN
 
     reasons: list[str] = []
     if not serial:
@@ -103,12 +116,17 @@ def map_ui_capture(
     restorable = _tri_state(capture.get("current_package_restorable"))
     package_id = _norm_text(capture.get("target_package_id"))
     package_version = _norm_text(capture.get("target_package_version"))
+    push_surface = _norm_text(capture.get("target_push_surface") or capture.get("push_surface"))
+    campaign_domain_state = domain_eval.get("campaign_target_domain_state")
     if (
         target_visible == "YES"
         and package_id
         and package_version == CAMPAIGN_TARGET
+        and campaign_domain_state == "BOUND"
     ):
         package_mapping = "PROVEN"
+    elif target_visible == "YES" and package_version == CAMPAIGN_TARGET:
+        package_mapping = "PARTIAL"
     elif target_visible == "YES":
         package_mapping = "PARTIAL"
     else:
@@ -130,13 +148,21 @@ def map_ui_capture(
         "terminal_status": _norm_text(capture.get("terminal_status") or capture.get("status")),
         "last_access_time": capture.get("last_access_time"),
         "current_firmware_value": firmware_name,
-        "firmware_install_time": capture.get("firmware_install_time")
+        "firmware_install_time": primary.get("install_time")
+        or capture.get("firmware_install_time")
         or capture.get("install_time"),
-        "version_domain": VERSION_DOMAIN,
+        "version_domain": version_domain,
         "version_domain_note": (
-            "PAXSTORE UI Installed Firmware is not automatically equal to "
-            f"campaign target {CAMPAIGN_TARGET}; map domains explicitly before eligibility."
+            "Campaign target 2.0.15.260522 is VERSION_DOMAIN_UNRESOLVED until a labeled "
+            "PAXSTORE observation binds it; PayDroid/PTS/app domains are distinct."
         ),
+        "version_domain_evaluation": {
+            "campaign_target_domain_state": campaign_domain_state,
+            "campaign_target_version_domain": domain_eval.get("campaign_target_version_domain"),
+            "domains_present": domain_eval.get("domains_present"),
+            "observations": domain_eval.get("observations"),
+            "sourcing_path": domain_eval.get("sourcing_path"),
+        },
         "mutation_performed": False,
         "network_contacted": False,
         "credential_state": "UI_OPERATOR_CAPTURE",
@@ -147,7 +173,9 @@ def map_ui_capture(
             "target_package_visible": target_visible,
             "target_package_id": package_id,
             "target_package_version": package_version,
+            "target_push_surface": push_surface,
             "campaign_target": CAMPAIGN_TARGET,
+            "campaign_target_domain_state": campaign_domain_state,
         },
         "restore_disposition": {
             "current_package_restorable": restorable,
