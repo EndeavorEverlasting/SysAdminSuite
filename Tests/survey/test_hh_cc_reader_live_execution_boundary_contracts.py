@@ -245,6 +245,7 @@ def test_local_research_capability_gap_routes_to_successor_not_dead_end() -> Non
             "research_question": "Locate an authorized or provider-backed A80 firmware source for the target version domain.",
             "attempted_queries": ["exact target version", "A80 firmware target version"],
             "sources_attempted": ["public vendor support", "public manuals"],
+            "exhausted_findings": ["no credible exact target package found on the public web"],
             "missing_capabilities": ["broader indexed web corpus", "authenticated partner/provider portal"],
             "unresolved_hypotheses": ["provider TMS catalog may carry the package", "authorized partner portal may expose the artifact"],
             "target_runtime": "frontier web-research runtime",
@@ -255,6 +256,15 @@ def test_local_research_capability_gap_routes_to_successor_not_dead_end() -> Non
     assert result["may_preempt_live_execution"] is False
     assert result["resume_gate"] == "PACKAGE_DOMAIN_BOUND"
     assert "frontier web-research runtime" in result["next_action"]
+    handoff = result["successor_handoff"]
+    assert handoff["research_question"].startswith("Locate an authorized")
+    assert handoff["attempted_queries"] == ["exact target version", "A80 firmware target version"]
+    assert handoff["sources_attempted"] == ["public vendor support", "public manuals"]
+    assert handoff["exhausted_findings"] == ["no credible exact target package found on the public web"]
+    assert handoff["unresolved_hypotheses"] == ["provider TMS catalog may carry the package", "authorized partner portal may expose the artifact"]
+    assert handoff["missing_capabilities"] == ["broader indexed web corpus", "authenticated partner/provider portal"]
+    assert handoff["target_runtime"] == "frontier web-research runtime"
+    assert handoff["resume_gate"] == "PACKAGE_DOMAIN_BOUND"
 
 
 def test_research_successor_requires_exact_handoff_evidence() -> None:
@@ -272,6 +282,36 @@ def test_research_successor_requires_exact_handoff_evidence() -> None:
             }
         )
         raise AssertionError("expected incomplete research handoff rejection")
+    except ExecutionBoundaryError as exc:
+        assert "research_capability_handoff_incomplete" in str(exc)
+
+
+def test_research_successor_rejects_missing_hypothesis_field_and_non_strings() -> None:
+    base = {
+        "current_gate": "PACKAGE_DOMAIN_BOUND",
+        "work_class": "LOCAL_RESEARCH_CAPABILITY_GAP",
+        "blocks_current_gate": True,
+        "research_question": "Find provider-backed package evidence.",
+        "attempted_queries": ["query"],
+        "sources_attempted": ["public web"],
+        "exhausted_findings": [],
+        "missing_capabilities": ["authenticated provider portal"],
+        "target_runtime": "frontier web-research runtime",
+    }
+    try:
+        route_work_item(base)
+        raise AssertionError("expected missing unresolved_hypotheses rejection")
+    except ExecutionBoundaryError as exc:
+        assert "research_capability_handoff_incomplete" in str(exc)
+
+    malformed = {
+        **base,
+        "unresolved_hypotheses": [],
+        "attempted_queries": [1],
+    }
+    try:
+        route_work_item(malformed)
+        raise AssertionError("expected non-string query rejection")
     except ExecutionBoundaryError as exc:
         assert "research_capability_handoff_incomplete" in str(exc)
 
@@ -307,6 +347,7 @@ def main() -> int:
         test_authority_gap_stops_mutation_without_inviting_harness_work,
         test_local_research_capability_gap_routes_to_successor_not_dead_end,
         test_research_successor_requires_exact_handoff_evidence,
+        test_research_successor_rejects_missing_hypothesis_field_and_non_strings,
         test_docs_bind_p95_decision,
     ]
     failed = 0
