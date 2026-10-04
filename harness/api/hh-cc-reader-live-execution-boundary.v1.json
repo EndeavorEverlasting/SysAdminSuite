@@ -102,11 +102,15 @@
       "research_question",
       "attempted_queries",
       "sources_attempted",
+      "exhausted_findings",
+      "unresolved_hypotheses",
       "missing_capabilities",
-      "target_runtime"
+      "target_runtime",
+      "resume_gate"
     ],
-    "rule": "A local/opaque runtime must not claim research exhaustion from a capability-limited search. When its research capability is insufficient for the current gate, it emits a structured successor handoff containing the exact question, queries and sources already attempted, unresolved hypotheses, capability gap, target stronger runtime, and resume gate.",
+    "rule": "A local/opaque runtime must not claim research exhaustion from a capability-limited search. The router returns a structured successor_handoff preserving the exact question, queries and sources attempted, exhausted findings, unresolved hypotheses, capability gaps, stronger target runtime, and gate to resume.",
     "terminal_blocker": false,
-    "may_infer_global_absence": false
+    "may_infer_global_absence": false,
+    "output_field": "successor_handoff"
   }
 }
