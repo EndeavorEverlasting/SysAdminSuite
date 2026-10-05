@@ -1,8 +1,8 @@
 # Kiosk4 Firmware Gate — Iteration 1 Checkpoint
 
-Date: 2026-10-05  
-Repository: EndeavorEverlasting/SysAdminSuite  
-Disposition: `WAITING_ON_EXTERNAL_OBSERVATION`  
+Date: 2026-10-05
+Repository: EndeavorEverlasting/SysAdminSuite
+Disposition: `WAITING_ON_EXTERNAL_OBSERVATION`
 Current gate: `BASELINE_LOCKED`
 
 ## Purpose
