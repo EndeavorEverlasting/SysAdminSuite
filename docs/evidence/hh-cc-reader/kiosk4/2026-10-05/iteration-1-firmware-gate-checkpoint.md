@@ -104,3 +104,35 @@ WAITING_ON_EXTERNAL_OBSERVATION
 ```
 
 The expected first local private capture is `%TEMP%\hh-cc-kiosk4-labeled-firmware-observation.json`. Registered ignored H&H firmware receipts under `survey/output/hh-cc-reader/` are alternate recovery evidence. These private artifacts must not be copied into Git.
+
+## P07 local-recovery addendum — 2026-10-05
+
+Local runtime recovered the canonical private capture and ran the classifier/baseline owners without copying identity into Git.
+
+Measured typed result:
+
+| Item | State |
+| --- | --- |
+| Capture file | Recovered at `%TEMP%\hh-cc-kiosk4-labeled-firmware-observation.json` |
+| Capture schema | `sas-hh-cc-reader-kiosk4-version-evidence-capture/v1` |
+| `capture_state` | `AWAITING_FIELD_OBSERVATION` |
+| `labeled_observations` | empty (count 0) |
+| Classifier | fail-closed; `primary_observation` null; `VERSION_DOMAIN_UNRESOLVED` |
+| Identity | `UNIQUE_TARGET_RESOLVED` (existing private receipt; unchanged) |
+| Baseline evaluator | `BASELINE_INCOMPLETE` |
+| `missing_fields` | `current_firmware_value` only |
+| `mutation_authorized` | `false` |
+| Fixture PAXSTORE observe | rejected as live current (`credential_state=FIXTURE`) |
+
+Operator-reported field completion did not populate the governed capture. Local reconstruction from other `%TEMP%` / worktree receipts found no non-empty `labeled_observations[].value` for this contract.
+
+Typed transition:
+
+```text
+OBSERVATION_REPORTED_EVIDENCE_INGEST_PENDING
+  -> LOCAL_CAPTURE_RECOVERED_EMPTY
+  -> fill labeled capture on an authorized read-only surface
+  -> Classify-HHCCReaderVersionDomain
+  -> Evaluate-HHCCReaderFirmwareRoundtrip baseline
+  -> BASELINE_LOCKED | exact fail-closed blocker
+```
