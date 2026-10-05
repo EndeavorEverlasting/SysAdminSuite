@@ -3,7 +3,7 @@
 Date: 2026-10-05
 Repository: EndeavorEverlasting/SysAdminSuite
 Base floor: `main@322cede1900ce4232d4f980e74d791dbe8acabeb`
-Status: ACTIVE CONTINUATION
+Status: L0 LOCAL RECOVERY COMPLETE — CAPTURE EMPTY; BASELINE_INCOMPLETE
 Owner: H&H CC-reader live firmware evidence lane
 Mutation boundary: no firmware/device mutation
 
@@ -15,10 +15,15 @@ That operator report is important continuity evidence, but this ChatGPT/provider
 
 ```text
 FIELD_ACTION=REPORTED_COMPLETE
-PRIVATE_EVIDENCE_INGEST=UNPROVEN
-CURRENT_FIRMWARE=DO_NOT_INFER
+PRIVATE_EVIDENCE_INGEST=RECOVERED_EMPTY_STUB
+CAPTURE_STATE=AWAITING_FIELD_OBSERVATION
+LABELED_OBSERVATION_COUNT=0
+CURRENT_FIRMWARE=UNBOUND
 VERSION_DOMAIN=VERSION_DOMAIN_UNRESOLVED
 BASELINE_LOCKED=false
+BASELINE_STATE=BASELINE_INCOMPLETE
+BASELINE_MISSING_FIELDS=current_firmware_value
+IDENTITY=UNIQUE_TARGET_RESOLVED
 MUTATION_AUTHORIZED=false
 ```
 
@@ -190,9 +195,10 @@ If `BASELINE_LOCKED`:
 
 If `BASELINE_INCOMPLETE`:
 
-- repair only the exact missing evidence/identity field;
-- consume existing private raw evidence before requesting another field action;
-- repeat the observation only when the original completion cannot yield a valid capture.
+- L0 measured missing field is only `current_firmware_value`; identity is already `UNIQUE_TARGET_RESOLVED`.
+- The canonical capture is a schema-valid empty stub (`AWAITING_FIELD_OBSERVATION`, zero labeled rows). Other private receipts did not supply non-empty labeled values.
+- Repeat/fill the observation is now justified: local recovery is exhausted and the original completion did not yield a valid labeled capture.
+- Next field action is one authorized read-only labeled installed-firmware observation into `%TEMP%\hh-cc-kiosk4-labeled-firmware-observation.json`, then classifier + baseline.
 
 ## Proof ceiling
 

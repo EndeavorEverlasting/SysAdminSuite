@@ -78,13 +78,21 @@
   },
   "current_kiosk4_example": {
     "evidence_date": "2026-10-05",
-    "proof_ceiling": "UNIQUE_TARGET_RESOLVED + LOCAL_MENU_CLOSED + CAPTURE_CLASSIFIER_READY; live current_firmware_value remains unobserved",
+    "proof_ceiling": "UNIQUE_TARGET_RESOLVED + LOCAL_MENU_CLOSED + LOCAL_CAPTURE_RECOVERED_EMPTY; classifier primary unbound; baseline BASELINE_INCOMPLETE missing current_firmware_value; live labeled current_firmware_value remains unobserved",
     "current_gate": "BASELINE_LOCKED",
     "missing_evidence": "authoritative labeled current_firmware_value for the same Kiosk4 identity",
     "work_class": "EXTERNAL_ACCESS_OR_LIVE_EVIDENCE",
     "expected_route": "LIVE_RUNTIME_OR_OPERATOR_BOUNDARY",
     "estate_access_disposition": "AUTHORIZED_ACCESS_SETUP_REQUIRED",
-    "next_action": "Recover the already-completed authorized read-only Kiosk4 observation from the local private runtime instead of repeating the field action. First inspect the expected private capture at %TEMP%\\hh-cc-kiosk4-labeled-firmware-observation.json and registered ignored H&H firmware observation/version-domain artifacts under survey/output/hh-cc-reader. Preserve the original capture unchanged. Validate the capture against sas-hh-cc-reader-kiosk4-version-evidence-capture/v1, run Classify-HHCCReaderVersionDomain.cmd on it, then construct the private baseline input from the same existing Kiosk4 identity receipt plus the classifier-selected current_firmware_value and the governed target, and run Evaluate-HHCCReaderFirmwareRoundtrip.cmd baseline. Promote BASELINE_LOCKED only from the resulting receipt. Ask the operator to repeat the observation only if the completed local evidence is demonstrably absent or invalid and cannot be reconstructed from the private raw evidence. Do not mutate firmware.",
+    "local_recovery_state": "RECOVERED_EMPTY_STUB",
+    "capture_state_observed": "AWAITING_FIELD_OBSERVATION",
+    "labeled_observation_count": 0,
+    "classifier_primary_bound": false,
+    "baseline_receipt_state": "BASELINE_INCOMPLETE",
+    "baseline_missing_fields": [
+      "current_firmware_value"
+    ],
+    "next_action": "Local recovery is complete and fail-closed: %TEMP%\\hh-cc-kiosk4-labeled-firmware-observation.json exists with schema sas-hh-cc-reader-kiosk4-version-evidence-capture/v1, capture_state=AWAITING_FIELD_OBSERVATION, and zero labeled_observations. Classify-HHCCReaderVersionDomain.cmd on that capture returned primary_observation null / VERSION_DOMAIN_UNRESOLVED. Same-Kiosk4 identity remains UNIQUE_TARGET_RESOLVED. Evaluate-HHCCReaderFirmwareRoundtrip.cmd baseline on the existing private identity packet returned BASELINE_INCOMPLETE missing current_firmware_value. Do not invent a numeric version, do not use the campaign target as current, and do not promote a PAXSTORE fixture observe receipt to live current_firmware_value. Fill the same private capture with one authorized read-only labeled installed-firmware observation (Payment Fusion Control Center / IngEstate terminal-management detail when authorized; otherwise same-device Settings > Software versions; PAXSTORE TM/OpenAPI only with live entitlement, never --fixture). Then rerun Classify-HHCCReaderVersionDomain.cmd and Evaluate-HHCCReaderFirmwareRoundtrip.cmd baseline. Promote BASELINE_LOCKED only from the baseline receipt. Do not mutate firmware.",
     "explicitly_not_next": [
       "rerun P95 protocol selection against the same unchanged evidence set",
       "hard-code PAXSTORE as the only firmware protocol across hospitals",
@@ -102,12 +110,14 @@
       "push, schedule, assign, reset, or change settings during the read-only observation",
       "repeat the authorized read-only Kiosk4 observation merely because Git or Drive does not contain the private capture",
       "ask the operator to restate a value that is recoverable from the local private capture or registered ignored receipt",
-      "promote operator-reported completion directly to current_firmware_value or BASELINE_LOCKED without classifier/baseline receipts"
+      "promote operator-reported completion directly to current_firmware_value or BASELINE_LOCKED without classifier/baseline receipts",
+      "promote a PAXSTORE --fixture or credential_state=FIXTURE observe receipt as live current_firmware_value",
+      "invent current_firmware_value from campaign target 2.0.15.260522 or tracker history"
     ],
     "protocol_selection_contract": "sas-hh-cc-reader-firmware-protocols/v1",
     "protocol_selection_disposition": "CLOSED_UNTIL_NEW_EVIDENCE_SIGNAL",
     "capture_template": "docs/examples/hh-cc-reader-kiosk4-version-evidence-capture.template.json",
-    "iteration_state": "OBSERVATION_REPORTED_EVIDENCE_INGEST_PENDING",
+    "iteration_state": "LOCAL_CAPTURE_RECOVERED_EMPTY",
     "local_menu_state": "CLOSED",
     "capture_classifier_state": "READY",
     "version_domain_state": "VERSION_DOMAIN_UNRESOLVED",

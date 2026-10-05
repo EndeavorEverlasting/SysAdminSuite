@@ -81,10 +81,10 @@ Next critical path: obtain one authorized read-only labeled current-version obse
 
 ### Kiosk4 P82/P04 post-observation convergence — 2026-10-05
 
-The operator reports the read-only Kiosk4 observation completed. Repository/provider evidence has **not yet ingested** the resulting private capture, so this does not promote `current_firmware_value`, version domain, or `BASELINE_LOCKED`.
+Local recovery of the canonical private capture completed on 2026-10-05. The file exists and matches the capture schema, but `capture_state=AWAITING_FIELD_OBSERVATION` with zero labeled rows. Classifier primary is unbound. Same-Kiosk4 identity remains `UNIQUE_TARGET_RESOLVED`. Baseline evaluator returned `BASELINE_INCOMPLETE` missing only `current_firmware_value`. This does not promote live firmware, version domain, or `BASELINE_LOCKED`.
 
 Canonical continuation plan:
 
 - `docs/plans/hh-cc-kiosk4-p82-p04-post-observation-convergence-20261005.plan.md`
 
-Next transition is evidence recovery from the local private runtime, then classifier + baseline evaluation. Do not repeat the field observation merely because Git/Drive lacks the private artifact.
+Next transition is one authorized read-only labeled installed-firmware observation written into the same private capture, then classifier + baseline evaluation. Do not invent a numeric version, campaign target, tracker history, or PAXSTORE fixture observe as current.

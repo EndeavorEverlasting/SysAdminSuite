@@ -57,7 +57,13 @@ def test_current_kiosk4_example_recovers_completed_observation_before_repeat() -
     payload = json.loads(CONTRACT.read_text(encoding="utf-8"))
     example = payload["current_kiosk4_example"]
     action = example["next_action"]
-    assert example["iteration_state"] == "OBSERVATION_REPORTED_EVIDENCE_INGEST_PENDING"
+    assert example["iteration_state"] == "LOCAL_CAPTURE_RECOVERED_EMPTY"
+    assert example["local_recovery_state"] == "RECOVERED_EMPTY_STUB"
+    assert example["capture_state_observed"] == "AWAITING_FIELD_OBSERVATION"
+    assert example["labeled_observation_count"] == 0
+    assert example["classifier_primary_bound"] is False
+    assert example["baseline_receipt_state"] == "BASELINE_INCOMPLETE"
+    assert example["baseline_missing_fields"] == ["current_firmware_value"]
     assert example["operator_reported_observation_complete"] is True
     assert example["evidence_ingested"] is False
     assert example["local_menu_state"] == "CLOSED"
@@ -66,11 +72,14 @@ def test_current_kiosk4_example_recovers_completed_observation_before_repeat() -
     assert example["baseline_locked"] is False
     assert example["mutation_authorized"] is False
     assert "%TEMP%\\hh-cc-kiosk4-labeled-firmware-observation.json" in action
+    assert "AWAITING_FIELD_OBSERVATION" in action
     assert "Classify-HHCCReaderVersionDomain.cmd" in action
     assert "Evaluate-HHCCReaderFirmwareRoundtrip.cmd baseline" in action
-    assert "instead of repeating the field action" in action
+    assert "Fill the same private capture" in action
     assert "repeat the authorized read-only Kiosk4 observation merely because Git or Drive does not contain the private capture" in example["explicitly_not_next"]
     assert "promote operator-reported completion directly to current_firmware_value or BASELINE_LOCKED without classifier/baseline receipts" in example["explicitly_not_next"]
+    assert "promote a PAXSTORE --fixture or credential_state=FIXTURE observe receipt as live current_firmware_value" in example["explicitly_not_next"]
+    assert "invent current_firmware_value from campaign target 2.0.15.260522 or tracker history" in example["explicitly_not_next"]
     assert example["capture_template"].endswith("version-evidence-capture.template.json")
 
 def test_current_kiosk4_routes_to_live_runtime_not_harness() -> None:
