@@ -1,7 +1,7 @@
 # H&H CC Reader Firmware Observation Program
 
-Status: IMPLEMENTED OBSERVATION SEAMS + CURRENT P95 KIOSK4 FIELD GATE
-Date: 2026-10-04
+Status: IMPLEMENTED OBSERVATION SEAMS + ITERATION-1 EXTERNAL OBSERVATION GATE
+Date: 2026-10-05
 Floor: P95 multi-protocol portfolio + local-access field guide + PAXSTORE observe/UI fallback seams + version-domain classifier
 Mission owner: live Kiosk4 firmware/package deployment (not harness theater)
 
@@ -69,25 +69,42 @@ install_time
 
 If Installed Firmware is PayDroid/`PX7A_A80_...` and `2.0.15.x` appears under Installed Apps / Push App, those are different domains. Campaign `2.0.15.260522` may be an Experian/Control Center/payment package mediated by PAXSTORE, not PTS/PayDroid flash firmware.
 
-## Current critical path + retained remote seams
+## Current critical path + retained observation seams
 
-The current Kiosk4 gate is no longer PAXSTORE-first. The already-settled P95 evidence set keeps the immediate path local and bounded:
+Iteration 1 closed the local menu/input branch. The current Kiosk4 gate is **one authorized read-only observation** of the installed version for the same private identity. Do not reopen the AxiaMed burger-menu crawl, IME discovery, generic HID classification, LAN probing, App Store marketplace search, or tracker/history inference.
+
+Preferred observation order:
+
+1. **Payment Fusion Control Center / IngEstate** terminal-management detail when the operator has authorized read access.
+2. **Same-device Settings -> Software versions** only when the management plane is unavailable; this is a direct read-only version surface, not a reason to reopen the AxiaMed admin-menu crawl.
+3. **PAXSTORE Terminal Management UI / OpenAPI** only when actual entitlement to that terminal-management plane is evidenced.
+
+For whichever authorized surface produces the observation, preserve the same private Kiosk4 identity binding and capture only observable facts:
 
 ```text
-same proven Kiosk4 identity
-  -> one visible IME-selector check
-  -> one wired USB-HOST classification
-  -> one authorized credential attempt only if alphanumeric input is proved
-  -> private classifier-native capture
-       labeled_observations[].section
-       labeled_observations[].field_heading
-       labeled_observations[].value
-  -> Classify-HHCCReaderVersionDomain.cmd
-  -> authoritative domain-bound current value
-  -> BASELINE_LOCKED
+source_surface
+observed_at
+identity_binding_reference
+evidence_reference
+labeled_observations[].section
+labeled_observations[].field_heading
+labeled_observations[].value
 ```
 
-If that local branch closes, resume P95 protocol selection only when **new management-plane evidence** exists. The following remote seams remain valid fallbacks/corroboration and deterministic repeat paths:
+Then:
+
+```text
+authorized read-only observation
+  -> validate sas-hh-cc-reader-kiosk4-version-evidence-capture/v1
+  -> Classify-HHCCReaderVersionDomain.cmd
+  -> authoritative domain-bound current_firmware_value
+  -> Evaluate-HHCCReaderFirmwareRoundtrip baseline
+  -> BASELINE_LOCKED or exact fail-closed blocker
+```
+
+The capture/classifier path is ready on integrated PR #495. Planning/target strings remain non-authoritative until a labeled live bind exists. Observation must not push, schedule, assign, reset, or change settings.
+
+Retained deterministic seams:
 
 ```text
 PAXSTORE Terminal Management UI
@@ -100,7 +117,7 @@ External System Integration
   -> optional UI/API parity
 ```
 
-Neither fallback is a prerequisite for the current local observation gate.
+These are available paths, not proof that the H&H account is entitled to use them.
 
 ## Success call stack (Terminal Management UI)
 

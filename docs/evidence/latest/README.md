@@ -61,3 +61,20 @@ authorized source owner
   -> one controlled reader update
   -> post-update verification
 ```
+
+### Kiosk4 firmware discovery Iteration 1 — 2026-10-05
+
+Integrated implementation floor:
+
+- PR #495 merged to `main` as `4aa474946f283882874d837673c3bb964fd879d1`.
+- capture contract is fail-closed and operator-minimal;
+- synthetic positive/negative classifier fixtures are integrated;
+- the local menu/input branch is closed;
+- live `current_firmware_value` remains unobserved;
+- `BASELINE_LOCKED=false` and `mutation_authorized=false`.
+
+Durable checkpoint:
+
+- `docs/evidence/hh-cc-reader/kiosk4/2026-10-05/iteration-1-firmware-gate-checkpoint.md`
+
+Next critical path: obtain one authorized read-only labeled current-version observation for the same private Kiosk4 identity, classify its version domain, then attempt the baseline freeze. Do not substitute tracker/history firmware values or reopen the closed local menu branch.

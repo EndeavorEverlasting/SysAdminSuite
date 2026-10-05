@@ -50,19 +50,28 @@ def test_contract_shape_and_invariants() -> None:
     assert invariants["research_capability_gap_is_not_terminal_blocker"] is True
     assert invariants["settled_protocol_selection_not_rerun_without_new_evidence"] is True
     assert invariants["current_gate_operator_path_must_match_latest_field_guide"] is True
+    assert invariants["closed_local_discovery_cannot_reenter_current_next_action"] is True
 
 
-def test_current_kiosk4_example_uses_bounded_local_capture_before_selector_replay() -> None:
+def test_current_kiosk4_example_routes_to_authorized_readonly_observation() -> None:
     payload = json.loads(CONTRACT.read_text(encoding="utf-8"))
     example = payload["current_kiosk4_example"]
-    assert example["protocol_selection_disposition"] == "CLOSED_UNTIL_NEW_EVIDENCE_SIGNAL"
-    assert "IME-selector" in example["next_action"]
-    assert "wired USB-HOST" in example["next_action"]
-    assert "section/field_heading/value" in example["next_action"]
-    assert "unchanged evidence set" in example["next_action"]
+    action = example["next_action"]
+    assert example["iteration_state"] == "WAITING_ON_EXTERNAL_OBSERVATION"
+    assert example["local_menu_state"] == "CLOSED"
+    assert example["capture_classifier_state"] == "READY"
+    assert example["version_domain_state"] == "VERSION_DOMAIN_UNRESOLVED"
+    assert example["baseline_locked"] is False
+    assert example["mutation_authorized"] is False
+    assert "Payment Fusion Control Center / IngEstate" in action
+    assert "same-device Settings > Software versions" in action
+    assert "PAXSTORE Terminal Management UI / OpenAPI" in action
+    assert "section/field_heading/value" in action
+    assert "Classify-HHCCReaderVersionDomain" in action
+    assert "IME-selector" not in action
+    assert "wired USB-HOST" not in action
+    assert "repeat the closed local menu / IME / wired-HID classification" in example["explicitly_not_next"]
     assert example["capture_template"].endswith("version-evidence-capture.template.json")
-    assert "rerun P95 protocol selection against the same unchanged evidence set" in example["explicitly_not_next"]
-
 
 def test_current_kiosk4_routes_to_live_runtime_not_harness() -> None:
     result = route_work_item(
@@ -348,7 +357,7 @@ def test_docs_bind_p95_decision() -> None:
 def main() -> int:
     tests = [
         test_contract_shape_and_invariants,
-        test_current_kiosk4_example_uses_bounded_local_capture_before_selector_replay,
+        test_current_kiosk4_example_routes_to_authorized_readonly_observation,
         test_current_kiosk4_routes_to_live_runtime_not_harness,
         test_confirmed_gate_blocking_harness_defect_requires_artifact_and_may_preempt,
         test_plain_claim_cannot_preempt_without_artifact_proof,
