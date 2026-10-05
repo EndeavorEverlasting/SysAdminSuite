@@ -1,0 +1,17 @@
+{
+  "fixture_id": "P1",
+  "description": "Recognized management surface, A80 synthetic device, explicit current firmware label",
+  "input": {
+    "source_surface": "synthetic-device-local-management",
+    "device_model": "A80",
+    "observed_at": "2099-06-01T12:00:00Z",
+    "section": "Device Information",
+    "field_heading": "Current Firmware Version",
+    "value": "FW.TEST.1"
+  },
+  "expected": {
+    "classification": "CURRENT_FIRMWARE_BOUND",
+    "version_domain": "synthetic_device_firmware",
+    "baseline_transition": "ALLOWED"
+  }
+}

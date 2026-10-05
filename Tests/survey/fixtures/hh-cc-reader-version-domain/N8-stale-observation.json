@@ -1,0 +1,16 @@
+{
+  "fixture_id": "N8",
+  "description": "Observation older than canonical freshness policy",
+  "input": {
+    "source_surface": "synthetic-device-local-management",
+    "device_model": "A80",
+    "observed_at": "2020-01-01T00:00:00Z",
+    "section": "Device Information",
+    "field_heading": "Current Firmware Version",
+    "value": "FW.TEST.1"
+  },
+  "expected": {
+    "classification": "REJECT",
+    "baseline_transition": "REQUIRE_REFRESH"
+  }
+}

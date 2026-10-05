@@ -1,0 +1,16 @@
+{
+  "fixture_id": "N6",
+  "description": "Unsupported source surface must fail closed",
+  "input": {
+    "source_surface": "SYNTHETIC_UNKNOWN_SOURCE",
+    "device_model": "A80",
+    "observed_at": "2099-06-01T12:00:00Z",
+    "section": "Device Information",
+    "field_heading": "Current Firmware Version",
+    "value": "FW.TEST.1"
+  },
+  "expected": {
+    "classification": "FAIL_CLOSED",
+    "baseline_transition": "REJECT"
+  }
+}

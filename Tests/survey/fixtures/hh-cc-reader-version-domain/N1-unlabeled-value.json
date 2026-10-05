@@ -1,0 +1,16 @@
+{
+  "fixture_id": "N1",
+  "description": "Unlabeled value must not bind current firmware",
+  "input": {
+    "source_surface": "synthetic-device-local-management",
+    "device_model": "A80",
+    "observed_at": "2099-06-01T12:00:00Z",
+    "field_heading": null,
+    "section": null,
+    "value": "FW.TEST.1"
+  },
+  "expected": {
+    "classification": "REJECT",
+    "baseline_transition": "REJECT"
+  }
+}
