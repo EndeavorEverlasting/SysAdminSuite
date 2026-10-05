@@ -146,3 +146,35 @@ Classify-HHCCReaderVersionDomain
 - Provider readback confirmed PR #488 closed with `merged=true` and the merge commit above became the newest `main` commit.
 - Private Drive guide and P111 sync receipt were both read back after their final updates.
 - Documentation synchronization is therefore closed. The **firmware outcome remains open** at the unchanged live gate: authoritative labeled current value -> version-domain classification -> `BASELINE_LOCKED`.
+
+
+## Superseding continuity state — 2026-10-05
+
+This section supersedes earlier statements in this plan that treated general alphanumeric input or HID classification as still unproven.
+
+Later field evidence established:
+
+- the local menu inventory is complete and should not be repeated;
+- Connectivity Test, Netstat, and Network Settings are closed branches;
+- numeric security prompts accept numeric input and reject alphabetic input;
+- the USB keyboard is functional;
+- Ping host-name input accepts text from the USB keyboard;
+- Trace Route is the same alphanumeric diagnostic field class.
+
+Therefore the remaining problem is not general keyboard capability. The technical return point is authoritative source ownership and version/package evidence.
+
+The accepted presentation checkpoint is `Kiosk4 Firmware Gate — Executive Cinematic v2 — 2026-10-05.pptx`. The operator explicitly accepted its current state as a solid checkpoint. P111 should keep presentation work quiescent until new technical evidence changes the story or the operator requests another deck pass.
+
+Current successor sequence:
+
+```text
+authorized source owner
+  -> current installed version evidence
+  -> package/version-domain evidence
+  -> restore/rollback proof
+  -> update authority
+  -> one controlled reader update
+  -> post-update verification
+```
+
+P111 synchronization is complete only when the Drive receipt, repository ledger, current evidence pointer, and accepted presentation identity all reflect this same return point.

@@ -29,7 +29,7 @@ The current local firmware-baseline continuation was synchronized under P111 on 
 - `docs/HH_CC_READER_KIOSK4_LOCAL_ACCESS_FIELD_GUIDE.md`
 - `docs/plans/hh-cc-p111-kiosk4-local-access-sync-20261004.plan.md`
 
-The private H&H Drive guide owns credentials, live identity binding, and raw field evidence. The public derivative records only the sanitized decision contract: native alphanumeric entry on the observed Kiosk4 path is retired as proved-blocked; the remaining local branch is one bounded input-method-selector check plus one wired-HID classification before pivoting to an authorized management surface. The firmware gate remains `BASELINE_LOCKED / BLOCKED_EVIDENCE` until a labeled, identity-bound current value is captured and classified.
+The private H&H Drive guide owns protected operational context and raw field evidence. The public derivative now records the superseding sanitized decision contract: the local menu inventory is complete; Connectivity Test, Netstat, and Network Settings are closed branches; numeric security prompts restrict alphabetic input; the USB keyboard is functional; and Ping/Trace diagnostic host fields establish alphanumeric text capability. The remaining technical path is authoritative source ownership plus current version/package evidence, not another input-method or menu-discovery pass.
 
 Current local validation commands:
 
@@ -41,4 +41,23 @@ bash Tests/bash/test_sysadmin_harness_validator_contracts.sh
 
 ```powershell
 .\scripts\validate-sysadmin-harness.ps1
+```
+
+
+### Accepted presentation checkpoint — 2026-10-05
+
+`Kiosk4 Firmware Gate — Executive Cinematic v2 — 2026-10-05.pptx` is the accepted presentation checkpoint.
+
+The operator explicitly accepted the current state as a solid checkpoint. P111 therefore treats presentation synchronization as closed until new technical evidence changes the story or the operator explicitly requests another deck pass.
+
+Current technical return point:
+
+```text
+authorized source owner
+  -> current installed version evidence
+  -> package/version-domain evidence
+  -> restore/rollback proof
+  -> update authority
+  -> one controlled reader update
+  -> post-update verification
 ```
