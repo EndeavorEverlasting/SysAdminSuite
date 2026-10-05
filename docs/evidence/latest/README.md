@@ -78,4 +78,3 @@ Durable checkpoint:
 - `docs/evidence/hh-cc-reader/kiosk4/2026-10-05/iteration-1-firmware-gate-checkpoint.md`
 
 Next critical path: obtain one authorized read-only labeled current-version observation for the same private Kiosk4 identity, classify its version domain, then attempt the baseline freeze. Do not substitute tracker/history firmware values or reopen the closed local menu branch.
-
