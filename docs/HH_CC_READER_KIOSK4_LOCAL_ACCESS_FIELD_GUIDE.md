@@ -255,22 +255,49 @@ It does not prove:
 - mutation authority;
 - successful deployment.
 
+## Superseding Iteration-1 disposition — 2026-10-05
+
+The local menu/input investigation is now **CLOSED**. USB keyboard capability and alphanumeric diagnostic fields are already proven; numeric credential fields are field-specific restrictions. Connectivity Test, Netstat, Network Settings, repeated keypad/IME experiments, and generic wired-HID classification are not the next firmware step.
+
+Current technical state:
+
+- Kiosk4 identity: `UNIQUE_TARGET_RESOLVED`
+- current firmware: unobserved
+- version domain: `VERSION_DOMAIN_UNRESOLVED`
+- baseline: not locked
+- capture + classifier: ready on integrated PR #495
+- mutation authority: false
+- production mutation: gated
+
+The next field/operator action is one **authorized read-only installed-version observation**. Prefer the authorized Payment Fusion Control Center / IngEstate terminal detail when available; otherwise use the same device's read-only Software versions surface. PAXSTORE TM/API remains a fallback only when entitlement is evidenced.
+
+This guide remains the historical local-access record. It must not be used to reopen menu discovery.
+
 ## Handoff
 
 ```text
 CURRENT_GATE=BASELINE_LOCKED
+ITERATION_STATE=WAITING_ON_EXTERNAL_OBSERVATION
 MISSING_EVIDENCE=authoritative labeled current_firmware_value for same private Kiosk4 identity
 
-LOCAL_NATIVE_ALPHA=PROVEN_BLOCKED
-LOCAL_REMAINING=ONE_VISIBLE_IME_SWITCH_CHECK + ONE_WIRED_HID_CLASSIFICATION
-REMOTE_REMAINING=AUTHORIZED_EVIDENCED_MANAGEMENT_SURFACE
-
-P111_PAXSTORE=DO_NOT_REPLAY
-PROTOCOL_SELECTOR=DO_NOT_RERUN_WITHOUT_NEW_EVIDENCE
+KIOSK4_IDENTITY=UNIQUE_TARGET_RESOLVED
+LOCAL_MENU=CLOSED
+CAPTURE_CLASSIFIER=READY
+VERSION_DOMAIN=VERSION_DOMAIN_UNRESOLVED
 MUTATION_AUTHORIZED=false
 
+PREFERRED_READONLY_OBSERVATION:
+1. authorized Payment Fusion Control Center / IngEstate terminal detail
+2. same-device Settings -> Software versions
+3. PAXSTORE Terminal Management UI / OpenAPI only with evidenced entitlement
+
 NEXT_SUCCESS_TRANSITION:
-labeled installed value
+authorized labeled installed value
   -> version-domain classification
   -> BASELINE_LOCKED
+
+FORBIDDEN:
+no push / schedule / assignment / reset / setting changes
+no tracker/history value promoted as current firmware
+no replay of closed local-menu / IME / generic-HID discovery
 ```
