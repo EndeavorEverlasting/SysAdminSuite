@@ -62,3 +62,31 @@ The deck does not claim:
 - mutation authority;
 - firmware deployment;
 - post-deployment runtime observation.
+
+
+## Operator acceptance checkpoint — 2026-10-05
+
+The operator explicitly accepted the current v2 presentation as a solid checkpoint.
+
+P111 continuation rule:
+
+- preserve this Drive-stored PPTX as the accepted presentation checkpoint;
+- do not reopen broad presentation redesign in the next technical conversation;
+- resume presentation work only when new technical evidence changes the story or the operator explicitly requests another presentation pass;
+- return the next conversation to the firmware/source-owner technical gate.
+
+## Technical return point
+
+The next active sequence is:
+
+```text
+authorized source owner
+  -> current installed version evidence
+  -> package/version-domain evidence
+  -> restore/rollback proof
+  -> update authority
+  -> one controlled reader update
+  -> post-update verification
+```
+
+The local menu crawl, Connectivity Test, Netstat, Network Settings, and general keyboard-capability discovery remain closed unless new device-state evidence changes those conclusions.
