@@ -300,7 +300,55 @@
   "version_evidence_capture_contract": {
     "schema_version": "sas-hh-cc-reader-kiosk4-version-evidence-capture/v1",
     "template_path": "docs/examples/hh-cc-reader-kiosk4-version-evidence-capture.template.json",
+    "operator_minimal_example_path": "docs/examples/hh-cc-reader-kiosk4-version-evidence-capture.operator-minimal.example.json",
     "purpose": "Give the Kiosk4 field/operator lane a deterministic, classifier-native private capture shape for the bounded input check and labeled version observation without pre-filling current firmware or mutation authority.",
+    "operator_human_required_fields": {
+      "capture_context": [
+        "source_surface",
+        "identity_binding_reference",
+        "observed_at",
+        "evidence_reference"
+      ],
+      "device_identity": [
+        "model",
+        "fleet_or_device_reference"
+      ],
+      "per_labeled_observation": [
+        "section",
+        "field_heading",
+        "value"
+      ]
+    },
+    "derived_capture_fields": [
+      "capture_state",
+      "source_protocol",
+      "navigation_path",
+      "input_gate",
+      "version_domain_state",
+      "baseline_state",
+      "mutation_authorized",
+      "version_domain_classifier_output"
+    ],
+    "device_identity_contract": {
+      "required_model": "A80",
+      "kiosk4_fleet_alias": "Kiosk4",
+      "fleet_or_device_reference_binds_to": "identity_binding_reference"
+    },
+    "allowed_source_surfaces": [
+      "device_local_about_device",
+      "device_local_software_versions",
+      "device_local_system_information",
+      "device_local_terminal_information",
+      "provider_readonly_app_info",
+      "synthetic-read-only-version-screen"
+    ],
+    "ambiguous_field_heading_tokens": [
+      "Version",
+      "Software",
+      "Build",
+      "Firmware"
+    ],
+    "campaign_target_observation_value": "2.0.15.260522",
     "default_capture_state": "AWAITING_FIELD_OBSERVATION",
     "allowed_capture_states": [
       "AWAITING_FIELD_OBSERVATION",
@@ -323,6 +371,8 @@
       "navigation_path",
       "observed_at",
       "identity_binding_reference",
+      "evidence_reference",
+      "device_identity",
       "notes"
     ],
     "classifier_input_key": "labeled_observations",
@@ -336,6 +386,48 @@
       "package_id",
       "install_time"
     ],
+    "fail_closed_conditions": [
+      {
+        "id": "value_without_visible_label",
+        "meaning": "A version string is present without both section and field_heading copied from the UI."
+      },
+      {
+        "id": "field_label_ambiguous",
+        "meaning": "Section/field_heading use generic tokens that do not disambiguate the visible label."
+      },
+      {
+        "id": "unknown_version_domain",
+        "meaning": "Downstream classifier leaves VERSION_DOMAIN_UNRESOLVED; capture must not promote baseline."
+      },
+      {
+        "id": "campaign_target_submitted_as_installed",
+        "meaning": "Campaign target 2.0.15.260522 appears as an observed installed value without live current-state proof."
+      },
+      {
+        "id": "device_identity_not_bound_kiosk4_a80",
+        "meaning": "Device identity is missing, wrong model, or fleet reference does not bind to identity_binding_reference."
+      },
+      {
+        "id": "unsupported_source_or_missing_provenance",
+        "meaning": "source_surface is absent or not on the Kiosk4 read-only allow list when observations exist."
+      },
+      {
+        "id": "stale_observation_when_freshness_required",
+        "meaning": "observed_at is missing or blank when labeled observations are submitted."
+      },
+      {
+        "id": "inferred_rather_than_observed",
+        "meaning": "Observation or capture marks provenance as inferred/derived instead of direct read-only UI capture."
+      },
+      {
+        "id": "package_or_app_mistaken_for_device_firmware",
+        "meaning": "Package/app metadata is paired with firmware-style headings without package-labeled context."
+      },
+      {
+        "id": "screenshot_lacks_source_device_binding",
+        "meaning": "evidence_reference is set without source_surface and identity_binding_reference on the same capture."
+      }
+    ],
     "rules": {
       "template_contains_no_live_identity": true,
       "template_contains_no_current_firmware_value": true,
@@ -344,7 +436,15 @@
       "capture_must_use_classifier_native_keys": true,
       "mutation_authorized_must_default_false": true,
       "presentation_projection_is_downstream_only": true,
-      "presentation_may_not_infer_missing_firmware_or_baseline_state": true
+      "presentation_may_not_infer_missing_firmware_or_baseline_state": true,
+      "submission_validates_fail_closed_before_classifier_promotion": true,
+      "value_without_section_or_field_heading_fails_closed": true,
+      "campaign_target_must_not_be_submitted_as_observed_installed_value": true,
+      "device_identity_must_bind_kiosk4_a80": true,
+      "unsupported_source_surface_fails_closed": true,
+      "evidence_reference_requires_source_and_identity_binding": true,
+      "package_metadata_without_package_labeled_context_fails_closed": true,
+      "inferred_or_derived_observation_provenance_fails_closed": true
     },
     "ordered_success_transitions": [
       {

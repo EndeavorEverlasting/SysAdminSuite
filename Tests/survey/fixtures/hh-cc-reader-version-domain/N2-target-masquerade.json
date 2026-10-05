@@ -1,0 +1,16 @@
+{
+  "fixture_id": "N2",
+  "description": "Target firmware context must not bind as current installed value",
+  "input": {
+    "source_surface": "synthetic-device-local-management",
+    "device_model": "A80",
+    "observed_at": "2099-06-01T12:00:00Z",
+    "section": "Available Updates",
+    "field_heading": "Target Firmware Version",
+    "value": "FW.TEST.2"
+  },
+  "expected": {
+    "classification": "REJECT",
+    "baseline_transition": "REJECT"
+  }
+}
