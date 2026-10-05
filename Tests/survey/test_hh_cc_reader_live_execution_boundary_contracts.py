@@ -53,24 +53,24 @@ def test_contract_shape_and_invariants() -> None:
     assert invariants["closed_local_discovery_cannot_reenter_current_next_action"] is True
 
 
-def test_current_kiosk4_example_routes_to_authorized_readonly_observation() -> None:
+def test_current_kiosk4_example_recovers_completed_observation_before_repeat() -> None:
     payload = json.loads(CONTRACT.read_text(encoding="utf-8"))
     example = payload["current_kiosk4_example"]
     action = example["next_action"]
-    assert example["iteration_state"] == "WAITING_ON_EXTERNAL_OBSERVATION"
+    assert example["iteration_state"] == "OBSERVATION_REPORTED_EVIDENCE_INGEST_PENDING"
+    assert example["operator_reported_observation_complete"] is True
+    assert example["evidence_ingested"] is False
     assert example["local_menu_state"] == "CLOSED"
     assert example["capture_classifier_state"] == "READY"
     assert example["version_domain_state"] == "VERSION_DOMAIN_UNRESOLVED"
     assert example["baseline_locked"] is False
     assert example["mutation_authorized"] is False
-    assert "Payment Fusion Control Center / IngEstate" in action
-    assert "same-device Settings > Software versions" in action
-    assert "PAXSTORE Terminal Management UI / OpenAPI" in action
-    assert "section/field_heading/value" in action
-    assert "Classify-HHCCReaderVersionDomain" in action
-    assert "IME-selector" not in action
-    assert "wired USB-HOST" not in action
-    assert "repeat the closed local menu / IME / wired-HID classification" in example["explicitly_not_next"]
+    assert "%TEMP%\\hh-cc-kiosk4-labeled-firmware-observation.json" in action
+    assert "Classify-HHCCReaderVersionDomain.cmd" in action
+    assert "Evaluate-HHCCReaderFirmwareRoundtrip.cmd baseline" in action
+    assert "instead of repeating the field action" in action
+    assert "repeat the authorized read-only Kiosk4 observation merely because Git or Drive does not contain the private capture" in example["explicitly_not_next"]
+    assert "promote operator-reported completion directly to current_firmware_value or BASELINE_LOCKED without classifier/baseline receipts" in example["explicitly_not_next"]
     assert example["capture_template"].endswith("version-evidence-capture.template.json")
 
 def test_current_kiosk4_routes_to_live_runtime_not_harness() -> None:
@@ -357,7 +357,7 @@ def test_docs_bind_p95_decision() -> None:
 def main() -> int:
     tests = [
         test_contract_shape_and_invariants,
-        test_current_kiosk4_example_routes_to_authorized_readonly_observation,
+        test_current_kiosk4_example_recovers_completed_observation_before_repeat,
         test_current_kiosk4_routes_to_live_runtime_not_harness,
         test_confirmed_gate_blocking_harness_defect_requires_artifact_and_may_preempt,
         test_plain_claim_cannot_preempt_without_artifact_proof,
