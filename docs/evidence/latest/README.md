@@ -88,4 +88,3 @@ Canonical continuation plan:
 - `docs/plans/hh-cc-kiosk4-p82-p04-post-observation-convergence-20261005.plan.md`
 
 Next transition is evidence recovery from the local private runtime, then classifier + baseline evaluation. Do not repeat the field observation merely because Git/Drive lacks the private artifact.
-
