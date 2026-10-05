@@ -81,3 +81,26 @@ The originating Cursor sprint reported additional local receipts under `%TEMP%` 
 ## Proof ceiling
 
 No live installed firmware value, package ownership, live restore mechanism, mutation authority, firmware push, deployment, or post-deployment result is claimed here.
+
+## P82 operator-completion addendum — 2026-10-05
+
+The operator reports that the authorized read-only Kiosk4 observation is **finished**.
+
+P82 state:
+
+- **HYPOTHESIS:** one same-device authorized read-only observation is sufficient to produce a classifier-ready labeled capture and decide the baseline gate.
+- **BUILD:** PR #495 supplied the fail-closed capture/classifier seam; PR #496 retired stale menu/input routing.
+- **MEASURE:** the operator reports the field observation completed, but the new private capture/result is not present in Git or connected Drive readback from this runtime.
+- **CRITIQUE:** completion of the physical/provider action and ingestion of its evidence are separate states. Repeating the observation simply because the private local artifact has not crossed runtimes would destroy useful continuity.
+- **DECIDE:** preserve the completed observation and recover its local evidence first. Do not promote a firmware value or `BASELINE_LOCKED` until classifier and baseline receipts prove those states.
+
+Typed transition:
+
+```text
+WAITING_ON_EXTERNAL_OBSERVATION
+  -> OBSERVATION_REPORTED_EVIDENCE_INGEST_PENDING
+  -> VERSION_DOMAIN_CLASSIFIED
+  -> BASELINE_LOCKED | exact fail-closed blocker
+```
+
+The expected first local private capture is `%TEMP%\hh-cc-kiosk4-labeled-firmware-observation.json`. Registered ignored H&H firmware receipts under `survey/output/hh-cc-reader/` are alternate recovery evidence. These private artifacts must not be copied into Git.

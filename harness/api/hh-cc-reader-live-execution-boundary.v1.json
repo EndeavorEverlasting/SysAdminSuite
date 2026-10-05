@@ -84,7 +84,7 @@
     "work_class": "EXTERNAL_ACCESS_OR_LIVE_EVIDENCE",
     "expected_route": "LIVE_RUNTIME_OR_OPERATOR_BOUNDARY",
     "estate_access_disposition": "AUTHORIZED_ACCESS_SETUP_REQUIRED",
-    "next_action": "Obtain one authorized read-only current-version observation for the same private Kiosk4 identity. Preferred surface order: (1) Payment Fusion Control Center / IngEstate terminal-management detail when authorized; (2) same-device Settings > Software versions if Control Center is unavailable, without reopening the AxiaMed admin-menu crawl; (3) PAXSTORE Terminal Management UI / OpenAPI only when entitlement is actually evidenced. Record source_surface, observed_at, identity_binding_reference, evidence_reference, and exact labeled observations using section/field_heading/value in the private capture. Then run Classify-HHCCReaderVersionDomain and freeze BASELINE_LOCKED only from an authoritative domain-bound current value. Do not push, schedule, assign, reset, or change settings.",
+    "next_action": "Recover the already-completed authorized read-only Kiosk4 observation from the local private runtime instead of repeating the field action. First inspect the expected private capture at %TEMP%\\hh-cc-kiosk4-labeled-firmware-observation.json and registered ignored H&H firmware observation/version-domain artifacts under survey/output/hh-cc-reader. Preserve the original capture unchanged. Validate the capture against sas-hh-cc-reader-kiosk4-version-evidence-capture/v1, run Classify-HHCCReaderVersionDomain.cmd on it, then construct the private baseline input from the same existing Kiosk4 identity receipt plus the classifier-selected current_firmware_value and the governed target, and run Evaluate-HHCCReaderFirmwareRoundtrip.cmd baseline. Promote BASELINE_LOCKED only from the resulting receipt. Ask the operator to repeat the observation only if the completed local evidence is demonstrably absent or invalid and cannot be reconstructed from the private raw evidence. Do not mutate firmware.",
     "explicitly_not_next": [
       "rerun P95 protocol selection against the same unchanged evidence set",
       "hard-code PAXSTORE as the only firmware protocol across hospitals",
@@ -99,12 +99,15 @@
       "treat a weak local web-search boundary as a terminal dead end instead of emitting an exact successor research sprint",
       "repeat the closed local menu / IME / wired-HID classification",
       "treat a tracker/history version as authoritative current firmware",
-      "push, schedule, assign, reset, or change settings during the read-only observation"
+      "push, schedule, assign, reset, or change settings during the read-only observation",
+      "repeat the authorized read-only Kiosk4 observation merely because Git or Drive does not contain the private capture",
+      "ask the operator to restate a value that is recoverable from the local private capture or registered ignored receipt",
+      "promote operator-reported completion directly to current_firmware_value or BASELINE_LOCKED without classifier/baseline receipts"
     ],
     "protocol_selection_contract": "sas-hh-cc-reader-firmware-protocols/v1",
     "protocol_selection_disposition": "CLOSED_UNTIL_NEW_EVIDENCE_SIGNAL",
     "capture_template": "docs/examples/hh-cc-reader-kiosk4-version-evidence-capture.template.json",
-    "iteration_state": "WAITING_ON_EXTERNAL_OBSERVATION",
+    "iteration_state": "OBSERVATION_REPORTED_EVIDENCE_INGEST_PENDING",
     "local_menu_state": "CLOSED",
     "capture_classifier_state": "READY",
     "version_domain_state": "VERSION_DOMAIN_UNRESOLVED",
@@ -117,7 +120,9 @@
       "same-device Settings > Software versions when Control Center is unavailable; do not reopen the AxiaMed admin-menu crawl",
       "PAXSTORE Terminal Management UI / OpenAPI only when entitlement is actually evidenced"
     ],
-    "evidence_receipt": "docs/evidence/hh-cc-reader/kiosk4/2026-10-05/iteration-1-firmware-gate-checkpoint.md"
+    "evidence_receipt": "docs/evidence/hh-cc-reader/kiosk4/2026-10-05/iteration-1-firmware-gate-checkpoint.md",
+    "operator_reported_observation_complete": true,
+    "evidence_ingested": false
   },
   "proof_ceiling": "This contract proves deterministic work routing and lane ownership. It does not prove management-plane access, current firmware, mutation authorization, firmware deployment, rollback, or final runtime verification.",
   "research_successor_contract": {
