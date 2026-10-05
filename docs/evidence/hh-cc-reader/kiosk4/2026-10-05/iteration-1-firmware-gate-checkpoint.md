@@ -104,4 +104,3 @@ WAITING_ON_EXTERNAL_OBSERVATION
 ```
 
 The expected first local private capture is `%TEMP%\hh-cc-kiosk4-labeled-firmware-observation.json`. Registered ignored H&H firmware receipts under `survey/output/hh-cc-reader/` are alternate recovery evidence. These private artifacts must not be copied into Git.
-
