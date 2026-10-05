@@ -1,0 +1,64 @@
+{
+  "_operator_contract": {
+    "role": "human_minimal_fields_only",
+    "schema": "sas-hh-cc-reader-kiosk4-version-evidence-capture/v1",
+    "human_required": {
+      "source_surface": "device_local_software_versions",
+      "device_identity": {
+        "model": "A80",
+        "fleet_or_device_reference": "PRIVATE_FIELD:identity_receipt_ref"
+      },
+      "labeled_observations": [
+        {
+          "section": "Installed Firmware",
+          "field_heading": "Installed Firmware",
+          "value": "PX7A_A80_PayDroid_operator_observed_value"
+        }
+      ],
+      "evidence_reference": "PRIVATE_FIELD:screenshot_or_stills_ref",
+      "observed_at": "2099-01-01T00:00:00Z"
+    },
+    "derived_not_operator_filled": [
+      "capture_state",
+      "source_protocol",
+      "navigation_path",
+      "input_gate",
+      "version_domain_state",
+      "baseline_state",
+      "mutation_authorized",
+      "identity_binding_reference"
+    ],
+    "binding_note": "Set identity_binding_reference to the same private token as device_identity.fleet_or_device_reference before classifier ingest."
+  },
+  "schema": "sas-hh-cc-reader-kiosk4-version-evidence-capture/v1",
+  "capture_state": "LABELED_OBSERVATION_CAPTURED",
+  "source_protocol": null,
+  "source_surface": "device_local_software_versions",
+  "navigation_path": ["Settings", "About", "Software"],
+  "observed_at": "2099-01-01T00:00:00Z",
+  "identity_binding_reference": "PRIVATE_FIELD:identity_receipt_ref",
+  "evidence_reference": "PRIVATE_FIELD:screenshot_or_stills_ref",
+  "device_identity": {
+    "model": "A80",
+    "fleet_or_device_reference": "PRIVATE_FIELD:identity_receipt_ref"
+  },
+  "input_gate": {
+    "ime_selector_state": "NOT_OBSERVED",
+    "wired_hid_state": "NOT_OBSERVED",
+    "credential_state": "NOT_ATTEMPTED"
+  },
+  "labeled_observations": [
+    {
+      "section": "Installed Firmware",
+      "field_heading": "Installed Firmware",
+      "value": "PX7A_A80_PayDroid_operator_observed_value",
+      "package_name": null,
+      "package_id": null,
+      "install_time": null
+    }
+  ],
+  "version_domain_state": "VERSION_DOMAIN_UNRESOLVED",
+  "baseline_state": "BLOCKED_EVIDENCE",
+  "mutation_authorized": false,
+  "notes": []
+}

@@ -14,6 +14,7 @@ from typing import Any
 
 ROOT = Path(__file__).resolve().parents[2]
 CONTRACT = ROOT / "harness/api/hh-cc-reader-firmware-protocols.v1.json"
+CAPTURE_TEMPLATE = ROOT / "docs/examples/hh-cc-reader-kiosk4-version-evidence-capture.template.json"
 SCHEMA = "sas-hh-cc-reader-firmware-protocol-selection/v1"
 DISPATCH_SCHEMA = "sas-hh-cc-reader-firmware-protocol-dispatch/v1"
 RECEIPT_SCHEMA = "sas-hh-cc-reader-firmware-protocol-receipt/v1"
@@ -22,6 +23,162 @@ DEFAULT_RECEIPT_DIR = ROOT / "survey/output/hh-cc-reader"
 
 class FirmwareProtocolError(ValueError):
     """Raised when protocol configuration or selection input is invalid."""
+
+
+def _norm_text(value: Any) -> str:
+    if value is None:
+        return ""
+    if not isinstance(value, str):
+        return ""
+    return value.strip()
+
+
+def _capture_contract_from_payload(payload: dict[str, Any]) -> dict[str, Any]:
+    capture_contract = payload.get("version_evidence_capture_contract")
+    if not isinstance(capture_contract, dict):
+        raise FirmwareProtocolError("version_evidence_capture_contract_required")
+    return capture_contract
+
+
+def validate_version_evidence_capture(
+    capture: dict[str, Any],
+    *,
+    capture_contract: dict[str, Any] | None = None,
+) -> None:
+    """Fail closed on operator capture submissions before classifier promotion."""
+    if not isinstance(capture, dict):
+        raise FirmwareProtocolError("version_evidence_capture_must_be_object")
+    expected_schema = "sas-hh-cc-reader-kiosk4-version-evidence-capture/v1"
+    if capture.get("schema") != expected_schema:
+        raise FirmwareProtocolError("version_evidence_capture_schema_invalid")
+
+    contract = capture_contract or _capture_contract_from_payload(
+        json.loads(CONTRACT.read_text(encoding="utf-8"))
+    )
+    allowed_surfaces = contract.get("allowed_source_surfaces") or []
+    ambiguous_tokens = {
+        str(item).strip().lower()
+        for item in (contract.get("ambiguous_field_heading_tokens") or [])
+        if str(item).strip()
+    }
+    campaign_target = str(contract.get("campaign_target_observation_value") or "2.0.15.260522")
+    required_model = str(
+        (contract.get("device_identity_contract") or {}).get("required_model") or "A80"
+    )
+
+    if capture.get("observation_provenance") in ("INFERRED", "DERIVED"):
+        raise FirmwareProtocolError("version_evidence_capture_inferred_provenance")
+
+    observations = capture.get("labeled_observations")
+    if not isinstance(observations, list):
+        raise FirmwareProtocolError("version_evidence_capture_labeled_observations_invalid")
+    if not observations:
+        return
+
+    identity_ref = _norm_text(capture.get("identity_binding_reference"))
+    source_surface = _norm_text(capture.get("source_surface"))
+    observed_at = _norm_text(capture.get("observed_at"))
+    evidence_ref = _norm_text(capture.get("evidence_reference"))
+
+    if not identity_ref:
+        raise FirmwareProtocolError("version_evidence_capture_identity_binding_required")
+    if not source_surface:
+        raise FirmwareProtocolError("version_evidence_capture_source_surface_required")
+    if source_surface not in allowed_surfaces:
+        raise FirmwareProtocolError("version_evidence_capture_source_surface_unsupported")
+    if not observed_at:
+        raise FirmwareProtocolError("version_evidence_capture_observed_at_required")
+    if evidence_ref and (not source_surface or not identity_ref):
+        raise FirmwareProtocolError("version_evidence_capture_evidence_binding_incomplete")
+
+    device_identity = capture.get("device_identity")
+    if not isinstance(device_identity, dict):
+        raise FirmwareProtocolError("version_evidence_capture_device_identity_required")
+    model = _norm_text(device_identity.get("model"))
+    fleet_ref = _norm_text(device_identity.get("fleet_or_device_reference"))
+    if model != required_model:
+        raise FirmwareProtocolError("version_evidence_capture_device_model_invalid")
+    if not fleet_ref:
+        raise FirmwareProtocolError("version_evidence_capture_fleet_reference_required")
+    if fleet_ref != identity_ref:
+        raise FirmwareProtocolError("version_evidence_capture_device_identity_binding_mismatch")
+
+    firmware_heading_tokens = (
+        "installed firmware",
+        "firmware version",
+        "paydroid",
+        "pts",
+        "device firmware",
+    )
+    package_context_tokens = ("app", "application", "package", "payment")
+
+    for index, row in enumerate(observations):
+        if not isinstance(row, dict):
+            raise FirmwareProtocolError(
+                f"version_evidence_capture_observation_invalid:{index}"
+            )
+        if row.get("observation_provenance") in ("INFERRED", "DERIVED"):
+            raise FirmwareProtocolError("version_evidence_capture_inferred_provenance")
+        section = _norm_text(row.get("section"))
+        field_heading = _norm_text(row.get("field_heading"))
+        value = _norm_text(row.get("value"))
+        if value and (not section or not field_heading):
+            raise FirmwareProtocolError("version_evidence_capture_value_without_visible_label")
+        if (section or field_heading) and not value:
+            raise FirmwareProtocolError("version_evidence_capture_observation_value_missing")
+        section_key = section.lower()
+        heading_key = field_heading.lower()
+        if section_key in ambiguous_tokens and heading_key in ambiguous_tokens:
+            raise FirmwareProtocolError("version_evidence_capture_field_label_ambiguous")
+        if value == campaign_target:
+            raise FirmwareProtocolError("version_evidence_capture_campaign_target_as_installed")
+        has_package_meta = any(
+            _norm_text(row.get(key)) for key in ("package_name", "package_id", "install_time")
+        )
+        looks_like_firmware_heading = any(token in heading_key for token in firmware_heading_tokens)
+        has_package_context = any(token in section_key or token in heading_key for token in package_context_tokens)
+        if has_package_meta and looks_like_firmware_heading and not has_package_context:
+            raise FirmwareProtocolError(
+                "version_evidence_capture_package_mistaken_for_firmware"
+            )
+
+
+def _validate_capture_template_against_contract(capture_contract: dict[str, Any]) -> None:
+    template_rel = capture_contract.get("template_path")
+    if not isinstance(template_rel, str) or not template_rel.strip():
+        raise FirmwareProtocolError("version_evidence_capture_template_path_required")
+    template_path = ROOT / template_rel
+    if not template_path.is_file():
+        raise FirmwareProtocolError("version_evidence_capture_template_missing")
+    template = json.loads(template_path.read_text(encoding="utf-8"))
+    if template.get("schema") != capture_contract.get("schema_version"):
+        raise FirmwareProtocolError("version_evidence_capture_template_schema_invalid")
+    if template.get("capture_state") != capture_contract.get("default_capture_state"):
+        raise FirmwareProtocolError("version_evidence_capture_template_default_state_invalid")
+    if template.get("labeled_observations") != []:
+        raise FirmwareProtocolError("version_evidence_capture_template_observations_must_start_empty")
+    if template.get("mutation_authorized") is not False:
+        raise FirmwareProtocolError("version_evidence_capture_template_mutation_must_default_false")
+    for forbidden in ("current_firmware_value", "installed_firmware"):
+        if forbidden in template:
+            raise FirmwareProtocolError("version_evidence_capture_template_contains_forbidden_firmware_field")
+    device_identity = template.get("device_identity")
+    if not isinstance(device_identity, dict):
+        raise FirmwareProtocolError("version_evidence_capture_template_device_identity_required")
+    required_model = str(
+        (capture_contract.get("device_identity_contract") or {}).get("required_model") or "A80"
+    )
+    if _norm_text(device_identity.get("model")) != required_model:
+        raise FirmwareProtocolError("version_evidence_capture_template_device_model_invalid")
+    if _norm_text(device_identity.get("fleet_or_device_reference")):
+        raise FirmwareProtocolError("version_evidence_capture_template_contains_live_identity")
+
+    example_rel = capture_contract.get("operator_minimal_example_path")
+    if not isinstance(example_rel, str) or not example_rel.strip():
+        raise FirmwareProtocolError("version_evidence_capture_operator_example_path_required")
+    example_path = ROOT / example_rel
+    if not example_path.is_file():
+        raise FirmwareProtocolError("version_evidence_capture_operator_example_missing")
 
 
 def _string_list(value: Any, field: str) -> list[str]:
@@ -111,9 +268,7 @@ def load_protocol_contract(path: Path = CONTRACT) -> dict[str, Any]:
         if invariants.get(required_true) is not True:
             raise FirmwareProtocolError(f"required_invariant_missing:{required_true}")
 
-    capture_contract = payload.get("version_evidence_capture_contract")
-    if not isinstance(capture_contract, dict):
-        raise FirmwareProtocolError("version_evidence_capture_contract_required")
+    capture_contract = _capture_contract_from_payload(payload)
     if capture_contract.get("schema_version") != "sas-hh-cc-reader-kiosk4-version-evidence-capture/v1":
         raise FirmwareProtocolError("version_evidence_capture_schema_invalid")
     if capture_contract.get("default_capture_state") != "AWAITING_FIELD_OBSERVATION":
@@ -122,6 +277,69 @@ def load_protocol_contract(path: Path = CONTRACT) -> dict[str, Any]:
         raise FirmwareProtocolError("version_evidence_capture_classifier_input_invalid")
     if capture_contract.get("classifier_required_observation_fields") != ["section", "field_heading", "value"]:
         raise FirmwareProtocolError("version_evidence_capture_classifier_keys_invalid")
+    human_required = capture_contract.get("operator_human_required_fields")
+    if not isinstance(human_required, dict):
+        raise FirmwareProtocolError("version_evidence_capture_human_required_fields_required")
+    expected_human_required = {
+        "capture_context": [
+            "source_surface",
+            "identity_binding_reference",
+            "observed_at",
+            "evidence_reference",
+        ],
+        "device_identity": ["model", "fleet_or_device_reference"],
+        "per_labeled_observation": ["section", "field_heading", "value"],
+    }
+    for key, expected_fields in expected_human_required.items():
+        if human_required.get(key) != expected_fields:
+            raise FirmwareProtocolError("version_evidence_capture_human_required_fields_invalid")
+    derived_fields = capture_contract.get("derived_capture_fields")
+    expected_derived = [
+        "capture_state",
+        "source_protocol",
+        "navigation_path",
+        "input_gate",
+        "version_domain_state",
+        "baseline_state",
+        "mutation_authorized",
+        "version_domain_classifier_output",
+    ]
+    if derived_fields != expected_derived:
+        raise FirmwareProtocolError("version_evidence_capture_derived_fields_invalid")
+    device_identity_contract = capture_contract.get("device_identity_contract")
+    if not isinstance(device_identity_contract, dict):
+        raise FirmwareProtocolError("version_evidence_capture_device_identity_contract_required")
+    if device_identity_contract.get("required_model") != "A80":
+        raise FirmwareProtocolError("version_evidence_capture_device_identity_model_invalid")
+    if device_identity_contract.get("fleet_or_device_reference_binds_to") != "identity_binding_reference":
+        raise FirmwareProtocolError("version_evidence_capture_device_identity_binding_invalid")
+    allowed_surfaces = capture_contract.get("allowed_source_surfaces")
+    if not isinstance(allowed_surfaces, list) or not allowed_surfaces:
+        raise FirmwareProtocolError("version_evidence_capture_allowed_source_surfaces_required")
+    if "device_local_software_versions" not in allowed_surfaces:
+        raise FirmwareProtocolError("version_evidence_capture_allowed_source_surfaces_invalid")
+    fail_closed = capture_contract.get("fail_closed_conditions")
+    if not isinstance(fail_closed, list) or not fail_closed:
+        raise FirmwareProtocolError("version_evidence_capture_fail_closed_conditions_required")
+    expected_fail_closed_ids = {
+        "value_without_visible_label",
+        "field_label_ambiguous",
+        "unknown_version_domain",
+        "campaign_target_submitted_as_installed",
+        "device_identity_not_bound_kiosk4_a80",
+        "unsupported_source_or_missing_provenance",
+        "stale_observation_when_freshness_required",
+        "inferred_rather_than_observed",
+        "package_or_app_mistaken_for_device_firmware",
+        "screenshot_lacks_source_device_binding",
+    }
+    seen_ids = {
+        str(item.get("id") or "").strip()
+        for item in fail_closed
+        if isinstance(item, dict)
+    }
+    if seen_ids != expected_fail_closed_ids:
+        raise FirmwareProtocolError("version_evidence_capture_fail_closed_conditions_invalid")
     capture_rules = capture_contract.get("rules")
     if not isinstance(capture_rules, dict):
         raise FirmwareProtocolError("version_evidence_capture_rules_required")
@@ -134,9 +352,18 @@ def load_protocol_contract(path: Path = CONTRACT) -> dict[str, Any]:
         "mutation_authorized_must_default_false",
         "presentation_projection_is_downstream_only",
         "presentation_may_not_infer_missing_firmware_or_baseline_state",
+        "submission_validates_fail_closed_before_classifier_promotion",
+        "value_without_section_or_field_heading_fails_closed",
+        "campaign_target_must_not_be_submitted_as_observed_installed_value",
+        "device_identity_must_bind_kiosk4_a80",
+        "unsupported_source_surface_fails_closed",
+        "evidence_reference_requires_source_and_identity_binding",
+        "package_metadata_without_package_labeled_context_fails_closed",
+        "inferred_or_derived_observation_provenance_fails_closed",
     ):
         if capture_rules.get(rule) is not True:
             raise FirmwareProtocolError(f"version_evidence_capture_rule_missing:{rule}")
+    _validate_capture_template_against_contract(capture_contract)
 
     showcase = payload.get("presentation_showcase_contract")
     if not isinstance(showcase, dict):

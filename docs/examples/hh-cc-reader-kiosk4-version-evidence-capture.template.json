@@ -1,4 +1,30 @@
 {
+  "_field_contract": {
+    "schema": "sas-hh-cc-reader-kiosk4-version-evidence-capture/v1",
+    "human_required_when_submitting_observations": {
+      "source_surface": "Read-only UI or provider surface id from version_evidence_capture_contract.allowed_source_surfaces",
+      "identity_binding_reference": "Private token binding this capture to the same Kiosk4/A80 reader",
+      "observed_at": "ISO-8601 timestamp of the read-only observation",
+      "evidence_reference": "Private stills/screenshot receipt when visual evidence is captured",
+      "device_identity.model": "Must remain A80 for Kiosk4",
+      "device_identity.fleet_or_device_reference": "Must match identity_binding_reference before ingest",
+      "labeled_observations[].section": "Exact UI section label copied from the device screen",
+      "labeled_observations[].field_heading": "Exact field heading copied from the device screen",
+      "labeled_observations[].value": "Exact displayed version string; never the campaign planning target"
+    },
+    "derived_or_downstream_only": [
+      "capture_state",
+      "source_protocol",
+      "navigation_path",
+      "input_gate",
+      "version_domain_state",
+      "baseline_state",
+      "mutation_authorized",
+      "version_domain_classifier_output"
+    ],
+    "fail_closed_documentation": "See version_evidence_capture_contract.fail_closed_conditions in harness/api/hh-cc-reader-firmware-protocols.v1.json",
+    "operator_minimal_example": "docs/examples/hh-cc-reader-kiosk4-version-evidence-capture.operator-minimal.example.json"
+  },
   "schema": "sas-hh-cc-reader-kiosk4-version-evidence-capture/v1",
   "capture_state": "AWAITING_FIELD_OBSERVATION",
   "source_protocol": null,
@@ -6,6 +32,11 @@
   "navigation_path": [],
   "observed_at": null,
   "identity_binding_reference": null,
+  "evidence_reference": null,
+  "device_identity": {
+    "model": "A80",
+    "fleet_or_device_reference": null
+  },
   "input_gate": {
     "ime_selector_state": "NOT_OBSERVED",
     "wired_hid_state": "NOT_OBSERVED",

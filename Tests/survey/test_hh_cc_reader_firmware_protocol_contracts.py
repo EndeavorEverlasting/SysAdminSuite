@@ -18,6 +18,7 @@ from harness.api.hh_cc_reader_firmware_protocols import (  # noqa: E402
     load_protocol_contract,
     select_and_dispatch,
     select_firmware_protocols,
+    validate_version_evidence_capture,
 )
 
 from harness.api.hh_cc_reader_version_domain import (  # noqa: E402
@@ -28,7 +29,34 @@ from harness.api.hh_cc_reader_version_domain import (  # noqa: E402
 LAUNCHER = ROOT / "Select-HHCCReaderFirmwareProtocol.cmd"
 COMMAND_REGISTRY = ROOT / "harness/api/harness-command-registry.json"
 CAPTURE_TEMPLATE = ROOT / "docs/examples/hh-cc-reader-kiosk4-version-evidence-capture.template.json"
+CAPTURE_OPERATOR_MINIMAL = ROOT / (
+    "docs/examples/hh-cc-reader-kiosk4-version-evidence-capture.operator-minimal.example.json"
+)
 FIELD_GUIDE = ROOT / "docs/HH_CC_READER_KIOSK4_LOCAL_ACCESS_FIELD_GUIDE.md"
+
+
+def _synthetic_labeled_capture(**overrides: object) -> dict:
+    base = {
+        "schema": "sas-hh-cc-reader-kiosk4-version-evidence-capture/v1",
+        "capture_state": "LABELED_OBSERVATION_CAPTURED",
+        "source_surface": "synthetic-read-only-version-screen",
+        "observed_at": "2099-01-01T00:00:00Z",
+        "identity_binding_reference": "PRIVATE_SYNTHETIC_IDENTITY_REF",
+        "evidence_reference": "PRIVATE_SYNTHETIC_EVIDENCE_REF",
+        "device_identity": {
+            "model": "A80",
+            "fleet_or_device_reference": "PRIVATE_SYNTHETIC_IDENTITY_REF",
+        },
+        "labeled_observations": [
+            {
+                "section": "Installed Firmware",
+                "field_heading": "Installed Firmware",
+                "value": "PX7A_A80_PayDroid_fixture_NOT_CAMPAIGN",
+            }
+        ],
+    }
+    base.update(overrides)
+    return base
 
 
 def proven_site(
@@ -100,6 +128,19 @@ class FirmwareProtocolContracts(unittest.TestCase):
             capture_contract["classifier_required_observation_fields"],
             ["section", "field_heading", "value"],
         )
+        self.assertEqual(
+            template["device_identity"],
+            {"model": "A80", "fleet_or_device_reference": None},
+        )
+        self.assertIn("_field_contract", template)
+        self.assertEqual(
+            template["_field_contract"]["operator_minimal_example"],
+            capture_contract["operator_minimal_example_path"],
+        )
+        self.assertEqual(
+            capture_contract["operator_human_required_fields"]["per_labeled_observation"],
+            ["section", "field_heading", "value"],
+        )
 
         observations = observations_from_ui_capture(template)
         self.assertEqual(observations, [])
@@ -108,22 +149,9 @@ class FirmwareProtocolContracts(unittest.TestCase):
         self.assertEqual(evaluation["campaign_target_domain_state"], "VERSION_DOMAIN_UNRESOLVED")
 
     def test_version_evidence_capture_filled_shape_flows_directly_to_classifier(self) -> None:
-        template = json.loads(CAPTURE_TEMPLATE.read_text(encoding="utf-8"))
-        template["capture_state"] = "LABELED_OBSERVATION_CAPTURED"
-        template["source_surface"] = "synthetic-read-only-version-screen"
+        template = _synthetic_labeled_capture()
         template["navigation_path"] = ["Settings", "About", "Software"]
-        template["observed_at"] = "2099-01-01T00:00:00Z"
-        template["identity_binding_reference"] = "PRIVATE_SYNTHETIC_IDENTITY_REF"
-        template["labeled_observations"] = [
-            {
-                "section": "Installed Firmware",
-                "field_heading": "Installed Firmware",
-                "value": "PX7A_A80_PayDroid_fixture_NOT_CAMPAIGN",
-                "package_name": None,
-                "package_id": None,
-                "install_time": None,
-            }
-        ]
+        validate_version_evidence_capture(template)
 
         observations = observations_from_ui_capture(template)
         self.assertEqual(len(observations), 1)
@@ -131,6 +159,111 @@ class FirmwareProtocolContracts(unittest.TestCase):
         self.assertIsNotNone(evaluation["primary_observation"])
         self.assertEqual(evaluation["primary_observation"]["confidence"], "LABELED_BIND")
         self.assertFalse(evaluation["mutation_performed"])
+
+    def test_operator_minimal_example_maps_human_required_fields(self) -> None:
+        contract = load_protocol_contract()["version_evidence_capture_contract"]
+        example = json.loads(CAPTURE_OPERATOR_MINIMAL.read_text(encoding="utf-8"))
+        guide = example["_operator_contract"]
+        self.assertEqual(guide["schema"], contract["schema_version"])
+        self.assertEqual(
+            guide["human_required"]["source_surface"],
+            example["source_surface"],
+        )
+        self.assertEqual(
+            guide["human_required"]["device_identity"]["fleet_or_device_reference"],
+            example["device_identity"]["fleet_or_device_reference"],
+        )
+        self.assertEqual(
+            example["identity_binding_reference"],
+            example["device_identity"]["fleet_or_device_reference"],
+        )
+        self.assertEqual(
+            guide["human_required"]["labeled_observations"],
+            [
+                {
+                    "section": row["section"],
+                    "field_heading": row["field_heading"],
+                    "value": row["value"],
+                }
+                for row in example["labeled_observations"]
+            ],
+        )
+        capture_body = {key: value for key, value in example.items() if not key.startswith("_")}
+        validate_version_evidence_capture(capture_body, capture_contract=contract)
+        observations = observations_from_ui_capture(capture_body)
+        self.assertEqual(len(observations), 1)
+
+    def test_validate_version_evidence_capture_fail_closed_matrix(self) -> None:
+        contract = load_protocol_contract()["version_evidence_capture_contract"]
+        cases: list[tuple[dict, str]] = [
+            (
+                _synthetic_labeled_capture(
+                    labeled_observations=[{"section": "", "field_heading": "", "value": "1.2.3"}],
+                ),
+                "value_without_visible_label",
+            ),
+            (
+                _synthetic_labeled_capture(
+                    labeled_observations=[
+                        {"section": "Version", "field_heading": "Firmware", "value": "1.2.3"},
+                    ],
+                ),
+                "field_label_ambiguous",
+            ),
+            (
+                _synthetic_labeled_capture(
+                    labeled_observations=[
+                        {
+                            "section": "Installed Firmware",
+                            "field_heading": "Installed Firmware",
+                            "value": contract["campaign_target_observation_value"],
+                        },
+                    ],
+                ),
+                "campaign_target_as_installed",
+            ),
+            (
+                _synthetic_labeled_capture(
+                    device_identity={"model": "A920", "fleet_or_device_reference": "PRIVATE_SYNTHETIC_IDENTITY_REF"},
+                ),
+                "device_model_invalid",
+            ),
+            (
+                _synthetic_labeled_capture(
+                    device_identity={"model": "A80", "fleet_or_device_reference": "MISMATCH_REF"},
+                ),
+                "device_identity_binding_mismatch",
+            ),
+            (
+                _synthetic_labeled_capture(source_surface="invented_surface"),
+                "source_surface_unsupported",
+            ),
+            (
+                _synthetic_labeled_capture(observed_at=""),
+                "observed_at_required",
+            ),
+            (
+                _synthetic_labeled_capture(observation_provenance="INFERRED"),
+                "inferred_provenance",
+            ),
+            (
+                _synthetic_labeled_capture(
+                    labeled_observations=[
+                        {
+                            "section": "Installed Firmware",
+                            "field_heading": "Installed Firmware",
+                            "value": "PKG.TEST.1",
+                            "package_name": "com.example.app",
+                        },
+                    ],
+                ),
+                "package_mistaken_for_firmware",
+            ),
+        ]
+        for payload, error_fragment in cases:
+            with self.subTest(error_fragment=error_fragment):
+                with self.assertRaisesRegex(FirmwareProtocolError, error_fragment):
+                    validate_version_evidence_capture(payload, capture_contract=contract)
 
     def test_field_guide_uses_classifier_native_capture_keys(self) -> None:
         guide = FIELD_GUIDE.read_text(encoding="utf-8")
