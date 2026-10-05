@@ -1,0 +1,17 @@
+{
+  "fixture_id": "P2",
+  "description": "Recognized source, A80 identity, current-firmware label, fresh observation, synthetic domain",
+  "input": {
+    "source_surface": "device_local_software_versions",
+    "device_model": "PAX A80",
+    "observed_at": "2099-06-15T08:00:00Z",
+    "section": "Device Information",
+    "field_heading": "Current Firmware Version",
+    "value": "FW.TEST.1"
+  },
+  "expected": {
+    "classification": "CURRENT_FIRMWARE_BOUND",
+    "version_domain": "synthetic_device_firmware",
+    "baseline_transition": "ALLOWED"
+  }
+}

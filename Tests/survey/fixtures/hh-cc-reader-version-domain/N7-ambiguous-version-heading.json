@@ -1,0 +1,16 @@
+{
+  "fixture_id": "N7",
+  "description": "Ambiguous Version heading without current-firmware specificity",
+  "input": {
+    "source_surface": "synthetic-device-local-management",
+    "device_model": "A80",
+    "observed_at": "2099-06-01T12:00:00Z",
+    "section": "Device Information",
+    "field_heading": "Version",
+    "value": "FW.TEST.1"
+  },
+  "expected": {
+    "classification": "AMBIGUOUS",
+    "baseline_transition": "REJECT"
+  }
+}
