@@ -70,15 +70,18 @@ Interpretation: absence of `adb` on this workstation does **not** prove the read
 
 Official/public sources establish MAXSTORE/PAXSTORE as a cloud estate platform with:
 
-- app distribution / policy-based push;
-- firmware subscribe + push;
-- parameter variables (marketplace / merchant / terminal);
-- terminal management inventory;
-- monitoring / estate dashboards;
+- app distribution / policy-based push (incl. group templates; Open API `createTerminalApk`);
+- firmware subscribe + push (Open API firmware push; **documented no-downgrade after upgrade**);
+- parameter variables (marketplace / merchant / terminal; partial push on newer releases);
+- terminal management inventory + Terminal Monitor (CPU/RAM/battery/storage);
+- monitoring / estate dashboards / alerts / webhooks;
 - CloudMessage;
 - CheckUp hardware self-test + Logcat download (per AirViewer QRG);
+- Terminal Center remote **restart** (docs tie to PUK certificate);
 - **AirViewer** remote view + remote control (Premium Marketplace / VAS);
+- **AirLauncher** VAS (settings lockdown / keep-app-foreground kiosk patterns);
 - GoInsight analytics;
+- Geofencing (Premium lock/unlock claims);
 - Rhino RKI (remote key injection) as a documented VAS (authority-gated; not pursued here).
 
 AirViewer requirements (PAXSTORE AirViewer QRG v1.3):
@@ -87,7 +90,18 @@ AirViewer requirements (PAXSTORE AirViewer QRG v1.3):
 2. Terminal powered on + Internet;
 3. AirViewer app installed/enabled (auto-push possible on first PAXSTORE connect);
 4. Role permission for AirViewer (and separately Unattended Mode);
-5. Terminal-user approve for view; second approve for full control (60s timeout) unless unattended mode authorized.
+5. Terminal-user approve for view; second approve for full control (60s timeout) unless unattended mode authorized;
+6. Unattended path (model whitelist): no answer ~15s → auto-connect; idle disconnect ~5 min.
+
+Lane A residual deltas retained after parallel prior-art completion (still `DOCUMENTED_UNVERIFIED`; not Kiosk4-proven):
+
+| Delta | Operational consequence |
+| --- | --- |
+| Firmware **cannot be downgraded** after OTA upgrade (Admin Guide) | Phase 7 restore story cannot assume FW rollback via lower image; need alternate restore proof |
+| Terminal Center **remote restart** + PUK | Sharpens remote-reboot hypothesis as PAXSTORE-native, not only Android DPC |
+| AirLauncher VAS | Separate from AirViewer; candidate for reducing local misconfig truck rolls if estate-licensed |
+| Open API rate limit / External System Access + egress IP allowlist | Matches existing repo observe seam; entitlement still the gate |
+| Geofence Premium lock | Low priority for fixed hospital kiosk; retain as UNKNOWN/low unless theft/loss use case appears |
 
 Sources:
 
@@ -95,8 +109,10 @@ Sources:
 - https://www.pax.us/wp-content/uploads/2024/02/PAXSTORE-AirViewer-QRG-11-05-2023-V1.3.pdf
 - https://www.paxtechnology.com/maxstore-vas
 - https://www.pax.us/marketplace/
+- https://www.pax.us/marketplace/airlauncher/
 - https://marketing.paxtechnology.com/blog/understanding-paxstore-value
 - https://faqs.pax.us/wp-content/uploads/2020/05/PAXSTORE-Marketplace-Admin-Guide_v1.0-2.pdf
+- https://github.com/PAXSTORE/paxstore-openapi-java-sdk
 
 ### Lane B — Android Enterprise / DPC
 
@@ -201,6 +217,9 @@ Highest operational value clusters around: (1) authorized management-plane inven
 | H46 | Lock-task / kiosk mode detection | Android lock-task APIs | INFERRED | AxiaMed appears dedicated-app UX | dumpsys activity / policy | ADB/console | Explains UI constraints | Medium | Low | UNKNOWN | B | Introspection |
 | H47 | Zero-touch / auto-init profiles | MAXSTORE auto initialization claims | DOCUMENTED_UNVERIFIED | Provisioned estate suggests some central init | Profile assignment visible in console | Estate admin | High redeploy speed | Very high | Medium | ADAPT | B | Estate |
 | H48 | Single-click diagnostic bundle for tickets | Support engineering pattern | INFERRED | Not built | Compose from console exports + harness receipts | Ops | High Kurt | High | Redaction | ADAPT | B | P07 later |
+| H49 | AirLauncher settings lockdown / kiosk keep-foreground | PAX AirLauncher VAS | DOCUMENTED_UNVERIFIED | Unknown licensed | Console shows AirLauncher / locked settings items | Premium/private MP | Medium (prevents local misconfig) | Medium | Changes device UX | ADAPT | B | Estate if licensed |
+| H50 | PAXSTORE Terminal Center remote restart | Admin Guide RESTART + PUK | DOCUMENTED_UNVERIFIED | Unknown | Restart action present for SN | PUK/terminal-center rights | High MTTR | High | Service interruption | ADAPT | B | Authority gate |
+| H51 | Firmware OTA with no-downgrade constraint | Admin Guide explicit | DOCUMENTED_UNVERIFIED | Unproven on estate | Push UI omits lower FW / rejects downgrade | Firmware authority | Core + **restore risk** | High | **High** — irreversible upgrade | ADAPT | B | Firmware program |
 
 ---
 
@@ -300,7 +319,7 @@ Qualitative savings only until measured: **MEASUREMENT_NEEDED** for technician-m
 
 ## Residual-compute sweep
 
-Checked additional families: certificate lifecycle, geolocation, CloudMessage, RKI (noted as VAS, not pursued), file transfer, lock-task, zero-touch profiles, diagnostic bundles, printer self-test, QR workflows. No further **decision-relevant** family emerged beyond matrix rows H01–H48 without new estate access.
+Checked additional families: certificate lifecycle, geolocation, CloudMessage, RKI (noted as VAS, not pursued), file transfer, lock-task, zero-touch profiles, diagnostic bundles, printer self-test, QR workflows. Parallel Lane A completion added H49–H51 (AirLauncher, Terminal Center restart, FW no-downgrade) without changing Band A/B priority order.
 
 Fixed point for **research**: evidence-typed frontier + successor map. Remaining uncertainty is **access-bound**, not imagination-bound.
 

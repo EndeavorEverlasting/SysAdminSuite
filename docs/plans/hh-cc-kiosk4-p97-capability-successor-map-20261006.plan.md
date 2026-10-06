@@ -70,6 +70,7 @@ Mutation authority: `false` until a separate explicit gate
 
 - **Depends on:** Phase 0 `BASELINE_LOCKED`, live restore proof, explicit mutation authority
 - **Action:** staged app/firmware/parameter rings with verification receipts
+- **Constraint (PAXSTORE Admin Guide prior art):** firmware OTA is documented as **non-downgradable** after upgrade — restore planning must not assume “push older FW image” unless a different restore path is independently proved
 - **Gate:** existing firmware mutation gates in live-execution boundary
 
 ## P04 factoring — winning opportunities (do not spawn 20 sprints)
