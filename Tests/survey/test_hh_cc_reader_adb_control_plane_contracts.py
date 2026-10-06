@@ -95,6 +95,12 @@ def test_launchers_and_registries() -> None:
     assert "RS232" in doc
     assert "OPERATOR_PHYSICAL_ATTACHMENT_CONFIRMED" in doc
     assert "WINDOWS_ANDROID_ADB_INTERFACE_ENUMERATED" in doc
+    assert "USB-HOST != USB-OTG/client candidate" in doc
+    assert "physical attachment != enumeration" in doc
+    assert "enumeration != ADB interface" in doc
+    assert "ADB interface != authorization" in doc
+    assert "authorization != READY" in doc
+    assert "USB_OTG_ADB_CAPABILITY absent" in doc
 
 
 def test_fixture_catalog_and_no_mutation_authorization() -> None:

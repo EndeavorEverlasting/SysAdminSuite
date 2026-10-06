@@ -90,16 +90,46 @@ attachment and Windows/ADB enumeration are different facts.
 | `PINPAD` | PIN pad accessory | Not an Admin Box ADB path |
 
 ADB/USB debugging to the Admin Box requires a USB **device/client** path into Windows
-(typically a separate micro-USB / Type-C client on the terminal body, or an authorized
+(typically `USB OTG` / micro-USB / Type-C client on the terminal body, or an authorized
 service cable), plus an already-enabled USB debugging posture. Connecting the Admin Box
 only to `USB-HOST` is expected to yield `USB_DEVICE_NOT_ENUMERATED` / empty `adb devices`
 even when photos prove cables are seated.
 
-Classifier rule for agents:
+### USB OTG / client discriminator chain
+
+`USB-HOST` is not the OTG/client candidate. Treat these as ordered, independent facts:
+
+```text
+USB-HOST != USB-OTG/client candidate
+physical attachment != enumeration
+enumeration != ADB interface
+ADB interface != authorization
+authorization != READY
+```
+
+Classifier / agent rules:
 
 ```text
 OPERATOR_PHYSICAL_ATTACHMENT_CONFIRMED  !=  WINDOWS_ANDROID_ADB_INTERFACE_ENUMERATED
+WINDOWS_ANDROID_ADB_INTERFACE_ENUMERATED  !=  ADB_DEVICE_READY
+ADB_DEVICE_UNAUTHORIZED  =  successful USB-client + ADB-transport discovery
+USB_OTG_ADB_CAPABILITY absent  !=  REMOTE_CAPABILITY none
 ```
+
+Typed probe outcomes already owned by `Probe-HHCCReaderAdb.cmd`:
+
+| Observed condition | Typed state | Meaning |
+| --- | --- | --- |
+| No Android/PAX USB candidate on Admin Box | `USB_DEVICE_NOT_ENUMERATED` | OTG/client path not demonstrated in this configuration |
+| Android/PAX USB present, no ADB interface | `USB_DEVICE_ENUMERATED_NO_ADB_INTERFACE` | Physical/data path exists; ADB transport not exposed |
+| Driver/interface unresolved | `USB_DRIVER_OR_INTERFACE_UNRESOLVED` | Host-side binding incomplete |
+| `adb devices` shows unauthorized | `ADB_DEVICE_UNAUTHORIZED` | Transport works; attend RSA Allow, then rerun probe only |
+| `adb devices` shows device | `ADB_DEVICE_READY` | Continue read-only inventory / exact-target network ADB / view-only cert |
+
+USB OTG and LAN planes are independent. A negative OTG result closes only
+`USB_OTG_ADB_CAPABILITY` for that configuration; continue exact-target network /
+management-plane checks. Do not reopen exhausted menu / Netstat / Connectivity /
+HID investigations without new evidence.
 
 Screen text such as "local network is unreachable" is network-plane evidence, not proof
 that ADB is absent. Fix LAN/RS232 misplug and/or establish the USB client path before
