@@ -312,7 +312,7 @@ def _usb_state(usb: dict[str, Any], host_ready: bool) -> dict[str, Any]:
         nxt = "Inspect Windows Device Manager for the enumerated Android/PAX USB device, then rerun Probe-HHCCReaderAdb.cmd."
     elif not android and not adb_iface:
         state = "USB_DEVICE_NOT_ENUMERATED"
-        nxt = "No Android/PAX USB candidate is enumerated on the Admin Box. Connect the authorized Kiosk4 USB cable, then rerun Probe-HHCCReaderAdb.cmd. Absence here does not prove Kiosk4 cannot do ADB."
+        nxt = "No Android/PAX USB candidate is enumerated on the Admin Box. Physical cables can still be seated: A80 USB-HOST is terminal-host (not ADB client), and RS232 RJ45 is serial (not LAN). Use the USB device/client path and LAN-only Ethernet, then rerun Probe-HHCCReaderAdb.cmd. Absence here does not prove Kiosk4 cannot do ADB."
     elif android and not adb_iface:
         state = "USB_DEVICE_ENUMERATED_NO_ADB_INTERFACE"
         nxt = "An Android USB composite appeared without an ADB interface. USB debugging may be off. This does not prove Kiosk4 cannot do ADB."
