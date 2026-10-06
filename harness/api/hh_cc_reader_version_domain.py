@@ -70,6 +70,7 @@ RECOGNIZED_SOURCE_SURFACES = frozenset(
         "paxstore_terminal_management",
         "experian_control_center",
         "provider_tms_ntms",
+        "authorized_adb_readonly",
     }
 )
 

@@ -340,7 +340,8 @@
       "device_local_system_information",
       "device_local_terminal_information",
       "provider_readonly_app_info",
-      "synthetic-read-only-version-screen"
+      "synthetic-read-only-version-screen",
+      "authorized_adb_readonly"
     ],
     "ambiguous_field_heading_tokens": [
       "Version",

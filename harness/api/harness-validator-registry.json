@@ -231,6 +231,34 @@
       "proof": "P95 routing keeps live firmware execution primary, allows harness preemption only for an evidenced current-gate blocker, defers nonblocking harness and downstream publication work, and resumes the same live gate after bounded repair."
     },
     {
+      "id": "hh-cc-reader-adb-control-plane-contracts",
+      "category": "harness",
+      "platform": "python3",
+      "command": "python Tests/survey/test_hh_cc_reader_adb_control_plane_contracts.py",
+      "blocking": true,
+      "scope": [
+        "harness/api/hh_cc_reader_adb_control_plane.py",
+        "harness/api/hh_cc_reader_adb_live.py",
+        "scripts/Invoke-SasHhCcReaderAdbControlPlane.ps1",
+        "Prepare-HHCCReaderAdbHost.cmd",
+        "Probe-HHCCReaderAdb.cmd",
+        "Capture-HHCCReaderAdbInventory.cmd",
+        "Certify-HHCCReaderAdbTcpip.cmd",
+        "Certify-HHCCReaderRemoteView.cmd",
+        "Evaluate-HHCCReaderAdbControlPlane.cmd",
+        "Tests/survey/test_hh_cc_reader_adb_control_plane_contracts.py",
+        "Tests/survey/fixtures/hh-cc-reader-adb-control-plane/catalog.json",
+        "docs/HH_CC_READER_ADB_ADMIN_BOX_WORKFLOW.md",
+        "docs/plans/hh-cc-kiosk4-p97-capability-successor-map-20261006.plan.md",
+        "docs/research/hh-cc-kiosk4-p97-android-remote-capability-frontier-20261006.md",
+        "harness/api/hh-cc-reader-live-execution-boundary.v1.json",
+        "harness/api/harness-command-registry.json",
+        "harness/api/harness-outcome-registry.json",
+        "harness/api/harness-artifact-registry.json"
+      ],
+      "proof": "Admin Box ADB control-plane CMDs emit typed host/USB/device/inventory/network/remote-view states, refuse firmware/app/payment mutation, and keep vendor consoles optional rather than prerequisite."
+    },
+    {
       "id": "printer-mapping-use-case-contracts",
       "category": "harness",
       "platform": "python3+git",
