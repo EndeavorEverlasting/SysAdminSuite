@@ -74,3 +74,33 @@ If the operator was asleep during an RSA or display prompt:
 1. Keep the receipt.
 2. On the reader, approve the Admin Box debugging key (or view prompt).
 3. Rerun only `Probe-HHCCReaderAdb.cmd` (or the dependent command), not the entire discovery chain.
+
+## Physical A80 multi-port wiring (operator-confirmed 2026-10-06)
+
+Do not re-litigate whether cables are "really plugged in" once the operator has provided
+photo evidence of the Kiosk4/PAX multi-port pigtail and the Admin Box ports. Physical
+attachment and Windows/ADB enumeration are different facts.
+
+| Port on A80 multi-cable | Meaning | Admin Box expectation |
+| --- | --- | --- |
+| `LAN` (red network icon) | Ethernet | May appear as Admin Box `Ethernet` link; needs correct RJ45-to-LAN path |
+| `RS232` (blue) | Serial (RJ45 **shape**, not Ethernet) | Never treat as LAN. An Ethernet patch cable here does not give IP reachability |
+| `USB-HOST` | Terminal is USB **host** (peripherals into the reader) | Will **not** enumerate as Android ADB client on the Admin Box |
+| `POWER` | Power only | Not a data path |
+| `PINPAD` | PIN pad accessory | Not an Admin Box ADB path |
+
+ADB/USB debugging to the Admin Box requires a USB **device/client** path into Windows
+(typically a separate micro-USB / Type-C client on the terminal body, or an authorized
+service cable), plus an already-enabled USB debugging posture. Connecting the Admin Box
+only to `USB-HOST` is expected to yield `USB_DEVICE_NOT_ENUMERATED` / empty `adb devices`
+even when photos prove cables are seated.
+
+Classifier rule for agents:
+
+```text
+OPERATOR_PHYSICAL_ATTACHMENT_CONFIRMED  !=  WINDOWS_ANDROID_ADB_INTERFACE_ENUMERATED
+```
+
+Screen text such as "local network is unreachable" is network-plane evidence, not proof
+that ADB is absent. Fix LAN/RS232 misplug and/or establish the USB client path before
+claiming Kiosk4 cannot do ADB.
