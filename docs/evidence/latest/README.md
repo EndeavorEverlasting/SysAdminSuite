@@ -88,3 +88,17 @@ Canonical continuation plan:
 - `docs/plans/hh-cc-kiosk4-p82-p04-post-observation-convergence-20261005.plan.md`
 
 Next transition is one authorized read-only labeled installed-firmware observation written into the same private capture, then classifier + baseline evaluation. Do not invent a numeric version, campaign target, tracker history, or PAXSTORE fixture observe as current.
+
+### Kiosk4 P97 Android / remote capability frontier — 2026-10-06
+
+P97 exhaustively mapped Android/remote-management/capability potential beyond the firmware label gate. Firmware observation remains a parallel critical path; it does not block capability-frontier follow-on.
+
+Canonical research artifact:
+
+- `docs/research/hh-cc-kiosk4-p97-android-remote-capability-frontier-20261006.md`
+
+Successor phase map:
+
+- `docs/plans/hh-cc-kiosk4-p97-capability-successor-map-20261006.plan.md`
+
+Proof ceiling: research prioritization only. Does not prove AirViewer enrollment, Device Owner state, live firmware, or mutation authority.
