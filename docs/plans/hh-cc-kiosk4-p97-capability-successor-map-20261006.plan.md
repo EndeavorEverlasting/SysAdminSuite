@@ -52,6 +52,7 @@ Mutation authority: `false` until a separate explicit gate
 ### Phase 4 — Passive outbound fingerprint (P82)
 
 - **Depends on:** netops approval; can run parallel to Phase 1 if SPAN ready
+- **Baseline:** device-side Connectivity label **PAX Store Push Service Primary (443)** is already a correlation candidate (`docs/HH_CC_READER_NETSTAT_BASELINE.md`); Netstat/Connectivity discriminators remain closed (`REMOTE_ENDPOINT_CANDIDATE=NONE`) — do not restage local scans
 - **Action:** DNS/SNI/timing during console refresh; no MITM; no payment payloads
 - **Gate:** `OUTBOUND_OWNER_CLUSTER_LABELED`
 

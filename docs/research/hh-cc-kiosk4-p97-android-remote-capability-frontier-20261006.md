@@ -142,7 +142,11 @@ Canonical owners already model multi-plane observation (Experian/CC, TMS/NTMS, p
 
 ### Lane E — Network / control plane
 
-Inbound listener hunting is closed. Modern SmartPOS management is typically **device-initiated outbound TLS**. Project still lacks a sanitized Kiosk4 outbound DNS/SNI/flow fingerprint bound to this identity. Passive SPAN/gateway correlation during an authorized console action is the correct discriminator — not another port scan.
+Inbound listener hunting is closed (`REMOTE_ENDPOINT_CANDIDATE=NONE` on the preserved Netstat/Connectivity discriminator set — do not restage another physical reader window for a newer `RUN_ID`).
+
+Modern SmartPOS management is typically **device-initiated outbound TLS**. Existing Kiosk4-adjacent evidence already records a device-side Connectivity Test label **PAX Store Push Service Primary (443)** plus a truncated second PAX push entry (`docs/HH_CC_READER_NETSTAT_BASELINE.md`). That is a **correlation candidate** for a PAXSTORE phone-home path — not estate ownership proof, not a resolved DNS/SNI/flow fingerprint, and not firmware authority.
+
+Still missing: a sanitized outbound DNS/SNI/timing fingerprint bound to this identity during an authorized console action. Passive SPAN/gateway correlation is the correct next discriminator — not another port scan or Connectivity Test replay.
 
 ### Lane F — Kurt / fleet leverage
 
@@ -191,7 +195,7 @@ Highest operational value clusters around: (1) authorized management-plane inven
 | H20 | Hardware CheckUp diagnostics | AirViewer QRG CheckUp app | DOCUMENTED_UNVERIFIED | Unknown installed | Push/observe CheckUp results | PAXSTORE role | Medium onsite reduction | Medium | Low | ADAPT | B | PAXSTORE |
 | H21 | Sanitized log / Logcat retrieval | CheckUp Logcat download; bugreport | DOCUMENTED_UNVERIFIED | Risk of payment content | Prefer console sanitized bundles; redact | RISK_GATED | High hard cases | Medium | **PCI/log content** | ADAPT | B | Security review |
 | H22 | Full bugreport | Android `bugreport` / DO remote bugreport | DOCUMENTED_UNVERIFIED | Unknown | Only if authorized + redaction pipeline | RISK_GATED / LAB | High forensics | Low | High — secrets/PAN risk | ADAPT | C/B | Security |
-| H23 | Outbound management heartbeat TLS | SmartPOS device-initiated control planes | INFERRED | No Kiosk4-bound sanitized flow fingerprint yet | Passive SPAN DNS/SNI/timing during console refresh — no MITM | Network observe approval | Architecture clarity | High | Metadata-only | ADOPT | B | Netops + P82 |
+| H23 | Outbound management heartbeat TLS | SmartPOS device-initiated control planes | INFERRED | Connectivity label **PAX Store Push Service Primary (443)** is a correlation candidate; Netstat/Connectivity closed with `REMOTE_ENDPOINT_CANDIDATE=NONE`; no DNS/SNI/flow fingerprint yet | Passive SPAN DNS/SNI/timing during console refresh — no MITM; do not replay Connectivity/Netstat | Network observe approval | Architecture clarity | High | Metadata-only | ADOPT | B | Netops + P82 |
 | H24 | Distinct Experian vs PAX vs TMS endpoint clusters | Multi-protocol portfolio | UNKNOWN | Protocols modeled; live endpoints not bound | Correlate DNS names to owner | Same | Escalation routing | High | Low metadata | UNKNOWN | B | P82 network |
 | H25 | App push independent of firmware | PAXSTORE app push | DOCUMENTED_UNVERIFIED | Entitlement unproven | Admin Center Push App UI/API | Push authority | High lifecycle | High | Change control | ADAPT | B | Estate |
 | H26 | Firmware OTA push | PAXSTORE firmware push; MAXSTORE OTA | DOCUMENTED_UNVERIFIED | Baseline incomplete blocks mutation | Inventory-only first | Firmware mutation authority | Core program | High | High | ADAPT | B | Firmware program |
@@ -272,7 +276,7 @@ Highest operational value clusters around: (1) authorized management-plane inven
 7–18. **Console status/logs/remote-view/reboot/network/apps/firmware/app-push/params/message/completion/rollback:** All **DOCUMENTED_UNVERIFIED** for MAXSTORE/PAXSTORE generally; **UNPROVEN** for this estate until Admin/CC access.
 19. **ADB seam present?** Workstation client **ABSENT**; device **UNKNOWN**. Do not enable.
 20. **Vendor diagnostic plane equivalent:** AirViewer + CheckUp + estate consoles — preferred production path.
-21–23. **Outbound connections / owners / passive metadata:** Architecture hypothesized; **no Kiosk4-bound sanitized PCAP/DNS fingerprint** yet; next is passive correlation.
+21–23. **Outbound connections / owners / passive metadata:** Architecture hypothesized; device-side **PAX Store Push Service Primary (443)** label is a retained correlation candidate only; Netstat/Connectivity closed (`REMOTE_ENDPOINT_CANDIDATE=NONE`); **no sanitized DNS/SNI/flow fingerprint** yet — next is passive SPAN correlation during console refresh, not another local scan.
 24–26. **Fleet health / ticket enrichment / truck-roll reduction:** Technically yes **if** Band B access lands; AirViewer is the standout field-visit reducer.
 27. **Lab twin:** Strongly recommended (**H42**).
 28–29. **Inappropriate/custom prod apps / PCI rejects:** See Band D.
@@ -333,5 +337,6 @@ This artifact proves **research completeness and prioritization**. It does **not
 - `harness/api/hh-cc-reader-live-execution-boundary.v1.json`
 - `docs/HH_CC_READER_KIOSK4_MENU_CAPABILITY_MAP.md`
 - `docs/HH_CC_READER_PAXSTORE_ACCESS_DISCOVERY.md`
+- `docs/HH_CC_READER_NETSTAT_BASELINE.md` (Push Service Primary 443 correlation; closed discriminators)
 - `docs/evidence/hh-cc-reader/kiosk4/2026-10-05/iteration-1-firmware-gate-checkpoint.md`
 - Successor map: `docs/plans/hh-cc-kiosk4-p97-capability-successor-map-20261006.plan.md`
