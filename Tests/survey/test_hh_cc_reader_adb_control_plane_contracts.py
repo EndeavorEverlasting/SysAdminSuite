@@ -91,6 +91,10 @@ def test_launchers_and_registries() -> None:
     assert "Probe-HHCCReaderAdb.cmd" in doc
     assert "MUTATION_AUTHORIZED=false" in doc.casefold() or "mutation remains unauthorized" in doc.casefold()
     assert "do not scan" in doc.casefold()
+    assert "USB-HOST" in doc
+    assert "RS232" in doc
+    assert "OPERATOR_PHYSICAL_ATTACHMENT_CONFIRMED" in doc
+    assert "WINDOWS_ANDROID_ADB_INTERFACE_ENUMERATED" in doc
 
 
 def test_fixture_catalog_and_no_mutation_authorization() -> None:
