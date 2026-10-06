@@ -1,99 +1,100 @@
 # Plan — Kiosk4 P97 Capability Frontier Successor Map
 
 Date: 2026-10-06
-Status: `ACCEPTED_RESEARCH_FLOOR`
+Status: `SUPERSEDED_CRITICAL_PATH_BY_ADMIN_BOX_ADB`
 Canonical research owner: `docs/research/hh-cc-kiosk4-p97-android-remote-capability-frontier-20261006.md`
+Canonical execution owner after operator decision 2026-10-06: `docs/plans/hh-cc-kiosk4-p04-p82-adminbox-adb-control-plane-20261006.plan.md`
 Repository floor at authoring: `origin/main@534dbb4e2bc26004e06e52f92e45201cf108a820`
+Hypothesis bookkeeping: **H01–H51 (51 hypotheses)**. H48 is the single-click diagnostic-bundle row; H49–H51 are AirLauncher, Terminal Center restart, and firmware no-downgrade. Do not report "48" as the canonical total.
 Mutation authority: `false` until a separate explicit gate
+
+## Operator decision (do not re-litigate)
+
+The Admin Box is the control plane. ADB is the first vendor-independent transport.
+Vendor management consoles remain documented optional/parallel estate capability.
+They are not the critical path and are not a prerequisite for Admin Box ADB work.
 
 ## Completed floor (P97)
 
-- Exhaustive capability frontier with ≥35 evidence-typed hypotheses across ≥10 families.
+- Exhaustive capability frontier with **51** evidence-typed hypotheses (H01–H51) across research families.
 - Systemic correction: prior AirViewer/ADB/network exclusions were sprint-local, not global irrelevance.
-- Read-only workstation proof: ADB client not on PATH; private capture remains empty stub.
+- Read-only workstation proof at P97 time: ADB client not on PATH (repository `REPOSITORY_CAPABILITY` gap, not a Kiosk4 `DEVICE_CAPABILITY` proof).
 - Firmware gate unchanged and parallel: `BASELINE_LOCKED=false`, missing `current_firmware_value`.
 
 ## Forbidden (global until explicit authority)
 
-- Production firmware push; app install/uninstall; enable Developer Options / USB debugging / network ADB
-- Management enrollment changes; wipe/reboot for experimentation; parameter/payment/network mutation
+- Production firmware push; app install/uninstall; wipe/reboot for experimentation; parameter/payment/network mutation
+- Enabling Developer Options / USB debugging / persistent network ADB when those controls are currently off
+- Management enrollment changes
 - Credential brute-force; exploit; TLS MITM; PAN/PHI/secret ingestion into Git
 - Reopen closed local menu crawls or broad inbound scans
+
+Authorized now: Admin Box official Platform-Tools; USB/PnP; `adb devices`; authorization observation; read-only ADB inventory; exact-target network ADB live-cert with revert; view-only remote display.
 
 ## Successor phases (dependency-aware)
 
 ### Phase 0 — Firmware label (parallel; existing owner)
 
-- **Owner:** existing observation program / P82 post-observation path
-- **Action:** fill authorized labeled observation → classify → baseline attempt
-- **Does not block** Phases 1–3 research/access work
+- **Owner:** existing observation program / Admin Box ADB inventory adapter
+- **Action:** fill authorized labeled observation (console **or** authorized ADB getprop adapter) then classify then baseline attempt
+- **Does not block** Admin Box ADB transport work
 - **Gate:** `BASELINE_LOCKED` or exact fail-closed blocker
 
-### Phase 1 — Control-plane identity bind (P82)
+### Phase 1 — Admin Box ADB control-plane bind (P04/P82) — CURRENT CRITICAL PATH
 
-- **Owner:** P82 with Kurt/Dennis access coordination
-- **Hypothesis:** same Kiosk4 SN appears on at least one authorized console with inventory fields
-- **Measure:** terminal record present; fields (apps/firmware/online/AirViewer); which plane
-- **Artifact:** sanitized observation receipt (private) + public checklist update
-- **Gate:** `CONTROL_PLANE_BOUND` or `PLANE_ACCESS_BLOCKED=<exact>`
+- **Owner:** SysAdminSuite technician CMDs on the Admin Box
+- **Hypothesis:** official Platform-Tools plus USB ADB can establish a typed session to the authorized Kiosk4
+- **Measure:** typed host/USB/device/auth states; `unauthorized` is transport proof
+- **Artifact:** ignored `survey/output/hh-cc-reader/` receipts plus private raw evidence
+- **Gate:** `ADB_DEVICE_READY` or exact attended RSA retry / USB discriminator
+- **Not this phase:** Experian/PAXSTORE login
 
-### Phase 2 — Package / agent architecture proof (P82 → P07 docs)
+### Phase 2 — Read-only Android inventory plus firmware adapter (depends on Phase 1 ready)
 
-- **Depends on:** Phase 1 access
-- **Action:** enumerate management-related packages/agents (PAXSTORE, AirViewer, TMS, AxiaMed, etc.)
-- **Gate:** `MANAGEMENT_AGENT_CLASSIFIED`
+- **Action:** getprop/pm/ps/ip/dumpsys; adapt into `Classify-HHCCReaderVersionDomain.cmd`
+- **Gate:** `ADB_READONLY_INVENTORY_CAPTURED` or `_PARTIAL`; firmware domain bind or explicit unbound
 
-### Phase 3 — Remote-support trial design (authority-gated)
+### Phase 3 — Exact-target network ADB transaction (depends on ready plus identity bound)
 
-- **Depends on:** Phase 2 showing AirViewer or equivalent
-- **Action:** one scheduled view-only session; document approve UX; no config changes
-- **Gate:** `REMOTE_VIEW_PROVEN` or `REMOTE_SUPPORT_ABSENT`
+- **Action:** USB tcpip 5555 then exact-IP connect then read-only proof then USB revert proof
+- **Gate:** `NETWORK_ADB_CERTIFIED` plus `NETWORK_ADB_REVERTED` (or `NETWORK_ADB_REVERT_FAILED`)
+- **Forbidden:** subnet scan; persistence-by-accident
 
-### Phase 4 — Passive outbound fingerprint (P82)
+### Phase 4 — View-only remote display (depends on proven ADB)
 
-- **Depends on:** netops approval; can run parallel to Phase 1 if SPAN ready
-- **Baseline:** device-side Connectivity label **PAX Store Push Service Primary (443)** is already a correlation candidate (`docs/HH_CC_READER_NETSTAT_BASELINE.md`); Netstat/Connectivity discriminators remain closed (`REMOTE_ENDPOINT_CANDIDATE=NONE`) — do not restage local scans
-- **Action:** DNS/SNI/timing during console refresh; no MITM; no payment payloads
-- **Gate:** `OUTBOUND_OWNER_CLUSTER_LABELED`
+- **Action:** scrcpy-equivalent `--no-control` if a local tool already exists
+- **Gate:** `REMOTE_VIEW_PROVEN` or attended inconclusive
+- **Separate:** remote-control/input certification
 
-### Phase 5 — Lab twin bootstrap (procurement / lab)
+### Phase 5 — Optional/parallel vendor-estate capability (not blocking)
 
-- **Owner:** Kurt procurement + lab ops
-- **Action:** non-prod A80; authorized ADB; procedure library for getprop/pm/dumpsys/scrcpy
-- **Gate:** `LAB_TWIN_READY`
+- **Owner:** Kurt/Dennis access coordination when useful
+- **Action:** read-only Experian/CC, TMS, or PAXSTORE Admin inventory
+- **Gate:** `ESTATE_PLANE_OBSERVED` or exact access blocker
+- **Note:** optional evidence source; overlap with ADB inventory is explicit (`DEVICE_CAPABILITY` vs estate console)
 
-### Phase 6 — Fleet visibility seam (P07; after Phase 1–2)
+### Phase 6 — Lab twin / fleet seams / governed lifecycle
 
-- **Action:** map console exports into existing estate-packet / tracker enrichment contracts — do not invent duplicate orchestrator
-- **Gate:** `FLEET_HEALTH_SCHEMA_BOUND`
+Unchanged from prior P97 map; still after baseline plus restore plus explicit mutation authority.
+Firmware OTA remains documented non-downgradable.
 
-### Phase 7 — Governed lifecycle (only after baseline + restore + authority)
+## P04 factoring — winning opportunities
 
-- **Depends on:** Phase 0 `BASELINE_LOCKED`, live restore proof, explicit mutation authority
-- **Action:** staged app/firmware/parameter rings with verification receipts
-- **Constraint (PAXSTORE Admin Guide prior art):** firmware OTA is documented as **non-downgradable** after upgrade — restore planning must not assume “push older FW image” unless a different restore path is independently proved
-- **Gate:** existing firmware mutation gates in live-execution boundary
-
-## P04 factoring — winning opportunities (do not spawn 20 sprints)
-
-Select **one** implementation slice after Phase 1 evidence:
-
-1. **Highest information value / lowest authority cost:** control-plane bind + package inventory runbook (Phases 1–2).
-2. **Highest operational leverage:** remote-support trial (Phase 3) if agent present.
-3. **Lowest production risk adjunct:** passive outbound fingerprint (Phase 4) and/or lab twin (Phase 5).
+1. **Now:** Admin Box ADB control plane (Phases 1–4).
+2. **Parallel optional:** vendor-console inventory (Phase 5) when credentials exist.
+3. **Firmware:** Phase 0 using ADB-adapted labeled observations when USB ready.
 
 ## Proof ceiling
 
-Phases 1–5 remain observation/lab until explicit mutation gates. Research must not be promoted to production capability claims.
+Phases 1–4 prove Admin Box transport and read-only observation. They do not authorize mutation.
+Vendor-console research is retained, not erased.
 
 ## Next executable action
 
 ```text
-Owner: operator + Kurt/Dennis
-Dependency: authorized Experian/CC or PAXSTORE Administrator Center (or provider console) for same Kiosk4 identity
-Action: open read-only terminal detail; capture sanitized field inventory (no push)
-Expected artifact: private observation notes + update to live-execution boundary next_action if plane proven
-Completion gate: CONTROL_PLANE_BOUND or exact access blocker named
+Owner: technician on Admin Box
+Dependency: none on proprietary consoles
+Action: Evaluate-HHCCReaderAdbControlPlane.cmd
+Expected artifact: typed receipt under survey/output/hh-cc-reader/
+Completion gate: highest typed live state or exact attended RSA retry
 ```
-
-Parallel firmware track remains: fill `%TEMP%\hh-cc-kiosk4-labeled-firmware-observation.json` with one labeled installed-version row — without inventing values.

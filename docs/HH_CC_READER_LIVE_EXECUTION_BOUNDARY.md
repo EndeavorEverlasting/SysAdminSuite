@@ -120,16 +120,20 @@ harness preemption = false
 
 Immediate next action:
 
-1. use an authorized Payment Fusion / Control Center / IngEstate or PAXSTORE terminal-management session;
-2. bind the selected terminal to the already-proved Kiosk4 serial/MAC;
-3. record the authoritative current firmware/build;
-4. rerun the existing baseline evaluator;
-5. require `BASELINE_LOCKED`;
-6. continue immediately to eligibility and restore-path proof.
+1. run `Probe-HHCCReaderAdb.cmd` on the Admin Box (then `Capture-HHCCReaderAdbInventory.cmd` when `ADB_DEVICE_READY`);
+2. optionally use an authorized Payment Fusion / Control Center / IngEstate or PAXSTORE terminal-management session as a parallel estate source — not a prerequisite;
+3. bind the selected terminal to the already-proved Kiosk4 serial/MAC;
+4. record the authoritative current firmware/build through classifier-native labeled observations;
+5. rerun the existing baseline evaluator;
+6. require `BASELINE_LOCKED`;
+7. continue immediately to eligibility and restore-path proof.
+
+Fallback when USB ADB is unauthorized: that is already transport proof. Approve the RSA prompt on the reader and rerun only the probe.
 
 Fallback when the management surface cannot bind the terminal:
 
 capture `Software versions` on the same physical Kiosk4 and use that observation in the private baseline input.
+
 
 Do **not** respond to the current blocker with another network-discovery pass, generic public package search, tracker/publication work, or harness refactor.
 

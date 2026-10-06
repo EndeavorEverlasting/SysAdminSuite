@@ -1,0 +1,323 @@
+{
+  "schema": "sas-hh-cc-reader-adb-control-plane-fixtures/v1",
+  "cases": [
+    {
+      "id": "01-adb-absent",
+      "mode": "prepare-host",
+      "expected_state": "ADB_HOST_NOT_INSTALLED",
+      "evidence": {
+        "mode": "prepare-host",
+        "host": {"adb_present": false}
+      }
+    },
+    {
+      "id": "02-host-ready-zero-devices",
+      "mode": "probe",
+      "expected_state": "ADB_NO_DEVICE",
+      "evidence": {
+        "mode": "probe",
+        "host": {"adb_present": true, "adb_path": "OWNED_PATH", "adb_version": "1.0.41", "precedence": "owned"},
+        "usb": {"enumerated": true, "android_composite": true, "adb_interface": true},
+        "adb_devices": []
+      }
+    },
+    {
+      "id": "03-unauthorized",
+      "mode": "probe",
+      "expected_state": "ADB_DEVICE_UNAUTHORIZED",
+      "evidence": {
+        "mode": "probe",
+        "screen_confirmation": "unobserved",
+        "host": {"adb_present": true, "adb_path": "OWNED_PATH", "adb_version": "1.0.41", "precedence": "owned"},
+        "usb": {"enumerated": true, "android_composite": true, "adb_interface": true, "pax_or_a80_hint": true},
+        "adb_devices": [{"serial_token": "SERIAL_REF", "state": "unauthorized", "transport": "usb"}]
+      }
+    },
+    {
+      "id": "04-offline",
+      "mode": "probe",
+      "expected_state": "ADB_DEVICE_OFFLINE",
+      "evidence": {
+        "mode": "probe",
+        "host": {"adb_present": true, "adb_path": "OWNED_PATH", "adb_version": "1.0.41", "precedence": "owned"},
+        "usb": {"enumerated": true, "android_composite": true, "adb_interface": true},
+        "adb_devices": [{"serial_token": "SERIAL_REF", "state": "offline", "transport": "usb"}]
+      }
+    },
+    {
+      "id": "05-ready",
+      "mode": "probe",
+      "expected_state": "ADB_DEVICE_READY",
+      "evidence": {
+        "mode": "probe",
+        "host": {"adb_present": true, "adb_path": "OWNED_PATH", "adb_version": "1.0.41", "precedence": "owned"},
+        "usb": {"enumerated": true, "android_composite": true, "adb_interface": true},
+        "adb_devices": [{"serial_token": "SERIAL_REF", "state": "device", "transport": "usb"}]
+      }
+    },
+    {
+      "id": "06-multiple",
+      "mode": "probe",
+      "expected_state": "ADB_MULTIPLE_DEVICES_BLOCKED",
+      "evidence": {
+        "mode": "probe",
+        "host": {"adb_present": true, "adb_path": "OWNED_PATH", "adb_version": "1.0.41", "precedence": "owned"},
+        "usb": {"enumerated": true, "android_composite": true, "adb_interface": true},
+        "adb_devices": [
+          {"serial_token": "SERIAL_REF_A", "state": "device", "transport": "usb"},
+          {"serial_token": "SERIAL_REF_B", "state": "device", "transport": "usb"}
+        ]
+      }
+    },
+    {
+      "id": "07-usb-no-adb-interface",
+      "mode": "probe",
+      "expected_state": "USB_DEVICE_ENUMERATED_NO_ADB_INTERFACE",
+      "evidence": {
+        "mode": "probe",
+        "host": {"adb_present": true, "adb_path": "OWNED_PATH", "adb_version": "1.0.41", "precedence": "owned"},
+        "usb": {"enumerated": true, "android_composite": true, "adb_interface": false},
+        "adb_devices": []
+      }
+    },
+    {
+      "id": "08-inventory-complete",
+      "mode": "inventory",
+      "expected_state": "ADB_READONLY_INVENTORY_CAPTURED",
+      "evidence": {
+        "mode": "inventory",
+        "host": {"adb_present": true, "adb_path": "OWNED_PATH", "adb_version": "1.0.41", "precedence": "owned"},
+        "adb_devices": [{"serial_token": "SERIAL_REF", "state": "device", "transport": "usb"}],
+        "identity": {"mac_correlated": true, "expected_identity_available": true},
+        "inventory": {
+          "observed_at": "2099-10-06T00:00:00Z",
+          "commands": {
+            "getprop": {"ok": true, "properties": {"ro.build.version.release": "10", "ro.product.model": "A80"}},
+            "pm_list_packages": {"ok": true, "stdout": "package:com.android.settings"},
+            "ps": {"ok": true, "stdout": "root 1 init"},
+            "ip_addr": {"ok": true, "stdout": "wlan0"},
+            "ip_route": {"ok": true, "stdout": "default"},
+            "dumpsys_connectivity": {"ok": true, "stdout": "NetworkAgentInfo"},
+            "dumpsys_device_policy": {"ok": true, "stdout": "Device Owner: none"}
+          }
+        }
+      }
+    },
+    {
+      "id": "09-inventory-partial",
+      "mode": "inventory",
+      "expected_state": "ADB_READONLY_INVENTORY_PARTIAL",
+      "evidence": {
+        "mode": "inventory",
+        "host": {"adb_present": true, "adb_path": "OWNED_PATH", "adb_version": "1.0.41", "precedence": "owned"},
+        "adb_devices": [{"serial_token": "SERIAL_REF", "state": "device", "transport": "usb"}],
+        "inventory": {
+          "observed_at": "2099-10-06T00:00:00Z",
+          "commands": {
+            "getprop": {"ok": true, "properties": {"ro.build.version.release": "6.0.1", "ro.product.model": "A80"}},
+            "pm_list_packages": {"ok": true, "stdout": "package:com.android.settings"},
+            "ps": {"unsupported": true},
+            "ip_addr": {"ok": true, "stdout": "wlan0"},
+            "ip_route": {"unsupported": true},
+            "dumpsys_connectivity": {"unsupported": true},
+            "dumpsys_device_policy": {"unsupported": true}
+          }
+        }
+      }
+    },
+    {
+      "id": "10-firmware-unbound",
+      "mode": "inventory",
+      "expected_firmware": "CANDIDATES_CAPTURED_UNBOUND",
+      "expected_current": null,
+      "evidence": {
+        "mode": "inventory",
+        "host": {"adb_present": true, "adb_path": "OWNED_PATH", "adb_version": "1.0.41", "precedence": "owned"},
+        "adb_devices": [{"serial_token": "SERIAL_REF", "state": "device", "transport": "usb"}],
+        "inventory": {
+          "observed_at": "2099-10-06T00:00:00Z",
+          "commands": {
+            "getprop": {"ok": true, "properties": {"ro.build.version.release": "10", "ro.build.version.sdk": "29", "ro.product.model": "A80"}},
+            "pm_list_packages": {"ok": true, "stdout": "package:com.android.settings"},
+            "ps": {"ok": true},
+            "ip_addr": {"ok": true},
+            "ip_route": {"ok": true},
+            "dumpsys_connectivity": {"ok": true},
+            "dumpsys_device_policy": {"ok": true}
+          }
+        }
+      }
+    },
+    {
+      "id": "11-firmware-labeled-bind",
+      "mode": "inventory",
+      "expected_firmware": "AUTHORITATIVE_LABELED_CANDIDATE",
+      "expected_current": "CURRENT_FIRMWARE_BOUND",
+      "evidence": {
+        "mode": "inventory",
+        "host": {"adb_present": true, "adb_path": "OWNED_PATH", "adb_version": "1.0.41", "precedence": "owned"},
+        "adb_devices": [{"serial_token": "SERIAL_REF", "state": "device", "transport": "usb"}],
+        "inventory": {
+          "observed_at": "2099-10-06T00:00:00Z",
+          "commands": {
+            "getprop": {
+              "ok": true,
+              "properties": {
+                "ro.product.model": "A80",
+                "ro.build.display.id": "PX7A_A80_PayDroid_V7.1.1_20180101",
+                "ro.build.version.release": "7.1.1"
+              }
+            },
+            "pm_list_packages": {"ok": true, "stdout": "package:com.pax.market.android.app"},
+            "ps": {"ok": true},
+            "ip_addr": {"ok": true},
+            "ip_route": {"ok": true},
+            "dumpsys_connectivity": {"ok": true},
+            "dumpsys_device_policy": {"ok": true, "stdout": ""}
+          }
+        }
+      }
+    },
+    {
+      "id": "12-network-connect-success",
+      "mode": "tcpip-cert",
+      "expected_state": "NETWORK_ADB_CERTIFIED",
+      "evidence": {
+        "mode": "tcpip-cert",
+        "host": {"adb_present": true, "adb_path": "OWNED_PATH", "adb_version": "1.0.41", "precedence": "owned"},
+        "adb_devices": [{"serial_token": "SERIAL_REF", "state": "device", "transport": "usb"}],
+        "identity": {"mac_correlated": true, "expected_identity_available": true},
+        "network_adb": {
+          "device_ip_known": true,
+          "scanned": false,
+          "tcpip_issued": true,
+          "connect_result": "success",
+          "readonly_proof_over_network": true,
+          "usb_revert_issued": true,
+          "network_listener_gone": true
+        }
+      }
+    },
+    {
+      "id": "13-network-refused",
+      "mode": "tcpip-cert",
+      "expected_state": "NETWORK_ADB_NOT_LISTENING",
+      "evidence": {
+        "mode": "tcpip-cert",
+        "host": {"adb_present": true, "adb_path": "OWNED_PATH", "adb_version": "1.0.41", "precedence": "owned"},
+        "adb_devices": [{"serial_token": "SERIAL_REF", "state": "device", "transport": "usb"}],
+        "identity": {"mac_correlated": true, "expected_identity_available": true},
+        "network_adb": {
+          "device_ip_known": true,
+          "scanned": false,
+          "tcpip_issued": true,
+          "connect_result": "refused",
+          "readonly_proof_over_network": false,
+          "usb_revert_issued": true,
+          "network_listener_gone": true
+        }
+      }
+    },
+    {
+      "id": "14-network-reverted",
+      "mode": "tcpip-cert",
+      "expected_revert": "NETWORK_ADB_REVERTED",
+      "expected_state": "NETWORK_ADB_CERTIFIED",
+      "evidence": {
+        "mode": "tcpip-cert",
+        "host": {"adb_present": true, "adb_path": "OWNED_PATH", "adb_version": "1.0.41", "precedence": "owned"},
+        "adb_devices": [{"serial_token": "SERIAL_REF", "state": "device", "transport": "usb"}],
+        "identity": {"mac_correlated": true, "expected_identity_available": true},
+        "network_adb": {
+          "device_ip_known": true,
+          "scanned": false,
+          "tcpip_issued": true,
+          "connect_result": "success",
+          "readonly_proof_over_network": true,
+          "usb_revert_issued": true,
+          "network_listener_gone": true
+        }
+      }
+    },
+    {
+      "id": "15-network-revert-failed",
+      "mode": "tcpip-cert",
+      "expected_state": "NETWORK_ADB_REVERT_FAILED",
+      "expected_revert": "NETWORK_ADB_REVERT_FAILED",
+      "evidence": {
+        "mode": "tcpip-cert",
+        "host": {"adb_present": true, "adb_path": "OWNED_PATH", "adb_version": "1.0.41", "precedence": "owned"},
+        "adb_devices": [{"serial_token": "SERIAL_REF", "state": "device", "transport": "usb"}],
+        "identity": {"mac_correlated": true, "expected_identity_available": true},
+        "network_adb": {
+          "device_ip_known": true,
+          "scanned": false,
+          "tcpip_issued": true,
+          "connect_result": "success",
+          "readonly_proof_over_network": true,
+          "usb_revert_issued": true,
+          "network_listener_gone": false
+        }
+      }
+    },
+    {
+      "id": "16-remote-view-success",
+      "mode": "remote-view",
+      "expected_state": "REMOTE_VIEW_PROVEN",
+      "evidence": {
+        "mode": "remote-view",
+        "host": {"adb_present": true, "adb_path": "OWNED_PATH", "adb_version": "1.0.41", "precedence": "owned"},
+        "adb_devices": [{"serial_token": "SERIAL_REF", "state": "device", "transport": "usb"}],
+        "remote_view": {
+          "tool": "scrcpy",
+          "tool_present": true,
+          "no_control": true,
+          "stream_proven": true,
+          "interactive_gate": false,
+          "control_injected": false
+        }
+      }
+    },
+    {
+      "id": "17-remote-view-inconclusive",
+      "mode": "remote-view",
+      "expected_state": "REMOTE_VIEW_INCONCLUSIVE",
+      "evidence": {
+        "mode": "remote-view",
+        "screen_confirmation": "unobserved",
+        "host": {"adb_present": true, "adb_path": "OWNED_PATH", "adb_version": "1.0.41", "precedence": "owned"},
+        "adb_devices": [{"serial_token": "SERIAL_REF", "state": "device", "transport": "usb"}],
+        "remote_view": {
+          "tool": "scrcpy",
+          "tool_present": true,
+          "no_control": true,
+          "stream_proven": false,
+          "interactive_gate": true,
+          "control_injected": false
+        }
+      }
+    },
+    {
+      "id": "19-usb-not-enumerated",
+      "mode": "probe",
+      "expected_state": "USB_DEVICE_NOT_ENUMERATED",
+      "evidence": {
+        "mode": "probe",
+        "host": {"adb_present": true, "adb_path": "OWNED_PATH", "adb_version": "1.0.41", "precedence": "owned"},
+        "usb": {"enumerated": true, "android_composite": false, "adb_interface": false, "pax_or_a80_hint": false},
+        "adb_devices": []
+      }
+    },
+    {
+      "id": "18-mutation-refused",
+      "mode": "inventory",
+      "expected_state": "POLICY_SAFETY_CONTROL",
+      "evidence": {
+        "mode": "inventory",
+        "host": {"adb_present": true, "adb_path": "OWNED_PATH", "adb_version": "1.0.41", "precedence": "owned"},
+        "adb_devices": [{"serial_token": "SERIAL_REF", "state": "device", "transport": "usb"}],
+        "attempted_commands": ["adb root", "adb install payment.apk", "fastboot flash boot boot.img"]
+      }
+    }
+  ]
+}

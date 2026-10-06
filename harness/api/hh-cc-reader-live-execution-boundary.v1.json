@@ -92,7 +92,7 @@
     "baseline_missing_fields": [
       "current_firmware_value"
     ],
-    "next_action": "Local recovery is complete and fail-closed: %TEMP%\\hh-cc-kiosk4-labeled-firmware-observation.json exists with schema sas-hh-cc-reader-kiosk4-version-evidence-capture/v1, capture_state=AWAITING_FIELD_OBSERVATION, and zero labeled_observations. Classify-HHCCReaderVersionDomain.cmd on that capture returned primary_observation null / VERSION_DOMAIN_UNRESOLVED. Same-Kiosk4 identity remains UNIQUE_TARGET_RESOLVED. Evaluate-HHCCReaderFirmwareRoundtrip.cmd baseline on the existing private identity packet returned BASELINE_INCOMPLETE missing current_firmware_value. Do not invent a numeric version, do not use the campaign target as current, and do not promote a PAXSTORE fixture observe receipt to live current_firmware_value. Fill the same private capture with one authorized read-only labeled installed-firmware observation (Payment Fusion Control Center / IngEstate terminal-management detail when authorized; otherwise same-device Settings > Software versions; PAXSTORE TM/OpenAPI only with live entitlement, never --fixture). Then rerun Classify-HHCCReaderVersionDomain.cmd and Evaluate-HHCCReaderFirmwareRoundtrip.cmd baseline. Promote BASELINE_LOCKED only from the baseline receipt. Do not mutate firmware.",
+    "next_action": "Local recovery is complete and fail-closed: %TEMP%\\hh-cc-kiosk4-labeled-firmware-observation.json exists with schema sas-hh-cc-reader-kiosk4-version-evidence-capture/v1, capture_state=AWAITING_FIELD_OBSERVATION, and zero labeled_observations. Classify-HHCCReaderVersionDomain.cmd on that capture returned primary_observation null / VERSION_DOMAIN_UNRESOLVED. Same-Kiosk4 identity remains UNIQUE_TARGET_RESOLVED. Evaluate-HHCCReaderFirmwareRoundtrip.cmd baseline on the existing private identity packet returned BASELINE_INCOMPLETE missing current_firmware_value. Do not invent a numeric version, do not use the campaign target as current, and do not promote a PAXSTORE fixture observe receipt to live current_firmware_value. Fill the same private capture with one authorized read-only labeled installed-firmware observation (Payment Fusion Control Center / IngEstate terminal-management detail when authorized; otherwise same-device Settings > Software versions; authorized Admin Box USB ADB via Probe-HHCCReaderAdb.cmd then Capture-HHCCReaderAdbInventory.cmd, which is not a proprietary-console prerequisite; PAXSTORE TM/OpenAPI only with live entitlement, never --fixture). Then rerun Classify-HHCCReaderVersionDomain.cmd and Evaluate-HHCCReaderFirmwareRoundtrip.cmd baseline. Promote BASELINE_LOCKED only from the baseline receipt. Do not mutate firmware.",
     "explicitly_not_next": [
       "rerun P95 protocol selection against the same unchanged evidence set",
       "hard-code PAXSTORE as the only firmware protocol across hospitals",
@@ -112,7 +112,9 @@
       "ask the operator to restate a value that is recoverable from the local private capture or registered ignored receipt",
       "promote operator-reported completion directly to current_firmware_value or BASELINE_LOCKED without classifier/baseline receipts",
       "promote a PAXSTORE --fixture or credential_state=FIXTURE observe receipt as live current_firmware_value",
-      "invent current_firmware_value from campaign target 2.0.15.260522 or tracker history"
+      "invent current_firmware_value from campaign target 2.0.15.260522 or tracker history",
+      "treat Experian/PAXSTORE/MAXSTORE/AirViewer console access as a prerequisite for Admin Box ADB control-plane work",
+      "treat missing adb.exe on PATH as proof that Kiosk4 lacks ADB"
     ],
     "protocol_selection_contract": "sas-hh-cc-reader-firmware-protocols/v1",
     "protocol_selection_disposition": "CLOSED_UNTIL_NEW_EVIDENCE_SIGNAL",
@@ -128,7 +130,8 @@
     "observation_surface_preference": [
       "Payment Fusion Control Center / IngEstate terminal-management detail when authorized",
       "same-device Settings > Software versions when Control Center is unavailable; do not reopen the AxiaMed admin-menu crawl",
-      "PAXSTORE Terminal Management UI / OpenAPI only when entitlement is actually evidenced"
+      "PAXSTORE Terminal Management UI / OpenAPI only when entitlement is actually evidenced",
+      "authorized Admin Box USB ADB read-only inventory once ADB_DEVICE_READY; not a proprietary-console prerequisite"
     ],
     "evidence_receipt": "docs/evidence/hh-cc-reader/kiosk4/2026-10-05/iteration-1-firmware-gate-checkpoint.md",
     "operator_reported_observation_complete": true,

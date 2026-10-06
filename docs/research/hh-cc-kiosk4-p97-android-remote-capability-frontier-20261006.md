@@ -62,6 +62,18 @@ This P97 sprint **does not** invent the missing firmware label.
 
 Interpretation: absence of `adb` on this workstation does **not** prove the reader lacks ADB; it proves this sprint cannot exercise ADB introspection without installing/locating an authorized client **and** an already-enabled device seam.
 
+Evidence categories (keep separate):
+
+| Category | Meaning |
+| --- | --- |
+| `DEVICE_CAPABILITY` | What the Kiosk4/Android device itself can do |
+| `CONTROL_TRANSPORT_CAPABILITY` | Admin Box USB/ADB/network-ADB/remote-view session |
+| `REPOSITORY_CAPABILITY` | Host tools, CMDs, fixtures, registries |
+| `POLICY_SAFETY_CONTROL` | Mutation refusal, no-scan, revert-required |
+
+`ADB_STATE=NOT_CURRENTLY_AVAILABLE` was a `REPOSITORY_CAPABILITY` observation (missing `adb.exe` on PATH), not a `DEVICE_CAPABILITY` claim.
+
+
 ---
 
 ## Prior-art lanes (summary)
@@ -169,7 +181,7 @@ Highest operational value clusters around: (1) authorized management-plane inven
 
 ---
 
-## Capability hypothesis matrix (≥35)
+## Capability hypothesis matrix (H01–H51; canonical total **51**)
 
 | ID | Capability | Real-world prior art | P97 evidence state | Kiosk4 evidence | Safe read-only discriminator | Required authority | Operational value | Fleet leverage | Risk | Disposition | Band | Next owner |
 | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
@@ -187,7 +199,7 @@ Highest operational value clusters around: (1) authorized management-plane inven
 | H12 | AirViewer remote input/control | Same; dual approve | DOCUMENTED_UNVERIFIED | Unknown | Apply-for-control + approve path works | Same + control permission | Very high | High | Higher than view | ADOPT | B | Same |
 | H13 | AirViewer unattended mode | QRG role permission | DOCUMENTED_UNVERIFIED | Unknown; may be inappropriate for attended kiosk | Role flag exists? | Explicit unattended policy | High for true kiosks | Medium | PCI/ops policy | ADAPT | B | Security/ops approval |
 | H14 | Vendor remote help-desk (non-AirViewer) | Payment Fusion / IngEstate support tooling | UNKNOWN | Named in contracts; live UI unknown | Authorized console remote-assist menu | Provider console | High | High | Session content | UNKNOWN | B | Provider access |
-| H15 | ADB USB already enabled | Android USB debugging | ABSENT (workstation) / UNKNOWN (device) | `adb` not on PATH; device state unknown | Locate authorized platform-tools; `adb devices` only — **do not enable** | None if already on | High lab/introspect | Low on prod fleet | High if forced enable | UNKNOWN | A/B | Workstation tooling check |
+| H15 | ADB USB already enabled | Android USB debugging | ABSENT (workstation at P97) / UNKNOWN (device) | `adb` was not on PATH; device state unknown | Admin Box Platform-Tools + `adb devices` only — **do not enable** debugging if off | None if already on | High lab/introspect | Low on prod fleet | High if forced enable | ADAPT | A/B | Admin Box ADB CMDs |
 | H16 | scrcpy-style mirror | Genymobile scrcpy | DOCUMENTED_UNVERIFIED | Not usable without ADB | Lab only if ADB authorized | LAB ADB | High lab support | Lab | Production REJECT without estate path | ADAPT | C | Lab twin |
 | H17 | Remote reboot | DPC reboot; MAXSTORE remote ops claims | DOCUMENTED_UNVERIFIED | Unknown | Console reboot action exists? | Mutation authority | High MTTR | High | Service interruption | ADAPT | B | Authority gate |
 | H18 | Connectivity / IP / link state remote | PAX monitoring; dumpsys connectivity | DOCUMENTED_UNVERIFIED | Local Network Settings closed as crawl | Console network widgets | Console | High pre-dispatch triage | High | Low | ADOPT | B | Console |
@@ -255,7 +267,8 @@ Highest operational value clusters around: (1) authorized management-plane inven
 
 | Item | Why rejected |
 | --- | --- |
-| Enable USB debugging on production | Security/PCI; authority-forbidden |
+| Enable USB debugging on production when currently off | Security/PCI; still forbidden to flip the toggle |
+| Using already-present ADB (`unauthorized`/`device`) from Admin Box | **Authorized** read-only transport as of 2026-10-06 operator decision |
 | TLS MITM / payment intercept | Forbidden / illegal / useless for authorized ops |
 | Broad inbound rescans | Closed; low value vs outbound |
 | Tracker-as-firmware | False authority |
@@ -274,13 +287,13 @@ Highest operational value clusters around: (1) authorized management-plane inven
 5. **AirViewer requires:** PAXSTORE profile, Internet, AirViewer app, role permission, user approve (unless unattended).
 6. **AirViewer provisioned?** **UNKNOWN** — Admin Center entitlement itself unproven.
 7–18. **Console status/logs/remote-view/reboot/network/apps/firmware/app-push/params/message/completion/rollback:** All **DOCUMENTED_UNVERIFIED** for MAXSTORE/PAXSTORE generally; **UNPROVEN** for this estate until Admin/CC access.
-19. **ADB seam present?** Workstation client **ABSENT**; device **UNKNOWN**. Do not enable.
+19. **ADB seam present?** Workstation client was **ABSENT** at P97 (`REPOSITORY_CAPABILITY`). Device remains unknown until Admin Box probe. Do not enable debugging if off. `unauthorized` is `CONTROL_TRANSPORT_CAPABILITY` proof.
 20. **Vendor diagnostic plane equivalent:** AirViewer + CheckUp + estate consoles — preferred production path.
 21–23. **Outbound connections / owners / passive metadata:** Architecture hypothesized; device-side **PAX Store Push Service Primary (443)** label is a retained correlation candidate only; Netstat/Connectivity closed (`REMOTE_ENDPOINT_CANDIDATE=NONE`); **no sanitized DNS/SNI/flow fingerprint** yet — next is passive SPAN correlation during console refresh, not another local scan.
 24–26. **Fleet health / ticket enrichment / truck-roll reduction:** Technically yes **if** Band B access lands; AirViewer is the standout field-visit reducer.
 27. **Lab twin:** Strongly recommended (**H42**).
 28–29. **Inappropriate/custom prod apps / PCI rejects:** See Band D.
-30. **Most exciting + realistic + valuable:** **Authorized remote support (AirViewer or PFCC equivalent) + package/firmware inventory on the true control plane**, unlocking remote diagnosis and eventually governed lifecycle — without waiting solely on the firmware label.
+30. **Most exciting + realistic + valuable:** **Admin Box ADB control plane** (typed USB/ADB, read-only inventory, reversible network ADB, view-only display) with vendor consoles as optional/parallel estate capability — not a prerequisite.
 
 ---
 
