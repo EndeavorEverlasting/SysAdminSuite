@@ -386,3 +386,21 @@ SAS canonical execution receipt
 
 Downstream publication unavailability must not block or rewrite SAS execution evidence. NYC H&H owns consumer interpretation, tracker reconciliation, and publication state.
 
+## Admin Box ↔ Kiosk4 remote capability matrix (evidence-bound)
+
+Populate only from current receipts. Do not pre-fill success. Live serial/MAC/IP stay in ignored private evidence.
+
+| Capability | Transport | Prerequisite | Evidence owner | State | Operational value |
+| --- | --- | --- | --- | --- | --- |
+| Host Platform-Tools / ADB client | Admin Box | owned Platform-Tools path | `Prepare-HHCCReaderAdbHost.cmd` | PROVEN (`ADB_HOST_READY`, 2026-10-06 live) | Control-plane host readiness |
+| USB OTG / Android client enumeration | USB OTG | operator `otg plugged` + PresentOnly delta | `Probe-HHCCReaderAdb.cmd` USB states | WAITING — pre-OTG = `USB_DEVICE_NOT_ENUMERATED` | Discriminates USB-HOST vs client path |
+| USB ADB session | USB ADB | enumerated ADB interface | `Probe-HHCCReaderAdb.cmd` | UNPROVEN (pre-OTG `ADB_NO_DEVICE`) | Read-only shell transport |
+| Android/PAX read-only inventory | USB ADB | `ADB_DEVICE_READY` | `Capture-HHCCReaderAdbInventory.cmd` | UNPROVEN | Diagnostics, package/management clues |
+| Firmware observation → classifier | ADB/device property | trustworthy version property | inventory + `Classify-HHCCReaderVersionDomain.cmd` | UNPROVEN / unbound | Baseline unlock |
+| Exact-target network diagnostics | LAN / same-subnet | reader IP + expected MAC | `Checkpoint-HHCCReaderNetwork.cmd` / `Probe-HHCCReader.cmd` | PARTIAL — Wi-Fi same-subnet true; Ethernet APIPA; historical IP `DEVICE_MISMATCH` | Remote troubleshooting |
+| Network ADB (bounded) | LAN + prior USB ADB | ready + identity bound + prove/revert | `Certify-HHCCReaderAdbTcpip.cmd` | UNPROVEN; fail if revert fails | Temporary remote shell |
+| View-only remote display | ADB | ready + view workflow | `Certify-HHCCReaderRemoteView.cmd` | UNPROVEN | Remote technician support |
+| Vendor management plane | PAXSTORE / estate | enrollment/service evidence | P97 frontier + observe/ingest cmds | prior evidence only until refreshed | Fleet operations |
+
+USB and LAN planes are independent. See `docs/HH_CC_READER_ADB_ADMIN_BOX_WORKFLOW.md` for the OTG discriminator chain.
+
