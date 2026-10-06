@@ -1,10 +1,10 @@
 # P97 — Kiosk4 Android / Remote Capability Frontier
 
-Date: 2026-10-06  
-Mode: `P97_EXHAUSTIVE_CAPABILITY_FRONTIER`  
-Repository: `EndeavorEverlasting/SysAdminSuite`  
-Floor: `origin/main@534dbb4e2bc26004e06e52f92e45201cf108a820` (contains PR #498 / `aeff924c`)  
-Mutation authority: `false` (research + durable analysis only)  
+Date: 2026-10-06
+Mode: `P97_EXHAUSTIVE_CAPABILITY_FRONTIER`
+Repository: `EndeavorEverlasting/SysAdminSuite`
+Floor: `origin/main@534dbb4e2bc26004e06e52f92e45201cf108a820` (contains PR #498 / `aeff924c`)
+Mutation authority: `false` (research + durable analysis only)
 Firmware gate (unchanged): `BASELINE_LOCKED=false`, `MUTATION_AUTHORIZED=false`, missing=`current_firmware_value`
 
 ## Purpose

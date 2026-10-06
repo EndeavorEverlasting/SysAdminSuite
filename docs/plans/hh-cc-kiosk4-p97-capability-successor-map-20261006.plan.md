@@ -1,9 +1,9 @@
 # Plan — Kiosk4 P97 Capability Frontier Successor Map
 
-Date: 2026-10-06  
-Status: `ACCEPTED_RESEARCH_FLOOR`  
-Canonical research owner: `docs/research/hh-cc-kiosk4-p97-android-remote-capability-frontier-20261006.md`  
-Repository floor at authoring: `origin/main@534dbb4e2bc26004e06e52f92e45201cf108a820`  
+Date: 2026-10-06
+Status: `ACCEPTED_RESEARCH_FLOOR`
+Canonical research owner: `docs/research/hh-cc-kiosk4-p97-android-remote-capability-frontier-20261006.md`
+Repository floor at authoring: `origin/main@534dbb4e2bc26004e06e52f92e45201cf108a820`
 Mutation authority: `false` until a separate explicit gate
 
 ## Completed floor (P97)
