@@ -237,6 +237,8 @@ $result = [ordered]@{
 }
 
 function Get-SasInstallerProcessSnapshot {
+    param([string]$InstallerLeaf = '')
+
     $rows = @()
     try { $rows = @(Get-CimInstance Win32_Process -ErrorAction Stop) }
     catch { return @() }
@@ -254,8 +256,14 @@ function Get-SasInstallerProcessSnapshot {
         $created = $null
         try {
             if ($_.CreationDate -is [datetime]) { $created = $_.CreationDate.ToUniversalTime() }
-            elseif ($_.CreationDate) { $created = [Management.ManagementDateTimeConverter]::ToDateTime([string]$_.CreationDate).ToUniversalTime() }
+            elseif ($_.CreationDate) { $created = [System.Management.ManagementDateTimeConverter]::ToDateTime([string]$_.CreationDate).ToUniversalTime() }
         } catch { $created = $null }
+
+        $commandLine = [string]$_.CommandLine
+        $commandLineMatchesInstaller = $false
+        if (-not [string]::IsNullOrWhiteSpace($InstallerLeaf) -and -not [string]::IsNullOrWhiteSpace($commandLine)) {
+            $commandLineMatchesInstaller = $commandLine.IndexOf($InstallerLeaf, [StringComparison]::OrdinalIgnoreCase) -ge 0
+        }
 
         [pscustomobject][ordered]@{
             process_id = [int]$_.ProcessId
@@ -265,6 +273,7 @@ function Get-SasInstallerProcessSnapshot {
             file_version = [string]$version
             session_id = [int]$_.SessionId
             creation_utc = if ($created) { $created.ToString('o') } else { '' }
+            command_line_matches_installer = [bool]$commandLineMatchesInstaller
         }
     })
 }
@@ -275,6 +284,7 @@ function Get-SasInstallerProcessIdentity {
         name = [string]$ProcessRow.name
         executable_leaf = [string]$ProcessRow.executable_leaf
         file_version = [string]$ProcessRow.file_version
+        creation_utc = [string]$ProcessRow.creation_utc
     }
 }
 
@@ -289,6 +299,9 @@ function Test-SasInstallerProcessIdentity {
         [string]$ProcessRow.executable_leaf -ine [string]$Identity.executable_leaf) { return $false }
     if (-not [string]::IsNullOrWhiteSpace([string]$Identity.file_version) -and
         [string]$ProcessRow.file_version -ne [string]$Identity.file_version) { return $false }
+    if ($Identity.PSObject.Properties.Name -contains 'creation_utc' -and
+        -not [string]::IsNullOrWhiteSpace([string]$Identity.creation_utc) -and
+        [string]$ProcessRow.creation_utc -ne [string]$Identity.creation_utc) { return $false }
     return $true
 }
 
@@ -315,11 +328,14 @@ try {
 
     $arguments = @($config.installer_arguments | ForEach-Object { [string]$_ })
     $extension = [IO.Path]::GetExtension([string]$config.installer_path).ToLowerInvariant()
-    $baseline = @(Get-SasInstallerProcessSnapshot)
+    $installerLeaf = [IO.Path]::GetFileName([string]$config.installer_path)
+    $baseline = @(Get-SasInstallerProcessSnapshot -InstallerLeaf $installerLeaf)
     $baselineIds = @{}
     foreach ($row in $baseline) { $baselineIds[[int]$row.process_id] = $true }
     $result.process_observation.baseline_count = $baseline.Count
     $launchUtc = (Get-Date).ToUniversalTime()
+    $totalTimeoutMs = [int]$config.timeout_seconds * 1000
+    $installWatch = [Diagnostics.Stopwatch]::StartNew()
 
     if ($extension -eq '.msi') {
         $processArguments = @('/i', ('"{0}"' -f [string]$config.installer_path)) + $arguments
@@ -332,10 +348,43 @@ try {
     }
     else { throw "Unsupported staged installer extension: $extension" }
 
-    Start-Sleep -Milliseconds 750
-    $postLaunch = @(Get-SasInstallerProcessSnapshot)
+    $familyIds = @{}
+    $familyIds[[int]$process.Id] = $true
+    $familyIdentityById = @{}
+    $deltaById = @{}
+    $postLaunch = @()
+    $discoveryBudgetMs = [Math]::Min(2500, [Math]::Max(500, [int]($totalTimeoutMs / 4)))
+
+    do {
+        Start-Sleep -Milliseconds 250
+        $postLaunch = @(Get-SasInstallerProcessSnapshot -InstallerLeaf $installerLeaf)
+        foreach ($row in $postLaunch) {
+            $pid = [int]$row.process_id
+            if (-not $baselineIds.ContainsKey($pid)) { $deltaById[$pid] = $row }
+        }
+
+        $changed = $true
+        while ($changed) {
+            $changed = $false
+            foreach ($row in $postLaunch) {
+                $pid = [int]$row.process_id
+                if ($baselineIds.ContainsKey($pid)) { continue }
+                $parent = [int]$row.parent_process_id
+                $belongsToFamily = ($pid -eq [int]$process.Id) -or $familyIds.ContainsKey($parent) -or [bool]$row.command_line_matches_installer
+                if ($belongsToFamily -and -not $familyIds.ContainsKey($pid)) {
+                    $familyIds[$pid] = $true
+                    $familyIdentityById[$pid] = Get-SasInstallerProcessIdentity -ProcessRow $row
+                    $changed = $true
+                }
+                elseif ($belongsToFamily -and -not $familyIdentityById.ContainsKey($pid)) {
+                    $familyIdentityById[$pid] = Get-SasInstallerProcessIdentity -ProcessRow $row
+                }
+            }
+        }
+    } while ($installWatch.ElapsedMilliseconds -lt $discoveryBudgetMs)
+
     $result.process_observation.post_launch_count = $postLaunch.Count
-    $delta = @($postLaunch | Where-Object { -not $baselineIds.ContainsKey([int]$_.process_id) })
+    $delta = @($deltaById.Values)
     $result.process_observation.delta_count = $delta.Count
 
     $hint = $null
@@ -348,7 +397,7 @@ try {
 
     $selected = $null
     if ($null -ne $hint) {
-        $recentHintMatches = @($postLaunch | Where-Object {
+        $recentHintMatches = @($delta | Where-Object {
             $created = $null
             try { if ($_.creation_utc) { $created = ([datetime]$_.creation_utc).ToUniversalTime() } } catch { $created = $null }
             $created -and $created -ge $launchUtc.AddSeconds(-1) -and (Test-SasInstallerProcessIdentity -ProcessRow $_ -Identity $hint)
@@ -364,25 +413,32 @@ try {
     }
 
     if ($null -eq $selected) {
-        $preferred = @()
-        if ($extension -eq '.msi') {
-            $preferred = @($delta | Where-Object { [string]$_.name -ieq 'msiexec.exe' -and [int]$_.parent_process_id -eq [int]$process.Id })
+        $commandLineCandidates = @($delta | Where-Object {
+            [bool]$_.command_line_matches_installer -and [string]$_.name -notin @('conhost.exe','WerFault.exe')
+        })
+        if ($commandLineCandidates.Count -eq 1) {
+            $selected = $commandLineCandidates[0]
+            $result.process_observation.selection_source = 'pid_delta_commandline'
         }
-        if ($preferred.Count -ne 1) {
-            $preferred = @($delta | Where-Object {
-                [int]$_.parent_process_id -eq [int]$process.Id -and
-                [string]$_.name -notin @('conhost.exe','WerFault.exe')
-            })
-        }
+    }
+
+    if ($null -eq $selected) {
+        $preferred = @($delta | Where-Object {
+            $familyIds.ContainsKey([int]$_.process_id) -and
+            [int]$_.process_id -ne [int]$process.Id -and
+            [string]$_.name -notin @('conhost.exe','WerFault.exe')
+        })
         if ($preferred.Count -eq 1) {
             $selected = $preferred[0]
             $result.process_observation.selection_source = 'pid_delta_child'
-        } else {
+        }
+        else {
             $rootRow = @($postLaunch | Where-Object { [int]$_.process_id -eq [int]$process.Id } | Select-Object -First 1)
             if ($rootRow.Count -eq 1) {
                 $selected = $rootRow[0]
                 $result.process_observation.selection_source = 'root_process'
-            } elseif ($delta.Count -eq 1) {
+            }
+            elseif ($delta.Count -eq 1) {
                 $selected = $delta[0]
                 $result.process_observation.selection_source = 'pid_delta_single'
             }
@@ -390,32 +446,68 @@ try {
     }
 
     if ($null -ne $selected) {
-        $result.process_observation.selected_process_id = [int]$selected.process_id
-        $result.process_observation.selected_identity = Get-SasInstallerProcessIdentity -ProcessRow $selected
+        $selectedPid = [int]$selected.process_id
+        $selectedIdentity = Get-SasInstallerProcessIdentity -ProcessRow $selected
+        $result.process_observation.selected_process_id = $selectedPid
+        $result.process_observation.selected_identity = $selectedIdentity
+        if (-not $familyIds.ContainsKey($selectedPid)) { $familyIds[$selectedPid] = $true }
+        if (-not $familyIdentityById.ContainsKey($selectedPid)) { $familyIdentityById[$selectedPid] = $selectedIdentity }
     }
 
-    $installWatch = [Diagnostics.Stopwatch]::StartNew()
-    if (-not $process.WaitForExit(([int]$config.timeout_seconds * 1000))) {
+    $remainingMilliseconds = $totalTimeoutMs - [int]$installWatch.ElapsedMilliseconds
+    if ($remainingMilliseconds -le 0) {
+        Stop-Process -Id $process.Id -Force -ErrorAction SilentlyContinue
+        throw "Installer timed out during process discovery after $($config.timeout_seconds) seconds."
+    }
+    if (-not $process.HasExited -and -not $process.WaitForExit($remainingMilliseconds)) {
         Stop-Process -Id $process.Id -Force -ErrorAction SilentlyContinue
         throw "Installer root process timed out after $($config.timeout_seconds) seconds."
     }
 
-    if ($null -ne $result.process_observation.selected_identity -and
-        [int]$result.process_observation.selected_process_id -ne [int]$process.Id) {
-        $remainingMilliseconds = ([int]$config.timeout_seconds * 1000) - [int]$installWatch.ElapsedMilliseconds
-        if ($remainingMilliseconds -gt 0 -and
-            (Test-SasSelectedProcessStillMatches -ProcessId ([int]$result.process_observation.selected_process_id) -Identity $result.process_observation.selected_identity)) {
-            try {
-                $selectedProcess = [Diagnostics.Process]::GetProcessById([int]$result.process_observation.selected_process_id)
-                if (-not $selectedProcess.WaitForExit($remainingMilliseconds)) {
-                    throw "Selected installer child timed out after process identity was frozen."
+    $liveFamily = @()
+    do {
+        $snapshot = @(Get-SasInstallerProcessSnapshot -InstallerLeaf $installerLeaf)
+
+        $changed = $true
+        while ($changed) {
+            $changed = $false
+            foreach ($row in $snapshot) {
+                $pid = [int]$row.process_id
+                if ($baselineIds.ContainsKey($pid)) { continue }
+
+                $created = $null
+                try { if ($row.creation_utc) { $created = ([datetime]$row.creation_utc).ToUniversalTime() } } catch { $created = $null }
+                if ($created -and $created -lt $launchUtc.AddSeconds(-1)) { continue }
+
+                $parent = [int]$row.parent_process_id
+                $belongsToFamily = $familyIds.ContainsKey($parent) -or [bool]$row.command_line_matches_installer
+                if ($belongsToFamily -and -not $familyIds.ContainsKey($pid)) {
+                    $familyIds[$pid] = $true
+                    $familyIdentityById[$pid] = Get-SasInstallerProcessIdentity -ProcessRow $row
+                    $changed = $true
                 }
             }
-            catch [ArgumentException] {
-                # Process exited between the identity recheck and Process lookup.
+        }
+
+        $liveFamily = @()
+        foreach ($pidKey in @($familyIds.Keys)) {
+            $pid = [int]$pidKey
+            if ($pid -eq [int]$process.Id) { continue }
+            if (-not $familyIdentityById.ContainsKey($pid)) { continue }
+            $row = @($snapshot | Where-Object { [int]$_.process_id -eq $pid } | Select-Object -First 1)
+            if ($row.Count -eq 1 -and (Test-SasInstallerProcessIdentity -ProcessRow $row[0] -Identity $familyIdentityById[$pid])) {
+                $liveFamily += $row[0]
             }
         }
-    }
+
+        if ($liveFamily.Count -eq 0) { break }
+        $remainingMilliseconds = $totalTimeoutMs - [int]$installWatch.ElapsedMilliseconds
+        if ($remainingMilliseconds -le 0) {
+            throw "Installer process family timed out after $($config.timeout_seconds) seconds; $($liveFamily.Count) identity-bound descendant process(es) remain."
+        }
+        Start-Sleep -Milliseconds ([Math]::Min(250, $remainingMilliseconds))
+    } while ($true)
+
     $installWatch.Stop()
 
     $result.installer_exit_code = [int]$process.ExitCode
