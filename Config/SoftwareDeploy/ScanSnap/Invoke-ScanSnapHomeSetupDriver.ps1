@@ -79,6 +79,10 @@ function Send-SsKeys {
 
 $steps = New-Object System.Collections.Generic.List[object]
 $startedUtc = (Get-Date).ToUniversalTime()
+$preexistingDetection = @{}
+foreach ($cand in @($route.detection_seed.DetectValueCandidates)) {
+  $preexistingDetection[[string]$cand] = [bool](Test-Path -LiteralPath ([string]$cand))
+}
 $installPhaseEntered = $false
 $completed = $false
 $finalClass = 'IN_PROGRESS'
@@ -125,8 +129,7 @@ for ($i = 1; $i -le $MaxSteps; $i++) {
   if ($title -match '(?i)model|start setup|connection is complete|select a model') {
     $action = 'CLOSE_POST_INSTALL_SETUP'
     $keys = '%{F4}'
-    $completed = $true
-    $finalClass = 'SOFTWARE_INSTALL_COMPLETE_SETUP_DISMISSED'
+    $finalClass = 'POST_INSTALL_SETUP_DISMISSED_PENDING_DETECT'
   }
   elseif ($title -match $titlePattern) {
     # Setup Type / Welcome / Contents / Install share the same window title.
@@ -157,7 +160,15 @@ for ($i = 1; $i -le $MaxSteps; $i++) {
     at_utc = (Get-Date).ToUniversalTime().ToString('o')
   })
 
-  if ($keys) {
+  if ($keys -and -not $focused) {
+    $finalClass = 'FOCUS_FAILED'
+    $steps.Add([pscustomobject]@{
+      step = $i; event = 'FOCUS_FAILED'; pid = $ProcessId; title = $title
+      at_utc = (Get-Date).ToUniversalTime().ToString('o')
+    })
+    break
+  }
+  if ($keys -and $focused) {
     Start-Sleep -Milliseconds 250
     Send-SsKeys -Keys $keys
   }
@@ -169,7 +180,15 @@ for ($i = 1; $i -le $MaxSteps; $i++) {
     if ($after -and $after.title -match $titlePattern) {
       # Probe for Install button via Alt+I once we may be on contents/install page.
       if ($i -ge 2) {
-        Focus-SsWindow -Live $after | Out-Null
+        $installFocused = Focus-SsWindow -Live $after
+        if (-not $installFocused) {
+          $finalClass = 'FOCUS_FAILED'
+          $steps.Add([pscustomobject]@{
+            step = $i; event = 'FOCUS_FAILED_BEFORE_INSTALL'; pid = $ProcessId
+            at_utc = (Get-Date).ToUniversalTime().ToString('o')
+          })
+          break
+        }
         Send-SsKeys -Keys '%i'
         $installPhaseEntered = $true
         $steps.Add([pscustomobject]@{
@@ -201,7 +220,7 @@ for ($i = 1; $i -le $MaxSteps; $i++) {
 
   # Detection-based completion: ScanSnap Home binary appeared.
   foreach ($cand in @($route.detection_seed.DetectValueCandidates)) {
-    if (Test-Path -LiteralPath ([string]$cand)) {
+    if (-not $preexistingDetection[[string]$cand] -and (Test-Path -LiteralPath ([string]$cand))) {
       $completed = $true
       $finalClass = 'SOFTWARE_INSTALL_DETECTED'
       $steps.Add([pscustomobject]@{
@@ -217,9 +236,9 @@ for ($i = 1; $i -le $MaxSteps; $i++) {
 # Final detection sweep
 $detectHit = $null
 foreach ($cand in @($route.detection_seed.DetectValueCandidates)) {
-  if (Test-Path -LiteralPath ([string]$cand)) {
+  if (-not $preexistingDetection[[string]$cand] -and (Test-Path -LiteralPath ([string]$cand))) {
     $detectHit = [string]$cand
-    if ($finalClass -eq 'IN_PROGRESS' -or $finalClass -eq 'PROCESS_EXITED') {
+    if ($finalClass -in @('IN_PROGRESS', 'PROCESS_EXITED', 'POST_INSTALL_SETUP_DISMISSED_PENDING_DETECT')) {
       $finalClass = 'SOFTWARE_INSTALL_DETECTED'
       $completed = $true
     }
