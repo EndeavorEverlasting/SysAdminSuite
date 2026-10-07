@@ -125,6 +125,42 @@ Describe 'ScanSnap deterministic field deployment' {
         $cached.file_version | Should -Be '1.2.3.4'
     }
 
+    It 'keeps qualified package truth machine-local across repository refreshes' {
+        $field = Get-Content -LiteralPath $fieldScript -Raw
+        $binder = Get-Content -LiteralPath (Join-Path $scanRoot 'Bind-ScanSnapPackage.ps1') -Raw
+        $gitignore = Get-Content -LiteralPath (Join-Path $repoRoot '.gitignore') -Raw
+
+        $field | Should -Match 'package\.local\.manifest\.json'
+        $binder | Should -Match "Join-Path \$packageRoot 'package\.local\.manifest\.json'"
+        $gitignore | Should -Match 'Config/SoftwareDeploy/ScanSnap/package\.local\.manifest\.json'
+    }
+
+    It 'waits an identity-bound installer family rather than trusting root PID exit' {
+        $workerPath = Join-Path $TestDrive 'scansnap-family-worker.ps1'
+        $workerArgs = @{
+            Path = $workerPath
+            RunId = 'software-install-20000101-000000-00000000'
+            PackageName = 'ScanSnap'
+            InstallerPath = 'C:\ProgramData\SysAdminSuite\SoftwareInstall\software-install-20000101-000000-00000000\fixture.exe'
+            ExpectedSha256 = ('0' * 64)
+            InstallerArguments = @('/quiet')
+            ValidationChecks = @([pscustomobject]@{ id='scansnap-file'; type='FileExists'; required=$true; path='C:\Program Files\ScanSnap\fixture.exe' })
+            ResultPath = 'C:\ProgramData\SysAdminSuite\SoftwareInstall\software-install-20000101-000000-00000000\worker-result.json'
+        }
+        New-SasSmbTaskWorker @workerArgs
+        $worker = Get-Content -LiteralPath $workerPath -Raw
+
+        foreach ($fragment in @(
+            'command_line_matches_installer',
+            'familyIdentityById',
+            'creation_utc',
+            'Installer process family timed out',
+            'Test-SasInstallerProcessIdentity -ProcessRow $row[0] -Identity $familyIdentityById[$pid]'
+        )) {
+            $worker | Should -Match ([regex]::Escape($fragment))
+        }
+    }
+
     It 'keeps the field workflow machine-readable and fail-closed' {
         $workflow = Get-Content -LiteralPath $workflowPath -Raw -Encoding UTF8 | ConvertFrom-Json
         $workflow.schema_version | Should -Be 'sas-scansnap-field-workflow/v1'
