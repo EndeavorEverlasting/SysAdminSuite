@@ -157,6 +157,22 @@ Describe 'Canonical SMB scheduled-task deployment adapter' {
         $worker | Should -Match 'if \(\$arguments\.Count -gt 0\) \{ \$start\.ArgumentList = \$arguments \}'
     }
 
+    It 'supports bounded hashed companion files and staged-directory execution' {
+        $command = Get-Command Invoke-SasSmbScheduledTaskDeployment
+        $command.Parameters.Keys | Should -Contain 'SupportFilePaths'
+
+        $adapterText = Get-Content -LiteralPath $adapterPath -Raw
+        foreach ($fragment in @(
+            'SupportFilePaths exceeds the bounded maximum of 16 companion files',
+            'Duplicate support file leaf name is not allowed',
+            'support_files = @()',
+            'supportHashesVerified',
+            'WorkingDirectory = $workingDirectory'
+        )) {
+            $adapterText | Should -Match ([regex]::Escape($fragment))
+        }
+    }
+
     It 'generates a target-side hash and SYSTEM-verifying worker without automatic reboot' {
         $workerPath = Join-Path $TestDrive 'worker.ps1'
         New-SasSmbTaskWorker -Path $workerPath `
