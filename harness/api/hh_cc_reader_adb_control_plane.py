@@ -922,6 +922,7 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--input", default=None, help="Evidence JSON (fixture or private live capture).")
     parser.add_argument("--live", default=None, choices=sorted(MODES))
     parser.add_argument("--allow-install", action="store_true")
+    parser.add_argument("--authorize-transport", action="store_true", help="Explicit authority for the exact-target transport transaction; never firmware authority.")
     parser.add_argument("--expected-mac", default=None)
     parser.add_argument(
         "--otg-confirmed",
@@ -939,6 +940,7 @@ def main(argv: list[str] | None = None) -> int:
             allow_install=args.allow_install,
             expected_mac=args.expected_mac,
             otg_confirmed=args.otg_confirmed,
+            transport_authorized=args.authorize_transport,
         )
     elif args.input:
         source = Path(args.input)
