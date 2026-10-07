@@ -1,6 +1,6 @@
 # ScanSnap Deployment Workflow (canonical plan)
 
-**Branch / worktree:** `feat/scansnap-deploy-adminbox1-ptop-20261006` @ `C:\Dev\SysAdminSuite-wt-scansnap-deploy-20261006`  
+**Branch / worktree:** `feat/scansnap-deploy-adminbox1-ptop-20261006` @ `C:\Dev\SysAdminSuite-wt-scansnap-deploy-20261006`
 **Base:** `origin/main` (`ed3782a6` at lane start)
 
 ## Outcome
