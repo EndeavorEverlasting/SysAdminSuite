@@ -94,11 +94,54 @@ Add `/DNSSUFFIX=nslijhs.net` only when resolution evidence requires it.
 
 States are recorded separately: access, staged, task created, task executed, installer completed, detected.
 
-## Observed Admin Box 1 evidence (2026-10-06)
+## Observed Admin Box 1 evidence
 
-From `LPW003ASI173`:
+### 2026-10-06 (initial WhatIf)
 
-- WhatIf against `CheexMcClappeth` persisted evidence under `C:\ScanSnapDeployLogs\`.
-- Final class: `ACCESS_DENIED` (DNS/ping OK; `net view` system error 5; admin share not usable).
-- Package unbound (`Bound=false`) — installer not yet present on Admin Box 1.
-- Live certification and field deploy remain blocked until admin-share access and package binding are available.
+- WhatIf against `CheexMcClappeth` persisted under `C:\ScanSnapDeployLogs\`.
+- Classified `ACCESS_DENIED` (DNS/ping OK; `net view` system error 5).
+- Package unbound (`Bound=false`).
+
+### 2026-10-06 evening (live-cert continuation diagnosis)
+
+Control host: `LPW003ASI173` (`nslijhs\pa_rperez26`), domain-joined to `nslijhs.net`.
+
+| Probe | Result |
+|---|---|
+| Ping `CheexMcClappeth` / `192.168.1.79` | OK |
+| TCP/identity | Host at `192.168.1.79` (ARP present) |
+| `nltest /dsgetdc:nslijhs.net` | **ERROR_NO_SUCH_DOMAIN (1355)** — no DC on current LAN |
+| `dir \\CheexMcClappeth\C$` | cannot contact a domain controller |
+| `dir \\192.168.1.79\C$` | user name or password is incorrect |
+| WinRM to `192.168.1.79` | unavailable |
+| Stored creds for PTop | none |
+| ScanSnap installer under `installers\` | **missing** |
+
+Root cause (admin share): Admin Box is on a network without a reachable domain controller, so Kerberos/domain auth to the hostname fails; NTLM to the IP rejects the current domain credentials (PTop does not accept them as a local admin in this context).
+
+### Smallest operator actions to clear blockers
+
+**Blocker A — admin share** (pick one):
+
+1. Connect Admin Box to the corporate path where `nslijhs.net` DCs are reachable (VPN if required), ensure `nslijhs\pa_rperez26` is a local administrator on `CheexMcClappeth`, then re-run WhatIf; **or**
+2. On Admin Box, map with an explicit **PTop local admin** account (password known to operator only):
+
+```cmd
+net use \\192.168.1.79\C$ /user:CheexMcClappeth\<LocalAdminUser> *
+dir \\192.168.1.79\C$
+```
+
+Then:
+
+```cmd
+cd /d C:\Dev\SysAdminSuite-wt-scansnap-deploy-20261006\Config\SoftwareDeploy\ScanSnap
+Deploy-ScanSnap.cmd /LIST=192.168.1.79 /WHATIF
+```
+
+Expect `AccessClass=ADMIN_SHARE_READY`.
+
+**Blocker B — package bind:** drop the real ScanSnap installer into `installers\`, then:
+
+```powershell
+.\Bind-ScanSnapPackage.ps1 -InstallerPath .\installers\<file> -SilentArgs '<evidenced>' -DetectType file -DetectValue '<evidenced path>'
+```
