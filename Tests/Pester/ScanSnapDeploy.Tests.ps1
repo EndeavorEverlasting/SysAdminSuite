@@ -89,14 +89,26 @@ Describe 'ScanSnap scripts parse and refuse stale host' {
   }
 }
 
-Describe 'ScanSnap manifest starts unbound' {
-  It 'Manifest Bound is false until operator binding' {
+Describe 'ScanSnap manifest binding contract' {
+  It 'Manifest Bound is true after package qualification' {
     $m = Get-Content -LiteralPath $script:manifest -Raw | ConvertFrom-Json
-    [bool]$m.Bound | Should -BeFalse
+    [bool]$m.Bound | Should -BeTrue
   }
 
-  It 'Manifest does not invent SilentArgs' {
+  It 'Manifest freezes evidenced installer identity, silent args, and detection' {
     $m = Get-Content -LiteralPath $script:manifest -Raw | ConvertFrom-Json
-    [string]$m.SilentArgs | Should -BeNullOrEmpty
+    [string]$m.InstallerFileName | Should -Be 'WinSSHomeInstaller_4_1_0.exe'
+    [string]$m.Type | Should -Be 'exe'
+    [string]$m.Sha256 | Should -Match '^[A-F0-9]{64}$'
+    [string]$m.SilentArgs | Should -Match '-s'
+    [string]$m.SilentArgs | Should -Match '\.iss'
+    [string]$m.DetectType | Should -Be 'file'
+    [string]$m.DetectValue | Should -Match 'PFU\\ScanSnap\\Home'
+  }
+
+  It 'Engine stages InstallShield response sibling beside the installer' {
+    $raw = Get-Content -LiteralPath $script:ps1 -Raw
+    $raw | Should -Match 'ChangeExtension\(.+\.iss'
+    $raw | Should -Match 'stageFiles\.Add\(\$issName\)'
   }
 }

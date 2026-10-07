@@ -15,7 +15,7 @@
 | WhatIf no mutation | VALIDATED | 20261006_224231 / 224237 CSVs |
 | Home PTop reachability | OBSERVED | hostname/IP responded in prior exact-target probes |
 | Precise home access class | VALIDATED | hostname=`AUTH_DC_UNAVAILABLE`; IP=`LOGON_FAILURE` |
-| Installer bound | NOT YET | no authoritative binary was present during prior run |
+| Installer bound | BOUND | ScanSnap Home 4.1.0.5 / `WinSSHomeInstaller_4_1_0.exe` SHA256 `A297B84628334F88BE24559C9D2C164E07BC8D952149FE439A19FB3A53CBDDC8`; source Ricoh offline CDN `w-410` |
 | PTop `INSTALLATION_DETECTED` | NOT YET | lab auth/package not cleared |
 | Field deployment | NOT YET | not attempted |
 

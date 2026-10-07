@@ -338,7 +338,8 @@ try {
   if ('$InstallerType' -ieq 'msi') {
     `$p = Start-Process -FilePath 'msiexec.exe' -ArgumentList (@('/i', `$installer) + (`$argLine -split '\s+' | Where-Object { `$_ })) -Wait -PassThru -NoNewWindow
   } else {
-    `$p = Start-Process -FilePath `$installer -ArgumentList `$argLine -Wait -PassThru -NoNewWindow
+    # Split tokens so InstallShield switches like -s -f1".\file.iss" are separate argv entries.
+    `$p = Start-Process -FilePath `$installer -ArgumentList (@(`$argLine -split '\s+' | Where-Object { `$_ })) -Wait -PassThru -NoNewWindow
   }
   `$obj.ExitCode = `$p.ExitCode
   `$obj.InstallerCompleted = `$true
@@ -561,20 +562,25 @@ foreach ($target in $targets) {
     $progUnc = "\\$resolved\C$\$($manifest.RemoteProgramDataRelativePath)"
     New-Item -ItemType Directory -Path $progUnc -Force | Out-Null
 
-    $stageFiles = @(
-      $manifest.InstallerFileName,
-      'package.manifest.json'
-    )
-    # copy manifest + installer into stage dir
-    Copy-Item -LiteralPath $ManifestPath -Destination (Join-Path $script:PackageRoot 'package.manifest.json') -Force -ErrorAction SilentlyContinue
-    $srcDir = $installersDir
+    $stageFiles = New-Object System.Collections.Generic.List[string]
+    [void]$stageFiles.Add($manifest.InstallerFileName)
+    [void]$stageFiles.Add('package.manifest.json')
     # also place manifest beside installer in a staging bundle folder
     $bundle = Join-Path $env:TEMP ("ScanSnapStage_{0}" -f $stamp)
     New-Item -ItemType Directory -Path $bundle -Force | Out-Null
     Copy-Item -LiteralPath $binding.InstallerPath -Destination (Join-Path $bundle $manifest.InstallerFileName) -Force
     Copy-Item -LiteralPath $ManifestPath -Destination (Join-Path $bundle 'package.manifest.json') -Force
+    # InstallShield silent response sibling required when SilentArgs uses -f1".\*.iss"
+    $issName = [IO.Path]::ChangeExtension([string]$manifest.InstallerFileName, '.iss')
+    if (-not [string]::IsNullOrWhiteSpace($issName)) {
+      $issSrc = Join-Path $installersDir $issName
+      if (Test-Path -LiteralPath $issSrc) {
+        Copy-Item -LiteralPath $issSrc -Destination (Join-Path $bundle $issName) -Force
+        [void]$stageFiles.Add($issName)
+      }
+    }
 
-    $rc = Invoke-RobocopyStage -SourceDir $bundle -DestDir $stageUnc -Files @($manifest.InstallerFileName, 'package.manifest.json')
+    $rc = Invoke-RobocopyStage -SourceDir $bundle -DestDir $stageUnc -Files @($stageFiles)
     $stageStatus = "STAGED:rc=$rc"
     Write-SsLog "Staged to $stageUnc (rc=$rc)"
 

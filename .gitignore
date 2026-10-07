@@ -195,5 +195,12 @@ Config/SoftwareDeploy/ScanSnap/installers/*
 !Config/SoftwareDeploy/ScanSnap/installers/.gitkeep
 !Config/SoftwareDeploy/ScanSnap/installers/README.md
 
+# ScanSnap local qualification evidence (PID resolve / setup-driver receipts)
+Config/SoftwareDeploy/ScanSnap/evidence/*
+!Config/SoftwareDeploy/ScanSnap/evidence/.gitkeep
+
+# Local ScanSnap extract / tooling scratch (never commit)
+.work/
+
 # ScanSnap admin-box deploy evidence (live hostnames / results)
 ScanSnapDeployLogs/

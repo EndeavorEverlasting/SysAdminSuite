@@ -116,6 +116,54 @@ Before any live install:
 
 Do not silently choose between ScanSnap product families when the client evidence does not support the choice.
 
+### Current qualified binding (2026-10-07)
+
+Client request naming was generic **ScanSnap**. Official Ricoh/PFU "Download the ScanSnap software" delivers **ScanSnap Home** (not legacy ScanSnap Manager). Qualified package:
+
+| Field | Value |
+|---|---|
+| Product | ScanSnap Home 4.1.0.5 |
+| Offline source | `https://origin.pfultd.com/downloads/ss/sshinst/w-410/WinSSHOfflineInstaller_4_1_0.exe` |
+| Bound installer | `WinSSHomeInstaller_4_1_0.exe` (extracted from offline package `SSHomeDownloadInstaller\download`) |
+| SHA256 | `A297B84628334F88BE24559C9D2C164E07BC8D952149FE439A19FB3A53CBDDC8` |
+| SilentArgs | `-s -f1".\WinSSHomeInstaller_4_1_0.iss"` (vendor InstallShield response file) |
+| DetectType / DetectValue | `file` / `C:\Program Files (x86)\PFU\ScanSnap\Home` |
+| Bound | `true` |
+
+Keep `WinSSHomeInstaller_4_1_0.iss` beside the exe under `installers\`. Deploy stages that sibling automatically.
+
+Observed product family for this workflow: **ScanSnap Home** (wizard title `ScanSnap Home Setup`).
+
+### Installer PID routing (do not regress)
+
+When a local wizard must be observed or driven during package qualification, reuse the repository PID-delta strategy. Do not pick a window merely because the title contains "ScanSnap" (browser tabs also match).
+
+Canonical owners:
+
+- `installer-process-route.v1.json` — durable process-name / window-title / path metadata
+- `Resolve-ScanSnapInstallerProcess.ps1` — before snapshot → optional one launch → PID delta → selected PID
+- `Invoke-ScanSnapHomeSetupDriver.ps1` — drive Typical path for one exact PID only
+
+```powershell
+# Prefer attach when a wizard is already open (never launch a second copy).
+powershell -NoProfile -ExecutionPolicy Bypass -File .\Resolve-ScanSnapInstallerProcess.ps1 `
+  -Mode AttachExisting `
+  -EvidencePath .\evidence\installer-pid-resolve.json
+
+# Only when no matching wizard exists:
+powershell -NoProfile -ExecutionPolicy Bypass -File .\Resolve-ScanSnapInstallerProcess.ps1 `
+  -Mode LaunchAndResolve `
+  -InstallerPath .\installers\<WinSSH...exe> `
+  -EvidencePath .\evidence\installer-pid-resolve.json
+
+# Drive the exact selected PID through Typical (no additional launches).
+powershell -NoProfile -ExecutionPolicy Bypass -File .\Invoke-ScanSnapHomeSetupDriver.ps1 `
+  -ProcessId <selected_pid> `
+  -EvidencePath .\evidence\setup-driver.json
+```
+
+`LaunchAndResolve` refuses to start if a matching wizard is already open. Persist `last_observed` in the route manifest after every successful resolve so later agents route to the same process family automatically.
+
 ## P82 execution rule
 
 Every unresolved empirical question uses:
