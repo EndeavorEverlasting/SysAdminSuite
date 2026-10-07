@@ -92,6 +92,10 @@ TECHNICIAN_MARKERS = (
     "live-cert dry run before live-cert production",
     "Production cannot run unless dry run and harmless live certification pass",
     "one file to click and the one value to enter",
+    "Protected-network offline autonomy",
+    "the agent may be unavailable after the network switch",
+    "public Internet, Git hosting, web search, Google-hosted services, and cloud LLM/agent providers",
+    "same-transaction failure continuation",
 )
 
 VM_MARKERS = (
