@@ -30,6 +30,28 @@ The package is Internet-sourced for this application. It is **not** sourced from
 
 The durable workflow must support more than one network posture without forking separate deployment architectures.
 
+## Non-negotiable unattended deployment invariant
+
+The normal field deployment path is **controller-initiated, remote, unattended, and independent of physical workstation location**.
+
+A deployment target is selected by its authorized logical identity (hostname/FQDN and the domain/network records that resolve it), not by a technician physically locating the device.
+
+The workflow must support deployment when:
+
+- no user is logged on;
+- a user is logged on but must not interact;
+- the workstation is in a locked room, cart, closet, clinical area, or otherwise physically difficult to locate;
+- nobody is standing at the target;
+- deployment occurs overnight;
+- the technician knows the authorized hostname but not the workstation's physical location.
+
+The standard path must **not** require target-side clicks, interactive approval, local console access, target-side credential entry, or a person physically present at the workstation.
+
+"Identity binding" in this document means controller-side resolution and authorization of the intended remote computer identity. It does **not** mean physical discovery or user-assisted pairing.
+
+If a transport requires target-side interaction, classify it as unsuitable for the unattended production path unless there is a separate, explicitly approved bootstrap phase. Do not let a lab-only limitation weaken the production requirement.
+
+
 ## Separate the two axes
 
 Do not conflate package acquisition with target transport.
@@ -97,9 +119,9 @@ Interpretation: the last run did **not** prove that PTop was absent. It proved t
 
 ## P82 experiment ladder
 
-### E1 — exact-target LAB_LOCAL identity bind
+### E1 — exact-target LAB_LOCAL remote identity resolution
 
-**Hypothesis:** `CheexMcClappeth` can be bound to the intended PTop on the home LAN using exact-target, read-only identity evidence without subnet discovery.
+**Hypothesis:** Admin Box 1 can resolve and remotely address the intended PTop from its authorized logical identity on the home LAN without any target-side interaction or physical discovery.
 
 **Build / probe only:**
 
@@ -110,7 +132,7 @@ Interpretation: the last run did **not** prove that PTop was absent. It proved t
 - compare returned address/hostname evidence;
 - use exact-target tools only. No subnet scan.
 
-**Measure:** produce one identity receipt that says whether short name, `.local`, and IPv4 converge on the same PTop candidate.
+**Measure:** produce one controller-side identity receipt that says whether short name, `.local`, and IPv4 converge on the same remote PTop identity. No target-side action is part of this proof.
 
 **Decision:**
 
@@ -212,7 +234,7 @@ Do not prematurely invent `/MODE` syntax if the repository already has a stronge
 Independent until live installation. Owns official web source, installer identity, SHA256, silent args, detect contract, manifest binding. Must not mutate remote targets.
 
 ### Lane B — final LAB_LOCAL experiment
-Owns exact PTop identity binding + local-admin SMB proof. Must not touch field hosts. Stop after one materially informative experiment cycle if it cannot reach `ADMIN_SHARE_READY`.
+Owns controller-side PTop resolution/addressability + remote local-admin SMB proof. It must remain fully unattended from the target's perspective. Must not touch field hosts. Stop after one materially informative experiment cycle if it cannot reach `ADMIN_SHARE_READY`.
 
 ### Lane C — protected field transport
 Depends on protected authority becoming available, not on Lane B success. Owns exact `WRH250STR001/002` readiness on Northwell LAN/WAB or VPN. Reuse existing authority/low-noise contracts.
@@ -230,6 +252,7 @@ Parallel width is at least 2 while package qualification and lab/field transport
 - Home LAN testing is diagnostic and explicitly non-blocking for field deployment.
 - Web package acquisition is separate from target transport.
 - Protected Northwell LAN/WAB and VPN are first-class deployment modes through existing authority contracts.
+- Field deployment requires no user presence or physical target access; authorized logical identity + remote administrative transport are sufficient inputs.
 - Each empirical uncertainty produces a P82 receipt and KEEP/REFINE/DISCARD decision.
 - Working behavior is promoted into the repository CMD/operator surface with tests.
 - Final field success requires `INSTALLATION_DETECTED`; transport/readiness alone is not completion.
