@@ -259,6 +259,67 @@
       "proof": "Admin Box ADB control-plane CMDs emit typed host/USB/device/inventory/network/remote-view states, refuse firmware/app/payment mutation, and keep vendor consoles optional rather than prerequisite."
     },
     {
+      "id": "hh-cc-reader-capability-orchestrator-contracts",
+      "category": "harness",
+      "platform": "python3",
+      "command": "python Tests/survey/test_hh_cc_reader_capability_orchestrator_contracts.py",
+      "blocking": true,
+      "scope": [
+        "harness/api/hh_cc_reader_capability_topology.py",
+        "harness/api/hh_cc_reader_capability_orchestrator.py",
+        "harness/api/hh_cc_reader_capability_ledger.py",
+        "Evaluate-HHCCReaderCapabilityProgram.cmd",
+        "Tests/survey/test_hh_cc_reader_capability_orchestrator_contracts.py",
+        "harness/api/harness-command-registry.json",
+        "harness/api/harness-artifact-registry.json",
+        "harness/api/harness-outcome-registry.json"
+      ],
+      "proof": "Topology/presence/interruption-cost are first-class; attended timeouts do not terminate independent successors; OTG #506 closure is consumed; attended-window manifest and derived ledger metrics are emitted."
+    },
+    {
+      "id": "hh-cc-reader-paxstore-terminal-firmware-contracts",
+      "category": "harness",
+      "platform": "python3",
+      "command": "python Tests/survey/test_hh_cc_reader_paxstore_terminal_firmware_contracts.py",
+      "blocking": true,
+      "scope": [
+        "harness/api/hh_cc_reader_paxstore_terminal_firmware.py",
+        "Preview-HHCCReaderPaxstoreFirmware.cmd",
+        "Tests/survey/test_hh_cc_reader_paxstore_terminal_firmware_contracts.py",
+        "Tests/survey/fixtures/hh-cc-reader-paxstore-firmware"
+      ],
+      "proof": "PAXSTORE firmware adapter supports observe/preview/history/task-status with typed vendor failures and fail-closed push by default."
+    },
+    {
+      "id": "hh-cc-reader-firmware-source-portability-contracts",
+      "category": "harness",
+      "platform": "python3",
+      "command": "python Tests/survey/test_hh_cc_reader_firmware_source_portability_contracts.py",
+      "blocking": true,
+      "scope": [
+        "harness/api/hh_cc_reader_firmware_source_portability.py",
+        "Classify-HHCCReaderFirmwarePortability.cmd",
+        "Tests/survey/test_hh_cc_reader_firmware_source_portability_contracts.py",
+        "Tests/survey/fixtures/hh-cc-reader-firmware-portability"
+      ],
+      "proof": "Firmware source/portability proof tree classifies full/incremental/A/B/raw/security artifacts without blanket clone rejection or hash-as-trust."
+    },
+    {
+      "id": "hh-cc-reader-capability-presentation-contracts",
+      "category": "harness",
+      "platform": "python3",
+      "command": "python Tests/survey/test_hh_cc_reader_capability_presentation_contracts.py",
+      "blocking": true,
+      "scope": [
+        "harness/api/hh_cc_reader_capability_presentation.py",
+        "harness/api/hh_cc_reader_wireless_capability.py",
+        "Project-HHCCReaderCapabilityPresentation.cmd",
+        "harness/contracts/hh-cc-reader-capability-ledger.consumer.v1.json",
+        "Tests/survey/test_hh_cc_reader_capability_presentation_contracts.py"
+      ],
+      "proof": "Presentation projection emits stakeholder FINDING/CONSEQUENCE/NEXT DECISION views without P-number/raw-enum/private-identifier leaks; wireless ADB and AirViewer gates are typed."
+    },
+    {
       "id": "printer-mapping-use-case-contracts",
       "category": "harness",
       "platform": "python3+git",

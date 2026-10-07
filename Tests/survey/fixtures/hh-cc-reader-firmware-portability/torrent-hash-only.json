@@ -1,0 +1,7 @@
+{
+  "kind": "full_ota",
+  "vendor_signed": true,
+  "full_ota": true,
+  "sha256": "cccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccccc",
+  "acquisition_method": "torrent"
+}

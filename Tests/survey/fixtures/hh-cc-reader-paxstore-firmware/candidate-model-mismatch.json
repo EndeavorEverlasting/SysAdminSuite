@@ -1,0 +1,9 @@
+{
+  "businessCode": 0,
+  "data": {
+    "fmName": "A920_only_package",
+    "modelName": "A80",
+    "compatibleModels": ["A920"],
+    "online": true
+  }
+}

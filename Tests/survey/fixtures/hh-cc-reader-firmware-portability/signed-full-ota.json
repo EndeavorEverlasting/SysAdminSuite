@@ -1,0 +1,11 @@
+{
+  "kind": "full_ota",
+  "vendor_signed": true,
+  "full_ota": true,
+  "name": "A80_PayDroid_full_fixture.zip",
+  "sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+  "source_control_plane": "reader_recovery",
+  "source_reader_model": "A80",
+  "acquisition_method": "authorized_reader_export",
+  "eligible_fleet_cohort": "UNDETERMINED"
+}

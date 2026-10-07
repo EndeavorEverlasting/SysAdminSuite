@@ -1,0 +1,6 @@
+{
+  "kind": "userdata",
+  "security_or_payment_state": true,
+  "included_state": ["userdata", "keys", "secure_element_state"],
+  "acquisition_method": "authorized_reader_export"
+}

@@ -1,0 +1,11 @@
+{
+  "kind": "incremental",
+  "incremental": true,
+  "vendor_signed": true,
+  "name": "A80_PayDroid_inc_fixture.zip",
+  "sha256": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb",
+  "required_source_build": "build-100",
+  "target_current_build": "build-100",
+  "ota_metadata": {"pre_build": "build-100", "post_build": "build-200"},
+  "acquisition_method": "authorized_reader_export"
+}

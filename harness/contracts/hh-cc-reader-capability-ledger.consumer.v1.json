@@ -1,0 +1,73 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "sas-hh-cc-reader-capability-ledger.consumer.v1",
+  "title": "H&H CC Reader Capability Ledger Consumer Contract",
+  "description": "Shared machine contract for TypeScript/UI or other consumers. No second implementation of PAXSTORE/ADB logic; consume ledger/projection JSON only.",
+  "type": "object",
+  "required": ["schema", "entries", "metrics"],
+  "properties": {
+    "schema": {
+      "const": "sas-hh-cc-reader-capability-ledger/v1"
+    },
+    "generated_at": { "type": "string" },
+    "entries": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "required": [
+          "capability_id",
+          "capability_name",
+          "required_topology",
+          "operator_presence",
+          "interruption_cost",
+          "latest_result"
+        ],
+        "properties": {
+          "capability_id": { "type": "string" },
+          "capability_name": { "type": "string" },
+          "control_plane": { "type": ["string", "null"] },
+          "required_topology": { "type": "string" },
+          "operator_presence": {
+            "type": "string",
+            "enum": ["none", "optional", "required"]
+          },
+          "interruption_cost": {
+            "type": "string",
+            "enum": ["zero", "low", "medium", "high"]
+          },
+          "latest_result": { "type": "string" },
+          "attended_retry_required": { "type": "boolean" },
+          "independent_successors": {
+            "type": "array",
+            "items": { "type": "string" }
+          },
+          "stakeholder_translation": {
+            "type": "object",
+            "properties": {
+              "finding": { "type": ["string", "null"] },
+              "consequence": { "type": ["string", "null"] },
+              "next_decision": { "type": ["string", "null"] }
+            }
+          }
+        }
+      }
+    },
+    "metrics": {
+      "type": "object",
+      "required": [
+        "TOTAL_AVENUES_MODELED",
+        "TECHNICALLY_ATTEMPTED",
+        "PROVEN_POSITIVE",
+        "PROVEN_NEGATIVE_OR_CLOSED",
+        "INCONCLUSIVE_ATTENDED",
+        "CREDENTIAL_GATED",
+        "AUTHORITY_GATED",
+        "TOPOLOGY_DEFERRED",
+        "IMPLEMENTED_NOT_LIVE_CERTIFIED",
+        "FLEET_DEPLOYMENT_CAPABLE"
+      ],
+      "additionalProperties": { "type": "integer" }
+    }
+  },
+  "additionalProperties": true
+}

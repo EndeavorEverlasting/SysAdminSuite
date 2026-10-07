@@ -1,0 +1,6 @@
+{
+  "kind": "system_image",
+  "raw_partition": true,
+  "path": "system.img",
+  "acquisition_method": "authorized_reader_export"
+}
