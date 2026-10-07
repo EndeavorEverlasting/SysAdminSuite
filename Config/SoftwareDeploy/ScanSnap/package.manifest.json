@@ -12,5 +12,5 @@
   "TaskName": "SysAdminSuite_ScanSnap_Install",
   "RemoteStageRelativePath": "SoftwareRepo\\ScanSnap",
   "RemoteProgramDataRelativePath": "ProgramData\\SysAdminSuite\\SoftwareDeploy\\ScanSnap",
-  "Notes": "Operator-provided installer required. Do not invent URL, SilentArgs, or DetectValue. Set Bound=true only after Bind-ScanSnapPackage.ps1 freezes truth from a real package."
+  "Notes": "Tracked unbound template only. Bind-ScanSnapPackage.ps1 writes ignored package.local.manifest.json by default. Do not invent URL, SilentArgs, or DetectValue."
 }
