@@ -231,6 +231,23 @@
       "proof": "P95 routing keeps live firmware execution primary, allows harness preemption only for an evidenced current-gate blocker, defers nonblocking harness and downstream publication work, and resumes the same live gate after bounded repair."
     },
     {
+      "id": "sas-android-provider-boundary",
+      "category": "harness",
+      "platform": "python3",
+      "command": "python harness/validators/validate-sas-android-provider-boundary.py && python Tests/survey/test_sas_android_provider_boundary_contracts.py",
+      "blocking": true,
+      "scope": [
+        "harness/api/sas-android-provider-boundary.v1.json",
+        "schemas/harness/sas-android-provider-boundary.schema.json",
+        "harness/validators/validate-sas-android-provider-boundary.py",
+        "Tests/survey/test_sas_android_provider_boundary_contracts.py",
+        "harness/api/hh_cc_reader_adb_control_plane.py",
+        "harness/api/hh_cc_reader_adb_live.py",
+        "docs/HH_CC_READER_ADB_ADMIN_BOX_WORKFLOW.md"
+      ],
+      "proof": "SysAdminSuite remains the management plane; AndroidProvider is replaceable; field nodes are offline-first; ADB remains loopback-only; identity is transport-independent; capability, authority, and proof remain orthogonal; H&H remains a fail-closed workload adapter."
+    },
+    {
       "id": "hh-cc-reader-adb-control-plane-contracts",
       "category": "harness",
       "platform": "python3",

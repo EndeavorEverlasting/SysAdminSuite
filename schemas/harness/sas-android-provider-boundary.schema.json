@@ -1,0 +1,738 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://example.invalid/schemas/sas-android-provider-boundary.v1.schema.json",
+  "title": "SysAdminSuite Android provider boundary",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "version",
+    "status",
+    "purpose",
+    "architecture",
+    "node_roles",
+    "runtime_bundle",
+    "host_provider",
+    "device_identity",
+    "state_dimensions",
+    "operation_classes",
+    "session_lifecycle",
+    "cleanup",
+    "public_surface",
+    "backend_roadmap",
+    "workload_boundary",
+    "security",
+    "maturity_path",
+    "reference_patterns",
+    "p82_promotion_gates",
+    "proof_ceiling"
+  ],
+  "properties": {
+    "schema_version": {
+      "const": "sas-android-provider-boundary/v1"
+    },
+    "version": {
+      "const": 1
+    },
+    "status": {
+      "const": "IMPLEMENTED_CONTRACT"
+    },
+    "purpose": {
+      "type": "string",
+      "minLength": 1
+    },
+    "architecture": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "management_plane",
+        "provider",
+        "current_backend",
+        "rules"
+      ],
+      "properties": {
+        "management_plane": {
+          "const": "SysAdminSuite"
+        },
+        "provider": {
+          "const": "AndroidProvider"
+        },
+        "current_backend": {
+          "const": "adb_cli"
+        },
+        "rules": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "adb_is_transport_not_management_plane",
+            "workloads_consume_provider_not_adb_binary",
+            "provider_backend_is_replaceable",
+            "device_identity_is_independent_of_transport",
+            "capability_authority_and_proof_are_orthogonal",
+            "cc_reader_firmware_is_workload_not_provider"
+          ],
+          "properties": {
+            "adb_is_transport_not_management_plane": {
+              "const": true
+            },
+            "workloads_consume_provider_not_adb_binary": {
+              "const": true
+            },
+            "provider_backend_is_replaceable": {
+              "const": true
+            },
+            "device_identity_is_independent_of_transport": {
+              "const": true
+            },
+            "capability_authority_and_proof_are_orthogonal": {
+              "const": true
+            },
+            "cc_reader_firmware_is_workload_not_provider": {
+              "const": true
+            }
+          }
+        }
+      }
+    },
+    "node_roles": {
+      "type": "array",
+      "minItems": 3,
+      "maxItems": 3,
+      "uniqueItems": true,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "id",
+          "purpose",
+          "offline_execution_required",
+          "public_internet_required_at_execution"
+        ],
+        "properties": {
+          "id": {
+            "enum": [
+              "ptop_lab",
+              "adminbox_reference",
+              "technician_adminbox_field"
+            ]
+          },
+          "purpose": {
+            "type": "string",
+            "minLength": 1
+          },
+          "offline_execution_required": {
+            "type": "boolean"
+          },
+          "public_internet_required_at_execution": {
+            "const": false
+          }
+        }
+      }
+    },
+    "runtime_bundle": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "artifact_id",
+        "source_authority",
+        "components_are_one_qualified_bundle",
+        "deterministic_runtime_resolution",
+        "competing_path_or_sdk_copies_are_reported",
+        "field_network_fetch_allowed",
+        "required_metadata"
+      ],
+      "properties": {
+        "artifact_id": {
+          "const": "android-platform-tools-windows"
+        },
+        "source_authority": {
+          "type": "string",
+          "minLength": 1
+        },
+        "components_are_one_qualified_bundle": {
+          "const": true
+        },
+        "deterministic_runtime_resolution": {
+          "const": true
+        },
+        "competing_path_or_sdk_copies_are_reported": {
+          "const": true
+        },
+        "field_network_fetch_allowed": {
+          "const": false
+        },
+        "required_metadata": {
+          "const": [
+            "source",
+            "version",
+            "sha256",
+            "component_manifest",
+            "qualification_state",
+            "qualified_at"
+          ]
+        }
+      }
+    },
+    "host_provider": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "single_android_provider_authority_per_host",
+        "adb_server_default_host",
+        "adb_server_default_port",
+        "adb_server_bind_scope",
+        "raw_remote_adb_server_export",
+        "provider_lease_required_for_stateful_transport_changes",
+        "node_unique_adb_key_material_required",
+        "shared_default_adb_private_key_forbidden"
+      ],
+      "properties": {
+        "single_android_provider_authority_per_host": {
+          "const": true
+        },
+        "adb_server_default_host": {
+          "const": "127.0.0.1"
+        },
+        "adb_server_default_port": {
+          "const": 5037
+        },
+        "adb_server_bind_scope": {
+          "const": "LOOPBACK_ONLY"
+        },
+        "raw_remote_adb_server_export": {
+          "const": "FORBIDDEN_BY_DEFAULT"
+        },
+        "provider_lease_required_for_stateful_transport_changes": {
+          "const": true
+        },
+        "node_unique_adb_key_material_required": {
+          "const": true
+        },
+        "shared_default_adb_private_key_forbidden": {
+          "const": true
+        }
+      }
+    },
+    "device_identity": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "logical_identity_is_not_adb_serial",
+        "transport_aliases_are_evidence_not_identity",
+        "usb_and_tcp_aliases_for_same_device_must_collapse",
+        "allowed_alias_types",
+        "binding_evidence",
+        "ambiguous_identity_result"
+      ],
+      "properties": {
+        "logical_identity_is_not_adb_serial": {
+          "const": true
+        },
+        "transport_aliases_are_evidence_not_identity": {
+          "const": true
+        },
+        "usb_and_tcp_aliases_for_same_device_must_collapse": {
+          "const": true
+        },
+        "allowed_alias_types": {
+          "const": [
+            "adb_serial",
+            "usb_transport_id",
+            "tcp_endpoint"
+          ]
+        },
+        "binding_evidence": {
+          "const": [
+            "private_expected_identity",
+            "vendor_properties"
+          ]
+        },
+        "ambiguous_identity_result": {
+          "const": "BLOCK"
+        }
+      }
+    },
+    "state_dimensions": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "orthogonal",
+        "technical_capability",
+        "authority",
+        "proof",
+        "rule"
+      ],
+      "properties": {
+        "orthogonal": {
+          "const": true
+        },
+        "technical_capability": {
+          "const": [
+            "UNKNOWN",
+            "UNAVAILABLE",
+            "AVAILABLE",
+            "READY"
+          ]
+        },
+        "authority": {
+          "const": [
+            "FORBIDDEN",
+            "READ_ONLY_ALLOWED",
+            "MUTATION_GATED",
+            "AUTHORIZED"
+          ]
+        },
+        "proof": {
+          "const": [
+            "DESIGNED",
+            "REPOSITORY_VALIDATED",
+            "INTEGRATION_VALIDATED",
+            "LIVE_PROVEN"
+          ]
+        },
+        "rule": {
+          "type": "string",
+          "minLength": 1
+        }
+      }
+    },
+    "operation_classes": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "observe",
+        "transport_state_change",
+        "device_mutation",
+        "destructive_or_privilege_escalating"
+      ],
+      "properties": {
+        "observe": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "examples",
+            "authority_floor"
+          ],
+          "properties": {
+            "examples": {
+              "type": "array",
+              "minItems": 1,
+              "items": {
+                "type": "string",
+                "minLength": 1
+              }
+            },
+            "authority_floor": {
+              "const": "READ_ONLY_ALLOWED"
+            }
+          }
+        },
+        "transport_state_change": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "examples",
+            "authority_floor",
+            "cleanup_proof_required"
+          ],
+          "properties": {
+            "examples": {
+              "type": "array",
+              "minItems": 1,
+              "items": {
+                "type": "string",
+                "minLength": 1
+              }
+            },
+            "authority_floor": {
+              "const": "MUTATION_GATED"
+            },
+            "cleanup_proof_required": {
+              "const": true
+            }
+          }
+        },
+        "device_mutation": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "examples",
+            "authority_floor",
+            "generic_provider_does_not_authorize"
+          ],
+          "properties": {
+            "examples": {
+              "type": "array",
+              "minItems": 1,
+              "items": {
+                "type": "string",
+                "minLength": 1
+              }
+            },
+            "authority_floor": {
+              "const": "AUTHORIZED"
+            },
+            "generic_provider_does_not_authorize": {
+              "const": true
+            }
+          }
+        },
+        "destructive_or_privilege_escalating": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "examples",
+            "generic_provider_posture"
+          ],
+          "properties": {
+            "examples": {
+              "type": "array",
+              "minItems": 1,
+              "items": {
+                "type": "string",
+                "minLength": 1
+              }
+            },
+            "generic_provider_posture": {
+              "const": "FORBIDDEN"
+            }
+          }
+        }
+      }
+    },
+    "session_lifecycle": {
+      "const": [
+        "RUNTIME_QUALIFIED",
+        "HOST_SERVER_READY",
+        "TARGET_ENUMERATED",
+        "IDENTITY_BOUND",
+        "SESSION_READY",
+        "OPERATION_EXECUTED",
+        "CLEANUP_PROVEN",
+        "LEASE_RELEASED"
+      ]
+    },
+    "cleanup": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "tcpip_transition_requires_return_to_usb_proof",
+        "temporary_forward_reverse_rules_must_be_removed",
+        "temporary_device_payloads_must_be_removed",
+        "cleanup_failure_terminal_result",
+        "cleanup_failure_never_promotes_success"
+      ],
+      "properties": {
+        "tcpip_transition_requires_return_to_usb_proof": {
+          "const": true
+        },
+        "temporary_forward_reverse_rules_must_be_removed": {
+          "const": true
+        },
+        "temporary_device_payloads_must_be_removed": {
+          "const": true
+        },
+        "cleanup_failure_terminal_result": {
+          "const": "INCOMPLETE"
+        },
+        "cleanup_failure_never_promotes_success": {
+          "const": true
+        }
+      }
+    },
+    "public_surface": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "raw_shell_is_not_a_technician_public_api",
+        "typed_operations_precede_raw_commands",
+        "operator_front_doors_delegate_to_repository_owned_cmd_or_sas_routes"
+      ],
+      "properties": {
+        "raw_shell_is_not_a_technician_public_api": {
+          "const": true
+        },
+        "typed_operations_precede_raw_commands": {
+          "const": true
+        },
+        "operator_front_doors_delegate_to_repository_owned_cmd_or_sas_routes": {
+          "const": true
+        }
+      }
+    },
+    "backend_roadmap": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "adb_cli",
+        "adb_smart_socket_client",
+        "direct_adb_transport_client"
+      ],
+      "properties": {
+        "adb_cli": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "disposition",
+            "state",
+            "reason"
+          ],
+          "properties": {
+            "disposition": {
+              "const": "ADOPT"
+            },
+            "state": {
+              "const": "CURRENT"
+            },
+            "reason": {
+              "type": "string",
+              "minLength": 1
+            }
+          }
+        },
+        "adb_smart_socket_client": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "disposition",
+            "state",
+            "promotion_gate"
+          ],
+          "properties": {
+            "disposition": {
+              "const": "ADAPT"
+            },
+            "state": {
+              "const": "FUTURE_OPTION"
+            },
+            "promotion_gate": {
+              "type": "string",
+              "minLength": 1
+            }
+          }
+        },
+        "direct_adb_transport_client": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "disposition",
+            "state",
+            "reason"
+          ],
+          "properties": {
+            "disposition": {
+              "const": "REJECT_NOW"
+            },
+            "state": {
+              "const": "DEFERRED"
+            },
+            "reason": {
+              "type": "string",
+              "minLength": 1
+            }
+          }
+        }
+      }
+    },
+    "workload_boundary": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "hh_cc_reader"
+      ],
+      "properties": {
+        "hh_cc_reader": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "current_adapter",
+            "current_live_collector",
+            "policy_owner",
+            "migration_rule",
+            "kiosk4_usb_otg_finding_scope"
+          ],
+          "properties": {
+            "current_adapter": {
+              "const": "harness/api/hh_cc_reader_adb_control_plane.py"
+            },
+            "current_live_collector": {
+              "const": "harness/api/hh_cc_reader_adb_live.py"
+            },
+            "policy_owner": {
+              "const": "harness/api/hh-cc-reader-firmware-policy.json"
+            },
+            "migration_rule": {
+              "type": "string",
+              "minLength": 1
+            },
+            "kiosk4_usb_otg_finding_scope": {
+              "const": "CURRENT_KIOSK4_CONFIGURATION_ONLY"
+            }
+          }
+        }
+      }
+    },
+    "security": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "secrets_never_tracked",
+        "live_device_identifiers_never_tracked",
+        "adb_private_keys_never_tracked",
+        "raw_adb_server_not_exposed_to_untrusted_networks",
+        "provider_support_never_implies_operation_authority"
+      ],
+      "properties": {
+        "secrets_never_tracked": {
+          "const": true
+        },
+        "live_device_identifiers_never_tracked": {
+          "const": true
+        },
+        "adb_private_keys_never_tracked": {
+          "const": true
+        },
+        "raw_adb_server_not_exposed_to_untrusted_networks": {
+          "const": true
+        },
+        "provider_support_never_implies_operation_authority": {
+          "const": true
+        }
+      }
+    },
+    "maturity_path": {
+      "type": "array",
+      "minItems": 6,
+      "maxItems": 6,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "id",
+          "state",
+          "outcome"
+        ],
+        "properties": {
+          "id": {
+            "enum": [
+              "M0",
+              "M1",
+              "M2",
+              "M3",
+              "M4",
+              "M5"
+            ]
+          },
+          "state": {
+            "type": "string",
+            "minLength": 1
+          },
+          "outcome": {
+            "type": "string",
+            "minLength": 1
+          }
+        }
+      }
+    },
+    "reference_patterns": {
+      "type": "array",
+      "minItems": 5,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "reference",
+          "disposition",
+          "mechanism"
+        ],
+        "properties": {
+          "reference": {
+            "type": "string",
+            "minLength": 1
+          },
+          "disposition": {
+            "enum": [
+              "ADOPT",
+              "ADAPT",
+              "REJECT_NOW"
+            ]
+          },
+          "mechanism": {
+            "type": "string",
+            "minLength": 1
+          }
+        }
+      }
+    },
+    "p82_promotion_gates": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "smart_socket_backend",
+        "fleet_orchestration"
+      ],
+      "properties": {
+        "smart_socket_backend": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "baseline",
+            "measure",
+            "decision"
+          ],
+          "properties": {
+            "baseline": {
+              "type": "string",
+              "minLength": 1
+            },
+            "measure": {
+              "type": "array",
+              "minItems": 1,
+              "uniqueItems": true,
+              "items": {
+                "type": "string",
+                "minLength": 1
+              }
+            },
+            "decision": {
+              "type": "string",
+              "minLength": 1
+            }
+          }
+        },
+        "fleet_orchestration": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "baseline",
+            "measure",
+            "decision"
+          ],
+          "properties": {
+            "baseline": {
+              "type": "string",
+              "minLength": 1
+            },
+            "measure": {
+              "type": "array",
+              "minItems": 1,
+              "uniqueItems": true,
+              "items": {
+                "type": "string",
+                "minLength": 1
+              }
+            },
+            "decision": {
+              "type": "string",
+              "minLength": 1
+            }
+          }
+        }
+      }
+    },
+    "proof_ceiling": {
+      "type": "string",
+      "minLength": 1
+    }
+  }
+}

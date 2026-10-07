@@ -1,0 +1,284 @@
+{
+  "schema_version": "sas-android-provider-boundary/v1",
+  "version": 1,
+  "status": "IMPLEMENTED_CONTRACT",
+  "purpose": "Define the reusable SysAdminSuite Android management-provider boundary so management nodes, Android transports, device identity, authority, proof, cleanup, and workloads remain separable and fail closed.",
+  "architecture": {
+    "management_plane": "SysAdminSuite",
+    "provider": "AndroidProvider",
+    "current_backend": "adb_cli",
+    "rules": {
+      "adb_is_transport_not_management_plane": true,
+      "workloads_consume_provider_not_adb_binary": true,
+      "provider_backend_is_replaceable": true,
+      "device_identity_is_independent_of_transport": true,
+      "capability_authority_and_proof_are_orthogonal": true,
+      "cc_reader_firmware_is_workload_not_provider": true
+    }
+  },
+  "node_roles": [
+    {
+      "id": "ptop_lab",
+      "purpose": "Lab, prototype, compatibility and certification management node.",
+      "offline_execution_required": false,
+      "public_internet_required_at_execution": false
+    },
+    {
+      "id": "adminbox_reference",
+      "purpose": "Reference management node and canonical field controller.",
+      "offline_execution_required": true,
+      "public_internet_required_at_execution": false
+    },
+    {
+      "id": "technician_adminbox_field",
+      "purpose": "Portable field management node prepared before entry into a protected network.",
+      "offline_execution_required": true,
+      "public_internet_required_at_execution": false
+    }
+  ],
+  "runtime_bundle": {
+    "artifact_id": "android-platform-tools-windows",
+    "source_authority": "official Google Android Platform-Tools",
+    "components_are_one_qualified_bundle": true,
+    "deterministic_runtime_resolution": true,
+    "competing_path_or_sdk_copies_are_reported": true,
+    "field_network_fetch_allowed": false,
+    "required_metadata": [
+      "source",
+      "version",
+      "sha256",
+      "component_manifest",
+      "qualification_state",
+      "qualified_at"
+    ]
+  },
+  "host_provider": {
+    "single_android_provider_authority_per_host": true,
+    "adb_server_default_host": "127.0.0.1",
+    "adb_server_default_port": 5037,
+    "adb_server_bind_scope": "LOOPBACK_ONLY",
+    "raw_remote_adb_server_export": "FORBIDDEN_BY_DEFAULT",
+    "provider_lease_required_for_stateful_transport_changes": true,
+    "node_unique_adb_key_material_required": true,
+    "shared_default_adb_private_key_forbidden": true
+  },
+  "device_identity": {
+    "logical_identity_is_not_adb_serial": true,
+    "transport_aliases_are_evidence_not_identity": true,
+    "usb_and_tcp_aliases_for_same_device_must_collapse": true,
+    "allowed_alias_types": [
+      "adb_serial",
+      "usb_transport_id",
+      "tcp_endpoint"
+    ],
+    "binding_evidence": [
+      "private_expected_identity",
+      "vendor_properties"
+    ],
+    "ambiguous_identity_result": "BLOCK"
+  },
+  "state_dimensions": {
+    "orthogonal": true,
+    "technical_capability": [
+      "UNKNOWN",
+      "UNAVAILABLE",
+      "AVAILABLE",
+      "READY"
+    ],
+    "authority": [
+      "FORBIDDEN",
+      "READ_ONLY_ALLOWED",
+      "MUTATION_GATED",
+      "AUTHORIZED"
+    ],
+    "proof": [
+      "DESIGNED",
+      "REPOSITORY_VALIDATED",
+      "INTEGRATION_VALIDATED",
+      "LIVE_PROVEN"
+    ],
+    "rule": "Technical capability never grants authority, and repository or integration proof never promotes itself to live proof."
+  },
+  "operation_classes": {
+    "observe": {
+      "examples": [
+        "enumerate",
+        "get_state",
+        "read_properties",
+        "read_packages",
+        "read_processes",
+        "read_network",
+        "read_device_policy"
+      ],
+      "authority_floor": "READ_ONLY_ALLOWED"
+    },
+    "transport_state_change": {
+      "examples": [
+        "tcpip_enable",
+        "connect_exact_target",
+        "disconnect_exact_target",
+        "return_to_usb"
+      ],
+      "authority_floor": "MUTATION_GATED",
+      "cleanup_proof_required": true
+    },
+    "device_mutation": {
+      "examples": [
+        "install_application",
+        "firmware_apply",
+        "settings_change",
+        "reboot"
+      ],
+      "authority_floor": "AUTHORIZED",
+      "generic_provider_does_not_authorize": true
+    },
+    "destructive_or_privilege_escalating": {
+      "examples": [
+        "root",
+        "remount",
+        "bootloader_unlock",
+        "fastboot_flash",
+        "verified_boot_disable"
+      ],
+      "generic_provider_posture": "FORBIDDEN"
+    }
+  },
+  "session_lifecycle": [
+    "RUNTIME_QUALIFIED",
+    "HOST_SERVER_READY",
+    "TARGET_ENUMERATED",
+    "IDENTITY_BOUND",
+    "SESSION_READY",
+    "OPERATION_EXECUTED",
+    "CLEANUP_PROVEN",
+    "LEASE_RELEASED"
+  ],
+  "cleanup": {
+    "tcpip_transition_requires_return_to_usb_proof": true,
+    "temporary_forward_reverse_rules_must_be_removed": true,
+    "temporary_device_payloads_must_be_removed": true,
+    "cleanup_failure_terminal_result": "INCOMPLETE",
+    "cleanup_failure_never_promotes_success": true
+  },
+  "public_surface": {
+    "raw_shell_is_not_a_technician_public_api": true,
+    "typed_operations_precede_raw_commands": true,
+    "operator_front_doors_delegate_to_repository_owned_cmd_or_sas_routes": true
+  },
+  "backend_roadmap": {
+    "adb_cli": {
+      "disposition": "ADOPT",
+      "state": "CURRENT",
+      "reason": "Already integrated and proven as the smallest compatible backend in the H&H control-plane implementation."
+    },
+    "adb_smart_socket_client": {
+      "disposition": "ADAPT",
+      "state": "FUTURE_OPTION",
+      "promotion_gate": "Promote only after measured evidence shows CLI parsing, process startup, event tracking, or concurrency is a material limitation."
+    },
+    "direct_adb_transport_client": {
+      "disposition": "REJECT_NOW",
+      "state": "DEFERRED",
+      "reason": "Reimplementing authentication/USB/TCP transport creates avoidable security and maintenance burden while the server/client seam is adequate."
+    }
+  },
+  "workload_boundary": {
+    "hh_cc_reader": {
+      "current_adapter": "harness/api/hh_cc_reader_adb_control_plane.py",
+      "current_live_collector": "harness/api/hh_cc_reader_adb_live.py",
+      "policy_owner": "harness/api/hh-cc-reader-firmware-policy.json",
+      "migration_rule": "Factor generic Android host/session primitives beneath the existing H&H adapter without changing firmware authority semantics or typed outcome names until regression proof is green.",
+      "kiosk4_usb_otg_finding_scope": "CURRENT_KIOSK4_CONFIGURATION_ONLY"
+    }
+  },
+  "security": {
+    "secrets_never_tracked": true,
+    "live_device_identifiers_never_tracked": true,
+    "adb_private_keys_never_tracked": true,
+    "raw_adb_server_not_exposed_to_untrusted_networks": true,
+    "provider_support_never_implies_operation_authority": true
+  },
+  "maturity_path": [
+    {
+      "id": "M0",
+      "state": "CURRENT",
+      "outcome": "CC-reader-specific typed ADB workflows and live collector."
+    },
+    {
+      "id": "M1",
+      "state": "THIS_CONTRACT",
+      "outcome": "Generic AndroidProvider boundary, node roles, security, identity, authority and proof semantics."
+    },
+    {
+      "id": "M2",
+      "state": "NEXT_LOCAL_SPRINT",
+      "outcome": "Reusable provider implementation and technician surface factored from current ADB host/probe/inventory mechanics."
+    },
+    {
+      "id": "M3",
+      "state": "FUTURE",
+      "outcome": "Multiple Android workloads consume normalized sessions, capabilities and evidence."
+    },
+    {
+      "id": "M4",
+      "state": "CONDITIONAL",
+      "outcome": "Event-driven/smart-socket backend only if P82 measurement proves material value."
+    },
+    {
+      "id": "M5",
+      "state": "CONDITIONAL",
+      "outcome": "Fleet jobs and multiple management providers selected by policy after real fleet demand and authority exist."
+    }
+  ],
+  "reference_patterns": [
+    {
+      "reference": "AOSP ADB",
+      "disposition": "ADOPT",
+      "mechanism": "Client/server/adbd separation; smart-socket client seam; transport multiplexing."
+    },
+    {
+      "reference": "Android ddmlib / Trade Federation",
+      "disposition": "ADOPT",
+      "mechanism": "Stable device abstraction, explicit device state, host-driven lifecycle and cleanup."
+    },
+    {
+      "reference": "DeviceFarmer STF / adbkit",
+      "disposition": "ADAPT",
+      "mechanism": "One host provider with per-device sessions; device tracking; typed server client; normalize USB/TCP aliases."
+    },
+    {
+      "reference": "Genymobile scrcpy",
+      "disposition": "ADAPT",
+      "mechanism": "Pin coupled host/device component versions; separate channels; keep remote view optional."
+    },
+    {
+      "reference": "Appium node-adb-client",
+      "disposition": "ADAPT",
+      "mechanism": "Transport/backend interface proves direct client replacement is possible without making it current architecture."
+    }
+  ],
+  "p82_promotion_gates": {
+    "smart_socket_backend": {
+      "baseline": "adb_cli backend",
+      "measure": [
+        "wall_clock",
+        "process_start_count",
+        "parse_failures",
+        "device_event_latency",
+        "cleanup_failures"
+      ],
+      "decision": "Keep adb_cli unless a bounded same-workload candidate produces a material operational gain without weakening safety or cleanup."
+    },
+    "fleet_orchestration": {
+      "baseline": "one exact target per technician operation",
+      "measure": [
+        "concurrent_device_demand",
+        "operator_wait_time",
+        "identity_conflicts",
+        "provider_contention"
+      ],
+      "decision": "Do not build fleet fan-out until representative demand proves one-target orchestration is a material bottleneck."
+    }
+  },
+  "proof_ceiling": "This contract and its validators prove repository architecture, invariants and migration boundaries only. They do not prove Android device access, ADB authorization, PTop/AdminBox field readiness, firmware mutation authority, firmware deployment, or production behavior."
+}
