@@ -26,7 +26,9 @@ param(
 
   [string]$RouteManifestPath,
 
-  [string]$EvidencePath
+  [string]$EvidencePath,
+
+  [string]$ObservationPath
 )
 
 Set-StrictMode -Version Latest
@@ -38,6 +40,9 @@ if (-not $RouteManifestPath) {
 }
 if (-not (Test-Path -LiteralPath $RouteManifestPath)) {
   throw "Installer process route manifest missing: $RouteManifestPath"
+}
+if (-not $ObservationPath) {
+  $ObservationPath = Join-Path $packageRoot 'evidence\installer-route-observed.json'
 }
 
 $route = Get-Content -LiteralPath $RouteManifestPath -Raw -Encoding UTF8 | ConvertFrom-Json
@@ -91,7 +96,7 @@ function Test-SsInstallerCandidate {
       [string]$Row.window_title -match [string]$Route.window_title_pattern) {
     $titleHit = $true
   }
-  return ($nameHit -or $pathHit) -and ($titleHit -or $nameHit -or $pathHit)
+  return $nameHit -or ($pathHit -and $titleHit)
 }
 
 function Select-SsInstallerFromRows {
@@ -132,20 +137,19 @@ function Wait-SsInstallerSurface {
 }
 
 function Save-SsRouteObservation {
-  param($Route, $Selected, [string]$Path)
-  $Route.last_observed.controller = [string]$env:COMPUTERNAME
-  $Route.last_observed.process_name = [IO.Path]::GetFileNameWithoutExtension([string]$Selected.name)
-  $Route.last_observed.window_title = [string]$Selected.window_title
-  $Route.last_observed.pid = [int]$Selected.pid
-  $Route.last_observed.observed_at_utc = (Get-Date).ToUniversalTime().ToString('o')
-  $pathText = ("{0}" -f [string]$Selected.path)
-  foreach ($frag in @($Route.path_fragment_candidates)) {
-    if ($pathText -match [regex]::Escape([string]$frag)) {
-      $Route.last_observed.path_fragment = [string]$frag
-      break
-    }
+  param($Selected, [string]$Path)
+  $dir = Split-Path -Parent $Path
+  if ($dir) { New-Item -ItemType Directory -Force -Path $dir | Out-Null }
+  $observation = [ordered]@{
+    schema_version = 'scansnap-installer-route-observation/v1'
+    controller = [string]$env:COMPUTERNAME
+    process_name = [IO.Path]::GetFileNameWithoutExtension([string]$Selected.name)
+    window_title = [string]$Selected.window_title
+    path = [string]$Selected.path
+    pid = [int]$Selected.pid
+    observed_at_utc = (Get-Date).ToUniversalTime().ToString('o')
   }
-  ($Route | ConvertTo-Json -Depth 8) | Set-Content -LiteralPath $Path -Encoding UTF8
+  ($observation | ConvertTo-Json -Depth 6) | Set-Content -LiteralPath $Path -Encoding UTF8
 }
 
 $before = @(Get-SsProcessSnapshot)
@@ -159,7 +163,7 @@ switch ($Mode) {
   }
   'AttachExisting' {
     if ($AttachPid -gt 0) {
-      $selected = @($before | Where-Object { [int]$_.pid -eq $AttachPid } | Select-Object -First 1)
+      $selected = $before | Where-Object { [int]$_.pid -eq $AttachPid } | Select-Object -First 1
       if (-not $selected) { throw "AttachPid $AttachPid is not running." }
       if (-not (Test-SsInstallerCandidate -Row $selected -Route $route)) {
         throw "AttachPid $AttachPid does not match ScanSnap installer route metadata."
@@ -184,6 +188,7 @@ switch ($Mode) {
     $p = Start-Process -FilePath $InstallerPath -PassThru -ErrorAction Stop
     $launchedPid = [int]$p.Id
     $deadline = [DateTime]::UtcNow.AddSeconds($ReadyTimeoutSeconds)
+    $surfaceReady = $false
     do {
       Start-Sleep -Milliseconds 750
       $after = @(Get-SsProcessSnapshot)
@@ -197,12 +202,16 @@ switch ($Mode) {
         $ready = Wait-SsInstallerSurface -ProcessId ([int]$selected.pid) -TitlePattern ([string]$route.window_title_pattern) -TimeoutSeconds 5
         if ($ready.ready) {
           $selected.window_title = $ready.window_title
+          $surfaceReady = $true
           break
         }
       }
     } while ([DateTime]::UtcNow -lt $deadline)
     if (-not $selected) {
       throw 'LaunchAndResolve failed: no installer PID matched the delta + route metadata.'
+    }
+    if (-not $surfaceReady) {
+      throw 'LaunchAndResolve failed: selected installer never exposed the expected ScanSnap Home Setup window.'
     }
   }
 }
@@ -217,7 +226,7 @@ if ($live) {
   try { $selected.window_title = [string]$live.MainWindowTitle } catch {}
 }
 
-Save-SsRouteObservation -Route $route -Selected $selected -Path $RouteManifestPath
+Save-SsRouteObservation -Selected $selected -Path $ObservationPath
 
 $result = [ordered]@{
   schema_version     = 'scansnap-installer-process-resolve/v1'
@@ -232,6 +241,7 @@ $result = [ordered]@{
   selected_path      = [string]$selected.path
   selected_title     = [string]$selected.window_title
   route_manifest     = $RouteManifestPath
+  observation_path   = $ObservationPath
   strategy           = [string]$route.strategy.name
 }
 
