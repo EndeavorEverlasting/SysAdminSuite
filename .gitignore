@@ -190,7 +190,10 @@ Config/northwell-printer-defaults.local.json
 Config/host-eligibility-policy.local.json
 .aider*
 
-# ScanSnap operator-provided installer binaries (bind via package.manifest.json)
+# ScanSnap operator-provided package truth stays machine-local.
+Config/SoftwareDeploy/ScanSnap/package.local.manifest.json
+
+# ScanSnap operator-provided installer binaries (bind via package.local.manifest.json)
 Config/SoftwareDeploy/ScanSnap/installers/*
 !Config/SoftwareDeploy/ScanSnap/installers/.gitkeep
 !Config/SoftwareDeploy/ScanSnap/installers/README.md
