@@ -131,6 +131,7 @@ stages:
       - python harness/validators/validate-outcome-contracts.py
       - python harness/validators/validate-deployment-state-contracts.py
       - python harness/validators/validate-operator-execution-route.py when command-to-operator routing, repo-relative front doors, execution-location handling, network-intent handoff, or AutoLogon crash-safe routing changes
+      - python harness/validators/validate-protected-network-offline-execution.py when sealed-runtime, protected-network, ScanSnap deployment, canonical SMB adapter companion-file, or offline field execution contracts change
       - python harness/validators/validate-printer-mapping-use-cases.py when printer-mapping routing, use cases, field skill, or organization/site contracts change
       - python harness/validators/validate-terminal-evidence-survival.py when terminal-evidence routing, artifacts, hooks, runner contracts, or front doors change
       - select additional validators from harness/api/harness-validator-registry.json by changed surface
