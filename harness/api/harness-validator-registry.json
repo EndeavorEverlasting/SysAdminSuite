@@ -411,7 +411,9 @@
       "platform": "python3+git",
       "command": "python scripts/check-repo-text-policy.py --cached",
       "blocking": true,
-      "scope": ["changed tracked text"],
+      "scope": [
+        "changed tracked text"
+      ],
       "proof": "Staged Git text blobs use canonical repository byte policy and contain no trailing whitespace."
     },
     {
@@ -420,7 +422,9 @@
       "platform": "python3+git",
       "command": "python scripts/check-repo-text-policy.py --commit HEAD",
       "blocking": true,
-      "scope": ["committed tracked text"],
+      "scope": [
+        "committed tracked text"
+      ],
       "proof": "The destination commit satisfies repository text policy."
     },
     {
@@ -429,7 +433,9 @@
       "platform": "git",
       "command": "git diff --check",
       "blocking": true,
-      "scope": ["working tree diff"],
+      "scope": [
+        "working tree diff"
+      ],
       "proof": "No whitespace errors are present in the current patch."
     },
     {
@@ -438,7 +444,11 @@
       "platform": "bash+python3",
       "command": "bash tests/survey/run_offline_survey_tests.sh",
       "blocking": true,
-      "scope": ["survey/**", "harness/**", "Tests/survey/**"],
+      "scope": [
+        "survey/**",
+        "harness/**",
+        "Tests/survey/**"
+      ],
       "proof": "Dependency-free offline survey and harness contracts pass without target contact."
     },
     {
@@ -447,7 +457,11 @@
       "platform": "PowerShell+Pester5",
       "command": "pwsh -NoProfile -ExecutionPolicy Bypass -File tools/Test-Pester5Suite.ps1 -TestPath Tests/Pester",
       "blocking": false,
-      "scope": ["*.ps1", "*.psm1", "Tests/Pester/**"],
+      "scope": [
+        "*.ps1",
+        "*.psm1",
+        "Tests/Pester/**"
+      ],
       "proof": "PowerShell parser, fixture, and behavioral contracts pass on a Pester 5 host."
     },
     {
@@ -456,7 +470,11 @@
       "platform": ".NET 8",
       "command": "dotnet test SysAdminSuite.sln -c Release --verbosity normal",
       "blocking": false,
-      "scope": ["src/**", "managed-tests/**", "SysAdminSuite.sln"],
+      "scope": [
+        "src/**",
+        "managed-tests/**",
+        "SysAdminSuite.sln"
+      ],
       "proof": "Managed solution restores, builds, and passes unit tests in Release configuration."
     },
     {
@@ -465,7 +483,9 @@
       "platform": ".NET 8",
       "command": "dotnet publish src/SysAdminSuite.DashboardHost/SysAdminSuite.DashboardHost.csproj -c Release -r win-x64 --self-contained false -o tools/publish/SysAdminSuite.DashboardHost",
       "blocking": false,
-      "scope": ["src/SysAdminSuite.DashboardHost/**"],
+      "scope": [
+        "src/SysAdminSuite.DashboardHost/**"
+      ],
       "proof": "DashboardHost produces the framework-dependent win-x64 publish artifact used by its build contract."
     },
     {
@@ -481,6 +501,26 @@
         "Tests/survey/test_operational_publication_boundary_contracts.py"
       ],
       "proof": "Authority and downstream projections remain distinct, logical artifact identity survives provider/revision changes, publication state stays orthogonal to operational state, manual publication is first-class, reverse sync is disabled by default, and downstream unavailability cannot block upstream authority."
+    },
+    {
+      "id": "protected-network-offline-execution",
+      "category": "harness",
+      "platform": "python3+git",
+      "command": "python harness/validators/validate-protected-network-offline-execution.py",
+      "blocking": true,
+      "scope": [
+        "harness/contracts/protected-network-offline-execution.v1.json",
+        "harness/validators/validate-protected-network-offline-execution.py",
+        "harness/workflows/fresh-agent-intake.yaml",
+        "docs/GUEST_SYNC_TO_PROTECTED_DEPLOYMENT.md",
+        "Config/SoftwareDeploy/ScanSnap/**",
+        "scripts/SasSoftwareDeploymentAdapter.psm1",
+        "scripts/Prepare-SasAutoLogonShortRuntime.ps1",
+        "scripts/Test-SasAutoLogonRuntimeSeal.ps1",
+        "docs/handoff/SCANSNAP_RECOVERY_CURSOR_HANDOFF_20261007.md",
+        ".github/workflows/harness-contracts.yml"
+      ],
+      "proof": "P00/P01 protected-network doctrine is executable: the runtime is sealed before the network switch, protected execution is agent/Git/public-web independent, ScanSnap uses one tracked CMD front door and the canonical adapter, companion files are local and hash-bound, exact FQDN/WhatIf gates fail closed, and validation plus teardown are required for success."
     }
   ]
 }
