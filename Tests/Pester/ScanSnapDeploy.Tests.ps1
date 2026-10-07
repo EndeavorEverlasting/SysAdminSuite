@@ -15,6 +15,7 @@ BeforeAll {
   $script:field = Join-Path $script:pkg 'hosts_field.txt'
   $script:runbook = Join-Path $script:pkg 'Runbook-ScanSnap.md'
   $script:plan = Join-Path $repoRoot 'docs\SCANSNAP_DEPLOY_PLAN.md'
+  $script:adapter = Join-Path $repoRoot 'scripts\SasSoftwareDeploymentAdapter.psm1'
 }
 
 Describe 'ScanSnap deploy package layout' {
@@ -80,12 +81,15 @@ Describe 'ScanSnap scripts parse and refuse stale host' {
     $raw | Should -Match 'user name or password is incorrect'
   }
 
-  It 'Uses schtasks SYSTEM remote execution and SoftwareRepo\\ScanSnap staging' {
+  It 'Delegates live transport to the canonical SMB scheduled-task adapter' {
     $raw = Get-Content -LiteralPath $script:ps1 -Raw
-    $raw | Should -Match 'schtasks\.exe'
-    $raw | Should -Match '/RU SYSTEM'
-    $raw | Should -Match 'SoftwareRepo\\ScanSnap'
-    $raw | Should -Not -Match '/MIR'
+    $raw | Should -Match 'SasSoftwareDeploymentAdapter\.psm1'
+    $raw | Should -Match 'Invoke-SasSmbScheduledTaskDeployment'
+    $raw | Should -Match 'SupportFilePaths'
+    $raw | Should -Match 'Resolve-SasSmbDeploymentFinalizationStatus'
+    $raw | Should -Not -Match 'function Invoke-RobocopyStage'
+    $raw | Should -Not -Match 'function New-RemoteInstallRunner'
+    $raw | Should -Not -Match 'function Invoke-RemoteSchtaskInstall'
   }
 
   It 'Reuses SasNorthwellNetworkAuthority and records multimodal deployment modes' {
@@ -188,12 +192,16 @@ Describe 'ScanSnap first-shot regression hardening' {
     }
   }
 
-  It 'Makes remote InstallShield execution working-directory aware and exit-gated' {
+  It 'Makes canonical remote InstallShield execution companion-aware and validation-gated' {
     $raw = Get-Content -LiteralPath $script:ps1 -Raw
-    $raw | Should -Match 'WorkingDirectory'
-    $raw | Should -Match 'InstallerSucceeded'
+    $adapter = Get-Content -LiteralPath $script:adapter -Raw
     $raw | Should -Match 'Required InstallShield response file missing'
+    $raw | Should -Match 'SupportFilePaths'
+    $raw | Should -Match 'scansnap-home-executable'
     $raw | Should -Match 'UNKNOWN_BLOCKED'
+    $raw | Should -Match 'WHATIF_IDENTITY_UNBOUND'
+    $adapter | Should -Match 'WorkingDirectory = \$workingDirectory'
+    $adapter | Should -Match 'supportHashesVerified'
   }
 
   It 'Makes PID resolution private and readiness-gated' {
