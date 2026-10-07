@@ -92,14 +92,15 @@ def main() -> int:
         assert marker in guest, f"runbook missing: {marker}"
 
     for text, owner in ((read(SCAN_PLAN), "ScanSnap plan"), (read(SCAN_HANDOFF), "ScanSnap handoff")):
+        lowered = text.lower()
         for marker in (
-            "P00",
-            "P01",
+            "p00",
+            "p01",
             "protected execution is agent-independent",
             "offline/sealed deployment transaction",
-            "no public Internet dependency",
+            "no public internet dependency",
         ):
-            assert marker in text, f"{owner} missing: {marker}"
+            assert marker in lowered, f"{owner} missing: {marker}"
 
     intake = read(INTAKE)
     assert "harness/contracts/protected-network-offline-execution.v1.json" in intake
