@@ -12,4 +12,4 @@ Then bind it (does not invent switches — you must supply them from package evi
   -DetectValue 'C:\Program Files\...\ScanSnap....exe'
 ```
 
-Binary installers are gitignored. Only the binding in `package.manifest.json` is tracked (`InstallerFileName`, `Sha256`, `Bound`, etc.).
+Binary installers and the bound `package.local.manifest.json` are gitignored machine-local truth. The tracked `package.manifest.json` remains an unbound template so repository refreshes cannot erase or publish a qualified Admin Box package.
