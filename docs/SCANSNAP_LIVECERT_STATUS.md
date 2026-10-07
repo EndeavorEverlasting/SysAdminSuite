@@ -19,6 +19,14 @@
 | PTop `INSTALLATION_DETECTED` | NOT YET | lab auth/package not cleared |
 | Field deployment | NOT YET | not attempted |
 
+## Unattended deployment requirement
+
+The production contract is remote and unattended. The technician must be able to deploy to an authorized hostname even when the workstation's physical location is unknown or inaccessible and nobody is present at its console.
+
+Target-side clicks, interactive approval, local console access, or user presence are not acceptable prerequisites for the normal Northwell deployment path. Hostname/FQDN resolution, protected-network authority, remote administrative access, SYSTEM execution, and post-install detection are the intended control-plane mechanisms.
+
+The PTop lab is only testing whether the same unattended remote-management shape can be exercised at home. A home-lab authentication limitation must not weaken this production invariant.
+
 ## Correct interpretation of the home result
 
 The prior home run did **not** establish that PTop could not be found. It established:
@@ -29,7 +37,7 @@ The prior home run did **not** establish that PTop could not be found. It establ
 - hostname SMB failed as `AUTH_DC_UNAVAILABLE`;
 - IP SMB failed as `LOGON_FAILURE`.
 
-The remaining lab question is therefore exact identity binding + local-admin SMB auth, not broad machine discovery.
+The remaining lab question is therefore controller-side remote identity resolution/addressability + remote local-admin SMB auth, not physical discovery, user-assisted pairing, or broad machine discovery.
 
 The current home IPv4 is runtime evidence only; do not make DHCP state the durable identity contract.
 
@@ -71,7 +79,7 @@ Current intended modes:
 
 1. In parallel where execution adapters permit:
    - qualify/bind the official ScanSnap package;
-   - run one final exact-target PTop identity/auth prototype.
+   - run one final fully unattended, controller-side PTop resolution/auth prototype.
 2. If PTop cannot reach `ADMIN_SHARE_READY` after the bounded experiment, preserve the typed receipt and stop spending the critical path on home auth.
 3. Connect to the authorized Northwell protected/VPN path.
 4. WhatIf the exact field targets.
