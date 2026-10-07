@@ -7,6 +7,7 @@
     "failure": "stop at the first failed proof boundary, repair the owning component, and rerun that validator before broader suites; a successful validator is an admission result, not task completion when the requested goal remains unproven"
   },
   "validators": [
+    {"id":"android-provider-implementation","category":"harness","platform":"python3","command":"python Tests/survey/test_android_provider_implementation.py","blocking":true,"scope":["harness/api/android_provider.py","harness/api/android_provider_cli.py","Run-SasAndroidProvider.cmd","Tests/survey/test_android_provider_implementation.py","docs/ANDROID_PROVIDER.md"],"proof":"Synthetic offline bundle, identity alias, contention and cleanup behavior; no physical device or production proof."},
     {
       "id": "harness-registry-integrity",
       "category": "harness",

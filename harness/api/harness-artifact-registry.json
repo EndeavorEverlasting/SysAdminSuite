@@ -7,6 +7,7 @@
     "tracked_documents": "stable names under docs/, harness/, schemas/, Tests/, scripts/, tools/, or .claude/"
   },
   "artifacts": [
+    {"id":"android-provider-receipt","path":"survey/output/android-provider/receipt-<timestamp>-<8hex>.json","generator":"Run-SasAndroidProvider.cmd OPERATION","format":"json","tracked":false,"contains_live_data":true,"purpose":"Private typed provider operation, runtime, identity, authority and cleanup receipt; raw inventory remains local."},
     {"id":"operational-harness-manifest","path":"harness/api/operational-harness-manifest.json","generator":"maintained with harness infrastructure changes","format":"json","tracked":true,"contains_live_data":false,"purpose":"Machine-readable inventory of required harness components and validation commands."},
     {"id":"harness-validator-registry","path":"harness/api/harness-validator-registry.json","generator":"maintained with harness validator changes","format":"json","tracked":true,"contains_live_data":false,"purpose":"Canonical validator selection, commands, scopes, blocking posture, and proof descriptions."},
     {"id":"harness-command-registry","path":"harness/api/harness-command-registry.json","generator":"maintained when canonical build, test, run, or deployment entrypoints change","format":"json","tracked":true,"contains_live_data":false,"purpose":"Canonical build, test, run, and deployment-facing command index with mutation and network classifications."},

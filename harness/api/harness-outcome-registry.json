@@ -10,6 +10,7 @@
     "forbidden_terminal_outcomes": ["tests_passed_only","status_reported_only","command_printed_only","wait_for_next_chat","operator_repeats_agent_work"]
   },
   "contracts": [
+    {"command_id":"android-provider","success_outcome":"artifact_created","success_artifact_id":"android-provider-receipt","terminal_goals":["artifact","diagnose","readiness","inventory"],"continuations":[],"failure_outcome":"blocked_with_actionable_gate"},
     {"command_id":"harness-validate","success_outcome":"artifact_created","success_artifact_id":"harness-registry-validation-result","terminal_goals":["validate","artifact"],"continuations":[],"failure_outcome":"blocked_with_actionable_gate"},
     {"command_id":"harness-outcome-validate","success_outcome":"artifact_created","success_artifact_id":"harness-outcome-validation-result","terminal_goals":["validate","artifact"],"continuations":[],"failure_outcome":"blocked_with_actionable_gate"},
     {"command_id":"deployment-state-validate","success_outcome":"artifact_created","success_artifact_id":"deployment-state-validation-result","terminal_goals":["validate","artifact"],"continuations":[],"failure_outcome":"blocked_with_actionable_gate"},

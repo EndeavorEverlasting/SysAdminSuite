@@ -4,6 +4,7 @@ from __future__ import annotations
 import argparse
 import json
 import secrets
+import subprocess
 import sys
 from datetime import datetime, timezone
 from pathlib import Path
@@ -11,6 +12,49 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(ROOT))
 from harness.api.android_provider import AndroidProvider, OWNED_DIR, ROLES, prepare_bundle, verify_bundle
+
+
+def admit_source() -> dict:
+    """Reuse the existing seal, or require a clean current canonical checkout.
+
+    This never changes network posture or pulls a dirty/diverged checkout.
+    Engineering worktrees execute synthetic fixtures only.
+    """
+    def run(argv, cwd=None):
+        completed = subprocess.run(argv, cwd=cwd, capture_output=True, text=True, timeout=60)
+        if completed.returncode:
+            raise RuntimeError("SOURCE_ADMISSION_FAILED")
+        return completed.stdout.strip()
+
+    if not (ROOT / ".git").exists():
+        seal = ROOT / "scripts/Test-SasAutoLogonRuntimeSeal.ps1"
+        if not seal.is_file():
+            raise RuntimeError("SEALED_RUNTIME_AUTHORITY_MISSING")
+        run(["powershell.exe", "-NoProfile", "-ExecutionPolicy", "Bypass", "-File", str(seal), "-RuntimeRoot", str(ROOT)])
+        return {"source_admission": "EXISTING_TRACKED_FILE_SEAL", "source_currentness": "PREPARED_OFFLINE"}
+    desktop = run(["powershell.exe", "-NoProfile", "-Command", "[Environment]::GetFolderPath('Desktop')"])
+    canonical = Path(desktop) / "Dev/SysAdminSuite"
+    if ROOT.resolve() != canonical.resolve():
+        raise RuntimeError("CANONICAL_DEVELOPMENT_CHECKOUT_REQUIRED")
+    prefix = ["git", "-C", str(ROOT)]
+    origin = run(prefix + ["remote", "get-url", "origin"])
+    if origin not in {"https://github.com/EndeavorEverlasting/SysAdminSuite.git", "git@github.com:EndeavorEverlasting/SysAdminSuite.git"}:
+        raise RuntimeError("UNSUPPORTED_GIT_ORIGIN")
+    # Capture starting posture, refuse protected-profile Git rather than making
+    # an implicit organization-specific Wi-Fi/VPN transition.
+    starting = run(["powershell.exe", "-NoProfile", "-Command", "Get-NetConnectionProfile | Select-Object NetworkCategory,IPv4Connectivity | ConvertTo-Json -Compress"])
+    if "DomainAuthenticated" in starting:
+        raise RuntimeError("PREPARED_OFFLINE_RUNTIME_REQUIRED_ON_PROTECTED_NETWORK")
+    if run(prefix + ["status", "--porcelain"]):
+        raise RuntimeError("DIRTY_CANONICAL_CHECKOUT")
+    run(prefix + ["fetch", "origin", "--prune", "--tags"])
+    default = run(prefix + ["symbolic-ref", "refs/remotes/origin/HEAD"])
+    selected = run(prefix + ["rev-parse", default])
+    head = run(prefix + ["rev-parse", "HEAD"])
+    if head != selected:
+        raise RuntimeError("CANONICAL_CHECKOUT_NOT_CURRENT")
+    return {"source_admission": "CANONICAL_CURRENT_CLEAN", "source_commit": head, "starting_network": starting,
+            "network_restore": "NOT_CHANGED"}
 
 
 def main(argv=None):
@@ -44,6 +88,7 @@ def main(argv=None):
                 raise ValueError("SYNTHETIC_STATUS_FIXTURE_REQUIRED")
             result.update({"state": fixture["state"], "result": "SUCCESS" if fixture["state"] == "READY" else "BLOCK", "proof": "FIXTURE_ONLY"})
         else:
+            result.update(admit_source())
             # Node roles are explicit configuration authority, never guessed from hostname.
             node_file = OWNED_DIR.parent / "android-node.json"
             role = args.role or (json.loads(node_file.read_text(encoding="utf-8"))["node_role"] if node_file.is_file() else None)

@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import json
+import os
 import subprocess
 import sys
 import tempfile
@@ -155,6 +156,35 @@ class ProviderTests(unittest.TestCase):
             provider.allowed_shell(Path("fixture-adb"), "getprop", None)
         with self.assertRaises(RuntimeError):
             provider.allowed_shell(Path("fixture-adb"), "getprop; reboot", "synthetic")
+
+    @unittest.skipUnless(os.name == "nt", "CMD execution requires Windows")
+    def test_cmd_launcher_from_other_directory(self):
+        fixture = ROOT / "Tests/survey/fixtures/android-provider/status-ready.fixture.json"
+        with tempfile.TemporaryDirectory() as temporary:
+            invocation = f'"{ROOT / "Run-SasAndroidProvider.cmd"}" status --fixture "{fixture}"'
+            completed = subprocess.run('cmd.exe /d /s /c "' + invocation + '"', cwd=temporary, capture_output=True, text=True, timeout=30)
+            self.assertEqual(completed.returncode, 0, completed.stdout + completed.stderr)
+            self.assertIn("SUCCESS: READY", completed.stdout)
+            receipt = completed.stdout.split("Evidence: ", 1)[1].strip()
+            result = json.loads(Path(receipt).read_text())
+            self.assertEqual(result["proof"], "FIXTURE_ONLY")
+
+    def test_source_admission_cannot_be_bypassed(self):
+        from harness.api import android_provider_cli as cli
+        with patch.object(cli, "admit_source", side_effect=RuntimeError("blocked")), patch.object(cli, "AndroidProvider", side_effect=AssertionError("unadmitted provider")):
+            self.assertEqual(cli.main(["status", "--role", "ptop_lab"]), 2)
+
+    def test_boundary_enforces_lifecycle_and_frontdoor(self):
+        import importlib.util
+        spec = importlib.util.spec_from_file_location("boundary", ROOT / "harness/validators/validate-sas-android-provider-boundary.py")
+        validator = importlib.util.module_from_spec(spec)
+        spec.loader.exec_module(validator)
+        original = json.loads((ROOT / "harness/api/sas-android-provider-boundary.v1.json").read_text())
+        self.assertEqual(validator.validate_contract(original), [])
+        for section, key in (("host_provider", "provider_lease_required_for_stateful_transport_changes"), ("cleanup", "temporary_forward_reverse_rules_must_be_removed"), ("cleanup", "temporary_device_payloads_must_be_removed"), ("public_surface", "operator_front_doors_delegate_to_repository_owned_cmd_or_sas_routes")):
+            mutated = json.loads(json.dumps(original))
+            mutated[section][key] = False
+            self.assertIn(f"{section}.{key}", validator.validate_contract(mutated))
 
 
 if __name__ == "__main__":

@@ -32,7 +32,10 @@ MANIFEST = "sas-platform-tools.json"
 
 
 def _run(args: list[str], timeout: int = 30) -> subprocess.CompletedProcess[str]:
-    return subprocess.run(args, capture_output=True, text=True, timeout=timeout, check=False)
+    environment = dict(os.environ)
+    for name in ("ADB_SERVER_SOCKET", "ANDROID_ADB_SERVER_PORT", "ADB_VENDOR_KEYS"):
+        environment.pop(name, None)
+    return subprocess.run(args, capture_output=True, text=True, timeout=timeout, check=False, env=environment)
 
 
 def _which(name: str) -> Path | None:
@@ -211,9 +214,14 @@ def collect_devices(adb: Path) -> list[dict[str, Any]]:
         raise RuntimeError("HOST_SERVER_START_FAILED")
     # Never trust a pre-existing externally bound server merely because start ACKs.
     listeners = _run(["powershell.exe", "-NoLogo", "-NoProfile", "-Command",
-                      "Get-NetTCPConnection -State Listen -LocalPort 5037 -ErrorAction SilentlyContinue | Select-Object -ExpandProperty LocalAddress"], timeout=20)
-    addresses = set((listeners.stdout or "").split())
-    if listeners.returncode or not addresses or not addresses.issubset({"127.0.0.1", "::1"}):
+                      "@(Get-NetTCPConnection -State Listen -LocalPort 5037 -ErrorAction SilentlyContinue | ForEach-Object { [pscustomobject]@{address=$_.LocalAddress; executable=(Get-Process -Id $_.OwningProcess -ErrorAction Stop).Path} }) | ConvertTo-Json -Compress"], timeout=20)
+    try:
+        listeners_json = json.loads(listeners.stdout)
+        listeners_json = listeners_json if isinstance(listeners_json, list) else [listeners_json]
+        valid = bool(listeners_json) and all(row["address"] in {"127.0.0.1", "::1"} and Path(row["executable"]).resolve() == adb.resolve() for row in listeners_json)
+    except (ValueError, KeyError, TypeError):
+        valid = False
+    if listeners.returncode or not valid:
         raise RuntimeError("LOOPBACK_SERVER_NOT_PROVEN")
     proc = _run([str(adb), "-H", "127.0.0.1", "-P", "5037", "devices", "-l"], timeout=20)
     if proc.returncode:
