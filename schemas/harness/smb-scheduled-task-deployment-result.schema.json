@@ -188,6 +188,7 @@
                   "enum": [
                     "none",
                     "cached_metadata",
+                    "pid_delta_commandline",
                     "pid_delta_child",
                     "root_process",
                     "pid_delta_single"
@@ -211,7 +212,8 @@
                       "required": [
                         "name",
                         "executable_leaf",
-                        "file_version"
+                        "file_version",
+                        "creation_utc"
                       ],
                       "properties": {
                         "name": {
@@ -225,6 +227,10 @@
                         "file_version": {
                           "type": "string",
                           "maxLength": 160
+                        },
+                        "creation_utc": {
+                          "type": "string",
+                          "maxLength": 64
                         }
                       }
                     }
