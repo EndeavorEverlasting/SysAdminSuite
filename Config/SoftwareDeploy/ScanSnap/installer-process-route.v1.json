@@ -1,7 +1,7 @@
 {
   "schema_version": "scansnap-installer-process-route/v1",
   "product_family": "ScanSnap Home",
-  "product_evidence": "Interactive wizard title 'ScanSnap Home Setup' observed on Admin Box LPW003ASI173 during package qualification.",
+  "product_evidence": "Interactive wizard title 'ScanSnap Home Setup' observed during qualified Admin Box package qualification.",
   "strategy": {
     "name": "pid_delta_window_route",
     "description": "Snapshot process IDs before launching the installer, launch once, compute the PID delta, then route UI/automation only to the new process that matches durable metadata. Do not guess among pre-existing chrome/other ScanSnap-titled windows.",
@@ -11,7 +11,7 @@
       "capture_after_process_snapshot",
       "compute_pid_delta",
       "filter_delta_by_process_name_and_window_title",
-      "persist_selected_pid_metadata",
+      "persist_selected_pid_evidence",
       "drive_or_observe_selected_pid_only"
     ],
     "anti_patterns": [
@@ -32,8 +32,7 @@
   "path_fragment_candidates": [
     "SSHomeDownloadInstaller",
     "WinSSHomeInstaller",
-    "WinSSHOfflineInstaller",
-    "ScanSnap"
+    "WinSSHOfflineInstaller"
   ],
   "exclude_process_names": [
     "chrome",
@@ -80,21 +79,11 @@
     "DetectType": "file",
     "DetectValueCandidates": [
       "C:\\Program Files (x86)\\PFU\\ScanSnap\\Home\\PfuSshMain.exe",
-      "C:\\Program Files (x86)\\PFU\\ScanSnap\\Home",
       "C:\\Program Files (x86)\\PFU\\ScanSnap\\Home\\ScanSnapHome.exe",
       "C:\\Program Files (x86)\\PFU\\ScanSnap\\ScanSnapHome.exe",
       "C:\\Program Files\\PFU\\ScanSnap\\Home\\ScanSnapHome.exe",
       "C:\\Program Files\\Ricoh\\ScanSnap Home\\ScanSnapHome.exe"
     ],
-    "notes": "Freeze DetectValue only after a measured local install proves the path. ISS szDir is C:\\Program Files (x86)\\PFU\\ScanSnap."
-  },
-  "last_observed": {
-    "controller": "LPW003ASI173",
-    "process_name": "WinSSHomeInstaller_4_1_0",
-    "window_title": "",
-    "path_fragment": "WinSSHomeInstaller",
-    "observed_at_utc": "2026-10-07T08:02:00.7766407Z",
-    "pid": 31888,
-    "notes": "Silent InstallShield PID-delta launch measured. Selected WinSSHomeInstaller_4_1_0 from delta (not chrome). Detect dir C:\\Program Files (x86)\\PFU\\ScanSnap\\Home present; primary binary PfuSshMain.exe."
+    "notes": "Executable-only detection candidates. The measured primary installed artifact is PfuSshMain.exe; directories alone never prove install success."
   }
 }
