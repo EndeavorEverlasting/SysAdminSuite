@@ -1,7 +1,7 @@
 #Requires -Version 5.1
 <#
 .SYNOPSIS
-  Bind an operator-provided ScanSnap installer into package.manifest.json.
+  Bind an operator-provided ScanSnap installer into package.local.manifest.json.
 
 .DESCRIPTION
   Fingerprints type and SHA256 from the real file. Does NOT invent SilentArgs
@@ -33,7 +33,7 @@ $ErrorActionPreference = 'Stop'
 
 $packageRoot = Split-Path -Parent $MyInvocation.MyCommand.Path
 if (-not $ManifestPath) {
-  $ManifestPath = Join-Path $packageRoot 'package.manifest.json'
+  $ManifestPath = Join-Path $packageRoot 'package.local.manifest.json'
 }
 $installersDir = Join-Path $packageRoot 'installers'
 New-Item -ItemType Directory -Force -Path $installersDir | Out-Null
