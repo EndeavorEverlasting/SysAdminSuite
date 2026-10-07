@@ -65,7 +65,7 @@ class ProviderTests(unittest.TestCase):
             self.assertEqual(provider.verify_bundle(directory)["state"], "UNMANIFESTED_COMPONENT")
 
     def test_archive_traversal_and_keys_rejected(self):
-        for extra in (("platform-tools/../escape", "x"), ("platform-tools/adbkey", "secret"), ("platform-tools/ADB.EXE", "duplicate")):
+        for extra in (("platform-tools/../escape", "x"), ("platform-tools//escape.txt", "x"), ("platform-tools/adbkey", "secret"), ("platform-tools/ADB.EXE", "duplicate")):
             with tempfile.TemporaryDirectory() as temporary:
                 root = Path(temporary)
                 archive = self.archive(root, extra)
@@ -113,7 +113,7 @@ class ProviderTests(unittest.TestCase):
             result = provider.certify_network(Path("fixture-adb"), self.binding(), "192.0.2.10", authorized=False, lease_dir=Path("unused"))
             self.assertEqual(result["result"], "BLOCK")
 
-    def transaction(self, cleanup_failed=False, transition_timeout=False):
+    def transaction(self, cleanup_failed=False, transition_timeout=False, tcp_mismatch=False):
         commands = []
         def run(argv, timeout=30):
             commands.append(argv)
@@ -124,6 +124,8 @@ class ProviderTests(unittest.TestCase):
             return subprocess.CompletedProcess(argv, rc, text, "")
         def shell(adb, command, serial):
             text = "[ro.serialno]: [synthetic-stable]" if command == "getprop" else "inet 192.0.2.10/24"
+            if tcp_mismatch and serial == "192.0.2.10:5555" and command == "getprop":
+                text = "[ro.serialno]: [another-device]"
             return {"ok": True, "stdout": text}
         with tempfile.TemporaryDirectory() as temporary, patch.object(provider, "_run", side_effect=run), patch.object(provider, "collect_devices", return_value=[{"state": "device", "transport": "usb", "_serial": "usb-fixture"}]), patch.object(provider, "allowed_shell", side_effect=shell), patch.object(provider.socket, "create_connection", side_effect=ConnectionRefusedError), patch.object(provider.time, "sleep"):
             result = provider.certify_network(Path("fixture-adb"), self.binding(), "192.0.2.10", authorized=True, lease_dir=Path(temporary))
@@ -131,6 +133,8 @@ class ProviderTests(unittest.TestCase):
             if "tcpip" in argv or "usb" in argv:
                 self.assertIn("-s", argv)
             self.assertNotIn("-a", argv)
+            if tcp_mismatch and "usb" in argv:
+                self.assertNotIn("192.0.2.10:5555", argv)
         return result
 
     def test_complete_transport_and_cleanup(self):
@@ -143,13 +147,14 @@ class ProviderTests(unittest.TestCase):
         result = self.transaction(transition_timeout=True)
         self.assertEqual(result["result"], "BLOCK")
         self.assertTrue(result["usb_revert_issued"])
+        self.assertEqual(self.transaction(tcp_mismatch=True)["result"], "BLOCK")
 
     def test_loopback_server_refuses_unproven_binding(self):
         def run(argv, timeout=30):
             return subprocess.CompletedProcess(argv, 0, "0.0.0.0" if argv[0] == "powershell.exe" else "", "")
         with patch.object(provider, "_run", side_effect=run):
             with self.assertRaisesRegex(RuntimeError, "LOOPBACK_SERVER_NOT_PROVEN"):
-                provider.collect_devices(Path("fixture-adb"))
+                provider.collect_devices(Path("fixture-adb"), lease_held=True)
 
     def test_no_raw_shell_or_unselected_device(self):
         with self.assertRaises(RuntimeError):
@@ -185,6 +190,52 @@ class ProviderTests(unittest.TestCase):
             mutated = json.loads(json.dumps(original))
             mutated[section][key] = False
             self.assertIn(f"{section}.{key}", validator.validate_contract(mutated))
+
+    def test_sealed_runtime_with_git_requires_selected_commit(self):
+        from harness.api import android_provider_cli as cli
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            runtime = root / "runtime"
+            runtime.mkdir()
+            (runtime / ".git").mkdir()
+            (runtime / "scripts").mkdir()
+            (runtime / "scripts/Test-SasAutoLogonRuntimeSeal.ps1").write_text("synthetic")
+            state = root / "SysAdminSuite/autologon-short-runtime.json"
+            state.parent.mkdir()
+            state.write_text(json.dumps({"runtime_root": str(runtime), "tracked_file_hashes": [{"path": p} for p in ("harness/api/android_provider.py", "harness/api/android_provider_cli.py", "Run-SasAndroidProvider.cmd")]}))
+            calls = []
+            def run(argv, **kwargs):
+                calls.append(argv)
+                return subprocess.CompletedProcess(argv, 0, "sealed", "")
+            with patch.object(cli, "ROOT", runtime), patch.dict(os.environ, {"LOCALAPPDATA": str(root)}), patch.object(cli.subprocess, "run", side_effect=run):
+                with self.assertRaisesRegex(RuntimeError, "SELECTED_REFRESHED_COMMIT_REQUIRED"):
+                    cli.admit_source()
+                self.assertEqual(cli.admit_source("a" * 40)["source_commit"], "a" * 40)
+                self.assertIn("-ExpectedCommit", calls[-1])
+                self.assertNotIn("git", calls[-1])
+                with patch.object(cli.subprocess, "run", return_value=subprocess.CompletedProcess([], 10, "", "")):
+                    with self.assertRaisesRegex(RuntimeError, "SOURCE_ADMISSION_FAILED"):
+                        cli.admit_source("b" * 40)
+
+    def test_migrated_hh_inventory_and_transport_authority(self):
+        from harness.api import hh_cc_reader_adb_live as live
+        from harness.api.hh_cc_reader_adb_control_plane import evaluate_control_plane
+        def shell(adb, command, serial):
+            text = "[ro.product.model]: [PAX A80]\n[ro.serialno]: [synthetic-stable]" if command == "getprop" else "inet 192.0.2.10/24 link/ether 02:00:00:00:00:01" if command == "ip addr" else "synthetic"
+            return {"ok": True, "unsupported": False, "stdout_present": True, "stdout": text}
+        host = {"chosen": Path("fixture-adb"), "owned": Path("fixture-adb"), "precedence": "owned", "version": "fixture", "path_adb": None}
+        usb = {"android_composite": True, "adb_interface": True, "enumerated": True}
+        rows = [{"serial_token": "SERIAL_PRESENT", "state": "device", "transport": "usb", "_serial": "synthetic-usb"}]
+        with patch.object(live, "resolve_host", return_value=host), patch.object(live, "collect_usb", return_value=usb), patch.object(live, "collect_devices", return_value=rows), patch.object(live, "allowed_shell", side_effect=shell), patch.object(live, "certify_network", return_value={"result": "BLOCK", "cleanup": "NOT_REQUIRED"}) as cert:
+            evidence = live.collect_live_evidence("inventory", expected_mac="02:00:00:00:00:01")
+            self.assertEqual(len(evidence["inventory"]["commands"]), 7)
+            self.assertTrue(evidence["identity"]["mac_correlated"])
+            receipt = evaluate_control_plane(evidence)
+            self.assertIsInstance(receipt, dict)
+            live.collect_live_evidence("tcpip-cert", expected_mac="02:00:00:00:00:01")
+            self.assertFalse(cert.call_args.kwargs["authorized"])
+            live.collect_live_evidence("tcpip-cert", expected_mac="02:00:00:00:00:01", transport_authorized=True)
+            self.assertTrue(cert.call_args.kwargs["authorized"])
 
 
 if __name__ == "__main__":

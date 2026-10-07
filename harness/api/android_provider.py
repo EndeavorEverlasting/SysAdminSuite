@@ -22,6 +22,7 @@ from typing import Any
 
 PLATFORM_TOOLS_SOURCE = "https://dl.google.com/android/repository/platform-tools-latest-windows.zip"
 OWNED_DIR = Path(os.environ.get("LOCALAPPDATA", str(Path.home()))) / "SysAdminSuite/tools/android-platform-tools"
+HOST_LEASE_DIR = Path(os.environ.get("ProgramData", str(Path.home()))) / "SysAdminSuite/android-provider"
 ROLES = frozenset({"ptop_lab", "adminbox_reference", "technician_adminbox_field"})
 REQUIRED_COMPONENTS = frozenset({"adb.exe", "AdbWinApi.dll", "AdbWinUsbApi.dll", "source.properties"})
 ALLOWED_SHELL = (
@@ -35,6 +36,7 @@ def _run(args: list[str], timeout: int = 30) -> subprocess.CompletedProcess[str]
     environment = dict(os.environ)
     for name in ("ADB_SERVER_SOCKET", "ANDROID_ADB_SERVER_PORT", "ADB_VENDOR_KEYS"):
         environment.pop(name, None)
+    environment["ADB_MDNS_AUTO_CONNECT"] = ""
     return subprocess.run(args, capture_output=True, text=True, timeout=timeout, check=False, env=environment)
 
 
@@ -104,7 +106,8 @@ def prepare_bundle(archive: Path, expected_sha256: str, directory: Path | None =
             for entry in zipped.infolist():
                 name = entry.filename.replace("\\", "/")
                 pieces = name.split("/")
-                if (not name.startswith("platform-tools/") or ".." in pieces or ":" in name
+                segments = pieces[:-1] if entry.is_dir() else pieces
+                if (not name.startswith("platform-tools/") or any(p in {"", ".", ".."} or p.endswith((".", " ")) for p in segments) or ":" in name
                         or (entry.external_attr >> 16) & 0o170000 == 0o120000):
                     raise RuntimeError("UNSAFE_ARCHIVE_ENTRY")
                 if entry.is_dir():
@@ -114,6 +117,8 @@ def prepare_bundle(archive: Path, expected_sha256: str, directory: Path | None =
                     raise RuntimeError("UNSAFE_ARCHIVE_ENTRY")
                 names.add(relative.casefold())
                 target = staging / relative
+                if not target.resolve().is_relative_to(staging.resolve()):
+                    raise RuntimeError("UNSAFE_ARCHIVE_ENTRY")
                 target.parent.mkdir(parents=True, exist_ok=True)
                 with zipped.open(entry) as source, target.open("wb") as destination:
                     shutil.copyfileobj(source, destination)
@@ -207,21 +212,33 @@ def classify_devices(rows: list[dict[str, Any]], usb: dict[str, Any] | None = No
     return {"device": "READY", "unauthorized": "ADB_UNAUTHORIZED", "offline": "ADB_OFFLINE"}.get(rows[0]["state"], "UNSUPPORTED_STATE")
 
 
-def collect_devices(adb: Path) -> list[dict[str, Any]]:
-    # Explicit local socket ignores inherited ADB_SERVER_SOCKET overrides.
-    start = _run([str(adb), "-L", "tcp:127.0.0.1:5037", "start-server"], timeout=20)
-    if start.returncode:
-        raise RuntimeError("HOST_SERVER_START_FAILED")
-    # Never trust a pre-existing externally bound server merely because start ACKs.
+def host_server_state(adb: Path) -> str:
     listeners = _run(["powershell.exe", "-NoLogo", "-NoProfile", "-Command",
                       "@(Get-NetTCPConnection -State Listen -LocalPort 5037 -ErrorAction SilentlyContinue | ForEach-Object { [pscustomobject]@{address=$_.LocalAddress; executable=(Get-Process -Id $_.OwningProcess -ErrorAction Stop).Path} }) | ConvertTo-Json -Compress"], timeout=20)
+    if listeners.returncode:
+        return "UNKNOWN"
+    if not listeners.stdout.strip():
+        return "STOPPED"
     try:
         listeners_json = json.loads(listeners.stdout)
         listeners_json = listeners_json if isinstance(listeners_json, list) else [listeners_json]
         valid = bool(listeners_json) and all(row["address"] in {"127.0.0.1", "::1"} and Path(row["executable"]).resolve() == adb.resolve() for row in listeners_json)
     except (ValueError, KeyError, TypeError):
         valid = False
-    if listeners.returncode or not valid:
+    return "OWNED_LOOPBACK" if valid else "UNTRUSTED_LISTENER"
+
+
+def collect_devices(adb: Path, *, lease_held: bool = False) -> list[dict[str, Any]]:
+    if not lease_held:
+        with provider_lease(HOST_LEASE_DIR):
+            return collect_devices(adb, lease_held=True)
+    if host_server_state(adb) not in {"STOPPED", "OWNED_LOOPBACK"}:
+        raise RuntimeError("LOOPBACK_SERVER_NOT_PROVEN")
+    # Do not let start-server kill/replace a competing server before admission.
+    start = _run([str(adb), "-L", "tcp:127.0.0.1:5037", "start-server"], timeout=20)
+    if start.returncode:
+        raise RuntimeError("HOST_SERVER_START_FAILED")
+    if host_server_state(adb) != "OWNED_LOOPBACK":
         raise RuntimeError("LOOPBACK_SERVER_NOT_PROVEN")
     proc = _run([str(adb), "-H", "127.0.0.1", "-P", "5037", "devices", "-l"], timeout=20)
     if proc.returncode:
@@ -264,7 +281,7 @@ def bind_identity(observations: list[dict[str, Any]], expected: dict[str, str]) 
     identity, aliases = next(iter(groups.items()))
     if sum(x.get("transport") == "usb" for x in aliases) > 1:
         return {"state": "BLOCK", "reason": "DUPLICATE_USB_IDENTITY", "devices": []}
-    return {"state": "IDENTITY_BOUND", "identity_ref": identity, "devices": aliases}
+    return {"state": "IDENTITY_BOUND", "identity_ref": identity, "expected": dict(expected), "devices": aliases}
 
 
 @contextmanager
@@ -302,21 +319,28 @@ def certify_network(adb: Path, binding: dict[str, Any], ip: str, *, authorized: 
     endpoint = f"{ip}:5555"
     prefix = [str(adb), "-H", "127.0.0.1", "-P", "5037"]
     with provider_lease(lease_dir):
-        current = collect_devices(adb)
+        journal_path = lease_dir / "transport-transaction.json"
+        if journal_path.is_file():
+            previous = json.loads(journal_path.read_text(encoding="utf-8"))
+            if previous.get("cleanup") != "PROVEN":
+                result["reason"] = "PRIOR_TRANSPORT_RECOVERY_REQUIRED"
+                return result
+        current = collect_devices(adb, lease_held=True)
         usb_current = [r for r in current if r.get("transport") == "usb"]
         if len(usb_current) != 1 or usb_current[0]["_serial"] != serial or usb_current[0]["state"] != "device":
             return result
         properties = allowed_shell(adb, "getprop", serial)
         observed = parse_getprop(properties["stdout"])
-        expected_properties = usb[0]["properties"]
-        keys = ("ro.serialno", "ro.boot.serialno")
-        if not properties["ok"] or not any(expected_properties.get(k) and observed.get(k) == expected_properties[k] for k in keys):
+        expected_properties = binding["expected"]
+        if not properties["ok"] or not all(observed.get(k) == v for k, v in expected_properties.items()):
             return result
         network = allowed_shell(adb, "ip addr", serial)
         if not network["ok"] or ip not in re.findall(r"inet\s+(\d+\.\d+\.\d+\.\d+)", network["stdout"]):
             return result
         attempted = False
+        tcp_identity_bound = False
         try:
+            journal_path.write_text(json.dumps({"identity_ref": binding["identity_ref"], "cleanup": "PENDING", "result": "INCOMPLETE"}) + "\n", encoding="utf-8")
             attempted = True  # Even timeout/partial mutation requires cleanup.
             switch = _run(prefix + ["-s", serial, "tcpip", "5555"], timeout=20)
             result["tcpip_issued"] = switch.returncode == 0
@@ -329,9 +353,9 @@ def certify_network(adb: Path, binding: dict[str, Any], ip: str, *, authorized: 
                 raise RuntimeError("CONNECT_FAILED")
             proof = allowed_shell(adb, "getprop", endpoint)
             observed = parse_getprop(proof["stdout"])
-            expected = usb[0]["properties"]
-            identity_keys = ("ro.serialno", "ro.boot.serialno")
-            same = any(expected.get(k) and observed.get(k) == expected[k] for k in identity_keys)
+            expected = binding["expected"]
+            same = all(observed.get(k) == v for k, v in expected.items())
+            tcp_identity_bound = proof["ok"] and same
             result["readonly_proof_over_network"] = proof["ok"] and same
             result["result"] = "SUCCESS" if result["readonly_proof_over_network"] else "BLOCK"
         except (RuntimeError, OSError, subprocess.TimeoutExpired):
@@ -341,8 +365,9 @@ def certify_network(adb: Path, binding: dict[str, Any], ip: str, *, authorized: 
                 result["cleanup"] = "FAILED"
                 try:
                     # TCP alias may survive when the original USB alias disappears.
-                    reverted = _run(prefix + ["-s", endpoint, "usb"], timeout=20)
-                    if reverted.returncode:
+                    # Never mutate a TCP endpoint until its identity was bound.
+                    reverted = _run(prefix + ["-s", endpoint if tcp_identity_bound else serial, "usb"], timeout=20)
+                    if reverted.returncode and tcp_identity_bound:
                         reverted = _run(prefix + ["-s", serial, "usb"], timeout=20)
                     result["usb_revert_issued"] = reverted.returncode == 0
                     disconnected = _run(prefix + ["disconnect", endpoint], timeout=20)
@@ -371,6 +396,11 @@ def certify_network(adb: Path, binding: dict[str, Any], ip: str, *, authorized: 
                     pass
                 if result["cleanup"] != "PROVEN":
                     result["result"] = "INCOMPLETE"
+                try:
+                    journal_path.write_text(json.dumps({**result, "identity_ref": binding["identity_ref"]}) + "\n", encoding="utf-8")
+                except OSError:
+                    result["result"] = "INCOMPLETE"
+                    result["reason"] = "CLEANUP_RECEIPT_WRITE_FAILED"
     return result
 
 
@@ -408,14 +438,16 @@ class AndroidProvider:
         if operation not in {"probe", "inventory", "tcpip-cert"}:
             raise ValueError("UNSUPPORTED_TYPED_OPERATION")
         receipt = self.status()
+        receipt["lifecycle"] = ["RUNTIME_QUALIFIED"] if receipt["state"] == "READY" else []
         receipt.update({"operation": operation, "result": "BLOCK", "next_action": "Prepare a qualified local Platform-Tools bundle."})
         if receipt["state"] != "READY":
             return receipt
         host = resolve_host(self.directory)
         adb = host["chosen"]
-        with provider_lease(self.directory.parent):
+        with provider_lease(HOST_LEASE_DIR):
             usb = collect_usb()
-            rows = collect_devices(adb)
+            rows = collect_devices(adb, lease_held=True)
+            receipt["lifecycle"].extend(["HOST_SERVER_READY", "TARGET_ENUMERATED"])
             receipt["state"] = classify_devices(rows, usb)
             receipt["transport_aliases"] = [{"state": r["state"], "transport": r["transport"]} for r in rows]
             receipt["next_action"] = "Resolve USB/ADB readiness and approved private expected identity."
@@ -438,13 +470,16 @@ class AndroidProvider:
                 receipt["reason"] = binding["reason"]
                 return receipt
             receipt["logical_identity_ref"] = binding["identity_ref"]
+            receipt["lifecycle"].extend(["IDENTITY_BOUND", "SESSION_READY"])
             selected = next((x for x in binding["devices"] if x["transport"] == "usb"), binding["devices"][0])
             inventory = {command: allowed_shell(adb, command, selected["_serial"]) for command in ALLOWED_SHELL}
             # Raw output goes only into the private ignored receipt, never stdout/Git.
             receipt["inventory"] = inventory
+            receipt["lifecycle"].append("OPERATION_EXECUTED")
             receipt["result"] = "SUCCESS" if all(x["ok"] for x in inventory.values()) else "INCOMPLETE"
             receipt["next_action"] = "Inspect the private inventory receipt."
             if operation != "tcpip-cert":
+                receipt["lifecycle"].extend(["CLEANUP_PROVEN", "LEASE_RELEASED"])
                 return receipt
             ips = set(re.findall(r"inet\s+(\d+\.\d+\.\d+\.\d+)", inventory["ip addr"]["stdout"])) - {"127.0.0.1"}
             if len(ips) != 1 or selected["transport"] != "usb":
@@ -453,7 +488,10 @@ class AndroidProvider:
             selected["device_ip"] = next(iter(ips))
         # certify_network acquires its own lease. Revalidate identity inside its
         # lease before transitioning so this handoff cannot create a race.
-        transaction = certify_network(adb, binding, selected["device_ip"], authorized=authorized, lease_dir=self.directory.parent)
+        transaction = certify_network(adb, binding, selected["device_ip"], authorized=authorized, lease_dir=HOST_LEASE_DIR)
         receipt.update(transaction)
+        if transaction["cleanup"] == "PROVEN":
+            receipt["lifecycle"].append("CLEANUP_PROVEN")
+        receipt["lifecycle"].append("LEASE_RELEASED")
         receipt["next_action"] = "Inspect transport cleanup evidence; unresolved cleanup requires attended recovery."
         return receipt

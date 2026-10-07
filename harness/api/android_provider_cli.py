@@ -3,6 +3,8 @@ from __future__ import annotations
 
 import argparse
 import json
+import os
+import re
 import secrets
 import subprocess
 import sys
@@ -14,7 +16,7 @@ sys.path.insert(0, str(ROOT))
 from harness.api.android_provider import AndroidProvider, OWNED_DIR, ROLES, prepare_bundle, verify_bundle
 
 
-def admit_source() -> dict:
+def admit_source(expected_commit: str | None = None) -> dict:
     """Reuse the existing seal, or require a clean current canonical checkout.
 
     This never changes network posture or pulls a dirty/diverged checkout.
@@ -26,14 +28,22 @@ def admit_source() -> dict:
             raise RuntimeError("SOURCE_ADMISSION_FAILED")
         return completed.stdout.strip()
 
-    if not (ROOT / ".git").exists():
+    state_file = Path(os.environ.get("LOCALAPPDATA", str(Path.home()))) / "SysAdminSuite/autologon-short-runtime.json"
+    state = json.loads(state_file.read_text(encoding="utf-8-sig")) if state_file.is_file() else {}
+    if state.get("runtime_root") and Path(state["runtime_root"]).resolve() == ROOT.resolve():
+        if not expected_commit or not re.fullmatch(r"[a-f0-9]{40}", expected_commit):
+            raise RuntimeError("SELECTED_REFRESHED_COMMIT_REQUIRED")
+        required = {"harness/api/android_provider.py", "harness/api/android_provider_cli.py", "Run-SasAndroidProvider.cmd"}
+        sealed_paths = {str(entry.get("path", "")).replace("\\", "/") for entry in state.get("tracked_file_hashes", [])}
+        if not required.issubset(sealed_paths):
+            raise RuntimeError("ANDROID_CAPABILITY_NOT_SEALED")
         seal = ROOT / "scripts/Test-SasAutoLogonRuntimeSeal.ps1"
         if not seal.is_file():
             raise RuntimeError("SEALED_RUNTIME_AUTHORITY_MISSING")
-        run(["powershell.exe", "-NoProfile", "-ExecutionPolicy", "Bypass", "-File", str(seal), "-RuntimeRoot", str(ROOT)])
-        return {"source_admission": "EXISTING_TRACKED_FILE_SEAL", "source_currentness": "PREPARED_OFFLINE"}
-    desktop = run(["powershell.exe", "-NoProfile", "-Command", "[Environment]::GetFolderPath('Desktop')"])
-    canonical = Path(desktop) / "Dev/SysAdminSuite"
+        run(["powershell.exe", "-NoProfile", "-ExecutionPolicy", "Bypass", "-File", str(seal), "-RuntimeRoot", str(ROOT), "-ExpectedCommit", expected_commit])
+        return {"source_admission": "EXISTING_TRACKED_FILE_SEAL", "source_currentness": "SELECTED_PREPARED_OFFLINE", "source_commit": expected_commit}
+    resolved = json.loads(run(["powershell.exe", "-NoProfile", "-File", str(ROOT / "scripts/Resolve-SasCanonicalDevelopmentPath.ps1"), "-AsJson", "-RequireCheckout"]))
+    canonical = Path(resolved["canonical_development_checkout"])
     if ROOT.resolve() != canonical.resolve():
         raise RuntimeError("CANONICAL_DEVELOPMENT_CHECKOUT_REQUIRED")
     prefix = ["git", "-C", str(ROOT)]
@@ -42,8 +52,8 @@ def admit_source() -> dict:
         raise RuntimeError("UNSUPPORTED_GIT_ORIGIN")
     # Capture starting posture, refuse protected-profile Git rather than making
     # an implicit organization-specific Wi-Fi/VPN transition.
-    starting = run(["powershell.exe", "-NoProfile", "-Command", "Get-NetConnectionProfile | Select-Object NetworkCategory,IPv4Connectivity | ConvertTo-Json -Compress"])
-    if "DomainAuthenticated" in starting:
+    starting = json.loads(run(["powershell.exe", "-NoProfile", "-Command", "Import-Module './scripts/SasNetworkIntent.psm1' -Force; Get-SasNetworkIntentState -RepoRoot (Get-Location).Path | ConvertTo-Json -Compress"], cwd=ROOT))
+    if starting.get("classification") != "GUEST_INTERNET":
         raise RuntimeError("PREPARED_OFFLINE_RUNTIME_REQUIRED_ON_PROTECTED_NETWORK")
     if run(prefix + ["status", "--porcelain"]):
         raise RuntimeError("DIRTY_CANONICAL_CHECKOUT")
@@ -65,6 +75,7 @@ def main(argv=None):
     parser.add_argument("--archive", type=Path)
     parser.add_argument("--archive-sha256")
     parser.add_argument("--authorize-transport", action="store_true")
+    parser.add_argument("--expected-commit", help="Provider-selected refreshed 40-character commit for offline sealed source admission.")
     parser.add_argument("--fixture", type=Path, help="Synthetic status fixture; no device/runtime execution.")
     args = parser.parse_args(argv)
     output = ROOT / "survey/output/android-provider"
@@ -88,7 +99,7 @@ def main(argv=None):
                 raise ValueError("SYNTHETIC_STATUS_FIXTURE_REQUIRED")
             result.update({"state": fixture["state"], "result": "SUCCESS" if fixture["state"] == "READY" else "BLOCK", "proof": "FIXTURE_ONLY"})
         else:
-            result.update(admit_source())
+            result.update(admit_source(args.expected_commit))
             # Node roles are explicit configuration authority, never guessed from hostname.
             node_file = OWNED_DIR.parent / "android-node.json"
             role = args.role or (json.loads(node_file.read_text(encoding="utf-8"))["node_role"] if node_file.is_file() else None)
@@ -107,7 +118,8 @@ def main(argv=None):
                 result.update(provider.inspect(args.operation, identity, authorized=args.authorize_transport))
     except Exception as exc:
         # Exception text may contain private paths/identifiers; report only its class.
-        result.update({"result": "BLOCK", "reason": type(exc).__name__, "next_action": "Resolve node configuration/runtime/identity admission before retry."})
+        code = str(exc)
+        result.update({"result": "BLOCK", "reason": code if re.fullmatch(r"[A-Z][A-Z0-9_]{3,80}", code) else type(exc).__name__, "next_action": "Resolve the named source/node/runtime/identity admission gate before retry."})
     stamp = datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%S%fZ")
     path = output / f"receipt-{stamp}-{secrets.token_hex(4)}.json"
     result["evidence_location"] = str(path)

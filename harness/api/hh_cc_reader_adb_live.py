@@ -17,7 +17,7 @@ from pathlib import Path
 from typing import Any
 from urllib.request import urlopen
 
-from harness.api.android_provider import (PLATFORM_TOOLS_SOURCE, OWNED_DIR, ALLOWED_SHELL, resolve_host, collect_devices, allowed_shell, parse_getprop, bind_identity, certify_network)
+from harness.api.android_provider import (PLATFORM_TOOLS_SOURCE, OWNED_DIR, HOST_LEASE_DIR, ALLOWED_SHELL, resolve_host, collect_devices, allowed_shell, parse_getprop, bind_identity, certify_network)
 
 def _run(args: list[str], timeout: int = 30) -> subprocess.CompletedProcess[str]:
     return subprocess.run(args, capture_output=True, text=True, timeout=timeout, check=False)
@@ -161,7 +161,7 @@ def collect_live_evidence(
                 key = "ro.serialno" if props.get("ro.serialno") else "ro.boot.serialno"
                 binding = bind_identity([observation], {key: stable})
                 transaction = certify_network(host["chosen"], binding, ip,
-                    authorized=transport_authorized, lease_dir=OWNED_DIR.parent)
+                    authorized=transport_authorized, lease_dir=HOST_LEASE_DIR)
                 network.update(transaction)
     if mode in {"remote-view", "orchestrate", "classify"}:
         local_scrcpy = Path(os.environ.get("LOCALAPPDATA", "")) / "SysAdminSuite" / "tools" / "scrcpy" / "scrcpy.exe"

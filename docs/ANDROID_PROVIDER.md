@@ -13,7 +13,9 @@ and `last-result`. It never accepts arbitrary shell commands.
 
 Use the repository-owned preparation/sealing workflow before protected-network
 entry. The runtime source must pass canonical-development freshness or the
-existing offline tracked-file seal. An isolated engineering worktree is only
+existing offline tracked-file seal with `--expected-commit` bound to the selected
+refreshed provider floor. Offline use verifies the same prepared commit and
+required Android files without contacting GitHub. An isolated engineering worktree is only
 eligible for synthetic fixtures, never operator device execution.
 
 Preparation consumes a local official Google Windows Platform-Tools archive,
@@ -54,7 +56,10 @@ USB, disconnects, verifies USB readiness, checks alias removal and requires an
 observed connection refusal from the exact listener. A timeout or unreachable
 network does not prove listener cleanup. Cleanup failure is `INCOMPLETE`.
 
-A crash leaves the lease file for attended recovery. Do not delete it blindly:
+A machine-wide lease and transport journal live under
+`%ProgramData%/SysAdminSuite/android-provider/`; each account must be admitted to
+that directory by workstation provisioning. Permission failure blocks execution.
+An unresolved journal blocks later transport transactions. A crash leaves the lease file for attended recovery. Do not delete it blindly:
 prove the recorded process has ended and inspect the device transport/cleanup
 state first. Firmware, apps, reboot, debugging enablement and privilege changes
 remain outside this provider's authority. Same-LAN presence is not permission.
