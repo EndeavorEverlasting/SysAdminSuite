@@ -14,6 +14,24 @@ The multimodal execution contract lives in:
 
 `docs/SCANSNAP_MULTIMODAL_DEPLOYMENT.md`
 
+## Unattended remote-execution contract
+
+The normal deployment transaction is initiated from Admin Box 1 and must not depend on anyone standing at the target workstation.
+
+A target may be physically unknown, hidden, unattended overnight, locked, or in active clinical space. The authorized hostname/FQDN is the operational handle. The controller resolves that identity through the active network/domain authority and performs remote administrative staging/execution.
+
+Production success must not require:
+
+- local console access;
+- a logged-on user;
+- user clicks or approval prompts;
+- interactive target-side credential entry;
+- physically locating the workstation.
+
+Remote SYSTEM Task Scheduler execution and deterministic detection exist specifically so the deployment can complete without a target-side operator.
+
+Any newly discovered transport that requires target-side interaction is not an acceptable replacement for the unattended production path.
+
 ## Important split: source vs transport
 
 ScanSnap is not assumed to come from the internal Northwell software directory.
@@ -116,7 +134,7 @@ $env:COMPUTERNAME
 
 Expected: `LPW003ASI173`.
 
-Then exact-target identity-bind `CheexMcClappeth` without subnet enumeration. If identity converges, test the existing SMB/admin-share path with explicit authorized local credentials where required.
+Then resolve/address `CheexMcClappeth` entirely from Admin Box 1 without subnet enumeration or target-side interaction. If controller-side identity evidence converges, test the existing SMB/admin-share path with explicit authorized local credentials supplied remotely where required.
 
 Desired lab gate:
 
@@ -185,7 +203,7 @@ Prior home run:
 - no target mutation
 - no package was bound at that time
 
-The next home test should therefore target identity + local-auth uncertainty. It should not rediscover the already-known lack of a Northwell DC on the home LAN.
+The next home test should therefore target controller-side resolution/addressability + remote local-auth uncertainty. It must not require anyone at PTop and should not rediscover the already-known lack of a Northwell DC on the home LAN.
 
 ## Evidence
 
