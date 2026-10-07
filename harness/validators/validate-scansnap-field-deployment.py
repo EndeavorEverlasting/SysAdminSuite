@@ -52,6 +52,7 @@ for fragment in (
     "SCANSNAP_ALIAS_MISMATCH",
     "process-identity.json",
     "latest-run.json",
+    "package.local.manifest.json",
 ):
     require(fragment in field, f"field orchestrator missing contract fragment: {fragment}")
 
@@ -105,6 +106,11 @@ require(execution["additionalProperties"] is False, "deployment execution result
 require("process_observation" in execution["required"], "process observation is not required by closed result schema")
 require("process_observation" in execution["properties"], "process observation schema missing")
 
+require("Config/SoftwareDeploy/ScanSnap/package.local.manifest.json" in read(".gitignore"),
+        "machine-local bound ScanSnap manifest is not ignored")
+require("package.local.manifest.json" in read("Config/SoftwareDeploy/ScanSnap/Bind-ScanSnapPackage.ps1"),
+        "ScanSnap binder does not default to machine-local package truth")
+
 commands = load("harness/api/harness-command-registry.json")["commands"]
 command_ids = {item["id"] for item in commands}
 require("scansnap-field-preflight" in command_ids, "ScanSnap field preflight command is not registered")
@@ -118,6 +124,7 @@ require("scansnap-field-deploy" in outcome_ids, "ScanSnap deploy outcome contrac
 artifacts = load("harness/api/harness-artifact-registry.json")["artifacts"]
 artifact_ids = {item["id"] for item in artifacts}
 for artifact_id in (
+    "scansnap-local-package-manifest",
     "scansnap-field-preflight-result",
     "scansnap-field-deployment-result",
     "scansnap-field-latest-pointer",
