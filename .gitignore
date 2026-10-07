@@ -189,3 +189,9 @@ Config/northwell-printer-defaults.local.json
 # Local host eligibility policy (operator-local patterns, never commit)
 Config/host-eligibility-policy.local.json
 .aider*
+
+# ScanSnap operator-provided installer binaries (bind via package.manifest.json)
+Config/SoftwareDeploy/ScanSnap/installers/*
+!Config/SoftwareDeploy/ScanSnap/installers/.gitkeep
+!Config/SoftwareDeploy/ScanSnap/installers/README.md
+
