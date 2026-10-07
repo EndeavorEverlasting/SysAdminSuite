@@ -1,6 +1,26 @@
 @echo off
 setlocal EnableExtensions EnableDelayedExpansion
 
+rem Field fast paths deliberately bypass the legacy combinatorial argument parser.
+rem They own Northwell network authority, exact FQDN binding, canonical transport
+rem preflight, Admin-Box confirmation, deployment, detection, and evidence.
+if /I "%~1"=="/FIELDPREFLIGHT" (
+  if not "%~2"=="" (
+    echo ERROR: /FIELDPREFLIGHT takes no additional arguments. Edit hosts_field.txt or use the dedicated field entrypoint.
+    exit /b 1
+  )
+  call "%~dp0Preflight-ScanSnap-Field.cmd"
+  exit /b !ERRORLEVEL!
+)
+if /I "%~1"=="/FIELD" (
+  if not "%~2"=="" (
+    echo ERROR: /FIELD takes no additional arguments. Edit hosts_field.txt or use the dedicated field entrypoint.
+    exit /b 1
+  )
+  call "%~dp0Deploy-ScanSnap-Field.cmd"
+  exit /b !ERRORLEVEL!
+)
+
 rem ------------------------------------------------------------------------------
 rem Deploy-ScanSnap.cmd — Admin Box 1 (LPW003ASI173) entrypoint.
 rem Logic lives in Deploy-ScanSnap.ps1 (no duplicated deploy logic here).
