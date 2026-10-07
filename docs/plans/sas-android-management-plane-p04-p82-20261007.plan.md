@@ -1,12 +1,12 @@
 # Plan — SAS Android Management Plane M2 Implementation
 
-Date: 2026-10-07  
-Status: `REMOTE_JUDGMENT_COMPLETE_LOCAL_LEGWORK_READY`  
-Invocations: **P97 + P04 + P82**  
-Repository: `EndeavorEverlasting/SysAdminSuite`  
-Remote planning branch: `feat/sas-android-provider-boundary-20261007`  
-Floor used for judgment: `main@9a0d2756f77d0b41582c70bc6fa68ac1fd3829af`  
-Architecture contract: `harness/api/sas-android-provider-boundary.v1.json`  
+Date: 2026-10-07
+Status: `REMOTE_JUDGMENT_COMPLETE_LOCAL_LEGWORK_READY`
+Invocations: **P97 + P04 + P82**
+Repository: `EndeavorEverlasting/SysAdminSuite`
+Remote planning branch: `feat/sas-android-provider-boundary-20261007`
+Floor used for judgment: `main@9a0d2756f77d0b41582c70bc6fa68ac1fd3829af`
+Architecture contract: `harness/api/sas-android-provider-boundary.v1.json`
 Prior art: `docs/research/sas-android-provider-p97-reference-architecture-20261007.md`
 
 ## Mission
@@ -231,9 +231,9 @@ M2 acceptance:
 ## P04 lane ownership
 
 ### Lane A — generic provider extraction
-**Host:** local agent runtime  
-**Dependencies:** remote M1 contract only  
-**Owned:** new/refactored generic Android provider Python/PowerShell internals; focused unit/fixture tests.  
+**Host:** local agent runtime
+**Dependencies:** remote M1 contract only
+**Owned:** new/refactored generic Android provider Python/PowerShell internals; focused unit/fixture tests.
 **Forbidden:** changing CC firmware policy, firmware mutation, new distributed orchestration, direct ADB protocol client.
 
 Tasks:
@@ -247,8 +247,8 @@ Tasks:
 **Completion gate:** generic provider can represent runtime, enumerate/classify device states, bind target input to the workload adapter, and emit typed receipts without changing H&H results.
 
 ### Lane B — management-node/offline runtime
-**Dependencies:** Lane A provider runtime interface can be known; package work can begin in parallel with later adapter factoring.  
-**Owned:** node-role readiness, qualified Platform-Tools bundle manifest, existing SAS deployment/offline distribution integration.  
+**Dependencies:** Lane A provider runtime interface can be known; package work can begin in parallel with later adapter factoring.
+**Owned:** node-role readiness, qualified Platform-Tools bundle manifest, existing SAS deployment/offline distribution integration.
 **Forbidden:** second software-deployment engine, field Internet bootstrap.
 
 Tasks:
@@ -262,8 +262,8 @@ Tasks:
 **Completion gate:** sanitized offline fixture proves field-node provider readiness without network acquisition.
 
 ### Lane C — H&H adapter migration
-**Dependencies:** Lane A stable.  
-**Owned:** H&H ADB adapter delegation/reuse only.  
+**Dependencies:** Lane A stable.
+**Owned:** H&H ADB adapter delegation/reuse only.
 **Forbidden:** outcome renames or policy change without explicit failing regression requiring it.
 
 Tasks:
@@ -277,8 +277,8 @@ Tasks:
 **Completion gate:** existing H&H ADB contract suite passes unchanged or changes only to reflect factoring, never semantic relaxation.
 
 ### Lane D — technician surface
-**Dependencies:** Lanes A/B interfaces.  
-**Owned:** smallest repository-native Android provider status/doctor/prepare/probe surface.  
+**Dependencies:** Lanes A/B interfaces.
+**Owned:** smallest repository-native Android provider status/doctor/prepare/probe surface.
 **Forbidden:** generic arbitrary shell console, GUI-first replacement for CMD.
 
 Tasks:
@@ -297,8 +297,8 @@ Conceptual user outcome (not mandated syntax):
 **Completion gate:** a technician does not need to locate `adb.exe` or reconstruct raw commands.
 
 ### Lane E — validation/convergence
-**Dependencies:** all mutated lanes.  
-**Owned:** validators, fixtures, registry/index updates, docs, final integrated proof.  
+**Dependencies:** all mutated lanes.
+**Owned:** validators, fixtures, registry/index updates, docs, final integrated proof.
 **Forbidden:** papering over failures.
 
 Tasks:
