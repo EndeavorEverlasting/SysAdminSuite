@@ -26,7 +26,7 @@ Deterministic SysAdminSuite package under `Config/SoftwareDeploy/ScanSnap/` that
 | `Config/SoftwareDeploy/ScanSnap/Bind-ScanSnapPackage.ps1` | Manifest binder |
 | `Config/SoftwareDeploy/ScanSnap/hosts_smoke.txt` | `CheexMcClappeth` |
 | `Config/SoftwareDeploy/ScanSnap/hosts_field.txt` | WRH hosts |
-| `Config/SoftwareDeploy/ScanSnap/package.manifest.json` | Package truth |
+| `Config/SoftwareDeploy/ScanSnap/package.manifest.json` | Tracked unbound package template |\n| `Config/SoftwareDeploy/ScanSnap/package.local.manifest.json` | Ignored Admin Box bound package truth |
 | `Config/SoftwareDeploy/ScanSnap/Runbook-ScanSnap.md` | Operator runbook |
 
 ## Phases
