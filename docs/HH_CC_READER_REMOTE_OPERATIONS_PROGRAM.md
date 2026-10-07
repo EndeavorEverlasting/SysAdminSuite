@@ -393,8 +393,8 @@ Populate only from current receipts. Do not pre-fill success. Live serial/MAC/IP
 | Capability | Transport | Prerequisite | Evidence owner | State | Operational value |
 | --- | --- | --- | --- | --- | --- |
 | Host Platform-Tools / ADB client | Admin Box | owned Platform-Tools path | `Prepare-HHCCReaderAdbHost.cmd` | PROVEN (`ADB_HOST_READY`, 2026-10-06 live) | Control-plane host readiness |
-| USB OTG / Android client enumeration | USB OTG | operator `otg plugged` + PresentOnly delta | `Probe-HHCCReaderAdb.cmd` USB states | WAITING — pre-OTG = `USB_DEVICE_NOT_ENUMERATED` | Discriminates USB-HOST vs client path |
-| USB ADB session | USB ADB | enumerated ADB interface | `Probe-HHCCReaderAdb.cmd` | UNPROVEN (pre-OTG `ADB_NO_DEVICE`) | Read-only shell transport |
+| USB OTG / Android client enumeration | USB OTG | operator-confirmed micro-USB/OTG + PresentOnly | `Probe-HHCCReaderAdb.cmd --otg-confirmed` | REJECTED for deployment — seated OTG still `USB_DEVICE_NOT_ENUMERATED` (2026-10-06) | Port exists per A80 datasheet; live Admin Box data path not observed |
+| USB ADB session | USB ADB | enumerated ADB interface | `Probe-HHCCReaderAdb.cmd` | REJECTED for this config (`ADB_NO_DEVICE` under confirmed OTG) | Not a deployment transport here |
 | Android/PAX read-only inventory | USB ADB | `ADB_DEVICE_READY` | `Capture-HHCCReaderAdbInventory.cmd` | UNPROVEN | Diagnostics, package/management clues |
 | Firmware observation → classifier | ADB/device property | trustworthy version property | inventory + `Classify-HHCCReaderVersionDomain.cmd` | UNPROVEN / unbound | Baseline unlock |
 | Exact-target network diagnostics | LAN / same-subnet | reader IP + expected MAC | `Checkpoint-HHCCReaderNetwork.cmd` / `Probe-HHCCReader.cmd` | PARTIAL — Wi-Fi same-subnet true; Ethernet APIPA; historical IP `DEVICE_MISMATCH` | Remote troubleshooting |

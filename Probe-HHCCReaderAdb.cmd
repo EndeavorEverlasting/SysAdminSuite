@@ -42,5 +42,6 @@ exit /b %ERRORLEVEL%
 echo Usage:
 echo   Probe-HHCCReaderAdb.cmd
 echo   Probe-HHCCReaderAdb.cmd --expected-mac AA-BB-CC-DD-EE-FF
+echo   Probe-HHCCReaderAdb.cmd --otg-confirmed
 echo   Probe-HHCCReaderAdb.cmd --fixture EVIDENCE.json
 exit /b 2

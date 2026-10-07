@@ -120,17 +120,44 @@ Typed probe outcomes already owned by `Probe-HHCCReaderAdb.cmd`:
 
 | Observed condition | Typed state | Meaning |
 | --- | --- | --- |
-| No Android/PAX USB candidate on Admin Box | `USB_DEVICE_NOT_ENUMERATED` | OTG/client path not demonstrated in this configuration |
+| No Android/PAX USB candidate on Admin Box | `USB_DEVICE_NOT_ENUMERATED` | No Windows Android/ADB client seen |
+| Operator-confirmed micro-USB/OTG seated + still no Android/ADB/MTP | `USB_DEVICE_NOT_ENUMERATED` + `--otg-confirmed` next-action | **Deployment:** reject USB OTG ADB for this config; continue LAN/management |
 | Android/PAX USB present, no ADB interface | `USB_DEVICE_ENUMERATED_NO_ADB_INTERFACE` | Physical/data path exists; ADB transport not exposed |
 | Driver/interface unresolved | `USB_DRIVER_OR_INTERFACE_UNRESOLVED` | Host-side binding incomplete |
 | `adb devices` shows unauthorized | `ADB_DEVICE_UNAUTHORIZED` | Transport works; attend RSA Allow, then rerun probe only |
 | `adb devices` shows device | `ADB_DEVICE_READY` | Continue read-only inventory / exact-target network ADB / view-only cert |
 
-USB OTG and LAN planes are independent. A negative OTG result closes only
-`USB_OTG_ADB_CAPABILITY` for that configuration; continue exact-target network /
-management-plane checks. Do not reopen exhausted menu / Netstat / Connectivity /
-HID investigations without new evidence.
+### Live finding — Kiosk4 micro-USB/OTG (operator-corrected 2026-10-06)
 
-Screen text such as "local network is unreachable" is network-plane evidence, not proof
-that ADB is absent. Fix LAN/RS232 misplug and/or establish the USB client path before
-claiming Kiosk4 cannot do ADB.
+Operator correction: the micro-USB/OTG cable **was already seated** while Admin Box probes returned
+`USB_DEVICE_NOT_ENUMERATED` / empty `adb devices -l` (no Android, ADB, MTP, or PTP client; host tools
+`ADB_HOST_READY`). Re-probe with that fact confirmed reproduced the same typed state.
+
+```text
+OPERATOR_OTG_MICROUSB_SEATED
++
+USB_DEVICE_NOT_ENUMERATED
+=
+USB_OTG_ADB_CAPABILITY not a deployment transport in this configuration
+```
+
+PAX A80 datasheets still list `1 x micro-USB 2.0, OTG`, and vendor cable guides mention an OTG /
+programming accessory path (e.g. CU100-related Type-A↔micro cable). So the receptacle is **not**
+explained as a decorative hole. Open (UNKNOWN, not deployment-blocking) hypotheses for why Windows
+saw nothing:
+
+| Hypothesis | Class | Notes |
+| --- | --- | --- |
+| Charge / power-only cable (no data lines) | UNKNOWN | Host cannot distinguish without a known-good data cable |
+| Device USB data functions gated / debugging off with no MTP either | UNKNOWN | Do **not** enable Developer Options to force ADB |
+| Fleet policy / PayDroid lockdown disables client mode | UNKNOWN | Management-plane question |
+| Vendor programming / accessory path needs specific PAX tool/cable | ADAPT | Datasheet OTG + programming cable refs; not Admin Box ADB |
+| Wrong physical receptacle | REJECT for now | Operator identified micro-USB/OTG; do not re-litigate seat |
+
+**ADOPT for deployment:** do not plan firmware/ops work on Admin Box ↔ Kiosk4 USB OTG ADB for this
+reader configuration. **ADOPT for remote ops:** keep LAN / vendor management planes as the primary
+control surfaces. Do not reopen exhausted menu / Netstat / Connectivity / HID work without new
+evidence.
+
+USB OTG and LAN planes remain independent. Screen text such as "local network is unreachable" is
+network-plane evidence, not a reason to keep retrying this USB path.

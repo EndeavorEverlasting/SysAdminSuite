@@ -126,6 +126,7 @@ def test_fixture_catalog_and_no_mutation_authorization() -> None:
         "17-remote-view-inconclusive",
         "18-mutation-refused",
         "19-usb-not-enumerated",
+        "20-usb-otg-confirmed-not-enumerated",
     }
     assert required <= seen
     for case in catalog["cases"]:
@@ -144,6 +145,8 @@ def test_fixture_catalog_and_no_mutation_authorization() -> None:
             assert receipt["current_firmware_classification"] == case["expected_current"], case["id"]
         if "expected_revert" in case:
             assert receipt["network_adb_revert_state"] == case["expected_revert"], case["id"]
+        if "expected_next_action_contains" in case:
+            assert case["expected_next_action_contains"] in (receipt.get("next_action") or ""), case["id"]
     unauth = evaluate_control_plane(next(c["evidence"] for c in catalog["cases"] if c["id"] == "03-unauthorized"))
     assert unauth["adb_transport_present"] is True
     assert unauth["attended_retry_required"] is True
