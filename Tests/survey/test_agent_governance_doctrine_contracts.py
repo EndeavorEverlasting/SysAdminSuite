@@ -94,7 +94,7 @@ TECHNICIAN_MARKERS = (
     "one file to click and the one value to enter",
     "Protected-network offline autonomy",
     "the agent may be unavailable after the network switch",
-    "public Internet, Git hosting, web search, Google-hosted services, and cloud LLM/agent providers",
+    "Public Internet, Git hosting, web search, Google-hosted services, and cloud LLM/agent providers",
     "same-transaction failure continuation",
 )
 
