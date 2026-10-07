@@ -1,9 +1,9 @@
 # ScanSnap live-cert status (Admin Box 1)
 
-**Updated:** 2026-10-07 after PID-delta silent install owner + local detect  
-**Control host:** `LPW003ASI173` (Admin Box 1)  
-**Lab target:** `CheexMcClappeth` (PTop)  
-**Priority field targets:** `WRH250STR001`, `WRH250STR002`  
+**Updated:** 2026-10-07 after PID-delta silent install owner + local detect
+**Control host:** `LPW003ASI173` (Admin Box 1)
+**Lab target:** `CheexMcClappeth` (PTop)
+**Priority field targets:** `WRH250STR001`, `WRH250STR002`
 **Durable continuation:** `docs/SCANSNAP_MULTIMODAL_DEPLOYMENT.md`
 
 ## Proven
