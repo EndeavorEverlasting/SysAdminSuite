@@ -69,6 +69,24 @@ Describe 'ScanSnap scripts parse and refuse stale host' {
     { & $script:ps1 -PackageRoot $script:pkg -ComputerList 'LPW003ASI105' -WhatIfPreferenceOverride } |
       Should -Throw -ExpectedMessage '*LPW003ASI105*'
   }
+
+  It 'Classifies precise SMB auth failures including DC-unavailable and logon failure' {
+    $raw = Get-Content -LiteralPath $script:ps1 -Raw
+    foreach ($state in @('RESOLVE_FAILED', 'UNREACHABLE', 'ACCESS_DENIED', 'ADMIN_SHARE_READY', 'AUTH_DC_UNAVAILABLE', 'LOGON_FAILURE')) {
+      $raw | Should -Match $state
+    }
+    $raw | Should -Match 'Resolve-SsAccessClassFromText'
+    $raw | Should -Match 'cannot contact a domain controller'
+    $raw | Should -Match 'user name or password is incorrect'
+  }
+
+  It 'Uses schtasks SYSTEM remote execution and SoftwareRepo\\ScanSnap staging' {
+    $raw = Get-Content -LiteralPath $script:ps1 -Raw
+    $raw | Should -Match 'schtasks\.exe'
+    $raw | Should -Match '/RU SYSTEM'
+    $raw | Should -Match 'SoftwareRepo\\ScanSnap'
+    $raw | Should -Not -Match '/MIR'
+  }
 }
 
 Describe 'ScanSnap manifest starts unbound' {

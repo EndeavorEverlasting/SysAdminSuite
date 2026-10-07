@@ -141,6 +141,24 @@ function Resolve-TargetName {
   return ('{0}.{1}' -f $Name, $Suffix.TrimStart('.'))
 }
 
+function Resolve-SsAccessClassFromText {
+  param([string]$Text)
+  if ([string]::IsNullOrWhiteSpace($Text)) { return $null }
+  if ($Text -match '(?i)cannot contact a domain controller|ERROR_NO_SUCH_DOMAIN|no logon servers|1355') {
+    return 'AUTH_DC_UNAVAILABLE'
+  }
+  if ($Text -match '(?i)user name or password is incorrect|logon failure|1326|0x8007052e') {
+    return 'LOGON_FAILURE'
+  }
+  if ($Text -match '(?i)Access is denied|Unauthorized|0x80070005|System error 5') {
+    return 'ACCESS_DENIED'
+  }
+  if ($Text -match '(?i)network path was not found|network name cannot be found|cannot find path|The network location cannot be reached') {
+    return 'UNREACHABLE'
+  }
+  return $null
+}
+
 function Test-TargetAccess {
   param([string]$ResolvedName)
   $share = "\\$ResolvedName\C$"
@@ -159,26 +177,27 @@ function Test-TargetAccess {
     return [pscustomobject]$row
   }
 
-  try {
-    if (Test-Path -LiteralPath $share) {
+  # Prefer cmd.exe dir: surfaces DC-unavailable vs bad-password more reliably than Test-Path.
+  $dirText = (cmd.exe /c "dir `"$share`" 2>&1" | Out-String)
+  if ($LASTEXITCODE -eq 0 -or $dirText -match '(?i)Directory of') {
+    try {
       $null = Get-ChildItem -LiteralPath $share -ErrorAction Stop | Select-Object -First 1
       $row.AccessClass = 'ADMIN_SHARE_READY'
       $row.Detail = 'Admin share reachable'
       return [pscustomobject]$row
+    } catch {
+      # fall through to classifiers below using both texts
+      $dirText = ("{0}`n{1}" -f $dirText, $_.Exception.Message)
     }
-  } catch {
-    $msg = $_.Exception.Message
-    if ($msg -match 'Access is denied|Unauthorized|logon failure|0x80070005|1326') {
-      $row.AccessClass = 'ACCESS_DENIED'
-      $row.Detail = $msg
-      return [pscustomobject]$row
-    }
-    $row.AccessClass = 'UNREACHABLE'
-    $row.Detail = $msg
+  }
+
+  $class = Resolve-SsAccessClassFromText -Text $dirText
+  if ($class) {
+    $row.AccessClass = $class
+    $row.Detail = ($dirText.Trim() -replace '\s+', ' ')
     return [pscustomobject]$row
   }
 
-  # Test-Path false: try Get-ChildItem for a better error
   try {
     $null = Get-ChildItem -LiteralPath $share -ErrorAction Stop | Select-Object -First 1
     $row.AccessClass = 'ADMIN_SHARE_READY'
@@ -186,24 +205,21 @@ function Test-TargetAccess {
     return [pscustomobject]$row
   } catch {
     $msg = $_.Exception.Message
-    if ($msg -match 'Access is denied|Unauthorized|logon failure|0x80070005|1326') {
-      $row.AccessClass = 'ACCESS_DENIED'
+    $class = Resolve-SsAccessClassFromText -Text $msg
+    if ($class) {
+      $row.AccessClass = $class
       $row.Detail = $msg
       return [pscustomobject]$row
     }
-    # Windows often reports admin-share denial as "cannot find path". Corroborate with net view.
     $netOut = cmd.exe /c "net view \\$ResolvedName 2>&1"
     $netText = if ($null -eq $netOut) { '' } else { ($netOut | Out-String) }
-    if ($netText -match '(?i)Access is denied|System error 5') {
-      $row.AccessClass = 'ACCESS_DENIED'
-      $row.Detail = ("ShareProbe={0}; NetView=ACCESS_DENIED" -f $msg)
+    $class = Resolve-SsAccessClassFromText -Text $netText
+    if ($class) {
+      $row.AccessClass = $class
+      $row.Detail = ("ShareProbe={0}; NetView={1}" -f $msg, ($netText.Trim() -replace '\s+', ' '))
       return [pscustomobject]$row
     }
-    if ($msg -match 'cannot find path|network path was not found|network name cannot be found') {
-      $row.AccessClass = 'UNREACHABLE'
-    } else {
-      $row.AccessClass = 'UNREACHABLE'
-    }
+    $row.AccessClass = 'UNREACHABLE'
     $row.Detail = ("ShareProbe={0}; NetView={1}" -f $msg, ($netText.Trim() -replace '\s+', ' '))
   }
   return [pscustomobject]$row
@@ -612,7 +628,7 @@ Write-SsLog "Wrote text log: $script:LogTxt"
 $results | Format-Table TargetHost, AccessClass, StageStatus, TaskCreateStatus, TaskRunStatus, DetectStatus, FinalClass -AutoSize | Out-String | Write-Host
 
 # Exit codes: 0 all good/whatif classified; 2 package unbound blocking live; 3 access failures; 1 hard error mix
-$failedAccess = @($results | Where-Object { $_.AccessClass -in @('RESOLVE_FAILED', 'UNREACHABLE', 'ACCESS_DENIED') })
+$failedAccess = @($results | Where-Object { $_.AccessClass -in @('RESOLVE_FAILED', 'UNREACHABLE', 'ACCESS_DENIED', 'AUTH_DC_UNAVAILABLE', 'LOGON_FAILURE') })
 $unbound = @($results | Where-Object { $_.FinalClass -in @('PACKAGE_UNBOUND', 'WHATIF_PACKAGE_UNBOUND') })
 $installOk = @($results | Where-Object { $_.FinalClass -eq 'INSTALLATION_DETECTED' -or $_.FinalClass -eq 'WHATIF_READY' })
 
