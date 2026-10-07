@@ -109,6 +109,27 @@ Describe 'Validated software deployment request runtime contract' {
         @(Test-SasValidatedDeploymentRequest -Request $request) | Should -Contain 'VALIDATION_SERVICE_STATUS_INVALID:installed-file'
     }
 
+    It 'accepts and executes exact non-secret HKLM registry-key existence checks' {
+        $request = New-ValidDeploymentRequest
+        $request.validation.checks = @(
+            [pscustomobject][ordered]@{
+                id = 'installed-registry-key'
+                type = 'RegistryKeyExists'
+                required = $true
+                registry_path = 'HKLM:\\SOFTWARE'
+            }
+        )
+        @(Test-SasValidatedDeploymentRequest -Request $request).Count | Should -Be 0
+
+        $checksJson = $request.validation.checks | ConvertTo-Json -Depth 8 -Compress
+        $validationScript = Get-SasSoftwareValidationScriptBlock
+        $validation = & $validationScript $checksJson
+        $validation.succeeded | Should -BeTrue
+        @($validation.checks).Count | Should -Be 1
+        $validation.checks[0].type | Should -Be 'RegistryKeyExists'
+        $validation.checks[0].observed | Should -Be 'present'
+    }
+
     It 'keeps JSON validation-check arrays distinct on Windows PowerShell 5.1' {
         $installedPath = Join-Path $TestDrive 'installed.txt'
         $manifestPath = Join-Path $TestDrive 'manifest.json'
