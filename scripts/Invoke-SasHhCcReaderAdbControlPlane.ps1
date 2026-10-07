@@ -6,7 +6,8 @@ param(
     [string]$Fixture,
     [string]$OutputDir,
     [string]$ExpectedMac,
-    [switch]$AllowInstall
+    [switch]$AllowInstall,
+    [switch]$OtgConfirmed
 )
 $Root = Split-Path -Parent $PSScriptRoot
 $Py = Join-Path $Root "harness\api\hh_cc_reader_adb_control_plane.py"
@@ -22,6 +23,7 @@ if ($Fixture) {
     if ($AllowInstall) { $args += "--allow-install" }
     if ($ExpectedMac) { $args += @("--expected-mac", $ExpectedMac) }
 }
+if ($OtgConfirmed) { $args += "--otg-confirmed" }
 if ($OutputDir) { $args += @("--output-dir", $OutputDir) }
 & $exe @args
 exit $LASTEXITCODE

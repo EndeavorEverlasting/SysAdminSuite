@@ -304,6 +304,7 @@ def _usb_state(usb: dict[str, Any], host_ready: bool) -> dict[str, Any]:
     android = _bool(usb.get("android_composite"))
     adb_iface = _bool(usb.get("adb_interface"))
     driver_problem = _bool(usb.get("driver_problem"))
+    otg_confirmed = _bool(usb.get("operator_otg_client_path_confirmed"))
     if not enumerated:
         state = "USB_DEVICE_NOT_ENUMERATED"
         nxt = "Connect the authorized Kiosk4 USB cable to the Admin Box, then rerun Probe-HHCCReaderAdb.cmd."
@@ -312,7 +313,22 @@ def _usb_state(usb: dict[str, Any], host_ready: bool) -> dict[str, Any]:
         nxt = "Inspect Windows Device Manager for the enumerated Android/PAX USB device, then rerun Probe-HHCCReaderAdb.cmd."
     elif not android and not adb_iface:
         state = "USB_DEVICE_NOT_ENUMERATED"
-        nxt = "No Android/PAX USB candidate is enumerated on the Admin Box. Physical cables can still be seated: A80 USB-HOST is terminal-host (not ADB client), and RS232 RJ45 is serial (not LAN). Use the USB device/client path and LAN-only Ethernet, then rerun Probe-HHCCReaderAdb.cmd. Absence here does not prove Kiosk4 cannot do ADB."
+        if otg_confirmed:
+            nxt = (
+                "Operator-confirmed micro-USB/OTG attach still produced no Android/ADB/MTP/PTP client on the Admin Box. "
+                "Treat USB_OTG_ADB as not a deployment transport in this configuration. Continue LAN/management planes. "
+                "Do not enable Developer Options. A80 datasheets list micro-USB 2.0 OTG, so the receptacle is not "
+                "decorative; live data-path role remains open (power-only cable, device USB functions gated, or "
+                "vendor/programming accessory path)."
+            )
+        else:
+            nxt = (
+                "No Android/PAX USB candidate is enumerated on the Admin Box. Physical cables can still be seated: "
+                "A80 USB-HOST is terminal-host (not ADB client), and RS232 RJ45 is serial (not LAN). "
+                "If micro-USB/OTG is already seated, rerun Probe-HHCCReaderAdb.cmd --otg-confirmed. "
+                "Otherwise use the USB device/client path and LAN-only Ethernet. Absence here does not prove "
+                "Kiosk4 cannot do ADB over a different authorized path."
+            )
     elif android and not adb_iface:
         state = "USB_DEVICE_ENUMERATED_NO_ADB_INTERFACE"
         nxt = "An Android USB composite appeared without an ADB interface. USB debugging may be off. This does not prove Kiosk4 cannot do ADB."
@@ -907,6 +923,11 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--live", default=None, choices=sorted(MODES))
     parser.add_argument("--allow-install", action="store_true")
     parser.add_argument("--expected-mac", default=None)
+    parser.add_argument(
+        "--otg-confirmed",
+        action="store_true",
+        help="Operator confirms micro-USB/OTG client cable is already seated (attended physical fact).",
+    )
     parser.add_argument("--output", default=None)
     parser.add_argument("--output-dir", default=None)
     args = parser.parse_args(argv)
@@ -917,6 +938,7 @@ def main(argv: list[str] | None = None) -> int:
             args.live,
             allow_install=args.allow_install,
             expected_mac=args.expected_mac,
+            otg_confirmed=args.otg_confirmed,
         )
     elif args.input:
         source = Path(args.input)
@@ -927,6 +949,11 @@ def main(argv: list[str] | None = None) -> int:
         if not isinstance(evidence, dict):
             sys.stderr.write("ERROR: evidence JSON must be an object\n")
             return 2
+        if args.otg_confirmed:
+            usb = evidence.get("usb") if isinstance(evidence.get("usb"), dict) else {}
+            usb = dict(usb)
+            usb["operator_otg_client_path_confirmed"] = True
+            evidence["usb"] = usb
     else:
         sys.stderr.write("ERROR: provide --input EVIDENCE.json or --live MODE\n")
         return 2

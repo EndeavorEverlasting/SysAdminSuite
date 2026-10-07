@@ -309,6 +309,24 @@
       }
     },
     {
+      "id": "20-usb-otg-confirmed-not-enumerated",
+      "mode": "probe",
+      "expected_state": "USB_DEVICE_NOT_ENUMERATED",
+      "expected_next_action_contains": "Operator-confirmed micro-USB/OTG",
+      "evidence": {
+        "mode": "probe",
+        "host": {"adb_present": true, "adb_path": "OWNED_PATH", "adb_version": "1.0.41", "precedence": "owned"},
+        "usb": {
+          "enumerated": true,
+          "android_composite": false,
+          "adb_interface": false,
+          "pax_or_a80_hint": false,
+          "operator_otg_client_path_confirmed": true
+        },
+        "adb_devices": []
+      }
+    },
+    {
       "id": "18-mutation-refused",
       "mode": "inventory",
       "expected_state": "POLICY_SAFETY_CONTROL",

@@ -206,6 +206,7 @@ def collect_live_evidence(
     *,
     allow_install: bool = False,
     expected_mac: str | None = None,
+    otg_confirmed: bool = False,
 ) -> dict[str, Any]:
     host = resolve_host()
     archive_sha = None
@@ -216,6 +217,8 @@ def collect_live_evidence(
         except Exception as exc:  # noqa: BLE001
             host["install_error"] = str(exc)
     usb = collect_usb()
+    if otg_confirmed:
+        usb["operator_otg_client_path_confirmed"] = True
     devices: list[dict[str, Any]] = []
     if host["chosen"]:
         devices = collect_devices(host["chosen"])
