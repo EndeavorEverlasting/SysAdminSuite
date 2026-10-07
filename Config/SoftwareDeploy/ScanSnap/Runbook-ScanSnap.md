@@ -90,17 +90,21 @@ VPN is a protected authority mode, not a separate package architecture. Once pro
 
 No target mutation.
 
-## Existing package artifacts
+## Canonical field artifacts
 
 All under `Config/SoftwareDeploy/ScanSnap/`:
 
-- `Deploy-ScanSnap.cmd` — current operator front door
-- `Deploy-ScanSnap.ps1` — engine
-- `Bind-ScanSnapPackage.ps1` — package binder
-- `hosts_smoke.txt` — PTop lab target
+- `Preflight-ScanSnap-Field.cmd` — one-command field readiness proof; no target mutation
+- `Deploy-ScanSnap-Field.cmd` — one-command live field deployment; local Admin Box confirmation required
+- `Invoke-ScanSnapFieldDeployment.ps1` — deterministic field orchestrator
+- `field-deployment.workflow.json` — machine-readable ordering, ownership, terminal-state, and fail-closed contract
+- `Bind-ScanSnapPackage.ps1` — package binder; writes ignored `package.local.manifest.json` by default
 - `hosts_field.txt` — exact field targets
-- `package.manifest.json` — package binding contract
+- `package.manifest.json` — tracked unbound template only
+- `package.local.manifest.json` — ignored Admin Box bound package truth when present
 - `installers/` — local ignored package drop
+
+Legacy/lab compatibility remains in `Deploy-ScanSnap.cmd` + `Deploy-ScanSnap.ps1`. The familiar CMD also exposes exact no-argument shunts `/FIELDPREFLIGHT` and `/FIELD`; these bypass the legacy combinatorial argument parser and delegate to the canonical field entrypoints.
 
 ## Package qualification
 
@@ -146,42 +150,60 @@ Lab success is useful but not required before field execution.
 
 ## Protected field readiness
 
-On Northwell LAN/WAB or authenticated VPN, use the repository protected-network authority and exact host list.
-
-Run WhatIf first if this exact network/target combination has not yet been classified:
+On Northwell LAN/WAB or authenticated VPN, use the canonical field preflight:
 
 ```cmd
-Deploy-ScanSnap.cmd /HOSTSFILE=hosts_field.txt /WHATIF
+Preflight-ScanSnap-Field.cmd
 ```
 
-If short-name resolution fails, use the existing domain/FQDN completion contract rather than inventing a second resolver.
+Compatibility form:
 
-Required pre-live facts per target:
+```cmd
+Deploy-ScanSnap.cmd /FIELDPREFLIGHT
+```
 
-- protected network authority;
-- exact target identity resolved;
-- SMB/admin share authorized;
-- package bound and hash valid.
+The preflight itself proves, in order:
+
+1. the Admin Box process is elevated;
+2. bound local package truth exists and its installer SHA-256 matches;
+3. `Assert-SasNorthwellNetwork` accepts the protected route;
+4. each configured field target canonicalizes to one exact FQDN;
+5. fresh hard-bounded P02 transport evidence classifies each target `kerberos_smb_task_ready`;
+6. no target mutation has occurred.
+
+Ordinary Internet Wi-Fi may remain present while a stronger live `DomainAuthenticated` non-Wi-Fi VPN/LAN route supplies protected authority. Visible Wi-Fi must not override that stronger route.
+
+If target canonicalization or transport admission fails, stop on the typed terminal state. Do not broaden discovery, switch transports after mutation, or invent a second resolver.
 
 ## Live field deployment
 
 ```cmd
-Deploy-ScanSnap.cmd /HOSTSFILE=hosts_field.txt
+Deploy-ScanSnap-Field.cmd
 ```
+
+Compatibility form:
+
+```cmd
+Deploy-ScanSnap.cmd /FIELD
+```
+
+The live command reruns the complete preflight. Only after every target is ready does the **Admin Box** display the exact package hash and target FQDNs and ask for the literal confirmation `DEPLOY SCANSNAP`. No confirmation is requested or accepted on a target workstation.
 
 Required proof chain:
 
-1. package validated;
+1. package hash validated from machine-local bound truth;
 2. protected network authorized;
-3. target identity bound;
-4. admin share ready;
-5. payload staged;
-6. remote SYSTEM task created/run;
-7. installer completed;
-8. detection gate passed;
-9. `FinalClass=INSTALLATION_DETECTED`.
+3. exact target FQDN bound;
+4. P02 classifies Kerberos SMB + Scheduled Task ready;
+5. Admin Box confirmation received;
+6. source and target staged hashes match;
+7. remote SYSTEM task executes noninteractively;
+8. installer root plus identity-bound descendant family finishes inside one timeout budget;
+9. required post-install detection passes before and after run-scoped payload cleanup;
+10. transient task/staging teardown is verified;
+11. controller summary reaches `SAS_SCANSNAP|STATE=DEPLOYMENT_VALIDATED`.
 
-Do not claim success from ping, port 445, C$ access, task creation, or installer exit alone.
+Do not claim success from ping, port 445, C$ access, task creation, root installer exit, or process discovery alone.
 
 ## CMD convergence
 
@@ -207,10 +229,16 @@ The next home test should therefore target controller-side resolution/addressabi
 
 ## Evidence
 
-Admin Box logs remain under:
+Canonical field evidence is controller-local:
 
-`%SystemDrive%\ScanSnapDeployLogs\`
+- latest pointer: `%ProgramData%\SysAdminSuite\SoftwareDeploy\ScanSnap\latest-run.json`
+- per-run root: `%ProgramData%\SysAdminSuite\SoftwareDeploy\ScanSnap\runs\<run_id>\`
+- preflight receipt: `preflight-summary.json`
+- live summary: `deployment-summary.json`
+- package-bound stable process cache: `%ProgramData%\SysAdminSuite\SoftwareDeploy\ScanSnap\process-identity.json`
 
-Remote evidence remains under the package's implemented ProgramData path when a live deployment reaches the target.
+Legacy `Deploy-ScanSnap.ps1` logs remain under `%SystemDrive%\ScanSnapDeployLogs\` and are not the canonical field completion artifact.
 
-Every report must distinguish design, readiness, stage, execution, installer completion, detection, and field production proof.
+The process cache is valid only for the same installer filename + SHA-256. Run-local PID identity additionally freezes creation time to prevent PID reuse from becoming authority. No target-side GUI coordinates, titles, clicks, or confirmation prompts are used.
+
+Every report must distinguish design, readiness, target mutation, installer/process completion, detection, teardown, and field production proof.
