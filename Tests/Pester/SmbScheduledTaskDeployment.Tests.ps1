@@ -168,10 +168,17 @@ Describe 'Canonical SMB scheduled-task deployment adapter' {
             -ValidationChecks @([pscustomobject]@{ id='fixture-file'; type='FileExists'; required=$true; path='C:\Fixture\installed.txt' }) `
             -ResultPath 'C:\ProgramData\SysAdminSuite\SoftwareInstall\software-install-20000101-000000-00000000\worker-result.json'
         $worker = Get-Content -LiteralPath $workerPath -Raw
-        foreach ($fragment in @('Get-FileHash','S-1-5-18','target_hash_verified','result_complete','3010','validation_after_payload_cleanup')) {
+        foreach ($fragment in @('Get-FileHash','S-1-5-18','target_hash_verified','result_complete','3010','validation_after_payload_cleanup','process_observation','Get-CimInstance Win32_Process','Test-SasSelectedProcessStillMatches')) {
             $worker | Should -Match ([regex]::Escape($fragment))
         }
         $worker | Should -Not -Match 'Restart-Computer|shutdown\.exe|Get-Credential|ConvertFrom-SecureString'
+    }
+
+    It 'keeps process observation inside the closed deployment-result schema' {
+        $schema = Get-Content -LiteralPath $schemaPath -Raw -Encoding UTF8 | ConvertFrom-Json
+        @($schema.properties.execution.required) | Should -Contain 'process_observation'
+        $schema.properties.execution.additionalProperties | Should -BeFalse
+        $schema.properties.execution.properties.PSObject.Properties.Name | Should -Contain 'process_observation'
     }
 
     It 'classifies success, validation, preservation, install, and teardown independently' {
