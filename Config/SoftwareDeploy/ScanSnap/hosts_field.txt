@@ -1,0 +1,3 @@
+# Client field targets — deploy only after Admin Box 1 → CheexMcClappeth certification
+WRH250STR001
+WRH250STR002
