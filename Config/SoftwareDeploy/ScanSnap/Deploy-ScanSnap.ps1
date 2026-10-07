@@ -15,6 +15,7 @@
   - EnvSetup/Deploy-Shortcuts.bat argument style (via Deploy-ScanSnap.cmd)
   - mapping NoWinRM schtasks/SYSTEM pattern
   - Config SoftwareRepo staging path convention
+  - scripts/SasNorthwellNetworkAuthority.psm1 for mode classification (no ScanSnap-specific network stack)
 #>
 [CmdletBinding(SupportsShouldProcess = $true)]
 param(
@@ -47,6 +48,14 @@ if (-not $ManifestPath) {
   $ManifestPath = Join-Path $script:PackageRoot 'package.manifest.json'
 }
 
+# Repo root is two levels above Config/SoftwareDeploy/ScanSnap
+$script:RepoRoot = Split-Path -Parent (Split-Path -Parent (Split-Path -Parent $script:PackageRoot))
+$authorityModule = Join-Path $script:RepoRoot 'scripts\SasNorthwellNetworkAuthority.psm1'
+if (-not (Test-Path -LiteralPath $authorityModule)) {
+  throw "Northwell network authority module not found: $authorityModule"
+}
+Import-Module $authorityModule -Force -ErrorAction Stop
+
 function Write-SsLog {
   param([string]$Message, [string]$Level = 'INFO')
   $line = '[{0}] [{1}] {2}' -f (Get-Date -Format 'yyyy-MM-dd HH:mm:ss'), $Level, $Message
@@ -54,11 +63,34 @@ function Write-SsLog {
   Write-Host $line
 }
 
+function Resolve-SsDeploymentMode {
+  param(
+    [Parameter(Mandatory)]
+    $Authority,
+    [Parameter(Mandatory)]
+    [string]$TargetHost
+  )
+  $route = [string]$Authority.Route
+  switch ($route) {
+    'WAB_WIFI' { return 'NORTHWELL_PROTECTED' }
+    'PROTECTED_NON_WIFI' { return 'NORTHWELL_PROTECTED' }
+    'DOMAIN_AUTHENTICATED_NON_WIFI' { return 'NORTHWELL_VPN' }
+    default {
+      # Home/guest with no Northwell authority: lab PTop only; field hosts fail closed.
+      if ($TargetHost -match '(?i)^(CheexMcClappeth)(\.|$)') { return 'LAB_LOCAL' }
+      return 'UNKNOWN_BLOCKED'
+    }
+  }
+}
+
 function New-EvidenceRow {
   param(
     [string]$AdminHost,
     [string]$TargetHost,
     [string]$ResolvedName,
+    [string]$NetworkRoute,
+    [string]$DeploymentMode,
+    [bool]$AuthorityAllowed,
     [string]$AccessClass,
     [string]$PackageSha256,
     [string]$StageStatus,
@@ -75,6 +107,9 @@ function New-EvidenceRow {
     AdminHost         = $AdminHost
     TargetHost        = $TargetHost
     ResolvedName      = $ResolvedName
+    NetworkRoute      = $NetworkRoute
+    DeploymentMode    = $DeploymentMode
+    AuthorityAllowed  = [bool]$AuthorityAllowed
     AccessClass       = $AccessClass
     PackageSha256     = $PackageSha256
     StageStatus       = $StageStatus
@@ -493,6 +528,11 @@ foreach ($issue in $binding.Issues) {
   Write-SsLog "PACKAGE_ISSUE: $issue" 'WARN'
 }
 
+# Reuse repository Northwell authority — do not invent a ScanSnap-only network stack.
+$script:NetworkAuthority = Get-SasNorthwellNetworkAuthority
+Write-SsLog ("NetworkAuthority Allowed={0} Route={1} Evidence={2}" -f `
+    $script:NetworkAuthority.Allowed, $script:NetworkAuthority.Route, $script:NetworkAuthority.Evidence)
+
 $targets = Get-HostList
 Write-SsLog ("Targets: {0}" -f ($targets -join ', '))
 
@@ -500,10 +540,8 @@ $results = New-Object System.Collections.Generic.List[object]
 
 foreach ($target in $targets) {
   $resolved = Resolve-TargetName -Name $target -Suffix $DnsSuffix
-  Write-SsLog "Processing target=$target resolved=$resolved"
-
-  $access = Test-TargetAccess -ResolvedName $resolved
-  Write-SsLog ("AccessClass={0} detail={1}" -f $access.AccessClass, $access.Detail)
+  $deploymentMode = Resolve-SsDeploymentMode -Authority $script:NetworkAuthority -TargetHost $target
+  Write-SsLog "Processing target=$target resolved=$resolved mode=$deploymentMode route=$($script:NetworkAuthority.Route)"
 
   $stageStatus = 'NOT_ATTEMPTED'
   $taskCreate = 'NOT_ATTEMPTED'
@@ -511,12 +549,34 @@ foreach ($target in $targets) {
   $installerResult = 'NOT_OBSERVED'
   $detectStatus = 'NOT_OBSERVED'
   $final = 'DESIGNED'
-  $detail = $access.Detail
+  $detail = [string]$script:NetworkAuthority.Evidence
   $evidence = $script:LogCsv
+  $accessClass = 'NOT_PROBED'
+
+  # Field targets require an authorized Northwell/VPN route. Lab PTop may proceed as LAB_LOCAL.
+  if ($deploymentMode -eq 'UNKNOWN_BLOCKED') {
+    $final = 'UNKNOWN_BLOCKED'
+    $detail = ("DeploymentMode=UNKNOWN_BLOCKED Route={0}; {1}" -f $script:NetworkAuthority.Route, $script:NetworkAuthority.Evidence)
+    $results.Add((New-EvidenceRow -AdminHost $adminHost -TargetHost $target -ResolvedName $resolved `
+        -NetworkRoute ([string]$script:NetworkAuthority.Route) -DeploymentMode $deploymentMode `
+        -AuthorityAllowed ([bool]$script:NetworkAuthority.Allowed) `
+        -AccessClass $accessClass -PackageSha256 $binding.ActualSha256 `
+        -StageStatus $stageStatus -TaskCreateStatus $taskCreate -TaskRunStatus $taskRun `
+        -InstallerResult $installerResult -DetectStatus $detectStatus -FinalClass $final `
+        -Detail $detail -EvidencePath $evidence)) | Out-Null
+    continue
+  }
+
+  $access = Test-TargetAccess -ResolvedName $resolved
+  $accessClass = $access.AccessClass
+  $detail = $access.Detail
+  Write-SsLog ("AccessClass={0} detail={1}" -f $access.AccessClass, $access.Detail)
 
   if ($access.AccessClass -ne 'ADMIN_SHARE_READY') {
     $final = $access.AccessClass
     $results.Add((New-EvidenceRow -AdminHost $adminHost -TargetHost $target -ResolvedName $resolved `
+        -NetworkRoute ([string]$script:NetworkAuthority.Route) -DeploymentMode $deploymentMode `
+        -AuthorityAllowed ([bool]$script:NetworkAuthority.Allowed) `
         -AccessClass $access.AccessClass -PackageSha256 $binding.ActualSha256 `
         -StageStatus $stageStatus -TaskCreateStatus $taskCreate -TaskRunStatus $taskRun `
         -InstallerResult $installerResult -DetectStatus $detectStatus -FinalClass $final `
@@ -538,6 +598,8 @@ foreach ($target in $targets) {
       $detail = "Would stage to \\$resolved\C$\$($manifest.RemoteStageRelativePath) and run task $($manifest.TaskName)"
     }
     $results.Add((New-EvidenceRow -AdminHost $adminHost -TargetHost $target -ResolvedName $resolved `
+        -NetworkRoute ([string]$script:NetworkAuthority.Route) -DeploymentMode $deploymentMode `
+        -AuthorityAllowed ([bool]$script:NetworkAuthority.Allowed) `
         -AccessClass $access.AccessClass -PackageSha256 $binding.ActualSha256 `
         -StageStatus $stageStatus -TaskCreateStatus $taskCreate -TaskRunStatus $taskRun `
         -InstallerResult $installerResult -DetectStatus $detectStatus -FinalClass $final `
@@ -550,6 +612,8 @@ foreach ($target in $targets) {
     $final = 'PACKAGE_UNBOUND'
     $detail = ($binding.Issues -join '; ')
     $results.Add((New-EvidenceRow -AdminHost $adminHost -TargetHost $target -ResolvedName $resolved `
+        -NetworkRoute ([string]$script:NetworkAuthority.Route) -DeploymentMode $deploymentMode `
+        -AuthorityAllowed ([bool]$script:NetworkAuthority.Allowed) `
         -AccessClass $access.AccessClass -PackageSha256 $binding.ActualSha256 `
         -StageStatus $stageStatus -TaskCreateStatus $taskCreate -TaskRunStatus $taskRun `
         -InstallerResult $installerResult -DetectStatus $detectStatus -FinalClass $final `
@@ -621,6 +685,8 @@ foreach ($target in $targets) {
   }
 
   $results.Add((New-EvidenceRow -AdminHost $adminHost -TargetHost $target -ResolvedName $resolved `
+      -NetworkRoute ([string]$script:NetworkAuthority.Route) -DeploymentMode $deploymentMode `
+      -AuthorityAllowed ([bool]$script:NetworkAuthority.Allowed) `
       -AccessClass $access.AccessClass -PackageSha256 $binding.ActualSha256 `
       -StageStatus $stageStatus -TaskCreateStatus $taskCreate -TaskRunStatus $taskRun `
       -InstallerResult $installerResult -DetectStatus $detectStatus -FinalClass $final `
@@ -631,14 +697,15 @@ $results | Export-Csv -Path $script:LogCsv -NoTypeInformation -Encoding UTF8
 Write-SsLog "Wrote CSV evidence: $script:LogCsv"
 Write-SsLog "Wrote text log: $script:LogTxt"
 
-$results | Format-Table TargetHost, AccessClass, StageStatus, TaskCreateStatus, TaskRunStatus, DetectStatus, FinalClass -AutoSize | Out-String | Write-Host
+$results | Format-Table TargetHost, DeploymentMode, NetworkRoute, AccessClass, StageStatus, TaskCreateStatus, TaskRunStatus, DetectStatus, FinalClass -AutoSize | Out-String | Write-Host
 
 # Exit codes: 0 all good/whatif classified; 2 package unbound blocking live; 3 access failures; 1 hard error mix
 $failedAccess = @($results | Where-Object { $_.AccessClass -in @('RESOLVE_FAILED', 'UNREACHABLE', 'ACCESS_DENIED', 'AUTH_DC_UNAVAILABLE', 'LOGON_FAILURE') })
+$blockedMode = @($results | Where-Object { $_.FinalClass -eq 'UNKNOWN_BLOCKED' })
 $unbound = @($results | Where-Object { $_.FinalClass -in @('PACKAGE_UNBOUND', 'WHATIF_PACKAGE_UNBOUND') })
 $installOk = @($results | Where-Object { $_.FinalClass -eq 'INSTALLATION_DETECTED' -or $_.FinalClass -eq 'WHATIF_READY' })
 
 if (-not $script:SsWhatIf -and $unbound.Count -gt 0) { exit 2 }
-if ($failedAccess.Count -eq $results.Count) { exit 3 }
+if (($failedAccess.Count + $blockedMode.Count) -eq $results.Count -and $results.Count -gt 0) { exit 3 }
 if (($results.Count -gt 0) -and ($installOk.Count -eq 0) -and -not $script:SsWhatIf) { exit 1 }
 exit 0

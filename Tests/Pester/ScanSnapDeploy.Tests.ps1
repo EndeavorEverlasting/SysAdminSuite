@@ -87,6 +87,18 @@ Describe 'ScanSnap scripts parse and refuse stale host' {
     $raw | Should -Match 'SoftwareRepo\\ScanSnap'
     $raw | Should -Not -Match '/MIR'
   }
+
+  It 'Reuses SasNorthwellNetworkAuthority and records multimodal deployment modes' {
+    $raw = Get-Content -LiteralPath $script:ps1 -Raw
+    $raw | Should -Match 'SasNorthwellNetworkAuthority\.psm1'
+    $raw | Should -Match 'Get-SasNorthwellNetworkAuthority'
+    $raw | Should -Match 'Resolve-SsDeploymentMode'
+    foreach ($mode in @('LAB_LOCAL', 'NORTHWELL_PROTECTED', 'NORTHWELL_VPN', 'UNKNOWN_BLOCKED')) {
+      $raw | Should -Match $mode
+    }
+    $raw | Should -Match 'DeploymentMode'
+    $raw | Should -Match 'NetworkRoute'
+  }
 }
 
 Describe 'ScanSnap manifest binding contract' {
