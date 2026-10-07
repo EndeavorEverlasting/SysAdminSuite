@@ -16,6 +16,14 @@ The operator should not have to repeatedly decide what to try next. Runtime fail
 
 This plan invokes:
 
+- **P00 — Governance Doctrine Installer**
+  - canonical repository: `EndeavorEverlasting/TokenCorridor`
+  - registry: `src/tokencorridor/interface/promptkit/registry/base/prompts.json`
+  - source blob: `848728632c1243ebba023fa0012292a2ad33cada`
+- **P01 — Harness Infrastructure Builder**
+  - canonical repository: `EndeavorEverlasting/TokenCorridor`
+  - registry: `src/tokencorridor/interface/promptkit/registry/base/prompts.json`
+  - source blob: `848728632c1243ebba023fa0012292a2ad33cada`
 - **P04 — Repo-Aware Sprint + Harness Factoring Distributor**
   - canonical repository: `EndeavorEverlasting/TokenCorridor`
   - registry: `src/tokencorridor/interface/promptkit/registry/base/prompts.json`
@@ -25,7 +33,36 @@ This plan invokes:
   - registry: `src/tokencorridor/interface/promptkit/registry/prompts/spec-architecture-prompts.v1.json`
   - source blob: `5926a198a14567de55110ed19e922fc444b4dec7`
 
-P04 owns repository factoring and convergence. P82 owns empirical package/auth/target experiments. Neither prompt replaces implementation.
+P00 owns the governance rule that protected deployment cannot depend on an agent or public Internet. P01 owns the machine-readable harness seam that makes Internet preparation and protected execution distinct runtime phases. P04 owns repository factoring and convergence. P82 owns empirical package/auth/target experiments. None of these prompts replace implementation.
+
+## Protected execution is agent-independent
+
+The Northwell network may block public Internet services. Treat the network switch as a hard execution-runtime boundary.
+
+The preparation phase may use Cursor/agent tooling and Internet access. The protected phase must not.
+
+The machine-readable authority is:
+
+`harness/contracts/protected-network-offline-execution.v1.json`
+
+The offline/sealed deployment transaction must be complete before the switch to protected Northwell. It must have no public Internet dependency and no dependency on a future agent/chat response.
+
+Before switching networks, prepare and verify locally:
+
+- the exact repository/runtime floor;
+- the sealed `C:\SASAL` runtime;
+- the ScanSnap installer payload;
+- package SHA256, provenance, silent arguments, and validation rules;
+- the ScanSnap CMD/operator front door;
+- target lists / logical target inputs;
+- target-resolution code required for protected DNS/FQDN handling;
+- canonical SMB/SYSTEM deployment engine and dependencies;
+- local failure classification and same-transaction continuation;
+- local evidence and recovery surfaces.
+
+Once protected execution starts, the local CMD/runtime owns the whole transaction: target resolution, readiness, staging, SYSTEM execution, validation, cleanup, failure continuation, evidence, and final status.
+
+A protected failure must not require reconnecting Cursor to decide what to do next when the required continuation can be encoded before the network switch.
 
 ## Proven SysAdminSuite factory — reuse this
 
@@ -333,6 +370,20 @@ A REFINE decision immediately executes the next bounded attempt when the require
 - make evidence expose requested identity, resolved identity, mode and canonical adapter result;
 - add regression tests proving no duplicate schtasks/staging engine remains on the canonical path.
 
+### Wave 1C — seal the protected runtime
+
+Before any switch to Northwell/VPN:
+
+- integrate or select the exact implementation floor that contains the ScanSnap convergence;
+- stage it through the existing Guest/Internet -> field-ready -> `C:\SASAL` lifecycle;
+- ensure the sealed runtime includes the ScanSnap CMD, orchestrator, bound package metadata, canonical deployment adapter, validators, and locally available installer payload;
+- remove runtime Git remotes as the existing sealed-runtime doctrine requires;
+- prove the tracked-file SHA256 seal;
+- prove the ScanSnap protected front door can execute from the sealed runtime without repository checkout access, public web access, or a cloud agent;
+- prove typed failure paths produce local evidence and route to local continuation/recovery.
+
+Do not enter protected Northwell until this offline package is complete.
+
 ### Wave 2 — home live path
 
 - controller proof = `LPW003ASI173`;
@@ -353,6 +404,8 @@ without losing the stronger canonical evidence.
 
 ### Wave 3 — protected field
 
+Protected execution is agent-independent. Cursor may no longer be reachable once the network changes, so do not switch networks until Wave 1C is proven.
+
 When Northwell/VPN authority is available:
 
 - resolve `WRH250STR001/002` to exact corporate identities/FQDNs;
@@ -367,6 +420,7 @@ At minimum run after implementation changes:
 - `Tests/Pester/ScanSnapDeploy.Tests.ps1`
 - `Tests/Pester/SmbScheduledTaskDeployment.Tests.ps1`
 - `Tests/survey/test_canonical_smb_task_deployment_contracts.py`
+- `harness/validators/validate-protected-network-offline-execution.py`
 - relevant transport/network-authority contracts if those owners changed.
 
 Add ScanSnap regression coverage for:
@@ -414,7 +468,8 @@ The implementation is complete when:
 6. successful execution is proven by canonical package validation + cleanup, surfaced as `INSTALLATION_DETECTED`;
 7. tests are green;
 8. implementation is committed/pushed/reviewed/integrated when authorized;
-9. no critical fact exists only in chat.
+9. no critical fact exists only in chat;
+10. the protected ScanSnap transaction is proven runnable from the sealed local runtime with no public Internet dependency and no requirement for a live agent after the network switch.
 
 ## Proof ceiling
 
