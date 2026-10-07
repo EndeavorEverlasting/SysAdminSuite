@@ -1,0 +1,75 @@
+{
+  "schema_version": "sas-scansnap-field-workflow/v1",
+  "workflow_id": "scansnap-field-deployment",
+  "controller_role": "Admin Box",
+  "package_authority": "Config/SoftwareDeploy/ScanSnap/package.manifest.json plus ignored installers/",
+  "target_source": "Config/SoftwareDeploy/ScanSnap/hosts_field.txt",
+  "entrypoints": {
+    "preflight": "Config/SoftwareDeploy/ScanSnap/Preflight-ScanSnap-Field.cmd",
+    "deploy": "Config/SoftwareDeploy/ScanSnap/Deploy-ScanSnap-Field.cmd",
+    "compatibility_preflight": "Config/SoftwareDeploy/ScanSnap/Deploy-ScanSnap.cmd /FIELDPREFLIGHT",
+    "compatibility_deploy": "Config/SoftwareDeploy/ScanSnap/Deploy-ScanSnap.cmd /FIELD"
+  },
+  "owners": {
+    "network_authority": "scripts/SasNorthwellNetworkAuthority.psm1",
+    "transport_preflight": "scripts/Test-SasSoftwareDeploymentTransport.ps1",
+    "transport_adapter": "scripts/SasSoftwareDeploymentAdapter.psm1",
+    "validation": "scripts/SasSoftwareInstallFinalization.psm1"
+  },
+  "order": [
+    "admin_box_elevation",
+    "bound_package_hash",
+    "protected_network_authority",
+    "exact_target_fqdn",
+    "kerberos_smb_task_preflight",
+    "admin_box_confirmation",
+    "source_and_target_hash",
+    "system_task_execution",
+    "pid_delta_or_cached_process_identity",
+    "post_install_detection",
+    "run_scoped_teardown",
+    "controller_evidence"
+  ],
+  "network_rules": {
+    "ordinary_wifi_may_coexist_with_domain_authenticated_non_wifi": true,
+    "visible_wifi_must_not_override_stronger_protected_route": true,
+    "target_binding": "canonical DNS FQDN before any target mutation",
+    "transport_fallback_after_mutation": false
+  },
+  "process_identity": {
+    "first_run": "S1 baseline -> launch -> S2 delta -> freeze one strong process identity when available",
+    "later_run": "prefer exact cached name/executable leaf/file version when one recent match exists",
+    "pid_reuse_guard": "revalidate PID against frozen process identity before waiting on it",
+    "cache_path": "%ProgramData%/SysAdminSuite/SoftwareDeploy/ScanSnap/process-identity.json",
+    "target_gui_automation": false
+  },
+  "operator_confirmation": {
+    "location": "Admin Box only",
+    "phrase": "DEPLOY SCANSNAP",
+    "target_side_confirmation": false
+  },
+  "terminal_protocol": {
+    "prefix": "SAS_SCANSNAP",
+    "key": "STATE",
+    "success": [
+      "COMPLETE_NO_MUTATION",
+      "DEPLOYMENT_VALIDATED"
+    ],
+    "non_success": [
+      "BLOCKED",
+      "FAILED",
+      "CANCELLED_BEFORE_MUTATION"
+    ]
+  },
+  "evidence_root": "%ProgramData%/SysAdminSuite/SoftwareDeploy/ScanSnap/runs/<run_id>/",
+  "fail_closed": [
+    "unbound package",
+    "package hash mismatch",
+    "unapproved network authority",
+    "unresolved or aliased target identity",
+    "transport not kerberos_smb_task_ready",
+    "missing Admin Box confirmation",
+    "installer or detection failure",
+    "unverified teardown"
+  ]
+}
