@@ -175,6 +175,7 @@ function New-SasSmbTaskWorker {
         [Parameter(Mandatory = $true)][string]$ExpectedSha256,
         [Parameter(Mandatory = $true)][AllowEmptyCollection()][string[]]$InstallerArguments,
         [Parameter(Mandatory = $true)]$ValidationChecks,
+        [Parameter(Mandatory = $false)]$ProcessIdentityHint = $null,
         [Parameter(Mandatory = $true)][string]$ResultPath,
         [ValidateRange(10, 7200)][int]$InstallerTimeoutSeconds = 1800
     )
@@ -189,6 +190,7 @@ function New-SasSmbTaskWorker {
         expected_sha256 = $ExpectedSha256.ToLowerInvariant()
         installer_arguments = @($InstallerArguments)
         validation_checks_json = (@($ValidationChecks) | ConvertTo-Json -Depth 16 -Compress)
+        process_identity_hint_json = if ($null -ne $ProcessIdentityHint) { $ProcessIdentityHint | ConvertTo-Json -Depth 8 -Compress } else { '' }
         result_path = $ResultPath
         timeout_seconds = $InstallerTimeoutSeconds
     }
@@ -215,6 +217,17 @@ $result = [ordered]@{
     installer_exit_code = $null
     reboot_required = $false
     installer_status = 'not_started'
+    process_observation = [ordered]@{
+        baseline_count = 0
+        post_launch_count = 0
+        delta_count = 0
+        cache_hint_present = $false
+        cache_hint_used = $false
+        cache_hint_ambiguous = $false
+        selection_source = 'none'
+        selected_process_id = $null
+        selected_identity = $null
+    }
     validation_before_payload_cleanup = $null
     payload_cleanup_succeeded = $false
     staged_installer_remaining = $true
@@ -222,6 +235,73 @@ $result = [ordered]@{
     result_complete = $false
     error = $null
 }
+
+function Get-SasInstallerProcessSnapshot {
+    $rows = @()
+    try { $rows = @(Get-CimInstance Win32_Process -ErrorAction Stop) }
+    catch { return @() }
+
+    return @($rows | ForEach-Object {
+        $path = [string]$_.ExecutablePath
+        $leaf = if ([string]::IsNullOrWhiteSpace($path)) { [string]$_.Name } else { [IO.Path]::GetFileName($path) }
+        $version = ''
+        if (-not [string]::IsNullOrWhiteSpace($path) -and (Test-Path -LiteralPath $path -PathType Leaf)) {
+            try {
+                $info = [Diagnostics.FileVersionInfo]::GetVersionInfo($path)
+                $version = if ($info.ProductVersion) { [string]$info.ProductVersion } else { [string]$info.FileVersion }
+            } catch { $version = '' }
+        }
+        $created = $null
+        try {
+            if ($_.CreationDate -is [datetime]) { $created = $_.CreationDate.ToUniversalTime() }
+            elseif ($_.CreationDate) { $created = [Management.ManagementDateTimeConverter]::ToDateTime([string]$_.CreationDate).ToUniversalTime() }
+        } catch { $created = $null }
+
+        [pscustomobject][ordered]@{
+            process_id = [int]$_.ProcessId
+            parent_process_id = [int]$_.ParentProcessId
+            name = [string]$_.Name
+            executable_leaf = [string]$leaf
+            file_version = [string]$version
+            session_id = [int]$_.SessionId
+            creation_utc = if ($created) { $created.ToString('o') } else { '' }
+        }
+    })
+}
+
+function Get-SasInstallerProcessIdentity {
+    param([Parameter(Mandatory = $true)]$ProcessRow)
+    return [pscustomobject][ordered]@{
+        name = [string]$ProcessRow.name
+        executable_leaf = [string]$ProcessRow.executable_leaf
+        file_version = [string]$ProcessRow.file_version
+    }
+}
+
+function Test-SasInstallerProcessIdentity {
+    param(
+        [Parameter(Mandatory = $true)]$ProcessRow,
+        [Parameter(Mandatory = $true)]$Identity
+    )
+    if ([string]::IsNullOrWhiteSpace([string]$Identity.name)) { return $false }
+    if ([string]$ProcessRow.name -ine [string]$Identity.name) { return $false }
+    if (-not [string]::IsNullOrWhiteSpace([string]$Identity.executable_leaf) -and
+        [string]$ProcessRow.executable_leaf -ine [string]$Identity.executable_leaf) { return $false }
+    if (-not [string]::IsNullOrWhiteSpace([string]$Identity.file_version) -and
+        [string]$ProcessRow.file_version -ne [string]$Identity.file_version) { return $false }
+    return $true
+}
+
+function Test-SasSelectedProcessStillMatches {
+    param(
+        [Parameter(Mandatory = $true)][int]$ProcessId,
+        [Parameter(Mandatory = $true)]$Identity
+    )
+    $row = @(Get-SasInstallerProcessSnapshot | Where-Object { $_.process_id -eq $ProcessId } | Select-Object -First 1)
+    if ($row.Count -ne 1) { return $false }
+    return (Test-SasInstallerProcessIdentity -ProcessRow $row[0] -Identity $Identity)
+}
+
 try {
     $identity = [Security.Principal.WindowsIdentity]::GetCurrent()
     $result.execution_identity_sid = [string]$identity.User.Value
@@ -235,6 +315,12 @@ try {
 
     $arguments = @($config.installer_arguments | ForEach-Object { [string]$_ })
     $extension = [IO.Path]::GetExtension([string]$config.installer_path).ToLowerInvariant()
+    $baseline = @(Get-SasInstallerProcessSnapshot)
+    $baselineIds = @{}
+    foreach ($row in $baseline) { $baselineIds[[int]$row.process_id] = $true }
+    $result.process_observation.baseline_count = $baseline.Count
+    $launchUtc = (Get-Date).ToUniversalTime()
+
     if ($extension -eq '.msi') {
         $processArguments = @('/i', ('"{0}"' -f [string]$config.installer_path)) + $arguments
         $process = Start-Process -FilePath "$env:WINDIR\System32\msiexec.exe" -ArgumentList $processArguments -PassThru
@@ -246,10 +332,92 @@ try {
     }
     else { throw "Unsupported staged installer extension: $extension" }
 
+    Start-Sleep -Milliseconds 750
+    $postLaunch = @(Get-SasInstallerProcessSnapshot)
+    $result.process_observation.post_launch_count = $postLaunch.Count
+    $delta = @($postLaunch | Where-Object { -not $baselineIds.ContainsKey([int]$_.process_id) })
+    $result.process_observation.delta_count = $delta.Count
+
+    $hint = $null
+    if (-not [string]::IsNullOrWhiteSpace([string]$config.process_identity_hint_json)) {
+        try {
+            $hint = [string]$config.process_identity_hint_json | ConvertFrom-Json
+            $result.process_observation.cache_hint_present = $true
+        } catch { $hint = $null }
+    }
+
+    $selected = $null
+    if ($null -ne $hint) {
+        $recentHintMatches = @($postLaunch | Where-Object {
+            $created = $null
+            try { if ($_.creation_utc) { $created = ([datetime]$_.creation_utc).ToUniversalTime() } } catch { $created = $null }
+            $created -and $created -ge $launchUtc.AddSeconds(-1) -and (Test-SasInstallerProcessIdentity -ProcessRow $_ -Identity $hint)
+        })
+        if ($recentHintMatches.Count -eq 1) {
+            $selected = $recentHintMatches[0]
+            $result.process_observation.cache_hint_used = $true
+            $result.process_observation.selection_source = 'cached_metadata'
+        }
+        elseif ($recentHintMatches.Count -gt 1) {
+            $result.process_observation.cache_hint_ambiguous = $true
+        }
+    }
+
+    if ($null -eq $selected) {
+        $preferred = @()
+        if ($extension -eq '.msi') {
+            $preferred = @($delta | Where-Object { [string]$_.name -ieq 'msiexec.exe' -and [int]$_.parent_process_id -eq [int]$process.Id })
+        }
+        if ($preferred.Count -ne 1) {
+            $preferred = @($delta | Where-Object {
+                [int]$_.parent_process_id -eq [int]$process.Id -and
+                [string]$_.name -notin @('conhost.exe','WerFault.exe')
+            })
+        }
+        if ($preferred.Count -eq 1) {
+            $selected = $preferred[0]
+            $result.process_observation.selection_source = 'pid_delta_child'
+        } else {
+            $rootRow = @($postLaunch | Where-Object { [int]$_.process_id -eq [int]$process.Id } | Select-Object -First 1)
+            if ($rootRow.Count -eq 1) {
+                $selected = $rootRow[0]
+                $result.process_observation.selection_source = 'root_process'
+            } elseif ($delta.Count -eq 1) {
+                $selected = $delta[0]
+                $result.process_observation.selection_source = 'pid_delta_single'
+            }
+        }
+    }
+
+    if ($null -ne $selected) {
+        $result.process_observation.selected_process_id = [int]$selected.process_id
+        $result.process_observation.selected_identity = Get-SasInstallerProcessIdentity -ProcessRow $selected
+    }
+
+    $installWatch = [Diagnostics.Stopwatch]::StartNew()
     if (-not $process.WaitForExit(([int]$config.timeout_seconds * 1000))) {
         Stop-Process -Id $process.Id -Force -ErrorAction SilentlyContinue
-        throw "Installer timed out after $($config.timeout_seconds) seconds."
+        throw "Installer root process timed out after $($config.timeout_seconds) seconds."
     }
+
+    if ($null -ne $result.process_observation.selected_identity -and
+        [int]$result.process_observation.selected_process_id -ne [int]$process.Id) {
+        $remainingMilliseconds = ([int]$config.timeout_seconds * 1000) - [int]$installWatch.ElapsedMilliseconds
+        if ($remainingMilliseconds -gt 0 -and
+            (Test-SasSelectedProcessStillMatches -ProcessId ([int]$result.process_observation.selected_process_id) -Identity $result.process_observation.selected_identity)) {
+            try {
+                $selectedProcess = [Diagnostics.Process]::GetProcessById([int]$result.process_observation.selected_process_id)
+                if (-not $selectedProcess.WaitForExit($remainingMilliseconds)) {
+                    throw "Selected installer child timed out after process identity was frozen."
+                }
+            }
+            catch [ArgumentException] {
+                # Process exited between the identity recheck and Process lookup.
+            }
+        }
+    }
+    $installWatch.Stop()
+
     $result.installer_exit_code = [int]$process.ExitCode
     $result.reboot_required = ($process.ExitCode -eq 3010)
     if ($process.ExitCode -notin @(0,3010)) { throw "Installer returned exit code $($process.ExitCode)." }
@@ -292,7 +460,7 @@ function Test-SasSmbTaskWorkerResult {
     param([Parameter(Mandatory = $true)]$Result, [Parameter(Mandatory = $true)][string]$RunId)
     Assert-SasClosedPropertySet -Value $Result -Allowed @(
         'schema_version','run_id','package_name','execution_identity_sid','execution_as_system','source_sha256',
-        'target_sha256','target_hash_verified','installer_exit_code','reboot_required','installer_status',
+        'target_sha256','target_hash_verified','installer_exit_code','reboot_required','installer_status','process_observation',
         'validation_before_payload_cleanup','payload_cleanup_succeeded','staged_installer_remaining',
         'validation_after_payload_cleanup','result_complete','error'
     ) -Role 'SMB scheduled-task worker result'
@@ -318,7 +486,7 @@ function New-SasSmbTaskResult {
         worker_target_sha256 = $null
         hashes_verified = $false
         task = [ordered]@{ name = $TaskName; create_attempted = $false; created = $false; run_attempted = $false; started = $false; delete_attempted = $false; deleted = $false; absent_verified = $false }
-        execution = [ordered]@{ identity_sid = $null; as_system = $false; installer_exit_code = $null; reboot_required = $false; installer_status = 'not_started' }
+        execution = [ordered]@{ identity_sid = $null; as_system = $false; installer_exit_code = $null; reboot_required = $false; installer_status = 'not_started'; process_observation = $null }
         result_retrieval = [ordered]@{ attempted = $false; succeeded = $false; malformed = $false; local_path = $null }
         validation = [ordered]@{ before_payload_cleanup_succeeded = $false; after_payload_cleanup_succeeded = $false }
         cleanup = [ordered]@{ attempted = $false; task_deletion_succeeded = $false; run_root_deletion_succeeded = $false; task_remaining = $false; run_root_remaining = $false }
@@ -367,6 +535,7 @@ function Invoke-SasSmbScheduledTaskDeployment {
         [Parameter(Mandatory = $true)]$ValidationChecks,
         [Parameter(Mandatory = $true)][string]$RunId,
         [Parameter(Mandatory = $true)][string]$LocalRunRoot,
+        [Parameter(Mandatory = $false)]$ProcessIdentityHint = $null,
         [ValidateRange(10, 7200)][int]$ResultTimeoutSeconds = 1800,
         [ValidateRange(10, 7200)][int]$InstallerTimeoutSeconds = 1800
     )
@@ -402,9 +571,19 @@ function Invoke-SasSmbScheduledTaskDeployment {
         if (-not (Test-Path -LiteralPath $adminRoot -PathType Container)) { throw 'ADMIN$ access denied or unavailable.' }
         if (-not (Test-Path -LiteralPath $cRoot -PathType Container)) { throw 'C$ access denied or unavailable for the canonical ProgramData staging root.' }
 
-        New-SasSmbTaskWorker -Path $localWorker -RunId $RunId -PackageName $PackageName -InstallerPath $remoteInstaller `
-            -ExpectedSha256 $sourceHash -InstallerArguments $InstallerArguments -ValidationChecks $ValidationChecks `
-            -ResultPath $remoteResult -InstallerTimeoutSeconds $InstallerTimeoutSeconds
+        $workerParameters = @{
+            Path = $localWorker
+            RunId = $RunId
+            PackageName = $PackageName
+            InstallerPath = $remoteInstaller
+            ExpectedSha256 = $sourceHash
+            InstallerArguments = $InstallerArguments
+            ValidationChecks = $ValidationChecks
+            ResultPath = $remoteResult
+            InstallerTimeoutSeconds = $InstallerTimeoutSeconds
+        }
+        if ($null -ne $ProcessIdentityHint) { $workerParameters.ProcessIdentityHint = $ProcessIdentityHint }
+        New-SasSmbTaskWorker @workerParameters
         $result.worker_source_sha256 = (Get-FileHash -LiteralPath $localWorker -Algorithm SHA256).Hash.ToLowerInvariant()
 
         New-Item -ItemType Directory -Path $remoteUncRoot -Force -ErrorAction Stop | Out-Null
@@ -456,6 +635,7 @@ function Invoke-SasSmbScheduledTaskDeployment {
         $result.execution.installer_exit_code = $workerResult.installer_exit_code
         $result.execution.reboot_required = [bool]$workerResult.reboot_required
         $result.execution.installer_status = [string]$workerResult.installer_status
+        $result.execution.process_observation = $workerResult.process_observation
         $result.validation.before_payload_cleanup_succeeded = [bool]($workerResult.validation_before_payload_cleanup -and $workerResult.validation_before_payload_cleanup.succeeded)
         $result.validation.after_payload_cleanup_succeeded = [bool]($workerResult.validation_after_payload_cleanup -and $workerResult.validation_after_payload_cleanup.succeeded)
         if (-not [bool]$workerResult.result_complete -or -not [bool]$workerResult.target_hash_verified -or
