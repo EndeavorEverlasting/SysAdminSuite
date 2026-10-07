@@ -37,7 +37,11 @@ if ([string]::IsNullOrWhiteSpace($HostsFile)) { $HostsFile = Join-Path $scriptRo
 elseif (-not [IO.Path]::IsPathRooted($HostsFile)) { $HostsFile = [IO.Path]::GetFullPath((Join-Path $scriptRoot $HostsFile)) }
 if ([string]::IsNullOrWhiteSpace($PackageRoot)) { $PackageRoot = $scriptRoot }
 elseif (-not [IO.Path]::IsPathRooted($PackageRoot)) { $PackageRoot = [IO.Path]::GetFullPath((Join-Path $scriptRoot $PackageRoot)) }
-if ([string]::IsNullOrWhiteSpace($ManifestPath)) { $ManifestPath = Join-Path $PackageRoot 'package.manifest.json' }
+if ([string]::IsNullOrWhiteSpace($ManifestPath)) {
+    $localManifest = Join-Path $PackageRoot 'package.local.manifest.json'
+    $trackedTemplate = Join-Path $PackageRoot 'package.manifest.json'
+    $ManifestPath = if (Test-Path -LiteralPath $localManifest -PathType Leaf) { $localManifest } else { $trackedTemplate }
+}
 elseif (-not [IO.Path]::IsPathRooted($ManifestPath)) { $ManifestPath = [IO.Path]::GetFullPath((Join-Path $PackageRoot $ManifestPath)) }
 
 $networkAuthorityModule = Join-Path $repoRoot 'scripts\SasNorthwellNetworkAuthority.psm1'
