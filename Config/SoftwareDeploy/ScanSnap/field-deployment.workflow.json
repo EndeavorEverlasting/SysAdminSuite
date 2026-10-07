@@ -2,7 +2,7 @@
   "schema_version": "sas-scansnap-field-workflow/v1",
   "workflow_id": "scansnap-field-deployment",
   "controller_role": "Admin Box",
-  "package_authority": "Config/SoftwareDeploy/ScanSnap/package.manifest.json plus ignored installers/",
+  "package_authority": "ignored package.local.manifest.json plus ignored installers/; tracked package.manifest.json is an unbound template and compatibility fallback only",
   "target_source": "Config/SoftwareDeploy/ScanSnap/hosts_field.txt",
   "entrypoints": {
     "preflight": "Config/SoftwareDeploy/ScanSnap/Preflight-ScanSnap-Field.cmd",
