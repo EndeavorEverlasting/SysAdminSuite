@@ -7,8 +7,11 @@ import sys
 from pathlib import Path
 from typing import Any
 
+from jsonschema import Draft202012Validator
+
 ROOT = Path(__file__).resolve().parents[2]
 DEFAULT_CONTRACT = ROOT / "harness" / "api" / "sas-android-provider-boundary.v1.json"
+DEFAULT_SCHEMA = ROOT / "schemas" / "harness" / "sas-android-provider-boundary.schema.json"
 
 EXPECTED_ROLES = {"ptop_lab", "adminbox_reference", "technician_adminbox_field"}
 EXPECTED_LIFECYCLE = [
@@ -31,8 +34,25 @@ def load(path: Path) -> dict[str, Any]:
     return payload
 
 
-def validate_contract(payload: dict[str, Any]) -> list[str]:
+def validate_schema(payload: dict[str, Any]) -> list[str]:
+    schema = load(DEFAULT_SCHEMA)
+    try:
+        Draft202012Validator.check_schema(schema)
+    except Exception as exc:
+        return [f"schema.invalid:{type(exc).__name__}"]
+    validation_errors = sorted(
+        Draft202012Validator(schema).iter_errors(payload),
+        key=lambda item: [str(part) for part in item.absolute_path],
+    )
     errors: list[str] = []
+    for error in validation_errors:
+        path = ".".join(str(part) for part in error.absolute_path) or "$"
+        errors.append(f"schema.{path}:{error.validator}")
+    return errors
+
+
+def validate_contract(payload: dict[str, Any]) -> list[str]:
+    errors: list[str] = validate_schema(payload)
     if payload.get("schema_version") != "sas-android-provider-boundary/v1":
         errors.append("schema_version")
     if payload.get("status") != "IMPLEMENTED_CONTRACT":
@@ -89,6 +109,8 @@ def validate_contract(payload: dict[str, Any]) -> list[str]:
             errors.append(f"host_provider.{key}")
     if host.get("adb_server_bind_scope") != "LOOPBACK_ONLY":
         errors.append("host_provider.adb_server_bind_scope")
+    if host.get("adb_server_default_host") != "127.0.0.1":
+        errors.append("host_provider.adb_server_default_host")
     if host.get("raw_remote_adb_server_export") != "FORBIDDEN_BY_DEFAULT":
         errors.append("host_provider.raw_remote_adb_server_export")
 
@@ -139,7 +161,8 @@ def validate_contract(payload: dict[str, Any]) -> list[str]:
     if (backends.get("direct_adb_transport_client") or {}).get("disposition") != "REJECT_NOW":
         errors.append("backend_roadmap.direct_adb_transport_client")
 
-    workload = (payload.get("workload_boundary") or {}).get("hh_cc_reader", {})
+    workload_boundary = payload.get("workload_boundary") if isinstance(payload.get("workload_boundary"), dict) else {}
+    workload = workload_boundary.get("hh_cc_reader") if isinstance(workload_boundary.get("hh_cc_reader"), dict) else {}
     if workload.get("current_adapter") != "harness/api/hh_cc_reader_adb_control_plane.py":
         errors.append("workload_boundary.hh_cc_reader.current_adapter")
     if workload.get("kiosk4_usb_otg_finding_scope") != "CURRENT_KIOSK4_CONFIGURATION_ONLY":
