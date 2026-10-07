@@ -353,7 +353,12 @@ try {
         if ($adapter.execution.PSObject.Properties.Name -contains 'process_observation' -and
             $null -ne $adapter.execution.process_observation -and
             $null -ne $adapter.execution.process_observation.selected_identity) {
-            $identityHint = $adapter.execution.process_observation.selected_identity
+            $observedIdentity = $adapter.execution.process_observation.selected_identity
+            $identityHint = [pscustomobject][ordered]@{
+                name = [string]$observedIdentity.name
+                executable_leaf = [string]$observedIdentity.executable_leaf
+                file_version = [string]$observedIdentity.file_version
+            }
             $identityCache = [pscustomobject][ordered]@{
                 schema_version = 'sas-scansnap-process-identity-cache/v1'
                 package_sha256 = [string]$package.source_sha256
