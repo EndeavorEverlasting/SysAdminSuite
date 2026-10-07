@@ -620,6 +620,15 @@
       "tracked": false,
       "contains_live_data": true,
       "purpose": "Package-SHA-bound machine-local installer process identity cache. It stores process name, executable leaf, and file version only; later runs may use it only when installer filename and SHA-256 still match."
+    },
+    {
+      "id": "scansnap-local-package-manifest",
+      "path": "Config/SoftwareDeploy/ScanSnap/package.local.manifest.json",
+      "generator": "Config/SoftwareDeploy/ScanSnap/Bind-ScanSnapPackage.ps1",
+      "format": "json",
+      "tracked": false,
+      "contains_live_data": true,
+      "purpose": "Ignored Admin Box ScanSnap package truth containing the explicitly evidenced installer filename, SHA-256, type, silent arguments, and detection rule. It is preferred by the field orchestrator so repo refreshes cannot overwrite qualified local package state."
     }
   ]
 }
