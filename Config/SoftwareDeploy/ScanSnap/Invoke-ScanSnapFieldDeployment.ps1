@@ -257,8 +257,18 @@ try {
         target_mutation_performed = $false
         next_action = if ($PreflightOnly) { 'Preflight complete. Run Deploy-ScanSnap-Field.cmd for the same package and target set.' } else { 'Await local Admin Box confirmation.' }
     }
-    Write-JsonAtomic -Path (Join-Path $runRoot 'preflight-summary.json') -Value $preflightSummary
-    Write-ScanSnapState -State 'PREFLIGHT_READY' -Data @{ run_id=$runId; targets=$targets.Count; evidence=(Join-Path $runRoot 'preflight-summary.json') }
+    $preflightSummaryPath = Join-Path $runRoot 'preflight-summary.json'
+    $latestPointerPath = Join-Path $stateRoot 'latest-run.json'
+    Write-JsonAtomic -Path $preflightSummaryPath -Value $preflightSummary
+    Write-JsonAtomic -Path $latestPointerPath -Value ([pscustomobject][ordered]@{
+        schema_version = 'sas-scansnap-latest-run/v1'
+        run_id = $runId
+        phase = 'preflight'
+        terminal_state = 'PREFLIGHT_READY'
+        evidence_path = $preflightSummaryPath
+        updated_utc = (Get-Date).ToUniversalTime().ToString('o')
+    })
+    Write-ScanSnapState -State 'PREFLIGHT_READY' -Data @{ run_id=$runId; targets=$targets.Count; evidence=$preflightSummaryPath }
 
     if ($PreflightOnly) {
         Write-ScanSnapState -State 'COMPLETE_NO_MUTATION' -Data @{ run_id=$runId }
@@ -276,7 +286,15 @@ try {
     Write-Host ''
     $confirmation = Read-Host 'ADMIN BOX CONFIRMATION - type DEPLOY SCANSNAP exactly'
     if ($confirmation -cne 'DEPLOY SCANSNAP') {
-        Write-ScanSnapState -State 'CANCELLED_BEFORE_MUTATION' -Data @{ run_id=$runId }
+        Write-JsonAtomic -Path $latestPointerPath -Value ([pscustomobject][ordered]@{
+            schema_version = 'sas-scansnap-latest-run/v1'
+            run_id = $runId
+            phase = 'cancelled'
+            terminal_state = 'CANCELLED_BEFORE_MUTATION'
+            evidence_path = $preflightSummaryPath
+            updated_utc = (Get-Date).ToUniversalTime().ToString('o')
+        })
+        Write-ScanSnapState -State 'CANCELLED_BEFORE_MUTATION' -Data @{ run_id=$runId; evidence=$preflightSummaryPath }
         exit 4
     }
 
@@ -284,11 +302,26 @@ try {
     $identityHint = $null
     if (Test-Path -LiteralPath $identityCachePath -PathType Leaf) {
         try {
-            $identityHint = Get-Content -LiteralPath $identityCachePath -Raw -Encoding UTF8 | ConvertFrom-Json
-            Write-ScanSnapState -State 'PROCESS_IDENTITY_CACHE_LOADED' -Data @{ path=$identityCachePath }
+            $identityCache = Get-Content -LiteralPath $identityCachePath -Raw -Encoding UTF8 | ConvertFrom-Json
+            if ([string]$identityCache.schema_version -ne 'sas-scansnap-process-identity-cache/v1') {
+                throw 'cache_schema_mismatch'
+            }
+            if ([string]$identityCache.package_sha256 -ne [string]$package.source_sha256) {
+                Write-ScanSnapState -State 'PROCESS_IDENTITY_CACHE_IGNORED' -Data @{ reason='package_hash_changed'; path=$identityCachePath }
+            }
+            elseif ([string]$identityCache.installer_file_name -ne [string]$package.manifest.InstallerFileName) {
+                Write-ScanSnapState -State 'PROCESS_IDENTITY_CACHE_IGNORED' -Data @{ reason='installer_name_changed'; path=$identityCachePath }
+            }
+            elseif ($null -eq $identityCache.identity) {
+                Write-ScanSnapState -State 'PROCESS_IDENTITY_CACHE_IGNORED' -Data @{ reason='identity_missing'; path=$identityCachePath }
+            }
+            else {
+                $identityHint = $identityCache.identity
+                Write-ScanSnapState -State 'PROCESS_IDENTITY_CACHE_LOADED' -Data @{ path=$identityCachePath; package_sha256=$package.source_sha256 }
+            }
         }
         catch {
-            Write-ScanSnapState -State 'PROCESS_IDENTITY_CACHE_IGNORED' -Data @{ reason='malformed_local_cache' }
+            Write-ScanSnapState -State 'PROCESS_IDENTITY_CACHE_IGNORED' -Data @{ reason='malformed_local_cache'; path=$identityCachePath }
             $identityHint = $null
         }
     }
@@ -321,10 +354,19 @@ try {
             $null -ne $adapter.execution.process_observation -and
             $null -ne $adapter.execution.process_observation.selected_identity) {
             $identityHint = $adapter.execution.process_observation.selected_identity
-            Write-JsonAtomic -Path $identityCachePath -Value $identityHint
+            $identityCache = [pscustomobject][ordered]@{
+                schema_version = 'sas-scansnap-process-identity-cache/v1'
+                package_sha256 = [string]$package.source_sha256
+                installer_file_name = [string]$package.manifest.InstallerFileName
+                identity = $identityHint
+                learned_from = [string]$adapter.execution.process_observation.selection_source
+                learned_utc = (Get-Date).ToUniversalTime().ToString('o')
+            }
+            Write-JsonAtomic -Path $identityCachePath -Value $identityCache
             Write-ScanSnapState -State 'PROCESS_IDENTITY_CACHE_UPDATED' -Data @{
                 source = [string]$adapter.execution.process_observation.selection_source
                 path = $identityCachePath
+                package_sha256 = [string]$package.source_sha256
             }
         }
     }
@@ -346,6 +388,14 @@ try {
     }
     $summaryPath = Join-Path $runRoot 'deployment-summary.json'
     Write-JsonAtomic -Path $summaryPath -Value $summary
+    Write-JsonAtomic -Path $latestPointerPath -Value ([pscustomobject][ordered]@{
+        schema_version = 'sas-scansnap-latest-run/v1'
+        run_id = $runId
+        phase = 'deployment'
+        terminal_state = if ($failures.Count -eq 0) { 'DEPLOYMENT_VALIDATED' } else { 'FAILED' }
+        evidence_path = $summaryPath
+        updated_utc = (Get-Date).ToUniversalTime().ToString('o')
+    })
 
     if ($failures.Count -gt 0) {
         Write-ScanSnapState -State 'FAILED' -Data @{ failed=$failures.Count; evidence=$summaryPath }
