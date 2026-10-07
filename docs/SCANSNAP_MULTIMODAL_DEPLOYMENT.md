@@ -64,7 +64,7 @@ Do not conflate package acquisition with target transport.
 - record source identity/version when observable;
 - compute SHA256;
 - establish actual silent-install behavior and detection contract;
-- bind `package.manifest.json`;
+- bind machine-local `package.local.manifest.json` while keeping tracked `package.manifest.json` unbound;
 - perform no field-target mutation.
 
 This can happen while the Admin Box has ordinary Internet access. The installer then travels with the bounded ScanSnap package for target staging.
