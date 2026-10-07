@@ -1,6 +1,6 @@
 # ScanSnap Deployment Workflow (canonical plan)
 
-**Branch / worktree:** `feat/scansnap-deploy-adminbox1-ptop-20261006` @ `C:\Dev\SysAdminSuite-wt-scansnap-deploy-20261006`
+**Branch / worktree:** `feat/scansnap-deploy-adminbox1-ptop-20261006` @ `C:\Dev\SysAdminSuite-wt-scansnap-deploy-20261006`  
 **Base:** `origin/main` (`ed3782a6` at lane start)
 
 ## Outcome
@@ -41,5 +41,10 @@ Admin Box 1 / LPW003ASI173
 
 - Execution host confirmed: `LPW003ASI173`.
 - `CheexMcClappeth` resolves (`CheexMcClappeth.local` → `192.168.1.79`) and responds to ping.
-- Admin share `\\CheexMcClappeth\C$` (and `.local` / IP variants) was **not** available at first probe — classify as `UNREACHABLE` until share/auth is fixed.
+- WhatIf (`Deploy-ScanSnap.cmd /HOSTSFILE=hosts_smoke.txt /WHATIF`) from Admin Box 1 classified PTop as `ACCESS_DENIED` (admin share probe + `net view` corroboration). Evidence: `C:\ScanSnapDeployLogs\DeployScanSnap_20261006_203933.csv`. Stage/task/install were `NOT_ATTEMPTED` / `NOT_OBSERVED` (no mutation).
 - No ScanSnap installer binary was present under common drop locations at first probe — package bind remains required before live mutation.
+
+## Current blockers
+
+1. **Admin share / auth on PTop** — need `ADMIN_SHARE_READY` for `\\CheexMcClappeth\C$` (credentials or local admin rights).
+2. **Installer bind** — drop binary under `installers\`, freeze SHA256 / SilentArgs / Detect* / Bound=true from evidence only.

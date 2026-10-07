@@ -246,10 +246,10 @@ function Test-PackageBinding {
     [void]$issues.Add('Type is empty')
   }
   if ([string]::IsNullOrWhiteSpace([string]$Manifest.SilentArgs)) {
-    [void]$issues.Add('SilentArgs is empty — freeze from package evidence before live install')
+    [void]$issues.Add('SilentArgs is empty - freeze from package evidence before live install')
   }
   if ([string]::IsNullOrWhiteSpace([string]$Manifest.DetectType) -or [string]::IsNullOrWhiteSpace([string]$Manifest.DetectValue)) {
-    [void]$issues.Add('DetectType/DetectValue incomplete — required before declaring install success')
+    [void]$issues.Add('DetectType/DetectValue incomplete - required before declaring install success')
   }
   if (-not [bool]$Manifest.Bound) {
     [void]$issues.Add('Manifest Bound=false')
