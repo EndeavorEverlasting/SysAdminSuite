@@ -164,6 +164,14 @@ powershell -NoProfile -ExecutionPolicy Bypass -File .\Invoke-ScanSnapHomeSetupDr
 
 `LaunchAndResolve` refuses to start if a matching wizard is already open. Persist `last_observed` in the route manifest after every successful resolve so later agents route to the same process family automatically.
 
+Preferred unattended qualification path (no UI):
+
+```powershell
+powershell -NoProfile -ExecutionPolicy Bypass -File .\Invoke-ScanSnapSilentInstall.ps1
+```
+
+This owner performs the PID before/after delta around a single InstallShield silent launch (`-s -f1".\WinSSHomeInstaller_4_1_0.iss"`). Use the interactive setup driver only when silent qualification is unavailable.
+
 ## P82 execution rule
 
 Every unresolved empirical question uses:

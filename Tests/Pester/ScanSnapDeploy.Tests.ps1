@@ -112,3 +112,48 @@ Describe 'ScanSnap manifest binding contract' {
     $raw | Should -Match 'stageFiles\.Add\(\$issName\)'
   }
 }
+
+Describe 'ScanSnap installer PID delta route' {
+  BeforeAll {
+    $script:route = Join-Path $script:pkg 'installer-process-route.v1.json'
+    $script:resolvePid = Join-Path $script:pkg 'Resolve-ScanSnapInstallerProcess.ps1'
+    $script:setupDriver = Join-Path $script:pkg 'Invoke-ScanSnapHomeSetupDriver.ps1'
+    $script:silentInstall = Join-Path $script:pkg 'Invoke-ScanSnapSilentInstall.ps1'
+  }
+
+  It 'Route manifest and PID scripts exist' {
+    $script:route | Should -Exist
+    $script:resolvePid | Should -Exist
+    $script:setupDriver | Should -Exist
+    $script:silentInstall | Should -Exist
+  }
+
+  It 'Route schema encodes pid_delta_window_route, silent args, and browser exclusions' {
+    $r = Get-Content -LiteralPath $script:route -Raw | ConvertFrom-Json
+    [string]$r.schema_version | Should -Be 'scansnap-installer-process-route/v1'
+    [string]$r.strategy.name | Should -Be 'pid_delta_window_route'
+    [string]$r.window_title_pattern | Should -Match 'ScanSnap Home Setup'
+    @($r.exclude_process_names) | Should -Contain 'chrome'
+    @($r.process_name_candidates) | Should -Contain 'SSHDownloadInstaller'
+    @($r.process_name_candidates) | Should -Contain 'WinSSHomeInstaller_4_1_0'
+    [string]$r.silent_install.SilentArgs | Should -Match '-s -f1'
+    [string]$r.silent_install.product_name | Should -Be 'ScanSnap Home'
+  }
+
+  It 'Resolve/driver/silent scripts parse cleanly' {
+    foreach ($path in @($script:resolvePid, $script:setupDriver, $script:silentInstall)) {
+      $errors = $null
+      $null = [System.Management.Automation.Language.Parser]::ParseFile($path, [ref]$null, [ref]$errors)
+      $errors | Should -BeNullOrEmpty
+    }
+  }
+
+  It 'Resolve and silent scripts refuse second launch when wizard already open' {
+    $raw = Get-Content -LiteralPath $script:resolvePid -Raw
+    $raw | Should -Match 'Refusing LaunchAndResolve'
+    $raw | Should -Match 'AttachExisting'
+    $raw | Should -Match 'before_pid_count'
+    $silent = Get-Content -LiteralPath $script:silentInstall -Raw
+    $silent | Should -Match 'Refusing silent launch'
+  }
+}
