@@ -1,9 +1,9 @@
 # P97 — SysAdminSuite AndroidProvider Reference Architecture
 
-Date: 2026-10-07  
-Status: `P97_COMPLETE_REMOTE_REFERENCE_ARCHITECTURE`  
-Repository: `EndeavorEverlasting/SysAdminSuite`  
-Floor at research start: `main@9a0d2756f77d0b41582c70bc6fa68ac1fd3829af`  
+Date: 2026-10-07
+Status: `P97_COMPLETE_REMOTE_REFERENCE_ARCHITECTURE`
+Repository: `EndeavorEverlasting/SysAdminSuite`
+Floor at research start: `main@9a0d2756f77d0b41582c70bc6fa68ac1fd3829af`
 Canonical contract produced by this sprint: `harness/api/sas-android-provider-boundary.v1.json`
 
 ## Capability researched
