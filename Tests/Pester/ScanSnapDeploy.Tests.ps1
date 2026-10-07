@@ -169,3 +169,52 @@ Describe 'ScanSnap installer PID delta route' {
     $silent | Should -Match 'Refusing silent launch'
   }
 }
+
+
+Describe 'ScanSnap first-shot regression hardening' {
+  It 'Uses executable detection and non-identifying package provenance' {
+    $m = Get-Content -LiteralPath $script:manifest -Raw | ConvertFrom-Json
+    [string]$m.DetectValue | Should -Match 'PfuSshMain\.exe$'
+    [string]$m.BoundBy | Should -Not -Match '\\|@|LPW003|PA_rperez'
+  }
+
+  It 'Keeps live PID observations out of tracked route metadata' {
+    $routePath = Join-Path $script:pkg 'installer-process-route.v1.json'
+    $r = Get-Content -LiteralPath $routePath -Raw | ConvertFrom-Json
+    $r.PSObject.Properties.Name | Should -Not -Contain 'last_observed'
+    @($r.path_fragment_candidates) | Should -Not -Contain 'ScanSnap'
+    foreach ($candidate in @($r.detection_seed.DetectValueCandidates)) {
+      [string]$candidate | Should -Match '\.exe$'
+    }
+  }
+
+  It 'Makes remote InstallShield execution working-directory aware and exit-gated' {
+    $raw = Get-Content -LiteralPath $script:ps1 -Raw
+    $raw | Should -Match 'WorkingDirectory'
+    $raw | Should -Match 'InstallerSucceeded'
+    $raw | Should -Match 'Required InstallShield response file missing'
+    $raw | Should -Match 'UNKNOWN_BLOCKED'
+  }
+
+  It 'Makes PID resolution private and readiness-gated' {
+    $resolve = Get-Content -LiteralPath (Join-Path $script:pkg 'Resolve-ScanSnapInstallerProcess.ps1') -Raw
+    $resolve | Should -Match 'installer-route-observed\.json'
+    $resolve | Should -Match 'surfaceReady'
+    $resolve | Should -Not -Match 'last_observed'
+  }
+
+  It 'Serializes silent installs and separates already-installed from new success' {
+    $silent = Get-Content -LiteralPath (Join-Path $script:pkg 'Invoke-ScanSnapSilentInstall.ps1') -Raw
+    $silent | Should -Match 'System\.Threading\.Mutex'
+    $silent | Should -Match 'ALREADY_INSTALLED'
+    $silent | Should -Match 'Get-SsActiveProcessTree'
+    $silent | Should -Match 'EvidencePath must remain under ignored private evidence root'
+  }
+
+  It 'Never sends setup-driver keys after focus failure' {
+    $driver = Get-Content -LiteralPath (Join-Path $script:pkg 'Invoke-ScanSnapHomeSetupDriver.ps1') -Raw
+    $driver | Should -Match 'FOCUS_FAILED'
+    $driver | Should -Match 'preexistingDetection'
+    $driver | Should -Match '\$keys -and \$focused'
+  }
+}
