@@ -195,3 +195,5 @@ Config/SoftwareDeploy/ScanSnap/installers/*
 !Config/SoftwareDeploy/ScanSnap/installers/.gitkeep
 !Config/SoftwareDeploy/ScanSnap/installers/README.md
 
+# ScanSnap admin-box deploy evidence (live hostnames / results)
+ScanSnapDeployLogs/

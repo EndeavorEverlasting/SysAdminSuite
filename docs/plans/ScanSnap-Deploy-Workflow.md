@@ -1,9 +1,9 @@
 # ScanSnap Deploy Workflow (canonical plan)
 
-**Branch intent:** `feat/scansnap-deploy-adminbox1-ptop-20261006`  
-**Execution host:** Admin Box 1 — `LPW003ASI173`  
-**Certification target:** PTop — `CheexMcClappeth`  
-**Field targets:** `WRH250STR001`, `WRH250STR002`  
+**Branch intent:** `feat/scansnap-deploy-adminbox1-ptop-20261006`
+**Execution host:** Admin Box 1 — `LPW003ASI173`
+**Certification target:** PTop — `CheexMcClappeth`
+**Field targets:** `WRH250STR001`, `WRH250STR002`
 **Stale (do not use):** `LPW003ASI105`
 
 ## Outcome
@@ -31,12 +31,12 @@ Deterministic SysAdminSuite package under `Config/SoftwareDeploy/ScanSnap/` that
 
 ## Phases
 
-0. Refresh repo truth / isolated worktree from `origin/main`  
-1. Implement package + contract tests  
-2. Bind real installer on Admin Box 1  
-3. WhatIf against CheexMcClappeth  
-4. Live cert against CheexMcClappeth (`INSTALL_DETECTED`)  
-5. Field deploy when VPN/network ready  
+0. Refresh repo truth / isolated worktree from `origin/main`
+1. Implement package + contract tests
+2. Bind real installer on Admin Box 1
+3. WhatIf against CheexMcClappeth
+4. Live cert against CheexMcClappeth (`INSTALL_DETECTED`)
+5. Field deploy when VPN/network ready
 
 ## Reused contracts
 
