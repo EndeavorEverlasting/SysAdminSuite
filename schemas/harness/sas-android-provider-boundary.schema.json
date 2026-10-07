@@ -1,0 +1,132 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://example.invalid/schemas/sas-android-provider-boundary.v1.schema.json",
+  "title": "SysAdminSuite Android provider boundary",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "version",
+    "status",
+    "purpose",
+    "architecture",
+    "node_roles",
+    "runtime_bundle",
+    "host_provider",
+    "device_identity",
+    "state_dimensions",
+    "operation_classes",
+    "session_lifecycle",
+    "cleanup",
+    "public_surface",
+    "backend_roadmap",
+    "workload_boundary",
+    "security",
+    "maturity_path",
+    "reference_patterns",
+    "p82_promotion_gates",
+    "proof_ceiling"
+  ],
+  "properties": {
+    "schema_version": {
+      "const": "sas-android-provider-boundary/v1"
+    },
+    "version": {
+      "const": 1
+    },
+    "status": {
+      "const": "IMPLEMENTED_CONTRACT"
+    },
+    "purpose": {
+      "type": "string",
+      "minLength": 1
+    },
+    "architecture": {
+      "type": "object",
+      "required": [
+        "management_plane",
+        "provider",
+        "current_backend",
+        "rules"
+      ],
+      "properties": {
+        "management_plane": {
+          "const": "SysAdminSuite"
+        },
+        "provider": {
+          "const": "AndroidProvider"
+        },
+        "current_backend": {
+          "const": "adb_cli"
+        },
+        "rules": {
+          "type": "object"
+        }
+      },
+      "additionalProperties": true
+    },
+    "node_roles": {
+      "type": "array",
+      "minItems": 3,
+      "items": {
+        "type": "object",
+        "required": [
+          "id",
+          "purpose",
+          "offline_execution_required",
+          "public_internet_required_at_execution"
+        ]
+      }
+    },
+    "runtime_bundle": {
+      "type": "object"
+    },
+    "host_provider": {
+      "type": "object"
+    },
+    "device_identity": {
+      "type": "object"
+    },
+    "state_dimensions": {
+      "type": "object"
+    },
+    "operation_classes": {
+      "type": "object"
+    },
+    "session_lifecycle": {
+      "type": "array",
+      "minItems": 8,
+      "uniqueItems": true
+    },
+    "cleanup": {
+      "type": "object"
+    },
+    "public_surface": {
+      "type": "object"
+    },
+    "backend_roadmap": {
+      "type": "object"
+    },
+    "workload_boundary": {
+      "type": "object"
+    },
+    "security": {
+      "type": "object"
+    },
+    "maturity_path": {
+      "type": "array",
+      "minItems": 6
+    },
+    "reference_patterns": {
+      "type": "array",
+      "minItems": 5
+    },
+    "p82_promotion_gates": {
+      "type": "object"
+    },
+    "proof_ceiling": {
+      "type": "string",
+      "minLength": 1
+    }
+  }
+}
