@@ -131,7 +131,7 @@ Describe 'ScanSnap deterministic field deployment' {
         $gitignore = Get-Content -LiteralPath (Join-Path $repoRoot '.gitignore') -Raw
 
         $field | Should -Match 'package\.local\.manifest\.json'
-        $binder | Should -Match "Join-Path \$packageRoot 'package\.local\.manifest\.json'"
+        $binder | Should -Match 'Join-Path \$packageRoot ''package\.local\.manifest\.json'''
         $gitignore | Should -Match 'Config/SoftwareDeploy/ScanSnap/package\.local\.manifest\.json'
     }
 
