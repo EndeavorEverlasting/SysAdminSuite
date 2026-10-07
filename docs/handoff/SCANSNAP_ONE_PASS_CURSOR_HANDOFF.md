@@ -33,9 +33,23 @@ Prior integrated ScanSnap work:
 - PR #510 / `1b2b86bd` — precise access classification
 - PR #511 / `9a0d2756...` — multimodal + unattended deployment context
 
-## P04 / P82 invocation
+## P00 / P01 / P04 / P82 invocation
 
-P04 and P82 are not decorative references; apply their execution contracts.
+P00, P01, P04 and P82 are not decorative references; apply their execution contracts.
+
+P00:
+
+- canonical name: `Governance Doctrine Installer`
+- canonical repo: `EndeavorEverlasting/TokenCorridor`
+- registry: `src/tokencorridor/interface/promptkit/registry/base/prompts.json`
+- source blob: `848728632c1243ebba023fa0012292a2ad33cada`
+
+P01:
+
+- canonical name: `Harness Infrastructure Builder`
+- canonical repo: `EndeavorEverlasting/TokenCorridor`
+- registry: `src/tokencorridor/interface/promptkit/registry/base/prompts.json`
+- source blob: `848728632c1243ebba023fa0012292a2ad33cada`
 
 P04:
 
@@ -49,7 +63,7 @@ P82:
 - registry: `src/tokencorridor/interface/promptkit/registry/prompts/spec-architecture-prompts.v1.json`
 - source blob: `5926a198a14567de55110ed19e922fc444b4dec7`
 
-Use P04 for ownership/factoring/parallel work. Use P82 only on real empirical unknowns.
+Use P00 to enforce the offline protected-network governance invariant. Use P01 to make that invariant executable through the harness and sealed runtime. Use P04 for ownership/factoring/parallel work. Use P82 only on real empirical unknowns.
 
 ## Read first
 
@@ -74,6 +88,48 @@ Read current versions of:
 - `scripts/SasNorthwellNetworkAuthority.psm1`
 - `scripts/SasNetworkGuard.psm1`
 - `EnvSetup/Deploy-Shortcuts.ps1`
+- `harness/contracts/protected-network-offline-execution.v1.json`
+- `docs/GUEST_SYNC_TO_PROTECTED_DEPLOYMENT.md`
+
+## Protected execution is agent-independent
+
+The Northwell protected network cannot be assumed to provide public Internet access. Cursor itself may become unavailable when the Admin Box moves onto Northwell.
+
+Therefore the deployment must be split into two hard runtime phases.
+
+### Phase A — Internet preparation
+
+While Cursor and Internet access are still available, do all agent-dependent work:
+
+- refresh provider/repository truth;
+- implement and integrate the ScanSnap factory convergence;
+- acquire the exact web-sourced installer;
+- establish package provenance, SHA256, silent arguments, and validation;
+- bind the package;
+- stage every required payload locally;
+- prepare the protected operator front door;
+- encode local failure classification and continuation;
+- stage and seal the exact protected runtime.
+
+### Phase B — protected execution
+
+The offline/sealed deployment transaction begins after the switch to Northwell or protected VPN.
+
+From this point forward:
+
+- protected execution is agent-independent;
+- there is no public Internet dependency;
+- no Git fetch/pull/clone is allowed or required;
+- no vendor web lookup is allowed or required;
+- no future Cursor/ChatGPT response may be required to choose the next executable stage;
+- all deployment code and the installer payload must already exist locally;
+- the tracked CMD/runtime owns target resolution, readiness, staging, SYSTEM execution, validation, cleanup, evidence, and same-transaction failure continuation.
+
+Machine-readable authority:
+
+`harness/contracts/protected-network-offline-execution.v1.json`
+
+Do not switch onto protected Northwell until the sealed runtime can finish or locally classify/recover the entire intended ScanSnap transaction without the agent.
 
 ## The core decision is already made
 
@@ -115,6 +171,9 @@ The canonical adapter owns:
 - final transport classification.
 
 ## Do this in execution waves
+
+The key ordering constraint is: **finish all Internet/agent preparation before the protected network switch.** Cursor does not travel into the protected phase as an execution dependency.
+
 
 ### Wave 0 — recover current truth
 
@@ -161,6 +220,21 @@ Map the bound ScanSnap detection into canonical validation checks:
 Do not create arbitrary validation scriptblocks when the canonical validation vocabulary already fits.
 
 The adapter's returned completed+validated state is stronger than the existing ScanSnap `INSTALLATION_DETECTED` state. Preserve both: retain canonical result evidence and project successful canonical completion to the ScanSnap operator-facing final class.
+
+### Wave 1C — prepare and seal the protected transaction
+
+Before any Northwell/VPN switch:
+
+1. ensure the exact implementation candidate is integrated or otherwise selected as the immutable deployment floor;
+2. refresh/stage through the existing Guest/Internet workflow;
+3. ensure `C:\SASAL` contains the ScanSnap front door and every required tracked dependency;
+4. ensure the real installer payload is locally available to the protected runtime;
+5. preserve its SHA256, silent args, and validation rules locally;
+6. prove runtime remotes are removed;
+7. prove the tracked-file seal;
+8. prove no protected code path needs public web/Git/agent access;
+9. prove failures create local evidence and have a local continuation/recovery path;
+10. only then switch networks.
 
 ### Wave 2 — home deployment
 
@@ -216,6 +290,8 @@ Use the result to deploy ScanSnap on PTop in this sprint.
 ### Wave 3 — field modes
 
 Home success is not required before field execution.
+
+**Cursor/agent execution stops being a dependency before this wave begins.** The local sealed runtime carries the operation.
 
 When protected Northwell or VPN authority becomes available, use:
 
@@ -299,6 +375,7 @@ After code convergence, run at least:
 Tests/Pester/ScanSnapDeploy.Tests.ps1
 Tests/Pester/SmbScheduledTaskDeployment.Tests.ps1
 Tests/survey/test_canonical_smb_task_deployment_contracts.py
+harness/validators/validate-protected-network-offline-execution.py
 ```
 
 If network-authority owners change, run their relevant contracts too.
@@ -371,6 +448,22 @@ Exact commands/results.
 
 ### GIT/PROVIDER
 Branch/HEAD/PR/checks/merge/main.
+
+### OFFLINE PROTECTED-RUNTIME STATE
+
+Report:
+
+```text
+sealed runtime prepared: YES/NO
+prepared commit:
+tracked-file seal verified: YES/NO
+installer payload local: YES/NO
+public Internet required after switch: YES/NO
+agent required after switch: YES/NO
+offline failure continuation proven: YES/NO
+```
+
+For an acceptable protected deployment surface, the final two dependency answers must be NO and offline failure continuation must be YES.
 
 ### UNRESOLVED EXTERNAL BOUNDARIES
 Only things the runtime truly cannot supply.
