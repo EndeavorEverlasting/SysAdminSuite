@@ -71,15 +71,16 @@ function Resolve-SsDeploymentMode {
     [string]$TargetHost
   )
   $route = [string]$Authority.Route
+  if (-not [bool]$Authority.Allowed) {
+    # Denied authority is never allowed to mutate. Preserve PTop only as a no-mutation WhatIf diagnostic.
+    if ($script:SsWhatIf -and $TargetHost -match '(?i)^(CheexMcClappeth)(\.|$)') { return 'LAB_LOCAL' }
+    return 'UNKNOWN_BLOCKED'
+  }
   switch ($route) {
     'WAB_WIFI' { return 'NORTHWELL_PROTECTED' }
     'PROTECTED_NON_WIFI' { return 'NORTHWELL_PROTECTED' }
     'DOMAIN_AUTHENTICATED_NON_WIFI' { return 'NORTHWELL_VPN' }
-    default {
-      # Home/guest with no Northwell authority: lab PTop only; field hosts fail closed.
-      if ($TargetHost -match '(?i)^(CheexMcClappeth)(\.|$)') { return 'LAB_LOCAL' }
-      return 'UNKNOWN_BLOCKED'
-    }
+    default { return 'UNKNOWN_BLOCKED' }
   }
 }
 
@@ -302,6 +303,13 @@ function Test-PackageBinding {
   if ([string]::IsNullOrWhiteSpace([string]$Manifest.DetectType) -or [string]::IsNullOrWhiteSpace([string]$Manifest.DetectValue)) {
     [void]$issues.Add('DetectType/DetectValue incomplete - required before declaring install success')
   }
+  if ([string]$Manifest.SilentArgs -match '(?i)\.iss') {
+    $responseName = [IO.Path]::ChangeExtension([string]$Manifest.InstallerFileName, '.iss')
+    $responsePath = Join-Path $InstallersDir $responseName
+    if (-not (Test-Path -LiteralPath $responsePath -PathType Leaf)) {
+      [void]$issues.Add("Required InstallShield response file missing: $responseName")
+    }
+  }
   if (-not [bool]$Manifest.Bound) {
     [void]$issues.Add('Manifest Bound=false')
   }
@@ -353,6 +361,7 @@ function New-RemoteInstallRunner {
 New-Item -ItemType Directory -Path `$outRoot -Force | Out-Null
 `$resultPath = Join-Path `$outRoot '$resultName'
 `$installer = Join-Path 'C:\$StageRelativeUnderC' '$LocalInstallerName'
+`$installerDir = Split-Path -Parent `$installer
 `$started = Get-Date
 `$obj = [ordered]@{
   StartedUtc = `$started.ToUniversalTime().ToString('o')
@@ -361,6 +370,7 @@ New-Item -ItemType Directory -Path `$outRoot -Force | Out-Null
   SilentArgs = '$SilentArgs'
   ExitCode = `$null
   InstallerCompleted = `$false
+  InstallerSucceeded = `$false
   DetectType = '$DetectType'
   DetectValue = '$DetectValue'
   Detected = `$false
@@ -374,10 +384,11 @@ try {
     `$p = Start-Process -FilePath 'msiexec.exe' -ArgumentList (@('/i', `$installer) + (`$argLine -split '\s+' | Where-Object { `$_ })) -Wait -PassThru -NoNewWindow
   } else {
     # Split tokens so InstallShield switches like -s -f1".\file.iss" are separate argv entries.
-    `$p = Start-Process -FilePath `$installer -ArgumentList (@(`$argLine -split '\s+' | Where-Object { `$_ })) -Wait -PassThru -NoNewWindow
+    `$p = Start-Process -FilePath `$installer -ArgumentList (@(`$argLine -split '\s+' | Where-Object { `$_ })) -WorkingDirectory `$installerDir -Wait -PassThru -NoNewWindow
   }
   `$obj.ExitCode = `$p.ExitCode
   `$obj.InstallerCompleted = `$true
+  `$obj.InstallerSucceeded = `$p.ExitCode -in @(0, 1641, 3010)
   `$detected = `$false
   if ('$DetectType' -ieq 'file') {
     `$detected = Test-Path -LiteralPath '$DetectValue'
@@ -638,10 +649,11 @@ foreach ($target in $targets) {
     $issName = [IO.Path]::ChangeExtension([string]$manifest.InstallerFileName, '.iss')
     if (-not [string]::IsNullOrWhiteSpace($issName)) {
       $issSrc = Join-Path $installersDir $issName
-      if (Test-Path -LiteralPath $issSrc) {
-        Copy-Item -LiteralPath $issSrc -Destination (Join-Path $bundle $issName) -Force
-        [void]$stageFiles.Add($issName)
+      if (-not (Test-Path -LiteralPath $issSrc -PathType Leaf)) {
+        throw "Required InstallShield response file missing before staging: $issSrc"
       }
+      Copy-Item -LiteralPath $issSrc -Destination (Join-Path $bundle $issName) -Force
+      [void]$stageFiles.Add($issName)
     }
 
     $rc = Invoke-RobocopyStage -SourceDir $bundle -DestDir $stageUnc -Files @($stageFiles)
@@ -667,8 +679,11 @@ foreach ($target in $targets) {
     $detail = $exec.Detail
     $evidence = $runnerInfo.ResultUnc
 
-    if ($detectStatus -eq 'DETECTED') {
+    $installerSucceeded = [bool]($exec.ResultObject -and $exec.ResultObject.InstallerSucceeded)
+    if ($installerSucceeded -and $detectStatus -eq 'DETECTED') {
       $final = 'INSTALLATION_DETECTED'
+    } elseif ($taskRun -eq 'COMPLETED' -and -not $installerSucceeded) {
+      $final = 'INSTALLER_FAILED'
     } elseif ($taskRun -eq 'COMPLETED' -and $detectStatus -eq 'NOT_DETECTED') {
       $final = 'INSTALLER_DONE_NOT_DETECTED'
     } elseif ($taskCreate -eq 'FAILED' -or $taskRun -eq 'FAILED') {
