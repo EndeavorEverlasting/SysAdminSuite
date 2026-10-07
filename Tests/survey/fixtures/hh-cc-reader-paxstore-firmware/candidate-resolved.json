@@ -1,0 +1,9 @@
+{
+  "businessCode": 0,
+  "data": {
+    "fmName": "A80_PayDroid_target_fixture",
+    "modelName": "A80",
+    "compatibleModels": ["A80"],
+    "online": true
+  }
+}

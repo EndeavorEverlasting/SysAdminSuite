@@ -1,0 +1,14 @@
+{
+  "businessCode": 0,
+  "message": "success",
+  "data": {
+    "serialNo": "1240473751",
+    "macAddress": "C840523C93BA",
+    "modelName": "A80",
+    "osVersion": "10",
+    "installedFirmware": {
+      "firmwareName": "A80_PayDroid_fixture_firmware_name_NOT_CAMPAIGN_TARGET",
+      "installTime": 1700000000000
+    }
+  }
+}

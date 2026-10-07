@@ -1,0 +1,6 @@
+{
+  "businessCode": 404,
+  "message": "firmware not found",
+  "typed_state": "FIRMWARE_NOT_FOUND",
+  "data": null
+}

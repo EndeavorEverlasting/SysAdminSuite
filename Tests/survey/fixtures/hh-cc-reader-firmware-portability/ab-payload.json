@@ -1,0 +1,6 @@
+{
+  "kind": "ab_payload",
+  "ab_payload": true,
+  "path": "/data/ota/payload.bin",
+  "acquisition_method": "authorized_reader_export"
+}
