@@ -1,7 +1,7 @@
 # ScanSnap live-cert status (Admin Box 1)
 
-**Updated:** 2026-10-06 (continuation after PR #507 merge `2610c4f4`)  
-**Control host:** `LPW003ASI173` @ `192.168.1.88` (Wi-Fi lab LAN)  
+**Updated:** 2026-10-06 (continuation after PR #507 merge `2610c4f4`)
+**Control host:** `LPW003ASI173` @ `192.168.1.88` (Wi-Fi lab LAN)
 **Target:** `CheexMcClappeth` / `192.168.1.79`
 
 ## Proven
@@ -18,7 +18,7 @@
 
 Admin Box is domain-joined (`nslijhs.net`) but **no DC is reachable** on the current LAN (`nltest` → ERROR_NO_SUCH_DOMAIN 1355).
 
-- `\\CheexMcClappeth\C$` → cannot contact domain controller  
+- `\\CheexMcClappeth\C$` → cannot contact domain controller
 - `\\192.168.1.79\C$` → username or password incorrect (NTLM with current domain token rejected)
 
 No stored credentials for PTop. WinRM unavailable.
