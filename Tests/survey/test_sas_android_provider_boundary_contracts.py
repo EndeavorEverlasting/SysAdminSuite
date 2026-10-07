@@ -2,6 +2,7 @@
 """Dependency-free contracts for the SysAdminSuite AndroidProvider boundary."""
 from __future__ import annotations
 
+import copy
 import importlib.util
 import json
 from pathlib import Path
@@ -24,6 +25,35 @@ def load_validator():
 def test_contract_validator() -> None:
     payload = json.loads(CONTRACT.read_text(encoding="utf-8"))
     assert load_validator().validate_contract(payload) == []
+
+
+
+def test_schema_is_applied_and_nested_shape_fails_closed() -> None:
+    payload = json.loads(CONTRACT.read_text(encoding="utf-8"))
+    missing_version = copy.deepcopy(payload)
+    missing_version.pop("version")
+    assert any(error.startswith("schema.") for error in load_validator().validate_contract(missing_version))
+
+    unexpected_nested_key = copy.deepcopy(payload)
+    unexpected_nested_key["host_provider"]["adb_server_bnid_scope"] = "LOOPBACK_ONLY"
+    assert any(error.startswith("schema.host_provider") for error in load_validator().validate_contract(unexpected_nested_key))
+
+
+def test_concrete_adb_server_host_must_be_loopback() -> None:
+    payload = json.loads(CONTRACT.read_text(encoding="utf-8"))
+    payload["host_provider"]["adb_server_default_host"] = "0.0.0.0"
+    errors = load_validator().validate_contract(payload)
+    assert "host_provider.adb_server_default_host" in errors
+    assert any(error.startswith("schema.host_provider.adb_server_default_host") for error in errors)
+
+
+def test_malformed_workload_boundary_returns_failures_not_traceback() -> None:
+    payload = json.loads(CONTRACT.read_text(encoding="utf-8"))
+    payload["workload_boundary"] = []
+    errors = load_validator().validate_contract(payload)
+    assert errors
+    assert any(error.startswith("schema.workload_boundary") for error in errors)
+    assert "workload_boundary.hh_cc_reader.current_adapter" in errors
 
 
 def test_capability_authority_and_proof_remain_separate() -> None:
@@ -81,6 +111,9 @@ def test_backend_maturity_requires_measurement_before_replacement() -> None:
 
 TESTS = [
     test_contract_validator,
+    test_schema_is_applied_and_nested_shape_fails_closed,
+    test_concrete_adb_server_host_must_be_loopback,
+    test_malformed_workload_boundary_returns_failures_not_traceback,
     test_capability_authority_and_proof_remain_separate,
     test_field_nodes_are_offline_first,
     test_adb_server_stays_local_and_keys_are_not_shared,
