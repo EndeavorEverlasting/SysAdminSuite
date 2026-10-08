@@ -17,6 +17,8 @@ param(
   [string]$PanelAddress = '',
   [string]$DriverName = '',
   [switch]$PanelConfirmed,
+  [switch]$SiteConfirmed,
+  [switch]$AdoptExistingQueue,
   [switch]$UsePanelAddress
 )
 $ErrorActionPreference = 'Stop'
@@ -101,6 +103,7 @@ function Record-Result([pscustomobject]$Data) {
 $result = [pscustomobject]@{
   SchemaVersion = 'sas-local-tcp-printer-run/v1'
   Mode = $Mode
+  UseCaseId = 'agilant-hq.local-tcp-printer'
   State = 'STARTED'
   PrinterName = $PrinterName
   HostOrAddress = $HostOrAddress
@@ -143,8 +146,15 @@ try {
     if (-not (Test-Tcp9100 $resolved.Ip)) {
       Fail 'TCP_9100_UNREACHABLE' 'TCP 9100 did not respond. Check network, SSID, VPN, current device IP and print protocol.'
     }
+    $requiresAdoption = $false
     if ($existing -and $existing.PortName -notlike 'SAS_LOCAL_TCP_*') {
-      Fail 'UNMANAGED_QUEUE_CONFLICT' 'A printer with this name exists but is not owned by this local TCP workflow.'
+      $oldPortInfo = Get-PrinterPort -Name $existing.PortName -ErrorAction SilentlyContinue
+      $oldAddress = if ($oldPortInfo) { [string]$oldPortInfo.PrinterHostAddress } else { '' }
+      if (-not $oldPortInfo -or [int]$oldPortInfo.PortNumber -ne 9100 -or
+          $oldAddress -notin @($resolved.Ip, $resolved.PortAddress)) {
+        Fail 'UNMANAGED_QUEUE_CONFLICT' 'An existing printer name belongs to an unrelated or unverified port. No adoption is possible.'
+      }
+      $requiresAdoption = $true
     }
     if ($existing -and $existing.DriverName -ne $DriverName) {
       Fail 'DRIVER_CONFLICT' 'Existing queue uses another driver. Review it before changing anything.'
@@ -154,9 +164,15 @@ try {
       Fail 'PORT_NAME_CONFLICT' 'Existing port name points somewhere else. No port will be repurposed.'
     }
     if ($Mode -eq 'Plan') {
-      $result.State = if ($existing -and $existing.PortName -eq $result.PortName) { 'ALREADY_MAPPED' } else { 'READY_TO_MAP' }
+      $result.State = if ($requiresAdoption) { 'READY_TO_ADOPT' } elseif ($existing -and $existing.PortName -eq $result.PortName) { 'ALREADY_MAPPED' } else { 'READY_TO_MAP' }
       $result.Reason = 'Read-only preview; Apply requires fresh physical panel confirmation.'
     } else {
+      if (-not $SiteConfirmed) {
+        Fail 'SITE_CONFIRMATION_REQUIRED' 'This workflow is bound to Agilant HQ only. Confirm the approved site/network.'
+      }
+      if ($requiresAdoption -and -not $AdoptExistingQueue) {
+        Fail 'ADOPTION_CONFIRMATION_REQUIRED' 'Preview found a compatible existing queue; explicitly authorize adoption first.'
+      }
       $panelIp = Get-IPv4 $PanelAddress
       if (-not $PanelConfirmed -or -not $panelIp) {
         Fail 'PANEL_CONFIRMATION_REQUIRED' 'Read the current address on the actual printer and confirm it in the app.'
