@@ -42,7 +42,7 @@ def check_resolution_fail_closed() -> None:
         "ROLLBACK_INCOMPLETE", "MAPPING_FAILED_ROLLED_BACK",
         "Set-Printer", "Add-PrinterPort", "Add-Printer",
         "Get-Printer", "TEST_PAGE_SUBMITTED", "MAPPED_NOW",
-        "ALREADY_MAPPED", "READY_TO_ADOPT",
+        "ALREADY_MAPPED", "READY_TO_ADOPT", "READY_TO_ADOPT_STALE",
     ):
         assert required in source, required
     assert "PanelAddress" in source and "$PanelConfirmed" in source
