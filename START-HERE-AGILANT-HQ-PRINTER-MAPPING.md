@@ -30,7 +30,7 @@ The workflow must keep four concepts separate:
 
 1. Show the current Wi-Fi SSID (when Windows can report it) and the local TCP source IP in preflight receipts. If an approved SSID is entered in the local profile, block any exact-SSID mismatch before mapping. An empty SSID is not authority to infer Agilant Main; retain explicit site/network confirmation.
 2. Read-only DNS lookup when hostname supplied; reject multiple A records.
-2. Compare resolved IPv4 against the operator-entered current panel IPv4. If unequal, block **DNS_PANEL_MISMATCH**.
+3. Compare resolved IPv4 against the operator-entered current panel IPv4. If unequal, block **DNS_PANEL_MISMATCH**.
 3. To recover, operator selects explicit **Use panel IP** and confirms the current address on the physical copier. Without the override, DNS failure blocks.
 4. Check TCP/9100 against the selected current address before proposing any mutation. Reachability alone does not establish identity.
 5. Prefer a hostname-backed Standard TCP/IP RAW/9100 port *only when DNS agrees with the physical panel*. Otherwise create a dedicated IP-backed port for the freshly confirmed address.
