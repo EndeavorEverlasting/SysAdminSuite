@@ -39,7 +39,12 @@ function Get-CurrentWifiSsid {
   try {
     $lines = & netsh.exe wlan show interfaces 2>$null
     foreach ($line in $lines) {
-      if ($line -match '^\s*SSID\s*:\s*(.+?)\s*
+      if ($line -match '^\s*SSID\s*:\s*(.+?)\s*$') { return $Matches[1] }
+    }
+  } catch {}
+  return ''
+}
+function Test-Tcp9100([string]$Address) {
   $socket = New-Object System.Net.Sockets.TcpClient
   try {
     $async = $socket.BeginConnect($Address, 9100, $null, $null)
