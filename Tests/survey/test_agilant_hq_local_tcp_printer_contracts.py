@@ -34,6 +34,7 @@ def check_resolution_fail_closed() -> None:
     policy = json.loads(read("harness/api/agilant-hq-local-tcp-printer-evidence-policy.json"))
     for required in (
         "DNS_UNRESOLVED", "DNS_PANEL_MISMATCH", "AMBIGUOUS_DNS",
+        "SSID_MISMATCH", "TcpSourceAddress", "Get-CurrentWifiSsid",
         "OPERATOR_PANEL_OVERRIDE", "PANEL_CONFIRMATION_REQUIRED",
         "SITE_CONFIRMATION_REQUIRED", "Test-Tcp9100",
         "DRIVER_NOT_INSTALLED", "PORT_NAME_CONFLICT",
