@@ -36,7 +36,7 @@ The workflow must keep four concepts separate:
 6. Prefer a hostname-backed Standard TCP/IP RAW/9100 port *only when DNS agrees with the physical panel*. Otherwise create a dedicated IP-backed port for the freshly confirmed address.
 7. If a managed queue already has the correct name, driver and port, report **ALREADY_MAPPED**. If it has a stale managed port, create the new port then switch the queue, leaving the old port available for rollback and any other consumers.
 8. If there is a manual pre-existing queue, allow **explicit adoption only** when its current TCP/9100 port resolves to the selected address and the driver matches. Never hijack a different printer with the same display name.
-8. Check after mutation that the queue is bound to exactly the selected driver and port. On an error restore the previous queue port and remove an unreferenced newly created port; report **ROLLBACK_INCOMPLETE** if cleanup fails.
+9. Check after mutation that the queue is bound to exactly the selected driver and port. On an error restore the previous queue port and remove an unreferenced newly created port; report **ROLLBACK_INCOMPLETE** if cleanup fails.
 9. Persist one local receipt per attempt. Do not mix queue registration, test-page submission and physically observed output into a single success state.
 
 ## Important boundaries
