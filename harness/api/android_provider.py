@@ -98,7 +98,9 @@ def prepare_bundle(archive: Path, expected_sha256: str, directory: Path | None =
     if not re.fullmatch(r"[a-f0-9]{64}", expected_sha256) or sha256(archive) != expected_sha256:
         raise RuntimeError("ARCHIVE_HASH_MISMATCH")
     directory.parent.mkdir(parents=True, exist_ok=True)
-    with provider_lease(directory.parent), tempfile.TemporaryDirectory(dir=directory.parent) as temporary:
+    with provider_lease(HOST_LEASE_DIR), tempfile.TemporaryDirectory(dir=directory.parent) as temporary:
+        if host_server_state(directory / "adb.exe") != "STOPPED":
+            raise RuntimeError("STOP_OWNED_SERVER_BEFORE_RUNTIME_PREPARATION")
         staging = Path(temporary) / "bundle"
         staging.mkdir()
         with zipfile.ZipFile(archive) as zipped:
@@ -319,6 +321,9 @@ def certify_network(adb: Path, binding: dict[str, Any], ip: str, *, authorized: 
     endpoint = f"{ip}:5555"
     prefix = [str(adb), "-H", "127.0.0.1", "-P", "5037"]
     with provider_lease(lease_dir):
+        if verify_bundle(adb.parent)["state"] != "READY":
+            result["reason"] = "RUNTIME_REQUALIFICATION_REQUIRED"
+            return result
         journal_path = lease_dir / "transport-transaction.json"
         if journal_path.is_file():
             previous = json.loads(journal_path.read_text(encoding="utf-8"))

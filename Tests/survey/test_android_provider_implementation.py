@@ -17,6 +17,16 @@ from harness.api import android_provider as provider
 
 
 class ProviderTests(unittest.TestCase):
+    def setUp(self):
+        temporary = tempfile.TemporaryDirectory()
+        self.addCleanup(temporary.cleanup)
+        lease_patch = patch.object(provider, "HOST_LEASE_DIR", Path(temporary.name))
+        lease_patch.start()
+        self.addCleanup(lease_patch.stop)
+        stopped = patch.object(provider, "host_server_state", return_value="STOPPED")
+        stopped.start()
+        self.addCleanup(stopped.stop)
+
     def archive(self, root, extra=None):
         archive = root / "official.fixture.zip"
         with zipfile.ZipFile(archive, "w") as zipped:
@@ -127,7 +137,7 @@ class ProviderTests(unittest.TestCase):
             if tcp_mismatch and serial == "192.0.2.10:5555" and command == "getprop":
                 text = "[ro.serialno]: [another-device]"
             return {"ok": True, "stdout": text}
-        with tempfile.TemporaryDirectory() as temporary, patch.object(provider, "_run", side_effect=run), patch.object(provider, "collect_devices", return_value=[{"state": "device", "transport": "usb", "_serial": "usb-fixture"}]), patch.object(provider, "allowed_shell", side_effect=shell), patch.object(provider.socket, "create_connection", side_effect=ConnectionRefusedError), patch.object(provider.time, "sleep"):
+        with tempfile.TemporaryDirectory() as temporary, patch.object(provider, "verify_bundle", return_value={"state": "READY"}), patch.object(provider, "_run", side_effect=run), patch.object(provider, "collect_devices", return_value=[{"state": "device", "transport": "usb", "_serial": "usb-fixture"}]), patch.object(provider, "allowed_shell", side_effect=shell), patch.object(provider.socket, "create_connection", side_effect=ConnectionRefusedError), patch.object(provider.time, "sleep"):
             result = provider.certify_network(Path("fixture-adb"), self.binding(), "192.0.2.10", authorized=True, lease_dir=Path(temporary))
         for argv in commands:
             if "tcpip" in argv or "usb" in argv:
@@ -152,7 +162,7 @@ class ProviderTests(unittest.TestCase):
     def test_loopback_server_refuses_unproven_binding(self):
         def run(argv, timeout=30):
             return subprocess.CompletedProcess(argv, 0, "0.0.0.0" if argv[0] == "powershell.exe" else "", "")
-        with patch.object(provider, "_run", side_effect=run):
+        with patch.object(provider, "_run", side_effect=run), patch.object(provider, "host_server_state", return_value="UNTRUSTED_LISTENER"):
             with self.assertRaisesRegex(RuntimeError, "LOOPBACK_SERVER_NOT_PROVEN"):
                 provider.collect_devices(Path("fixture-adb"), lease_held=True)
 
@@ -212,7 +222,8 @@ class ProviderTests(unittest.TestCase):
             (runtime / "scripts/Test-SasAutoLogonRuntimeSeal.ps1").write_text("synthetic")
             state = root / "SysAdminSuite/autologon-short-runtime.json"
             state.parent.mkdir()
-            state.write_text(json.dumps({"runtime_root": str(runtime), "tracked_file_hashes": [{"path": p} for p in ("harness/api/android_provider.py", "harness/api/android_provider_cli.py", "Run-SasAndroidProvider.cmd")]}))
+            required = ["harness/api/android_provider.py", "harness/api/android_provider_cli.py", "Run-SasAndroidProvider.cmd", "scripts/Test-SasAutoLogonRuntimeSeal.ps1"]
+            state.write_text(json.dumps({"runtime_root": str(runtime), "tracked_file_hashes": [{"path": p} for p in required]}))
             calls = []
             def run(argv, **kwargs):
                 calls.append(argv)
@@ -223,9 +234,25 @@ class ProviderTests(unittest.TestCase):
                 self.assertEqual(cli.admit_source("a" * 40)["source_commit"], "a" * 40)
                 self.assertIn("-ExpectedCommit", calls[-1])
                 self.assertNotIn("git", calls[-1])
+                state.write_text(json.dumps({"runtime_root": str(runtime), "tracked_file_hashes": [{"path": p} for p in required[:-1]]}))
+                with self.assertRaisesRegex(RuntimeError, "ANDROID_CAPABILITY_NOT_SEALED"):
+                    cli.admit_source("a" * 40)
+                state.write_text(json.dumps({"runtime_root": str(runtime), "tracked_file_hashes": [{"path": p} for p in required]}))
                 with patch.object(cli.subprocess, "run", return_value=subprocess.CompletedProcess([], 10, "", "")):
                     with self.assertRaisesRegex(RuntimeError, "SOURCE_ADMISSION_FAILED"):
                         cli.admit_source("b" * 40)
+
+    def test_runtime_preparation_contends_with_transport_lease(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            archive = self.archive(root)
+            with provider.provider_lease(provider.HOST_LEASE_DIR):
+                with self.assertRaisesRegex(RuntimeError, "PROVIDER_LEASE_BUSY"):
+                    provider.prepare_bundle(archive, provider.sha256(archive), root / "owned")
+            self.assertFalse((root / "owned").exists())
+            with patch.object(provider, "host_server_state", return_value="OWNED_LOOPBACK"):
+                with self.assertRaisesRegex(RuntimeError, "STOP_OWNED_SERVER"):
+                    provider.prepare_bundle(archive, provider.sha256(archive), root / "owned")
 
     def test_migrated_hh_inventory_and_transport_authority(self):
         from harness.api import hh_cc_reader_adb_live as live

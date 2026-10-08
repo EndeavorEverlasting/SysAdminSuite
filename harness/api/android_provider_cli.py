@@ -33,7 +33,7 @@ def admit_source(expected_commit: str | None = None) -> dict:
     if state.get("runtime_root") and Path(state["runtime_root"]).resolve() == ROOT.resolve():
         if not expected_commit or not re.fullmatch(r"[a-f0-9]{40}", expected_commit):
             raise RuntimeError("SELECTED_REFRESHED_COMMIT_REQUIRED")
-        required = {"harness/api/android_provider.py", "harness/api/android_provider_cli.py", "Run-SasAndroidProvider.cmd"}
+        required = {"harness/api/android_provider.py", "harness/api/android_provider_cli.py", "Run-SasAndroidProvider.cmd", "scripts/Test-SasAutoLogonRuntimeSeal.ps1"}
         sealed_paths = {str(entry.get("path", "")).replace("\\", "/") for entry in state.get("tracked_file_hashes", [])}
         if not required.issubset(sealed_paths):
             raise RuntimeError("ANDROID_CAPABILITY_NOT_SEALED")
