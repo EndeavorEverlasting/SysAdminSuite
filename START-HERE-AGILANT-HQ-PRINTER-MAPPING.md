@@ -35,7 +35,7 @@ The workflow must keep four concepts separate:
 5. Check TCP/9100 against the selected current address before proposing any mutation. Reachability alone does not establish identity.
 6. Prefer a hostname-backed Standard TCP/IP RAW/9100 port *only when DNS agrees with the physical panel*. Otherwise create a dedicated IP-backed port for the freshly confirmed address.
 7. If a managed queue already has the correct name, driver and port, report **ALREADY_MAPPED**. If it has a stale managed port, create the new port then switch the queue, leaving the old port available for rollback and any other consumers.
-8. If there is a manual pre-existing queue, allow **explicit adoption only** when its current TCP/9100 port resolves to the selected address and the driver matches. Never hijack a different printer with the same display name.
+8. If there is a manual pre-existing queue, preview its old port name/address and permit **explicit adoption** only for a recognizable RAW/9100 Standard TCP/IP port with the exact expected driver. If the port still points at a prior address, classify **READY_TO_ADOPT_STALE**; do not require stale IP to match the newly confirmed panel IP. An operator must affirm adoption, current panel IPv4, and Agilant HQ site before the stale port is replaced. Refuse non-TCP/WSD or driver conflicts.
 9. Check after mutation that the queue is bound to exactly the selected driver and port. On an error restore the previous queue port and remove an unreferenced newly created port; report **ROLLBACK_INCOMPLETE** if cleanup fails.
 10. Persist one local receipt per attempt. Do not mix queue registration, test-page submission and physically observed output into a single success state.
 
