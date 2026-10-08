@@ -57,7 +57,7 @@ def check_resolution_fail_closed() -> None:
 def check_gui_requires_current_observation() -> None:
     gui = read("GUI/Start-LocalTcpPrinterGui.ps1")
     for required in (
-        "Map-LocalTcpPrinter.cmd", "Preview & preflight",
+        "Map-AgilantHqPrinter.cmd", "Preview & preflight",
         "Map / Repair", "Send test page", "UsePanelAddress",
         "PanelConfirmed", "SiteConfirmed", "AdoptExistingQueue",
         "$txtPanel.Text = ''", "$chkPanel.Checked = $false",
