@@ -125,8 +125,15 @@ class ProviderTests(unittest.TestCase):
             result = provider.certify_network(Path("fixture-adb"), self.binding(), "192.0.2.10", authorized=False, lease_dir=Path("unused"))
             self.assertEqual(result["result"], "BLOCK")
             forged = {**self.binding(), "expected": {"ro.serialno": ""}}
-            result = provider.certify_network(Path("fixture-adb"), forged, "192.0.2.10", authorized=True, lease_dir=Path("unused"))
+            result = provider.certify_network(Path("fixture-adb"), forged, "192.0.2.10", authorized=True, lease_dir=Path("unused"), profile_authority=self.profile())
             self.assertEqual(result["reason"], "INVALID_IDENTITY_BINDING")
+
+    def profile(self):
+        return {"schema_version": "sas-android-target-profile/v1",
+                   "organization": {"id": "synthetic-organization", "status": "RESOLVED", "evidence_ref": "synthetic-approval"},
+                   "site": {"id": "synthetic-site", "organization_id": "synthetic-organization", "status": "RESOLVED", "evidence_ref": "synthetic-site-approval"},
+                   "equipment": {"id": "synthetic-android", "status": "RESOLVED", "evidence_ref": "synthetic-equipment-approval", "device_class": "android"},
+                   "allowed_operations": ["tcpip-cert"]}
 
     def transaction(self, cleanup_failed=False, transition_timeout=False, tcp_mismatch=False):
         commands = []
@@ -143,7 +150,7 @@ class ProviderTests(unittest.TestCase):
                 text = "[ro.serialno]: [another-device]"
             return {"ok": True, "stdout": text}
         with tempfile.TemporaryDirectory() as temporary, patch.object(provider, "verify_bundle", return_value={"state": "READY"}), patch.object(provider, "_run", side_effect=run), patch.object(provider, "collect_devices", return_value=[{"state": "device", "transport": "usb", "_serial": "usb-fixture"}]), patch.object(provider, "allowed_shell", side_effect=shell), patch.object(provider.socket, "create_connection", side_effect=ConnectionRefusedError), patch.object(provider.time, "sleep"):
-            result = provider.certify_network(Path("fixture-adb"), self.binding(), "192.0.2.10", authorized=True, lease_dir=Path(temporary))
+            result = provider.certify_network(Path("fixture-adb"), self.binding(), "192.0.2.10", authorized=True, lease_dir=Path(temporary), profile_authority=self.profile())
         for argv in commands:
             if "tcpip" in argv or "usb" in argv:
                 self.assertIn("-s", argv)

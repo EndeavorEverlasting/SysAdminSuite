@@ -77,6 +77,7 @@ def collect_live_evidence(
     expected_mac: str | None = None,
     otg_confirmed: bool = False,
     transport_authorized: bool = False,
+    profile_authority: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
     host = resolve_host()
     archive_sha = None
@@ -148,7 +149,7 @@ def collect_live_evidence(
                 key = "ro.serialno" if props.get("ro.serialno") else "ro.boot.serialno"
                 binding = bind_identity([observation], {key: stable})
                 transaction = certify_network(host["chosen"], binding, ip,
-                    authorized=transport_authorized, lease_dir=HOST_LEASE_DIR)
+                    authorized=transport_authorized, lease_dir=HOST_LEASE_DIR, profile_authority=profile_authority)
                 network.update(transaction)
     if mode in {"remote-view", "orchestrate", "classify"}:
         local_scrcpy = Path(os.environ.get("LOCALAPPDATA", "")) / "SysAdminSuite" / "tools" / "scrcpy" / "scrcpy.exe"

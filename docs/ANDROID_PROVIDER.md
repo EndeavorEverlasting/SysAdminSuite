@@ -53,6 +53,16 @@ Do not place an identity file, runtime bundle, keys or receipts in Git.
 ## Network certification and recovery
 
 TCP certification requires explicit transport authorization, bound identity,
+and a separate private `--profile-file` approved by the operator. Its schema is
+`sas-android-target-profile/v1`: `organization`, `site`, and `equipment` objects
+each contain a nonempty `id`, `status: RESOLVED`, and `evidence_ref`; `site`
+also contains `organization_id` matching the organization, `equipment` contains
+`device_class: android`, and `allowed_operations` includes `tcpip-cert`.
+These are explicit approved profile authorities, not profiles inferred from
+device properties, hostname, LAN position, or the node role. Missing, unknown,
+conflicting or unsupported authorities block transport mutation. Keep this file
+private alongside the identity packet; never reuse another site's approval.
+Certification also requires
 one ready USB alias, and one device-derived IPv4 address. It rechecks readiness
 and identity inside an exclusive host lease before changing transport. It
 connects only to that exact address, proves stable identity over LAN, restores

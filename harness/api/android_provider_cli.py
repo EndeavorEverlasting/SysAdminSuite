@@ -57,14 +57,36 @@ def admit_source(expected_commit: str | None = None) -> dict:
         raise RuntimeError("PREPARED_OFFLINE_RUNTIME_REQUIRED_ON_PROTECTED_NETWORK")
     if run(prefix + ["status", "--porcelain"]):
         raise RuntimeError("DIRTY_CANONICAL_CHECKOUT")
+    owner = run(["powershell.exe", "-NoProfile", "-Command", "(Get-Acl -LiteralPath (Get-Location).Path).GetOwner([System.Security.Principal.SecurityIdentifier]).Value -eq [System.Security.Principal.WindowsIdentity]::GetCurrent().User.Value"], cwd=ROOT)
+    if owner.casefold() != "true":
+        raise RuntimeError("CANONICAL_CHECKOUT_OWNERSHIP_UNPROVEN")
+    run(prefix + ["fsck", "--connectivity-only"])
+    git_dir = Path(run(prefix + ["rev-parse", "--absolute-git-dir"]))
+    if any((git_dir / marker).exists() for marker in ("MERGE_HEAD", "CHERRY_PICK_HEAD", "REVERT_HEAD", "rebase-merge", "rebase-apply", "index.lock")):
+        raise RuntimeError("CANONICAL_CHECKOUT_OPERATION_IN_PROGRESS")
     run(prefix + ["fetch", "origin", "--prune", "--tags"])
     default = run(prefix + ["symbolic-ref", "refs/remotes/origin/HEAD"])
+    if not default.startswith("refs/remotes/origin/"):
+        raise RuntimeError("UNSUPPORTED_DEFAULT_REMOTE_REF")
+    intended_ref = default.removeprefix("refs/remotes/origin/")
+    if run(prefix + ["symbolic-ref", "--short", "HEAD"]) != intended_ref:
+        raise RuntimeError("CANONICAL_DEFAULT_BRANCH_REQUIRED")
     selected = run(prefix + ["rev-parse", default])
+    if expected_commit and expected_commit != selected:
+        raise RuntimeError("SELECTED_REFRESHED_COMMIT_MISMATCH")
     head = run(prefix + ["rev-parse", "HEAD"])
+    updated = False
     if head != selected:
+        run(prefix + ["merge-base", "--is-ancestor", head, selected])
+        if run(prefix + ["status", "--porcelain"]):
+            raise RuntimeError("DIRTY_CANONICAL_CHECKOUT")
+        run(prefix + ["pull", "--ff-only", "origin", intended_ref])
+        head = run(prefix + ["rev-parse", "HEAD"])
+        updated = True
+    if head != selected or run(prefix + ["status", "--porcelain"]):
         raise RuntimeError("CANONICAL_CHECKOUT_NOT_CURRENT")
     return {"source_admission": "CANONICAL_CURRENT_CLEAN", "source_commit": head, "starting_network": starting,
-            "network_restore": "NOT_CHANGED"}
+            "network_restore": "NOT_CHANGED", "source_updated": updated}
 
 
 def main(argv=None):
@@ -72,6 +94,7 @@ def main(argv=None):
     parser.add_argument("operation", choices=("status", "doctor", "prepare", "verify", "probe", "inventory", "tcpip-cert", "stop-server", "last-result"))
     parser.add_argument("--role", choices=sorted(ROLES))
     parser.add_argument("--identity-file", type=Path)
+    parser.add_argument("--profile-file", type=Path, help="Private operator-resolved organization/site/equipment authority for transport mutation.")
     parser.add_argument("--archive", type=Path)
     parser.add_argument("--archive-sha256")
     parser.add_argument("--authorize-transport", action="store_true")
@@ -101,6 +124,11 @@ def main(argv=None):
             result.update({"state": fixture["state"], "result": "SUCCESS" if fixture["state"] == "READY" else "BLOCK", "proof": "FIXTURE_ONLY"})
         else:
             result.update(admit_source(args.expected_commit))
+            if result.get("source_updated"):
+                if os.environ.get("SAS_ANDROID_SOURCE_RESTART") == "1":
+                    raise RuntimeError("SOURCE_RESTART_LIMIT_REACHED")
+                restart_env = dict(os.environ, SAS_ANDROID_SOURCE_RESTART="1")
+                return subprocess.run([sys.executable, str(Path(__file__).resolve()), *(sys.argv[1:] if argv is None else argv)], env=restart_env, check=False).returncode
             # Node roles are explicit configuration authority, never guessed from hostname.
             node_file = OWNED_DIR.parent / "android-node.json"
             role = args.role or (json.loads(node_file.read_text(encoding="utf-8"))["node_role"] if node_file.is_file() else None)
@@ -118,7 +146,8 @@ def main(argv=None):
                 result["next_action"] = "Use the typed probe operation." if result["result"] == "SUCCESS" else "Prepare an approved local archive before field entry."
             else:
                 identity = json.loads(args.identity_file.read_text(encoding="utf-8")) if args.identity_file else None
-                result.update(provider.inspect(args.operation, identity, authorized=args.authorize_transport))
+                profile = json.loads(args.profile_file.read_text(encoding="utf-8")) if args.profile_file else None
+                result.update(provider.inspect(args.operation, identity, authorized=args.authorize_transport, profile_authority=profile))
     except Exception as exc:
         # Exception text may contain private paths/identifiers; report only its class.
         code = str(exc)

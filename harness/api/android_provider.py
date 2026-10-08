@@ -6,6 +6,7 @@ acquisition occurs during device operations. Private identifiers remain local.
 from __future__ import annotations
 
 import hashlib
+import io
 import ipaddress
 import json
 import os
@@ -95,7 +96,8 @@ def prepare_bundle(archive: Path, expected_sha256: str, directory: Path | None =
     from datetime import datetime, timezone
 
     directory = directory or OWNED_DIR
-    if not re.fullmatch(r"[a-f0-9]{64}", expected_sha256) or sha256(archive) != expected_sha256:
+    archive_bytes = archive.read_bytes()
+    if not re.fullmatch(r"[a-f0-9]{64}", expected_sha256) or hashlib.sha256(archive_bytes).hexdigest() != expected_sha256:
         raise RuntimeError("ARCHIVE_HASH_MISMATCH")
     directory.parent.mkdir(parents=True, exist_ok=True)
     with provider_lease(HOST_LEASE_DIR), tempfile.TemporaryDirectory(dir=directory.parent) as temporary:
@@ -103,7 +105,7 @@ def prepare_bundle(archive: Path, expected_sha256: str, directory: Path | None =
             raise RuntimeError("STOP_OWNED_SERVER_BEFORE_RUNTIME_PREPARATION")
         staging = Path(temporary) / "bundle"
         staging.mkdir()
-        with zipfile.ZipFile(archive) as zipped:
+        with zipfile.ZipFile(io.BytesIO(archive_bytes)) as zipped:
             names = set()
             for entry in zipped.infolist():
                 name = entry.filename.replace("\\", "/")
@@ -305,12 +307,41 @@ def provider_lease(directory: Path):
         path.unlink()
 
 
-def certify_network(adb: Path, binding: dict[str, Any], ip: str, *, authorized: bool, lease_dir: Path) -> dict[str, Any]:
+def validate_profile_authority(value: Any) -> bool:
+    """Validate explicit approved profile assertions, never infer them from a device.
+
+    This scopes the generic transport only; organization-specific settings and
+    firmware authority remain with their existing workload/profile owners.
+    """
+    if not isinstance(value, dict) or set(value) != {"schema_version", "organization", "site", "equipment", "allowed_operations"}:
+        return False
+    if value["schema_version"] != "sas-android-target-profile/v1" or value["allowed_operations"] != ["tcpip-cert"]:
+        return False
+    forbidden = {"unknown", "ambiguous", "conflicting", "unsupported", "unresolved", "default", "none"}
+    for name, keys in (("organization", {"id", "status", "evidence_ref"}),
+                       ("site", {"id", "organization_id", "status", "evidence_ref"}),
+                       ("equipment", {"id", "status", "evidence_ref", "device_class"})):
+        profile = value[name]
+        if not isinstance(profile, dict) or set(profile) != keys or profile.get("status") != "RESOLVED":
+            return False
+        if any(not isinstance(profile[k], str) or not profile[k].strip() or profile[k] != profile[k].strip() for k in keys):
+            return False
+        if profile["id"].casefold() in forbidden or profile["evidence_ref"].casefold() in forbidden:
+            return False
+    return (value["site"]["organization_id"] == value["organization"]["id"]
+            and value["equipment"]["device_class"] == "android")
+
+
+def certify_network(adb: Path, binding: dict[str, Any], ip: str, *, authorized: bool, lease_dir: Path, profile_authority: dict[str, Any] | None = None) -> dict[str, Any]:
     """Exact target transaction. Revert, listener and USB proof are mandatory."""
     result: dict[str, Any] = {"result": "BLOCK", "cleanup": "NOT_REQUIRED", "authority": "AUTHORIZED" if authorized else "MUTATION_GATED",
                               "tcpip_issued": False, "connect_result": "not_attempted", "readonly_proof_over_network": False,
                               "usb_revert_issued": False, "network_listener_gone": None}
     if not authorized or binding.get("state") != "IDENTITY_BOUND":
+        return result
+    if not validate_profile_authority(profile_authority):
+        result["authority"] = "MUTATION_GATED"
+        result["reason"] = "RESOLVED_TARGET_PROFILES_REQUIRED"
         return result
     rebound = bind_identity(binding.get("devices", []), binding.get("expected", {}))
     if rebound["state"] != "IDENTITY_BOUND" or rebound["identity_ref"] != binding.get("identity_ref"):
@@ -477,7 +508,7 @@ class AndroidProvider:
             receipt["next_action"] = "Inspect the host server receipt; untrusted listeners require attended ownership resolution."
         return receipt
 
-    def inspect(self, operation: str, expected: dict[str, str] | None = None, *, authorized: bool = False) -> dict[str, Any]:
+    def inspect(self, operation: str, expected: dict[str, str] | None = None, *, authorized: bool = False, profile_authority: dict[str, Any] | None = None) -> dict[str, Any]:
         if operation not in {"probe", "inventory", "tcpip-cert"}:
             raise ValueError("UNSUPPORTED_TYPED_OPERATION")
         receipt = self.status()
@@ -531,7 +562,7 @@ class AndroidProvider:
             selected["device_ip"] = next(iter(ips))
         # certify_network acquires its own lease. Revalidate identity inside its
         # lease before transitioning so this handoff cannot create a race.
-        transaction = certify_network(adb, binding, selected["device_ip"], authorized=authorized, lease_dir=HOST_LEASE_DIR)
+        transaction = certify_network(adb, binding, selected["device_ip"], authorized=authorized, lease_dir=HOST_LEASE_DIR, profile_authority=profile_authority)
         receipt.update(transaction)
         if transaction["cleanup"] == "PROVEN":
             receipt["lifecycle"].append("CLEANUP_PROVEN")

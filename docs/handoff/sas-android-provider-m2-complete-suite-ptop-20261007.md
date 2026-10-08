@@ -322,3 +322,12 @@ and supply approved private stable identity. Resolve current source admission
 before the typed probe/inventory/certification front door. Do not infer an IP,
 enable debugging, scan the LAN or change firmware. AdminBox One requires its
 own host/device observation using the same provider and offline source seal.
+
+Hosted review reconciliation: clean owned default checkouts now fast-forward
+only when strictly behind, verify equality, and restart the CLI before product
+execution. Preparation hashes and extracts the same immutable archive snapshot.
+Transport requires a separate private resolved organization/site/equipment
+authority packet through `--profile-file`; node role and identity never supply
+those approvals. Outcome registration includes probe and TCP certification.
+Dedicated offline review suites cover each repaired boundary; physical source
+admission and device operations remain outside fixture proof.

@@ -923,6 +923,7 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--live", default=None, choices=sorted(MODES))
     parser.add_argument("--allow-install", action="store_true")
     parser.add_argument("--authorize-transport", action="store_true", help="Explicit authority for the exact-target transport transaction; never firmware authority.")
+    parser.add_argument("--profile-file", type=Path, help="Private resolved organization/site/equipment transport authority.")
     parser.add_argument("--expected-mac", default=None)
     parser.add_argument(
         "--otg-confirmed",
@@ -941,6 +942,7 @@ def main(argv: list[str] | None = None) -> int:
             expected_mac=args.expected_mac,
             otg_confirmed=args.otg_confirmed,
             transport_authorized=args.authorize_transport,
+            profile_authority=json.loads(args.profile_file.read_text(encoding="utf-8-sig")) if args.profile_file else None,
         )
     elif args.input:
         source = Path(args.input)

@@ -64,6 +64,8 @@ python3 Tests/survey/test_hh_cc_reader_live_execution_boundary_contracts.py
 python3 Tests/survey/test_sas_android_provider_boundary_contracts.py
 python3 Tests/survey/test_hh_cc_reader_adb_control_plane_contracts.py
 python3 Tests/survey/test_android_provider_implementation.py
+python3 Tests/survey/test_android_provider_review_runtime.py
+python3 Tests/survey/test_android_provider_review_cli.py
 python3 Tests/survey/test_software_deployment_input_invalidation_contracts.py
 python3 Tests/survey/test_checkpoint_discipline_contracts.py
 python3 Tests/survey/test_agent_instruction_factoring_contracts.py
