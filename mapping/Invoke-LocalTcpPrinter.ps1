@@ -118,6 +118,8 @@ $result = [pscustomobject]@{
   DnsAddress = ''
   PortAddress = ''
   PortName = ''
+  PreviousPortName = ''
+  PreviousPortAddress = ''
   DriverName = $DriverName
   ExpectedSsid = $ExpectedSsid
   CurrentWifiSsid = ''
@@ -161,13 +163,20 @@ try {
     }
     $result.TcpSourceAddress = $script:TcpSourceAddress
     $requiresAdoption = $false
+    $staleManualPort = $false
     if ($existing -and $existing.PortName -notlike 'SAS_LOCAL_TCP_*') {
       $oldPortInfo = Get-PrinterPort -Name $existing.PortName -ErrorAction SilentlyContinue
       $oldAddress = if ($oldPortInfo) { [string]$oldPortInfo.PrinterHostAddress } else { '' }
+      # Legacy manual Standard TCP/IP RAW/9100 queue adoption is explicit, never automatic.
+      # An old address is expected after DHCP/network change and cannot be used as proof
+      # of current device identity. A fresh device-panel address is still mandatory.
       if (-not $oldPortInfo -or [int]$oldPortInfo.PortNumber -ne 9100 -or
-          $oldAddress -notin @($resolved.Ip, $resolved.PortAddress)) {
-        Fail 'UNMANAGED_QUEUE_CONFLICT' 'An existing printer name belongs to an unrelated or unverified port. No adoption is possible.'
+          -not $oldAddress -or $oldAddress -match '[\\/:*?"<>|]') {
+        Fail 'UNMANAGED_QUEUE_CONFLICT' 'Existing queue is not an identifiable RAW/9100 TCP port; refuse adoption.'
       }
+      $result.PreviousPortName = [string]$existing.PortName
+      $result.PreviousPortAddress = $oldAddress
+      $staleManualPort = $oldAddress -notin @($resolved.Ip, $resolved.PortAddress)
       $requiresAdoption = $true
     }
     if ($existing -and $existing.DriverName -ne $DriverName) {
@@ -178,8 +187,8 @@ try {
       Fail 'PORT_NAME_CONFLICT' 'Existing port name points somewhere else. No port will be repurposed.'
     }
     if ($Mode -eq 'Plan') {
-      $result.State = if ($requiresAdoption) { 'READY_TO_ADOPT' } elseif ($existing -and $existing.PortName -eq $result.PortName) { 'ALREADY_MAPPED' } else { 'READY_TO_MAP' }
-      $result.Reason = 'Read-only preview; Apply requires fresh physical panel confirmation.'
+      $result.State = if ($requiresAdoption -and $staleManualPort) { 'READY_TO_ADOPT_STALE' } elseif ($requiresAdoption) { 'READY_TO_ADOPT' } elseif ($existing -and $existing.PortName -eq $result.PortName) { 'ALREADY_MAPPED' } else { 'READY_TO_MAP' }
+      $result.Reason = if ($staleManualPort) { 'Existing manual RAW/9100 port points at a different historical address. Only explicit adoption plus current physical panel confirmation may change this queue.' } else { 'Read-only preview; Apply requires fresh physical panel confirmation.' }
     } else {
       if (-not $SiteConfirmed) {
         Fail 'SITE_CONFIRMATION_REQUIRED' 'This workflow is bound to Agilant HQ only. Confirm the approved site/network.'
