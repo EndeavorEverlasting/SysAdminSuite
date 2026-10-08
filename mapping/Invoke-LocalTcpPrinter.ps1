@@ -55,18 +55,18 @@ function Test-Tcp9100([string]$Address) {
   } catch { return $false }
   finally { $socket.Close() }
 }
-function Resolve-Target([string]$Host, [string]$Panel, [bool]$Override) {
-  if ([string]::IsNullOrWhiteSpace($Host)) { Fail 'TARGET_REQUIRED' 'Enter the device hostname or IPv4 address.' }
-  if ($Host.Length -gt 253 -or $Host -notmatch '^[a-zA-Z0-9][a-zA-Z0-9.-]*$') {
+function Resolve-Target([string]$TargetHost, [string]$Panel, [bool]$Override) {
+  if ([string]::IsNullOrWhiteSpace($TargetHost)) { Fail 'TARGET_REQUIRED' 'Enter the device hostname or IPv4 address.' }
+  if ($TargetHost.Length -gt 253 -or $TargetHost -notmatch '^[a-zA-Z0-9][a-zA-Z0-9.-]*$') {
     Fail 'INVALID_TARGET' 'Use an IPv4 address or DNS hostname, not a URL or print-server queue.'
   }
-  $direct = Get-IPv4 $Host
+  $direct = Get-IPv4 $TargetHost
   $resolved = @()
   if ($direct) {
     $resolved = @($direct)
   } else {
     try {
-      $resolved = @([System.Net.Dns]::GetHostAddresses($Host) |
+      $resolved = @([System.Net.Dns]::GetHostAddresses($TargetHost) |
         Where-Object { $_.AddressFamily -eq [System.Net.Sockets.AddressFamily]::InterNetwork } |
         ForEach-Object { $_.ToString() } | Select-Object -Unique)
     } catch { $resolved = @() }
@@ -91,8 +91,8 @@ function Resolve-Target([string]$Host, [string]$Panel, [bool]$Override) {
     Fail 'DNS_PANEL_MISMATCH' "DNS returned $dnsIp but device panel says $panelIp. Use explicitly confirmed panel-IP recovery or repair DNS."
   }
   return [pscustomobject]@{
-    Ip = $dnsIp; PortAddress = $(if ($direct) { $dnsIp } else { $Host })
-    Resolution = $(if ($direct) { 'DIRECT_IPV4' } else { 'MATCHED_HOSTNAME' })
+    Ip = $dnsIp; PortAddress = $dnsIp
+    Resolution = $(if ($direct) { 'DIRECT_IPV4' } else { 'MATCHED_HOSTNAME_IP_PINNED' })
     DnsAddress = $dnsIp
   }
 }
@@ -146,6 +146,7 @@ try {
       Fail 'QUEUE_NOT_MANAGED' 'Refusing to submit a test page to an unrelated queue.'
     }
     & rundll32.exe 'printui.dll,PrintUIEntry' '/k' '/n' $PrinterName
+    if ($LASTEXITCODE -ne 0) { Fail 'TEST_PAGE_COMMAND_FAILED' ('rundll32 PrintUIEntry returned exit code ' + $LASTEXITCODE) }
     $result.State = 'TEST_PAGE_SUBMITTED'
     $result.Reason = 'Submission is not proof of physical output. Confirm the page at the device.'
   } else {
@@ -157,7 +158,7 @@ try {
     if ($ExpectedSsid -and -not [string]::Equals($ExpectedSsid.Trim(), $result.CurrentWifiSsid, [StringComparison]::OrdinalIgnoreCase)) {
       Fail 'SSID_MISMATCH' "Expected the approved Wi-Fi '$ExpectedSsid' but this computer reports '$($result.CurrentWifiSsid)'. Check network; do not map."
     }
-    $resolved = Resolve-Target -Host $HostOrAddress -Panel $PanelAddress -Override ([bool]$UsePanelAddress)
+    $resolved = Resolve-Target -TargetHost $HostOrAddress -Panel $PanelAddress -Override ([bool]$UsePanelAddress)
     $result.ResolvedAddress = $resolved.Ip
     $result.DnsAddress = $resolved.DnsAddress
     $result.PortAddress = $resolved.PortAddress
