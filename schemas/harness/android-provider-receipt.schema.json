@@ -1,0 +1,21 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "Private SAS AndroidProvider operation receipt",
+  "type": "object",
+  "required": ["schema_version", "node_role", "operation", "result", "authority", "cleanup", "proof", "evidence_location", "next_action"],
+  "properties": {
+    "schema_version": {"const": "sas-android-provider-receipt/v1"},
+    "node_role": {"enum": [null, "ptop_lab", "adminbox_reference", "technician_adminbox_field"]},
+    "operation": {"enum": ["status", "doctor", "prepare", "verify", "probe", "inventory", "tcpip-cert", "stop-server"]},
+    "result": {"enum": ["SUCCESS", "BLOCK", "INCOMPLETE"]},
+    "authority": {"enum": ["FORBIDDEN", "READ_ONLY_ALLOWED", "MUTATION_GATED", "AUTHORIZED"]},
+    "cleanup": {"enum": ["NOT_REQUIRED", "PROVEN", "FAILED"]},
+    "proof": {"enum": ["FIXTURE_ONLY", "REPOSITORY_VALIDATED", "INTEGRATION_VALIDATED", "LIVE_PROVEN"]},
+    "evidence_location": {"type": "string", "minLength": 1},
+    "next_action": {"type": "string", "minLength": 1}
+  },
+  "allOf": [
+    {"if": {"properties": {"operation": {"const": "tcpip-cert"}, "result": {"const": "SUCCESS"}}},
+     "then": {"properties": {"cleanup": {"const": "PROVEN"}, "authority": {"const": "AUTHORIZED"}}}}
+  ]
+}

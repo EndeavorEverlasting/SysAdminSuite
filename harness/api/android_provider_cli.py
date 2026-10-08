@@ -69,7 +69,7 @@ def admit_source(expected_commit: str | None = None) -> dict:
 
 def main(argv=None):
     parser = argparse.ArgumentParser(description=__doc__)
-    parser.add_argument("operation", choices=("status", "doctor", "prepare", "verify", "probe", "inventory", "tcpip-cert", "last-result"))
+    parser.add_argument("operation", choices=("status", "doctor", "prepare", "verify", "probe", "inventory", "tcpip-cert", "stop-server", "last-result"))
     parser.add_argument("--role", choices=sorted(ROLES))
     parser.add_argument("--identity-file", type=Path)
     parser.add_argument("--archive", type=Path)
@@ -89,7 +89,8 @@ def main(argv=None):
         return 0
     result = {"schema_version": "sas-android-provider-receipt/v1", "operation": args.operation,
               "node_role": args.role, "result": "BLOCK", "cleanup": "NOT_REQUIRED",
-              "authority": "READ_ONLY_ALLOWED", "proof": "REPOSITORY_VALIDATED"}
+              "authority": "READ_ONLY_ALLOWED", "proof": "REPOSITORY_VALIDATED",
+              "next_action": "Inspect the private receipt and resolve the next typed gate."}
     try:
         if args.fixture:
             if args.operation not in {"status", "doctor", "verify"}:
@@ -109,7 +110,9 @@ def main(argv=None):
                     raise ValueError("PREPARE_REQUIRES_ROLE_LOCAL_ARCHIVE_AND_APPROVED_HASH")
                 prepare_bundle(args.archive, args.archive_sha256)
                 node_file.write_text(json.dumps({"node_role": role}) + "\n", encoding="utf-8")
-            if args.operation in {"status", "doctor", "prepare", "verify"}:
+            if args.operation in {"doctor", "stop-server"}:
+                result.update(provider.server(stop=args.operation == "stop-server"))
+            elif args.operation in {"status", "prepare", "verify"}:
                 result.update(provider.status())
                 result["result"] = "SUCCESS" if result["state"] == "READY" else "BLOCK"
                 result["next_action"] = "Use the typed probe operation." if result["result"] == "SUCCESS" else "Prepare an approved local archive before field entry."

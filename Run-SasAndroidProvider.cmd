@@ -14,7 +14,7 @@ if not defined PYEXE (
 exit /b %ERRORLEVEL%
 :usage
 echo SysAdminSuite AndroidProvider - typed operations, private local receipts
-echo Operations: status doctor prepare verify probe inventory tcpip-cert last-result
+echo Operations: status doctor prepare verify probe inventory tcpip-cert stop-server last-result
 echo Preparation requires --role, --archive and --archive-sha256.
 echo Inventory requires --identity-file. TCP certification also requires --authorize-transport.
 echo No public download, arbitrary shell, firmware or debugging enablement.

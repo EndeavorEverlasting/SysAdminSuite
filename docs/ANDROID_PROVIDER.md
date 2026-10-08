@@ -9,7 +9,11 @@ by explicit node role. H&H retains firmware and workload interpretation.
 
 `Run-SasAndroidProvider.cmd` is the one tracked entrypoint. Its typed operations
 are `status`, `doctor`, `prepare`, `verify`, `probe`, `inventory`, `tcpip-cert`,
-and `last-result`. It never accepts arbitrary shell commands.
+`stop-server`, and `last-result`. It never accepts arbitrary shell commands.
+Doctor reports listener ownership and private server diagnostics. Stop-server
+only stops a proven owned loopback server; it never kills a competing server.
+Server version is reported from the owning qualified executable, with that
+evidence basis explicit rather than represented as a separate wire-version probe.
 
 Use the repository-owned preparation/sealing workflow before protected-network
 entry. The runtime source must pass canonical-development freshness or the

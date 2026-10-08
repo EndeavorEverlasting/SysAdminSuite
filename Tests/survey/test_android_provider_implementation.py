@@ -173,6 +173,16 @@ class ProviderTests(unittest.TestCase):
             receipt = completed.stdout.split("Evidence: ", 1)[1].strip()
             result = json.loads(Path(receipt).read_text())
             self.assertEqual(result["proof"], "FIXTURE_ONLY")
+            from jsonschema import Draft202012Validator
+            schema = json.loads((ROOT / "schemas/harness/android-provider-receipt.schema.json").read_text())
+            self.assertEqual(list(Draft202012Validator(schema).iter_errors(result)), [])
+            negative = {**result, "operation": "tcpip-cert", "cleanup": "FAILED"}
+            self.assertTrue(list(Draft202012Validator(schema).iter_errors(negative)))
+
+    def test_server_stop_refuses_other_owner(self):
+        p = provider.AndroidProvider("ptop_lab")
+        with tempfile.TemporaryDirectory() as temporary, patch.object(provider, "HOST_LEASE_DIR", Path(temporary)), patch.object(p, "status", return_value={"state": "READY", "client_version": "fixture"}), patch.object(provider, "host_server_state", return_value="UNTRUSTED_LISTENER"), patch.object(provider, "_run", side_effect=AssertionError("unowned server stopped")):
+            self.assertEqual(p.server(stop=True)["result"], "BLOCK")
 
     def test_source_admission_cannot_be_bypassed(self):
         from harness.api import android_provider_cli as cli

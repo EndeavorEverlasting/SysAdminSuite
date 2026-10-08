@@ -17,7 +17,7 @@ import tempfile
 import time
 import zipfile
 from contextlib import contextmanager
-from pathlib import Path
+from pathlib import Path, PureWindowsPath
 from typing import Any
 
 PLATFORM_TOOLS_SOURCE = "https://dl.google.com/android/repository/platform-tools-latest-windows.zip"
@@ -107,7 +107,7 @@ def prepare_bundle(archive: Path, expected_sha256: str, directory: Path | None =
                 name = entry.filename.replace("\\", "/")
                 pieces = name.split("/")
                 segments = pieces[:-1] if entry.is_dir() else pieces
-                if (not name.startswith("platform-tools/") or any(p in {"", ".", ".."} or p.endswith((".", " ")) for p in segments) or ":" in name
+                if (not name.startswith("platform-tools/") or any(p in {"", ".", ".."} or p.endswith((".", " ")) or PureWindowsPath(p).is_reserved() for p in segments) or ":" in name
                         or (entry.external_attr >> 16) & 0o170000 == 0o120000):
                     raise RuntimeError("UNSAFE_ARCHIVE_ENTRY")
                 if entry.is_dir():
@@ -390,7 +390,10 @@ def certify_network(adb: Path, binding: dict[str, Any], ip: str, *, authorized: 
                             break
                         time.sleep(1)
                     result["network_listener_gone"] = listener_closed and alias_gone
-                    if result["usb_revert_issued"] and disconnected.returncode == 0 and usb_ready and result["network_listener_gone"]:
+                    usb_identity = allowed_shell(adb, "getprop", serial) if usb_ready else {"ok": False, "stdout": ""}
+                    restored = parse_getprop(usb_identity["stdout"])
+                    usb_identity_matches = usb_identity["ok"] and all(restored.get(k) == v for k, v in binding["expected"].items())
+                    if result["usb_revert_issued"] and disconnected.returncode == 0 and usb_ready and usb_identity_matches and result["network_listener_gone"]:
                         result["cleanup"] = "PROVEN"
                 except (OSError, subprocess.TimeoutExpired):
                     pass
@@ -433,6 +436,35 @@ class AndroidProvider:
                 "competing_runtime_count": host["competing_runtime_count"],
                 "offline_ready": bool(host["chosen"]), "authority": "READ_ONLY_ALLOWED",
                 "proof": "REPOSITORY_VALIDATED", "cleanup": "NOT_REQUIRED"}
+
+    def server(self, stop: bool = False) -> dict[str, Any]:
+        receipt = self.status()
+        receipt.update({"result": "BLOCK", "operation": "stop-server" if stop else "doctor",
+                        "next_action": "Resolve runtime readiness before server inspection."})
+        if receipt["state"] != "READY":
+            return receipt
+        adb = self.directory / "adb.exe"
+        with provider_lease(HOST_LEASE_DIR):
+            state = host_server_state(adb)
+            receipt["server_state"] = state
+            receipt["server_version"] = None
+            receipt["server_version_basis"] = "UNPROVEN"
+            if state == "OWNED_LOOPBACK":
+                receipt["server_version"] = receipt["client_version"]
+                receipt["server_version_basis"] = "OWNING_EXECUTABLE_EQUALS_QUALIFIED_CLIENT"
+                diagnostic = _run([str(adb), "-H", "127.0.0.1", "-P", "5037", "server-status"], timeout=20)
+                receipt["server_diagnostics"] = diagnostic.stdout if diagnostic.returncode == 0 else None
+                if stop:
+                    stopped = _run([str(adb), "-H", "127.0.0.1", "-P", "5037", "kill-server"], timeout=20)
+                    state = host_server_state(adb)
+                    receipt["server_state"] = state
+                    receipt["result"] = "SUCCESS" if stopped.returncode == 0 and state == "STOPPED" else "INCOMPLETE"
+                else:
+                    receipt["result"] = "SUCCESS"
+            elif state == "STOPPED":
+                receipt["result"] = "SUCCESS"
+            receipt["next_action"] = "Inspect the host server receipt; untrusted listeners require attended ownership resolution."
+        return receipt
 
     def inspect(self, operation: str, expected: dict[str, str] | None = None, *, authorized: bool = False) -> dict[str, Any]:
         if operation not in {"probe", "inventory", "tcpip-cert"}:
