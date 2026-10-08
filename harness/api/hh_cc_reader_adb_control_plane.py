@@ -32,10 +32,10 @@ from harness.api.hh_cc_reader_version_domain import (  # noqa: E402
     evaluate_version_domains,
     pattern_hint_domain,
 )
+from harness.api.android_provider import PLATFORM_TOOLS_SOURCE
 
 SCHEMA = "sas-hh-cc-reader-adb-control-plane/v1"
 DEFAULT_RECEIPT_DIR = ROOT / "survey" / "output" / "hh-cc-reader"
-PLATFORM_TOOLS_SOURCE = "https://dl.google.com/android/repository/platform-tools-latest-windows.zip"
 OWNED_CACHE_REL = "SysAdminSuite/tools/android-platform-tools"
 CAMPAIGN_TARGET = "2.0.15.260522"
 
