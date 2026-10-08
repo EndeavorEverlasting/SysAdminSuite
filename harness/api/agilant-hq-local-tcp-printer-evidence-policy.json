@@ -1,0 +1,47 @@
+{
+  "schema_version": "sas-agilant-hq-local-printer-evidence-policy/v1",
+  "use_case_id": "agilant-hq.local-tcp-printer",
+  "organization_id": "agilant",
+  "site_id": "hq",
+  "scope": "local-windows-computer",
+  "mechanism": "Standard TCP/IP port RAW/9100; Add-Printer/Set-Printer",
+  "prerequisites": [
+    "fresh physical device panel IPv4",
+    "operator confirmation of Agilant HQ site/network",
+    "exact installed driver",
+    "single-target DNS/IP reconciliation",
+    "TCP 9100 reachable",
+    "explicit preview/confirmation"
+  ],
+  "forbidden": [
+    "cross-organization fallback",
+    "silent use of saved IPv4",
+    "guessing DNS identity from TCP reachability",
+    "repurposing a shared TCP port",
+    "silent adoption of unmanaged queue",
+    "auto driver installation",
+    "changing print security policy",
+    "setting default printer",
+    "claiming physical printing from PrintUIEntry exit alone"
+  ],
+  "outcomes": {
+    "read_only": [
+      "READY_TO_MAP",
+      "READY_TO_ADOPT",
+      "ALREADY_MAPPED"
+    ],
+    "machine_registration": [
+      "MAPPED_NOW",
+      "ALREADY_MAPPED"
+    ],
+    "test_submitted": [
+      "TEST_PAGE_SUBMITTED"
+    ],
+    "physical_acceptance": "human-observed correct device output after app workflow; record separately",
+    "blocked": "FAILED with typed reason; inspect private per-run receipt"
+  },
+  "receipts": "%LOCALAPPDATA%\\SysAdminSuite\\PrinterMapping\\runs\\local-tcp-*.json",
+  "rollback": "restore old queue port and remove only newly-created unreferenced port; incomplete cleanup fails closed",
+  "address_change": "re-resolve at each run; hostname preferred only when DNS matches current physical panel; explicit panel-IP override on mismatch/no DNS; never silently reuse historical IP",
+  "validation_ceiling": "static and hosted tests prove code path only; field proof requires physical device after installing changed product"
+}
