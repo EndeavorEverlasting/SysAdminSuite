@@ -33,7 +33,7 @@ The workflow must keep four concepts separate:
 3. Compare resolved IPv4 against the operator-entered current panel IPv4. If unequal, block **DNS_PANEL_MISMATCH**.
 4. To recover, operator selects explicit **Use panel IP** and confirms the current address on the physical copier. Without the override, DNS failure blocks.
 5. Check TCP/9100 against the selected current address before proposing any mutation. Reachability alone does not establish identity.
-5. Prefer a hostname-backed Standard TCP/IP RAW/9100 port *only when DNS agrees with the physical panel*. Otherwise create a dedicated IP-backed port for the freshly confirmed address.
+6. Prefer a hostname-backed Standard TCP/IP RAW/9100 port *only when DNS agrees with the physical panel*. Otherwise create a dedicated IP-backed port for the freshly confirmed address.
 6. If a managed queue already has the correct name, driver and port, report **ALREADY_MAPPED**. If it has a stale managed port, create the new port then switch the queue, leaving the old port available for rollback and any other consumers.
 7. If there is a manual pre-existing queue, allow **explicit adoption only** when its current TCP/9100 port resolves to the selected address and the driver matches. Never hijack a different printer with the same display name.
 8. Check after mutation that the queue is bound to exactly the selected driver and port. On an error restore the previous queue port and remove an unreferenced newly created port; report **ROLLBACK_INCOMPLETE** if cleanup fails.
