@@ -10,6 +10,11 @@ on:
       - 'harness/api/agilant-hq-local-tcp-printer-evidence-policy.json'
       - 'harness/api/printer-mapping-use-case-registry.json'
       - 'Tests/survey/test_agilant_hq_local_tcp_printer_contracts.py'
+      - 'Tests/survey/test_printer_mapping_use_case_contracts.py'
+      - 'harness/validators/validate-printer-mapping-use-cases.py'
+      - 'harness/maps/PRINTER_MAPPING_USE_CASE_MAP.md'
+      - 'harness/reports/PRINTER_MAPPING_USE_CASES.md'
+      - 'docs/handoff/AGILANT_HQ_LOCAL_PRINTER_LIVE_CERT_20261008.md'
       - 'tools/build/New-DashboardFieldRelease.ps1'
       - '.github/workflows/agilant-hq-local-tcp-printer.yml'
   workflow_dispatch:
