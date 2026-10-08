@@ -36,6 +36,10 @@ Tutorial: `docs/tutorials/NORTHWELL_PRINTER_MAPPING_FOR_TECHS.md`.
 
 The harness keeps the organization boundary explicit: **Northwell behavior does not transfer** to another organization or hospital merely because the technology looks similar.
 
+## AGILANT HQ LOCAL TCP — APP IMPLEMENTED; FIELD CERTIFICATION PENDING
+
+The independent `agilant-hq.local-tcp-printer` **site override** uses a Windows native one-click app with a hostname/DNS → current physical-panel IPv4 comparator, fresh TCP/9100 preflight, exact installed driver, idempotent Add-Printer/Set-Printer, explicit existing-queue adoption, and local receipts. **Do not inherit this workflow into Northwell or Health & Hospitals.** The manual October 8 test page proved only the PowerShell mechanism; it did not prove the newly built app or packaged release. Field acceptance requires a test page physically observed from the app. Operator guide: `START-HERE-AGILANT-HQ-PRINTER-MAPPING.md`.
+
 ## DISCOVERY REQUIRED
 
 **Health & Hospitals — organization default**
