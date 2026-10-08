@@ -79,3 +79,21 @@ jobs:
           # Negative child execution intentionally returned 1. Clear ambient LASTEXITCODE
           # only after its expected failure and receipt have been verified.
           $global:LASTEXITCODE = 0
+      - name: Read-only Plan exercises real argument binding and DNS/panel rejection
+        shell: powershell
+        run: |
+          $driver = Get-PrinterDriver | Select-Object -First 1 -ExpandProperty Name
+          if (-not $driver) {
+            Write-Warning 'SKIPPED: hosted Windows runner has no installed printer driver. Runtime Plan gate requires a Windows image with a driver.'
+          } else {
+            $name = 'SAS-PLAN-' + [guid]::NewGuid().ToString('N')
+            $output = & powershell.exe -NoProfile -ExecutionPolicy Bypass -File mapping\Invoke-LocalTcpPrinter.ps1 -Mode Plan -PrinterName $name -HostOrAddress '127.0.0.1' -PanelAddress '127.0.0.2' -DriverName $driver
+            if ($LASTEXITCODE -ne 1) { throw 'DNS/panel mismatch must be a typed failed read-only Plan' }
+            $result = ($output | Out-String) | ConvertFrom-Json
+            if ($result.State -ne 'FAILED' -or $result.Reason -notmatch 'DNS_PANEL_MISMATCH') {
+              throw ('Plan did not exercise target resolver correctly: ' + $result.Reason)
+            }
+            if (-not (Test-Path -LiteralPath $result.ReceiptPath)) { throw 'Plan did not emit local receipt' }
+            Write-Host 'PASS: real PowerShell Plan invocation, reserved variable binding, DNS_PANEL_MISMATCH gate'
+          }
+          $global:LASTEXITCODE = 0
