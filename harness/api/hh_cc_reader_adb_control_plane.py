@@ -276,8 +276,8 @@ def _host_state(host: dict[str, Any]) -> dict[str, Any]:
     else:
         state = "ADB_HOST_NOT_INSTALLED"
         next_action = (
-            "Run Prepare-HHCCReaderAdbHost.cmd to install official Google Android "
-            "Platform-Tools into the SysAdminSuite local tool cache."
+            "Run Run-SasAndroidProvider.cmd prepare --role ROLE --archive LOCAL_ZIP --archive-sha256 APPROVED_SHA256 "
+            "to qualify the SAS-owned local Platform-Tools bundle before field entry; network acquisition is disabled."
         )
         path = None
         version = None
@@ -829,6 +829,8 @@ def evaluate_control_plane(evidence: dict[str, Any]) -> dict[str, Any]:
         next_action = "Forbidden Android mutation command was refused. Continue with read-only ADB only."
     if not next_action:
         next_action = host.get("next_action")
+    if terminal == "ADB_HOST_NOT_INSTALLED":
+        next_action = host["next_action"]
     proved = device.get("proved") or host["adb_host_state"]
     artifact_kind = {
         "prepare-host": "adb-host-readiness",
@@ -889,6 +891,20 @@ def evaluate_control_plane(evidence: dict[str, Any]) -> dict[str, Any]:
     }
     if network.get("result") == "INCOMPLETE":
         receipt.update({"result": "INCOMPLETE", "cleanup": network["cleanup"]})
+    failure = evidence.get("provider_failure")
+    net_evidence = evidence.get("network_adb") or {}
+    if not failure and net_evidence.get("result") == "BLOCK" and net_evidence.get("reason"):
+        failure = net_evidence
+    if isinstance(failure, dict) and receipt.get("result") != "INCOMPLETE":
+        reason = failure.get("reason")
+        allowed = {"PROVIDER_LEASE_BUSY", "LOOPBACK_SERVER_NOT_PROVEN", "HOST_SERVER_START_FAILED", "DEVICE_ENUMERATION_FAILED", "OWNED_RUNTIME_NOT_READY", "PROFILE_AUTHORITY_REQUIRED", "PROVIDER_OPERATION_FAILED", "RESOLVED_TARGET_PROFILES_REQUIRED", "RUNTIME_REQUALIFICATION_REQUIRED", "PREVIOUS_CLEANUP_UNRESOLVED", "INVALID_IDENTITY_BINDING"}
+        receipt.update({"state": "POLICY_SAFETY_CONTROL", "result": "BLOCK", "cleanup": failure.get("cleanup", "NOT_REQUIRED"),
+                        "reason": reason if reason in allowed else "PROVIDER_OPERATION_FAILED",
+                        "next_action": "Resolve the named provider admission gate using Run-SasAndroidProvider.cmd doctor; preserve active leases and existing listeners for attended ownership review."})
+        if reason in {"PROFILE_AUTHORITY_REQUIRED", "RESOLVED_TARGET_PROFILES_REQUIRED"}:
+            receipt["next_action"] = "Supply the approved private organization/site/equipment authority with --profile-file; do not infer profiles from transport identity."
+    elif receipt.get("result") == "INCOMPLETE" and net_evidence.get("reason"):
+        receipt["reason"] = "PROVIDER_OPERATION_FAILED"
     return receipt
 
 
@@ -1011,7 +1027,7 @@ def main(argv: list[str] | None = None) -> int:
                 )
     sys.stdout.write(format_technician_stdout(receipt, path))
     sys.stderr.write(f"RECEIPT={path}\n")
-    return 2 if receipt.get("result") == "INCOMPLETE" else 0
+    return 2 if receipt.get("result") in {"INCOMPLETE", "BLOCK"} else 0
 
 
 if __name__ == "__main__":

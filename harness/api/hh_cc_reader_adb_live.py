@@ -72,7 +72,7 @@ def mac_in_text(text: str, expected: str | None) -> bool:
     return bool(compact_expected) and compact_expected in compact_text
 
 
-def collect_live_evidence(
+def _collect_live_evidence(
     mode: str,
     *,
     allow_install: bool = False,
@@ -84,11 +84,8 @@ def collect_live_evidence(
     host = resolve_host()
     archive_sha = None
     if host["chosen"] is None and allow_install:
-        try:
-            raise RuntimeError("Use qualified local-bundle preparation; install_platform_tools acquisition is disabled")
-            host = resolve_host()
-        except Exception as exc:  # noqa: BLE001
-            host["install_error"] = str(exc)
+        # Legacy install_platform_tools acquisition is intentionally disabled.
+        host["install_error"] = "QUALIFIED_LOCAL_BUNDLE_REQUIRED"
     pending_network = None
     with provider_lease(HOST_LEASE_DIR) if host["chosen"] else nullcontext():
         usb = collect_usb()
@@ -155,8 +152,14 @@ def collect_live_evidence(
                     pending_network = (binding, ip)
     if pending_network is not None:
         binding, ip = pending_network
-        transaction = certify_network(host["chosen"], binding, ip,
-            authorized=transport_authorized, lease_dir=HOST_LEASE_DIR, profile_authority=profile_authority)
+        try:
+            transaction = certify_network(host["chosen"], binding, ip,
+                authorized=transport_authorized, lease_dir=HOST_LEASE_DIR, profile_authority=profile_authority)
+        except (RuntimeError, OSError, subprocess.SubprocessError) as exc:
+            reason = _provider_reason(exc)
+            admission_only = reason in {"PROVIDER_LEASE_BUSY", "LOOPBACK_SERVER_NOT_PROVEN", "HOST_SERVER_START_FAILED", "DEVICE_ENUMERATION_FAILED"}
+            transaction = {"result": "BLOCK" if admission_only else "INCOMPLETE",
+                           "cleanup": "NOT_REQUIRED" if admission_only else "PENDING", "reason": reason}
         network.update(transaction)
     if mode in {"remote-view", "orchestrate", "classify"}:
         local_scrcpy = Path(os.environ.get("LOCALAPPDATA", "")) / "SysAdminSuite" / "tools" / "scrcpy" / "scrcpy.exe"
@@ -212,3 +215,21 @@ def collect_live_evidence(
     if remote:
         evidence["remote_view"] = remote
     return evidence
+
+
+def _provider_reason(exc: Exception) -> str:
+    allowed = {"PROVIDER_LEASE_BUSY", "LOOPBACK_SERVER_NOT_PROVEN", "HOST_SERVER_START_FAILED",
+               "DEVICE_ENUMERATION_FAILED", "OWNED_RUNTIME_NOT_READY", "PROFILE_AUTHORITY_REQUIRED",
+               "RESOLVED_TARGET_PROFILES_REQUIRED", "RUNTIME_REQUALIFICATION_REQUIRED",
+               "PREVIOUS_CLEANUP_UNRESOLVED", "INVALID_IDENTITY_BINDING"}
+    return str(exc) if str(exc) in allowed else "PROVIDER_OPERATION_FAILED"
+
+
+def collect_live_evidence(mode: str, **kwargs: Any) -> dict[str, Any]:
+    """Normal provider admission failures produce sanitized local evidence."""
+    try:
+        return _collect_live_evidence(mode, **kwargs)
+    except (RuntimeError, OSError, subprocess.SubprocessError) as exc:
+        return {"mode": "classify" if mode == "orchestrate" else mode,
+                "host": {"adb_present": False}, "usb": {}, "adb_devices": [],
+                "provider_failure": {"result": "BLOCK", "cleanup": "NOT_REQUIRED", "reason": _provider_reason(exc)}}

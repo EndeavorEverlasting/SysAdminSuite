@@ -42,7 +42,7 @@ class ProviderTests(unittest.TestCase):
             archive = self.archive(root)
             destination = root / "owned"
             with patch("urllib.request.urlopen", side_effect=AssertionError("network forbidden")):
-                manifest = provider.prepare_bundle(archive, provider.sha256(archive), destination)
+                manifest = provider.prepare_bundle(archive, ' ' + provider.sha256(archive).upper() + ' ', destination)
             self.assertEqual(provider.verify_bundle(destination)["state"], "READY")
             self.assertEqual(manifest["version"], "36.0.0")
             with patch.object(provider, "_run", return_value=subprocess.CompletedProcess([], 0, "ADB version fixture", "")), patch.object(provider, "_which", return_value=root / "competing/adb.exe"):
@@ -275,7 +275,7 @@ class ProviderTests(unittest.TestCase):
         host = {"chosen": Path("fixture-adb"), "owned": Path("fixture-adb"), "precedence": "owned", "version": "fixture", "path_adb": None}
         usb = {"android_composite": True, "adb_interface": True, "enumerated": True}
         rows = [{"serial_token": "SERIAL_PRESENT", "state": "device", "transport": "usb", "_serial": "synthetic-usb"}]
-        with patch.object(live, "resolve_host", return_value=host), patch.object(live, "collect_usb", return_value=usb), patch.object(live, "collect_devices", return_value=rows), patch.object(live, "allowed_shell", side_effect=shell), patch.object(live, "certify_network", return_value={"result": "BLOCK", "cleanup": "NOT_REQUIRED"}) as cert:
+        with patch.object(live, "HOST_LEASE_DIR", provider.HOST_LEASE_DIR), patch.object(live, "resolve_host", return_value=host), patch.object(live, "collect_usb", return_value=usb), patch.object(live, "collect_devices", return_value=rows), patch.object(live, "allowed_shell", side_effect=shell), patch.object(live, "certify_network", return_value={"result": "BLOCK", "cleanup": "NOT_REQUIRED"}) as cert:
             evidence = live.collect_live_evidence("inventory", expected_mac="02:00:00:00:00:01")
             self.assertEqual(len(evidence["inventory"]["commands"]), 7)
             self.assertTrue(evidence["identity"]["mac_correlated"])

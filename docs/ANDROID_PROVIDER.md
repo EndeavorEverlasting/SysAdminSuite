@@ -65,7 +65,9 @@ and a separate private `--profile-file` approved by the operator. Its schema is
 `sas-android-target-profile/v1`: `organization`, `site`, and `equipment` objects
 each contain a nonempty `id`, `status: RESOLVED`, and `evidence_ref`; `site`
 also contains `organization_id` matching the organization, `equipment` contains
-`device_class: android`, and `allowed_operations` includes `tcpip-cert`.
+`device_class: android`, and `allowed_operations` is exactly `["tcpip-cert"]`.
+The top-level and nested objects must contain only the listed keys; additional
+keys or operations are rejected.
 These are explicit approved profile authorities, not profiles inferred from
 device properties, hostname, LAN position, or the node role. Missing, unknown,
 conflicting or unsupported authorities block transport mutation. Keep this file

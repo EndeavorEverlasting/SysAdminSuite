@@ -337,3 +337,7 @@ refusal from timeout/error/inconclusive results. An independent sibling runtime
 attestation now detects replacement of both bundle and colocated manifest;
 attended rollback preserves the previous matching attestation. Trusted local
 host storage remains the security boundary.
+Final review corrected H&H admission failures into sanitized typed receipts
+with nonzero exits, preserved uncertain transaction cleanup as `INCOMPLETE`,
+redirected missing-runtime guidance to qualified local preparation, isolated
+the adapter test lease, and aligned profile docs and Windows hash input.

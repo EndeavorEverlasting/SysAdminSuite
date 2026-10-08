@@ -107,6 +107,7 @@ def prepare_bundle(archive: Path, expected_sha256: str, directory: Path | None =
     from datetime import datetime, timezone
 
     directory = directory or OWNED_DIR
+    expected_sha256 = expected_sha256.strip().lower()
     archive_bytes = archive.read_bytes()
     if not re.fullmatch(r"[a-f0-9]{64}", expected_sha256) or hashlib.sha256(archive_bytes).hexdigest() != expected_sha256:
         raise RuntimeError("ARCHIVE_HASH_MISMATCH")
