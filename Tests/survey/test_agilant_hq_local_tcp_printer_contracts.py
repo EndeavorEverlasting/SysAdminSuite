@@ -48,6 +48,12 @@ def check_resolution_fail_closed() -> None:
     assert "PanelAddress" in source and "$PanelConfirmed" in source
     assert "$SiteConfirmed" in source and "$AdoptExistingQueue" in source
     assert "function Test-Tcp9100([string]$Address) {" in source
+    assert "function Resolve-Target([string]$TargetHost" in source
+    assert "function Resolve-Target([string]$Host" not in source, "Host is reserved by PowerShell"
+    assert "Resolve-Target -TargetHost $HostOrAddress" in source
+    assert "Ip = $dnsIp; PortAddress = $dnsIp" in source, "Windows TCP port must pin verified IPv4"
+    assert "TEST_PAGE_COMMAND_FAILED" in source
+    assert "if ($LASTEXITCODE -ne 0)" in source
     assert "SAS_LOCAL_TCP_" in source
     assert "northwell" not in policy["use_case_id"]
     assert "physical" in policy["outcomes"]["physical_acceptance"]
@@ -67,6 +73,7 @@ def check_gui_requires_current_observation() -> None:
     ):
         assert required in gui, required
     assert "Reset-Plan" in gui
+    assert "$txtPanel.Add_TextChanged({ $chkPanel.Checked = $false })" in gui, "changing panel IP must revoke user attestation"
     assert "Join-Path $env:LOCALAPPDATA" in gui
     assert "observed" in read("START-HERE-AGILANT-HQ-PRINTER-MAPPING.md").lower()
 
@@ -76,6 +83,7 @@ def check_field_distribution() -> None:
     release = read("tools/build/New-DashboardFieldRelease.ps1")
     assert "Start-LocalTcpPrinterGui.ps1" in launcher
     assert "Start-Process" in launcher and "-Verb RunAs" in launcher
+    assert "-PassThru" in launcher and "exit $child.ExitCode" in launcher, "UAC child failures must propagate"
     for required in (
         "Map-AgilantHqPrinter.cmd",
         "GUI\\Start-LocalTcpPrinterGui.ps1",
