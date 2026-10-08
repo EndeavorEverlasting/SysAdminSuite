@@ -1,0 +1,99 @@
+name: Agilant HQ local TCP printer contracts
+
+on:
+  pull_request:
+    paths:
+      - 'mapping/Invoke-LocalTcpPrinter.ps1'
+      - 'GUI/Start-LocalTcpPrinterGui.ps1'
+      - 'Map-AgilantHqPrinter.cmd'
+      - 'START-HERE-AGILANT-HQ-PRINTER-MAPPING.md'
+      - 'harness/api/agilant-hq-local-tcp-printer-evidence-policy.json'
+      - 'harness/api/printer-mapping-use-case-registry.json'
+      - 'Tests/survey/test_agilant_hq_local_tcp_printer_contracts.py'
+      - 'Tests/survey/test_printer_mapping_use_case_contracts.py'
+      - 'harness/validators/validate-printer-mapping-use-cases.py'
+      - 'harness/maps/PRINTER_MAPPING_USE_CASE_MAP.md'
+      - 'harness/reports/PRINTER_MAPPING_USE_CASES.md'
+      - 'docs/handoff/AGILANT_HQ_LOCAL_PRINTER_LIVE_CERT_20261008.md'
+      - 'tools/build/New-DashboardFieldRelease.ps1'
+      - '.github/workflows/agilant-hq-local-tcp-printer.yml'
+  workflow_dispatch:
+
+jobs:
+  contracts:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 2
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - name: New printer-specific contract
+        run: python Tests/survey/test_agilant_hq_local_tcp_printer_contracts.py
+      - name: Existing organization/site router
+        run: python harness/validators/validate-printer-mapping-use-cases.py
+      - name: Existing printer routing contracts
+        run: python Tests/survey/test_printer_mapping_use_case_contracts.py
+      - name: Changed commit whitespace
+        run: git show --check --oneline HEAD
+
+  windows-parser:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - name: Parse changed Windows PowerShell 5.1 entrypoints
+        shell: powershell
+        run: |
+          $paths = @(
+            'mapping\Invoke-LocalTcpPrinter.ps1',
+            'GUI\Start-LocalTcpPrinterGui.ps1',
+            'tools\build\New-DashboardFieldRelease.ps1'
+          )
+          foreach ($path in $paths) {
+            $tokens = $null
+            $errors = $null
+            [void][System.Management.Automation.Language.Parser]::ParseFile(
+              (Resolve-Path $path).Path, [ref]$tokens, [ref]$errors
+            )
+            if (@($errors).Count -gt 0) {
+              throw "$path : $($errors[0].Message)"
+            }
+            Write-Host "PASS: Windows PowerShell parse: $path"
+          }
+      - name: Read-only failure receipt (no printer installed)
+        shell: powershell
+        run: |
+          $nonexistent = 'SAS-NOT-INSTALLED-' + [guid]::NewGuid().ToString('N')
+          $output = & powershell.exe -NoProfile -ExecutionPolicy Bypass -File mapping\Invoke-LocalTcpPrinter.ps1 -Mode TestPage -PrinterName $nonexistent
+          if ($LASTEXITCODE -ne 1) { throw 'Missing queue must return an unsuccessful exit code' }
+          $state = ($output | Out-String) | ConvertFrom-Json
+          if ($state.State -ne 'FAILED') { throw 'Missing queue must return FAILED receipt' }
+          if ($state.Reason -notmatch 'QUEUE_NOT_FOUND') {
+            throw ('Unexpected failure class: ' + $state.Reason)
+          }
+          if (-not (Test-Path -LiteralPath $state.ReceiptPath)) {
+            throw 'No durable local receipt was produced'
+          }
+          Write-Host 'PASS: non-mutating missing-queue receipt'
+          # Negative child execution intentionally returned 1. Clear ambient LASTEXITCODE
+          # only after its expected failure and receipt have been verified.
+          $global:LASTEXITCODE = 0
+      - name: Read-only Plan exercises real argument binding and DNS/panel rejection
+        shell: powershell
+        run: |
+          $driver = Get-PrinterDriver | Select-Object -First 1 -ExpandProperty Name
+          if (-not $driver) {
+            Write-Warning 'SKIPPED: hosted Windows runner has no installed printer driver. Runtime Plan gate requires a Windows image with a driver.'
+          } else {
+            $name = 'SAS-PLAN-' + [guid]::NewGuid().ToString('N')
+            $output = & powershell.exe -NoProfile -ExecutionPolicy Bypass -File mapping\Invoke-LocalTcpPrinter.ps1 -Mode Plan -PrinterName $name -HostOrAddress '127.0.0.1' -PanelAddress '127.0.0.2' -DriverName $driver
+            if ($LASTEXITCODE -ne 1) { throw 'DNS/panel mismatch must be a typed failed read-only Plan' }
+            $result = ($output | Out-String) | ConvertFrom-Json
+            if ($result.State -ne 'FAILED' -or $result.Reason -notmatch 'DNS_PANEL_MISMATCH') {
+              throw ('Plan did not exercise target resolver correctly: ' + $result.Reason)
+            }
+            if (-not (Test-Path -LiteralPath $result.ReceiptPath)) { throw 'Plan did not emit local receipt' }
+            Write-Host 'PASS: real PowerShell Plan invocation, reserved variable binding, DNS_PANEL_MISMATCH gate'
+          }
+          $global:LASTEXITCODE = 0

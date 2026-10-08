@@ -16,6 +16,7 @@ Cross-organization inheritance is forbidden. Site inheritance is never implicit.
 |---|---|---|---|
 | `northwell.shared-printer.organization-default` | Northwell Health / organization default | `proven` | `START-HERE-NORTHWELL-PRINTER-MAPPING.md` → technician front door → registered Northwell runtime launcher → operator wrapper → canonical mapper/finalizer |
 | `health-and-hospitals.shared-printer.discovery` | Health & Hospitals / organization default | `discovery_required` | **no product launcher is registered** |
+| `agilant-hq.local-tcp-printer` | Agilant / HQ site override | `proven` product contract; app field certification pending | `Map-AgilantHqPrinter.cmd` → native GUI → `mapping/Invoke-LocalTcpPrinter.ps1` (local TCP RAW/9100 only) |
 
 Northwell's SYSTEM identity, `/ga`, shared-queue form, HKLM proof, and runtime acceptance rules stay inside Northwell. Health & Hospitals remains separate until its own standards are observed and tracked.
 
