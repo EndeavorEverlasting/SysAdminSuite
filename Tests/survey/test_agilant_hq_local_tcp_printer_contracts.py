@@ -47,6 +47,58 @@ def check_resolution_fail_closed() -> None:
         assert required in source, required
     assert "PanelAddress" in source and "$PanelConfirmed" in source
     assert "$SiteConfirmed" in source and "$AdoptExistingQueue" in source
+    assert "if ($line -match '^\\s*SSID\\s*:\\s*(.+?)\\s*
+    assert "northwell" not in policy["use_case_id"]
+    assert "physical" in policy["outcomes"]["physical_acceptance"]
+    assert "re-resolve" in policy["address_change"]
+    for forbidden in ("10.217.107.165", "10.217.105.164", "Plainview-Office-Printer"):
+        assert forbidden not in source, "live host/IP must not be shipped as a default"
+
+
+def check_gui_requires_current_observation() -> None:
+    gui = read("GUI/Start-LocalTcpPrinterGui.ps1")
+    for required in (
+        "Map-AgilantHqPrinter.cmd", "Preview & preflight",
+        "Map / Repair", "Send test page", "UsePanelAddress",
+        "PanelConfirmed", "SiteConfirmed", "AdoptExistingQueue",
+        "$txtPanel.Text = ''", "$chkPanel.Checked = $false",
+        "Save / Update profile", "Get-PrinterDriver", "Invoke-Engine",
+    ):
+        assert required in gui, required
+    assert "Reset-Plan" in gui
+    assert "Join-Path $env:LOCALAPPDATA" in gui
+    assert "observed" in read("START-HERE-AGILANT-HQ-PRINTER-MAPPING.md").lower()
+
+
+def check_field_distribution() -> None:
+    launcher = read("Map-AgilantHqPrinter.cmd")
+    release = read("tools/build/New-DashboardFieldRelease.ps1")
+    assert "Start-LocalTcpPrinterGui.ps1" in launcher
+    assert "Start-Process" in launcher and "-Verb RunAs" in launcher
+    for required in (
+        "Map-AgilantHqPrinter.cmd",
+        "GUI\\Start-LocalTcpPrinterGui.ps1",
+        "mapping\\Invoke-LocalTcpPrinter.ps1",
+    ):
+        assert required in release, required
+    assert not (ROOT / "Map-LocalTcpPrinter.cmd").exists(), "generic entrypoint would cross site boundaries"
+
+
+def main() -> None:
+    checks = (
+        check_registry_isolation, check_resolution_fail_closed,
+        check_gui_requires_current_observation, check_field_distribution,
+    )
+    for check in checks:
+        check()
+        print("PASS:", check.__name__)
+    print(f"PASS: {len(checks)} Agilant HQ printer contract groups; no live printer contacted")
+
+
+if __name__ == "__main__":
+    main()
+)" in source, "SSID parser must be complete"
+    assert "function Test-Tcp9100([string]$Address) {" in source, "TCP function boundary must survive edits"
     assert "SAS_LOCAL_TCP_" in source
     assert "northwell" not in policy["use_case_id"]
     assert "physical" in policy["outcomes"]["physical_acceptance"]
