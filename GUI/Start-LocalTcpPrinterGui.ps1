@@ -248,10 +248,27 @@ $btnTest.Add_Click({
   try {
     $outcome = Invoke-Engine -Mode TestPage -Confirmed $false
     if ($outcome.State -eq 'TEST_PAGE_SUBMITTED') {
-      [System.Windows.Forms.MessageBox]::Show(
-        'Was the Windows test page physically printed? This confirmation remains operator-observed, not automatically verified.',
-        'Observe the printer', [System.Windows.Forms.MessageBoxButtons]::OK
-      ) | Out-Null
+      $answer = [System.Windows.Forms.MessageBox]::Show(
+        'Did the test page physically emerge from the intended printer, with the expected output?',
+        'Observe physical output', [System.Windows.Forms.MessageBoxButtons]::YesNo,
+        [System.Windows.Forms.MessageBoxIcon]::Question
+      )
+      $confirmed = $answer -eq [System.Windows.Forms.DialogResult]::Yes
+      $runsDir = Join-Path $env:LOCALAPPDATA 'SysAdminSuite\PrinterMapping\runs'
+      [void](New-Item -ItemType Directory -Path $runsDir -Force)
+      $observation = [ordered]@{
+        SchemaVersion = 'sas-local-tcp-printer-physical-observation/v1'
+        UseCaseId = 'agilant-hq.local-tcp-printer'
+        PrinterName = $txtName.Text.Trim()
+        EngineReceipt = $outcome.ReceiptPath
+        Status = $(if ($confirmed) { 'OPERATOR_PHYSICAL_PRINT_CONFIRMED' } else { 'PHYSICAL_PRINT_NOT_CONFIRMED' })
+        Method = 'user attestation in native SysAdminSuite GUI'
+        ObservedAtUtc = (Get-Date).ToUniversalTime().ToString('o')
+      }
+      $receipt = Join-Path $runsDir ('physical-observation-' + [guid]::NewGuid().ToString('N') + '.json')
+      $observation | ConvertTo-Json | Set-Content -LiteralPath $receipt -Encoding UTF8
+      $lblState.Text = $observation.Status
+      $txtResult.Text = ($observation | ConvertTo-Json -Depth 4)
     }
   } catch { $lblState.Text = 'Test page failed'; $txtResult.Text = $_.Exception.Message }
 })
