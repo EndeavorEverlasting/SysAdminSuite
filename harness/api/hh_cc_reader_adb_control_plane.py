@@ -32,10 +32,10 @@ from harness.api.hh_cc_reader_version_domain import (  # noqa: E402
     evaluate_version_domains,
     pattern_hint_domain,
 )
+from harness.api.android_provider import PLATFORM_TOOLS_SOURCE
 
 SCHEMA = "sas-hh-cc-reader-adb-control-plane/v1"
 DEFAULT_RECEIPT_DIR = ROOT / "survey" / "output" / "hh-cc-reader"
-PLATFORM_TOOLS_SOURCE = "https://dl.google.com/android/repository/platform-tools-latest-windows.zip"
 OWNED_CACHE_REL = "SysAdminSuite/tools/android-platform-tools"
 CAMPAIGN_TARGET = "2.0.15.260522"
 
@@ -276,8 +276,8 @@ def _host_state(host: dict[str, Any]) -> dict[str, Any]:
     else:
         state = "ADB_HOST_NOT_INSTALLED"
         next_action = (
-            "Run Prepare-HHCCReaderAdbHost.cmd to install official Google Android "
-            "Platform-Tools into the SysAdminSuite local tool cache."
+            "Run Run-SasAndroidProvider.cmd prepare --role ROLE --archive LOCAL_ZIP --archive-sha256 APPROVED_SHA256 "
+            "to qualify the SAS-owned local Platform-Tools bundle before field entry; network acquisition is disabled."
         )
         path = None
         version = None
@@ -565,6 +565,16 @@ def _network_state(evidence: dict[str, Any], device_ready: bool, identity_bound:
             "network_adb_state": "NOT_EVALUATED",
             "network_adb_revert_state": "NOT_EVALUATED",
         }
+    # Provider cleanup is authoritative even when a partial transition loses
+    # USB readiness or the revert command itself failed before acknowledgment.
+    if net.get("cleanup") in {"FAILED", "PENDING"} or net.get("result") == "INCOMPLETE":
+        return {
+            "network_adb_state": "NETWORK_ADB_CERT_INCONCLUSIVE",
+            "network_adb_revert_state": "NETWORK_ADB_REVERT_FAILED",
+            "cleanup": net.get("cleanup", "FAILED"),
+            "result": "INCOMPLETE",
+            "next_action": "NETWORK_ADB_REVERT_FAILED: preserve the provider recovery journal and complete attended same-device USB/listener cleanup before continuing.",
+        }
     if _bool(net.get("scanned")) or _bool(net.get("subnet_scan")):
         return {
             "network_adb_state": "POLICY_SAFETY_CONTROL",
@@ -679,6 +689,8 @@ def _pick_terminal(mode: str, parts: dict[str, Any]) -> str:
     net = parts["network"]["network_adb_state"]
     revert = parts["network"]["network_adb_revert_state"]
     remote = parts["remote"]["remote_view_state"]
+    if parts["network"].get("result") == "INCOMPLETE":
+        return "NETWORK_ADB_REVERT_FAILED"
     if mode == "prepare-host":
         return host
     if mode == "probe":
@@ -817,6 +829,8 @@ def evaluate_control_plane(evidence: dict[str, Any]) -> dict[str, Any]:
         next_action = "Forbidden Android mutation command was refused. Continue with read-only ADB only."
     if not next_action:
         next_action = host.get("next_action")
+    if terminal == "ADB_HOST_NOT_INSTALLED":
+        next_action = host["next_action"]
     proved = device.get("proved") or host["adb_host_state"]
     artifact_kind = {
         "prepare-host": "adb-host-readiness",
@@ -875,6 +889,22 @@ def evaluate_control_plane(evidence: dict[str, Any]) -> dict[str, Any]:
         "campaign_target_not_used_as_current": True,
         "live_identifiers_redacted": True,
     }
+    if network.get("result") == "INCOMPLETE":
+        receipt.update({"result": "INCOMPLETE", "cleanup": network["cleanup"]})
+    failure = evidence.get("provider_failure")
+    net_evidence = evidence.get("network_adb") or {}
+    if not failure and net_evidence.get("result") == "BLOCK" and net_evidence.get("reason"):
+        failure = net_evidence
+    if isinstance(failure, dict) and receipt.get("result") != "INCOMPLETE":
+        reason = failure.get("reason")
+        allowed = {"PROVIDER_LEASE_BUSY", "LOOPBACK_SERVER_NOT_PROVEN", "HOST_SERVER_START_FAILED", "DEVICE_ENUMERATION_FAILED", "OWNED_RUNTIME_NOT_READY", "PROFILE_AUTHORITY_REQUIRED", "PROVIDER_OPERATION_FAILED", "RESOLVED_TARGET_PROFILES_REQUIRED", "RUNTIME_REQUALIFICATION_REQUIRED", "PREVIOUS_CLEANUP_UNRESOLVED", "INVALID_IDENTITY_BINDING"}
+        receipt.update({"state": "POLICY_SAFETY_CONTROL", "result": "BLOCK", "cleanup": failure.get("cleanup", "NOT_REQUIRED"),
+                        "reason": reason if reason in allowed else "PROVIDER_OPERATION_FAILED",
+                        "next_action": "Resolve the named provider admission gate using Run-SasAndroidProvider.cmd doctor; preserve active leases and existing listeners for attended ownership review."})
+        if reason in {"PROFILE_AUTHORITY_REQUIRED", "RESOLVED_TARGET_PROFILES_REQUIRED"}:
+            receipt["next_action"] = "Supply the approved private organization/site/equipment authority with --profile-file; do not infer profiles from transport identity."
+    elif receipt.get("result") == "INCOMPLETE" and net_evidence.get("reason"):
+        receipt["reason"] = "PROVIDER_OPERATION_FAILED"
     return receipt
 
 
@@ -922,6 +952,8 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--input", default=None, help="Evidence JSON (fixture or private live capture).")
     parser.add_argument("--live", default=None, choices=sorted(MODES))
     parser.add_argument("--allow-install", action="store_true")
+    parser.add_argument("--authorize-transport", action="store_true", help="Explicit authority for the exact-target transport transaction; never firmware authority.")
+    parser.add_argument("--profile-file", type=Path, help="Private resolved organization/site/equipment transport authority.")
     parser.add_argument("--expected-mac", default=None)
     parser.add_argument(
         "--otg-confirmed",
@@ -939,6 +971,8 @@ def main(argv: list[str] | None = None) -> int:
             allow_install=args.allow_install,
             expected_mac=args.expected_mac,
             otg_confirmed=args.otg_confirmed,
+            transport_authorized=args.authorize_transport,
+            profile_authority=json.loads(args.profile_file.read_text(encoding="utf-8-sig")) if args.profile_file else None,
         )
     elif args.input:
         source = Path(args.input)
@@ -993,7 +1027,7 @@ def main(argv: list[str] | None = None) -> int:
                 )
     sys.stdout.write(format_technician_stdout(receipt, path))
     sys.stderr.write(f"RECEIPT={path}\n")
-    return 0
+    return 2 if receipt.get("result") in {"INCOMPLETE", "BLOCK"} else 0
 
 
 if __name__ == "__main__":

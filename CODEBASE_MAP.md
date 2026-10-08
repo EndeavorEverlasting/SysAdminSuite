@@ -278,3 +278,11 @@ The machine-readable command authority is `harness/api/harness-command-registry.
 
 - `targets/local/`, `logs/targets/`, `survey/input/`, `survey/output/`, `survey/artifacts/`, `logs/nmap/`, and `Mapping/Output/GuiRuns/` are local/evidence areas unless a tracked sample path explicitly says otherwise.
 - Tracked examples belong under approved sanitized, fixture, sample, or template paths.
+
+## Reusable AndroidProvider
+
+- `harness/api/android_provider.py` — qualified offline runtime, device identity, host lease, typed inspection and exact-target transport cleanup.
+- `Run-SasAndroidProvider.cmd` and `harness/api/android_provider_cli.py` — typed technician front door and private operation receipts.
+- `schemas/harness/android-provider-receipt.schema.json` — receipt states and successful transport cleanup/authority requirements.
+- `Tests/survey/test_android_provider_implementation.py` — offline bundle, alias/lease, source admission, migrated H&H adapter and CMD fixture proof.
+- `docs/ANDROID_PROVIDER.md` — preparation, node roles, offline admission, private identity and recovery contract.

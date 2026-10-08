@@ -104,7 +104,7 @@ def validate_contract(payload: dict[str, Any]) -> list[str]:
         errors.append("runtime_bundle.required_metadata")
 
     host = payload.get("host_provider") if isinstance(payload.get("host_provider"), dict) else {}
-    for key in ("single_android_provider_authority_per_host","node_unique_adb_key_material_required","shared_default_adb_private_key_forbidden"):
+    for key in ("single_android_provider_authority_per_host","node_unique_adb_key_material_required","shared_default_adb_private_key_forbidden","provider_lease_required_for_stateful_transport_changes"):
         if host.get(key) is not True:
             errors.append(f"host_provider.{key}")
     if host.get("adb_server_bind_scope") != "LOOPBACK_ONLY":
@@ -146,12 +146,17 @@ def validate_contract(payload: dict[str, Any]) -> list[str]:
         errors.append("cleanup.cleanup_failure_terminal_result")
     if cleanup.get("cleanup_failure_never_promotes_success") is not True:
         errors.append("cleanup.cleanup_failure_never_promotes_success")
+    for key in ("temporary_forward_reverse_rules_must_be_removed", "temporary_device_payloads_must_be_removed"):
+        if cleanup.get(key) is not True:
+            errors.append(f"cleanup.{key}")
 
     public = payload.get("public_surface") if isinstance(payload.get("public_surface"), dict) else {}
     if public.get("raw_shell_is_not_a_technician_public_api") is not True:
         errors.append("public_surface.raw_shell_is_not_a_technician_public_api")
     if public.get("typed_operations_precede_raw_commands") is not True:
         errors.append("public_surface.typed_operations_precede_raw_commands")
+    if public.get("operator_front_doors_delegate_to_repository_owned_cmd_or_sas_routes") is not True:
+        errors.append("public_surface.operator_front_doors_delegate_to_repository_owned_cmd_or_sas_routes")
 
     backends = payload.get("backend_roadmap") if isinstance(payload.get("backend_roadmap"), dict) else {}
     if (backends.get("adb_cli") or {}).get("state") != "CURRENT":
