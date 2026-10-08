@@ -5,8 +5,8 @@
   Read-only Plan, operator-authorized Apply and test-page submission.
   Never treats a stale saved IP, successful TCP connection, or DNS alone as proof of
   physical device identity. A fresh operator-observed panel IPv4 address is required
-  before any mapping mutation. A hostname-backed port is preferred when DNS agrees
-  with the panel; an IP-backed recovery requires explicit override.
+  before any mapping mutation. Hostnames resolve current candidate addresses; the
+  installed port is pinned to the panel-verified IPv4 to prevent DNS redirection.
   Receipts are private local state, never repository artifacts.
 #>
 [CmdletBinding()]
