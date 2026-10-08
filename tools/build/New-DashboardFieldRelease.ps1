@@ -62,7 +62,9 @@ $rootFiles = @(
     'START-HERE-SysAdminSuite-Dashboard.cmd',
     'SysAdminSuite Dashboard.cmd',
     'Launch-SysAdminSuiteDashboard.Host.bat',
-    'START-HERE-SysAdminSuite.md'
+    'START-HERE-SysAdminSuite.md',
+    'Map-AgilantHqPrinter.cmd',
+    'START-HERE-AGILANT-HQ-PRINTER-MAPPING.md'
 )
 
 foreach ($file in $rootFiles) {
@@ -71,6 +73,22 @@ foreach ($file in $rootFiles) {
         throw "Required field-release file missing: $source"
     }
     Copy-Item -LiteralPath $source -Destination (Join-Path $stagingRoot $file) -Force
+}
+
+# Local TCP printer wizard is part of the installed field app, not a repo-only extra.
+$localPrinterPayloads = @(
+    'GUI\Start-LocalTcpPrinterGui.ps1',
+    'mapping\Invoke-LocalTcpPrinter.ps1'
+)
+foreach ($relative in $localPrinterPayloads) {
+    $source = Join-Path $repoRoot $relative
+    if (-not (Test-Path -LiteralPath $source -PathType Leaf)) {
+        throw "Required Agilant HQ printer app file missing: $source"
+    }
+    $dest = Join-Path $stagingRoot $relative
+    $destDir = Split-Path -Parent $dest
+    New-Item -ItemType Directory -Path $destDir -Force | Out-Null
+    Copy-Item -LiteralPath $source -Destination $dest -Force
 }
 
 $dashboardSource = Join-Path $repoRoot 'dashboard'
@@ -92,6 +110,8 @@ This is a **field release package**. The dashboard host is already built under
 Double-click:
 
 ``START-HERE-SysAdminSuite-Dashboard.bat``
+
+For Agilant HQ local TCP printer mapping, double-click ``Map-AgilantHqPrinter.cmd``; approve UAC and follow the built-in native wizard.
 
 Your browser opens the local dashboard and Cybernet tutorial.
 
