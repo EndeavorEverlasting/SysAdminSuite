@@ -53,7 +53,7 @@ The workflow must keep four concepts separate:
 
 ## Diagnostics and receipts
 
-Private local files: %LOCALAPPDATA%\SysAdminSuite\PrinterMapping\runs\local-tcp-*.json and %LOCALAPPDATA%\SysAdminSuite\PrinterMapping\profiles\*.json.
+Private local files: %LOCALAPPDATA%\SysAdminSuite\PrinterMapping\runs\local-tcp-*.json, physical-observation-*.json and %LOCALAPPDATA%\SysAdminSuite\PrinterMapping\profiles\*.json.
 
 Possible outcomes include READY_TO_MAP, READY_TO_ADOPT, ALREADY_MAPPED, MAPPED_NOW, TEST_PAGE_SUBMITTED, DNS_UNRESOLVED, DNS_PANEL_MISMATCH, TCP_9100_UNREACHABLE, DRIVER_NOT_INSTALLED, UNMANAGED_QUEUE_CONFLICT, ADOPTION_CONFIRMATION_REQUIRED, ROLLBACK_INCOMPLETE and RECEIPT_WRITE_FAILED.
 
