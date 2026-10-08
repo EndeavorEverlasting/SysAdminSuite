@@ -71,3 +71,6 @@ jobs:
             throw 'No durable local receipt was produced'
           }
           Write-Host 'PASS: non-mutating missing-queue receipt'
+          # Negative child execution intentionally returned 1. Clear ambient LASTEXITCODE
+          # only after its expected failure and receipt have been verified.
+          $global:LASTEXITCODE = 0
