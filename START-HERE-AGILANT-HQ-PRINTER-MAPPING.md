@@ -9,7 +9,7 @@
 3. Click **Preview & preflight**. This checks hostname resolution, TCP/9100, driver presence, existing queue ownership, and proposed port change **without mutating** the printer.
 4. Confirm the physical panel IP and Agilant HQ network/site in the checkboxes. If a compatible queue already exists from a manual install, select **Adopt existing queue** and preview again.
 5. Click **Map / Repair** and explicitly approve the plan. If DNS is absent or disagrees with the current panel, choose **Use panel IP** and re-preview; this is an explicit recovery, not silent IP selection.
-6. Click **Send test page**, then **physically observe the output**. Submission of a test page is never automatically classified as physically printed.
+6. Click **Send test page**, then **physically observe the output** and choose **Yes** only if the intended printer actually produced the page. The GUI saves a separate operator-attestation receipt; submission of a test page is never automatically classified as physically printed.
 
 The name/IP/driver fields and last observed IP are saved only by the explicit Save / Update Profile action under the operator's private local Windows application data. Opening a profile **clears panel confirmation and the live panel-IP input**. A saved IP is historical evidence, not permission to map to it.
 
