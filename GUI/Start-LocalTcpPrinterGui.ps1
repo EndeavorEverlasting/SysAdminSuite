@@ -48,7 +48,7 @@ function Get-ProfilePath([string]$Name) {
   return Join-Path $profilesDir ($hash + '.json')
 }
 function Fingerprint {
-  return ($txtName.Text, $txtHost.Text, $txtPanel.Text, [string]$cmbDriver.SelectedItem, [string]$chkOverride.Checked -join [char]31)
+  return (@($txtName.Text, $txtHost.Text, $txtPanel.Text, [string]$cmbDriver.SelectedItem, [string]$chkOverride.Checked, [string]$chkAdopt.Checked) -join [char]31)
 }
 function Reset-Plan {
   $script:plannedFingerprint = ''
@@ -62,6 +62,8 @@ function Invoke-Engine([string]$Mode, [bool]$Confirmed) {
     '-DriverName', (PSQuote ([string]$cmbDriver.SelectedItem))
   )
   if ($Confirmed) { $arguments += '-PanelConfirmed' }
+  if ($chkSite.Checked) { $arguments += '-SiteConfirmed' }
+  if ($chkAdopt.Checked) { $arguments += '-AdoptExistingQueue' }
   if ($chkOverride.Checked) { $arguments += '-UsePanelAddress' }
   $scriptText = '& ' + (PSQuote $engine) + ' ' + ($arguments -join ' ')
   $encoded = [Convert]::ToBase64String([Text.Encoding]::Unicode.GetBytes($scriptText))
@@ -85,13 +87,13 @@ function Invoke-Engine([string]$Mode, [bool]$Confirmed) {
   }
 }
 $form = New-Object System.Windows.Forms.Form
-$form.Text = 'SysAdminSuite | Local Printer Mapping'
-$form.Size = New-Object System.Drawing.Size(790, 790)
+$form.Text = 'SysAdminSuite | Agilant HQ Printer Mapping'
+$form.Size = New-Object System.Drawing.Size(790, 850)
 $form.StartPosition = 'CenterScreen'
-$form.MinimumSize = New-Object System.Drawing.Size(790, 790)
+$form.MinimumSize = New-Object System.Drawing.Size(790, 850)
 $form.Font = New-Object System.Drawing.Font('Segoe UI', 10)
 
-$form.Controls.Add((New-Lbl 'Local TCP/IP printers - separate from Northwell shared-printer mapping' 18 12))
+$form.Controls.Add((New-Lbl 'Agilant HQ local TCP/IP mapping - NOT the Northwell shared-printer workflow' 18 12))
 $form.Controls.Add((New-Lbl 'Saved profile (last address is only a hint; never accepted as fresh panel proof)' 18 44))
 $cmbProfiles = New-Object System.Windows.Forms.ComboBox
 $cmbProfiles.Location = New-Object System.Drawing.Point(18, 70)
@@ -134,17 +136,27 @@ $chkPanel.Text = 'I have just read this current IP from the actual printer displ
 $chkPanel.Location = New-Object System.Drawing.Point(18, 410)
 $chkPanel.Size = New-Object System.Drawing.Size(730, 26)
 $form.Controls.Add($chkPanel)
-$form.Controls.Add((New-Lbl 'Before mapping: verify you are on the approved site network. TCP 9100 is only reachability.' 18 447))
-$btnPlan = New-Btn '1. Preview & preflight' 18 484 220
-$btnMap = New-Btn '2. Map / Repair' 252 484 220
-$btnTest = New-Btn '3. Send test page' 486 484 262
+$chkAdopt = New-Object System.Windows.Forms.CheckBox
+$chkAdopt.Text = 'Adopt a pre-existing, matching TCP/9100 printer queue if preview identifies it'
+$chkAdopt.Location = New-Object System.Drawing.Point(18, 444)
+$chkAdopt.Size = New-Object System.Drawing.Size(730, 26)
+$form.Controls.Add($chkAdopt)
+$chkSite = New-Object System.Windows.Forms.CheckBox
+$chkSite.Text = 'I confirm this computer and copier belong to Agilant HQ (approved main network)'
+$chkSite.Location = New-Object System.Drawing.Point(18, 477)
+$chkSite.Size = New-Object System.Drawing.Size(730, 26)
+$form.Controls.Add($chkSite)
+$form.Controls.Add((New-Lbl 'TCP 9100 alone does not prove device identity or site authority.' 18 515))
+$btnPlan = New-Btn '1. Preview & preflight' 18 548 220
+$btnMap = New-Btn '2. Map / Repair' 252 548 220
+$btnTest = New-Btn '3. Send test page' 486 548 262
 $btnMap.Enabled = $false
 $btnTest.Enabled = $false
 $form.Controls.AddRange(@($btnPlan,$btnMap,$btnTest))
-$lblState = New-Lbl 'Outcome: not started' 18 534
+$lblState = New-Lbl 'Outcome: not started' 18 598
 $form.Controls.Add($lblState)
 $txtResult = New-Object System.Windows.Forms.TextBox
-$txtResult.Location = New-Object System.Drawing.Point(18, 563)
+$txtResult.Location = New-Object System.Drawing.Point(18, 627)
 $txtResult.Size = New-Object System.Drawing.Size(730, 170)
 $txtResult.Multiline = $true; $txtResult.ReadOnly = $true
 $txtResult.ScrollBars = 'Vertical'
@@ -174,6 +186,8 @@ $cmbProfiles.Add_SelectedIndexChanged({
   $txtPanel.Text = ''   # Security: never treat the stored IP as a fresh observation.
   $chkPanel.Checked = $false
   $chkOverride.Checked = $false
+  $chkAdopt.Checked = $false
+  $chkSite.Checked = $false
   if ($cmbDriver.Items.Contains([string]$data.DriverName)) {
     $cmbDriver.SelectedItem = $data.DriverName
   }
@@ -203,7 +217,7 @@ $btnPlan.Add_Click({
   try {
     Reset-Plan
     $outcome = Invoke-Engine -Mode Plan -Confirmed $false
-    if ($outcome.State -in @('READY_TO_MAP','ALREADY_MAPPED')) {
+    if ($outcome.State -in @('READY_TO_MAP','READY_TO_ADOPT','ALREADY_MAPPED')) {
       $script:plannedFingerprint = Fingerprint
       $btnMap.Enabled = $true
       if ($outcome.State -eq 'ALREADY_MAPPED') { $btnTest.Enabled = $true }
@@ -219,6 +233,7 @@ $btnMap.Add_Click({
     if (-not $chkPanel.Checked) {
       throw 'Read the current IP on the printer and check the physical confirmation box.'
     }
+    if (-not $chkSite.Checked) { throw 'Confirm the approved Agilant HQ network/site before mapping.' }
     if ([System.Windows.Forms.MessageBox]::Show(
       'Apply this printer/driver/port mapping to THIS Windows computer?', 'Confirm local printer change',
       [System.Windows.Forms.MessageBoxButtons]::YesNo
@@ -245,5 +260,6 @@ foreach ($control in @($txtName,$txtHost,$txtPanel)) {
 }
 $cmbDriver.Add_SelectedIndexChanged({ Reset-Plan })
 $chkOverride.Add_CheckedChanged({ Reset-Plan })
+$chkAdopt.Add_CheckedChanged({ Reset-Plan })
 Refresh-Profiles
 [void]$form.ShowDialog()
