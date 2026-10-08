@@ -100,6 +100,8 @@ class ProviderTests(unittest.TestCase):
         self.assertEqual(provider.bind_identity([usb, {**tcp, "properties": {"ro.serialno": "other"}}], expected)["state"], "BLOCK")
         self.assertEqual(provider.bind_identity([usb, usb], expected)["state"], "BLOCK")
         self.assertEqual(provider.bind_identity([usb], {"ro.product.model": "A80"})["state"], "BLOCK")
+        for invalid in ({"ro.serialno": ""}, {"ro.serialno": None}, {"ro.serialno": "unknown"}, {"ro.serialno": " "}, ["ro.serialno"]):
+            self.assertEqual(provider.bind_identity([usb], invalid)["state"], "BLOCK")
 
     def test_lease_cross_process_contention(self):
         with tempfile.TemporaryDirectory() as temporary:
@@ -122,6 +124,9 @@ class ProviderTests(unittest.TestCase):
         with patch.object(provider, "_run", side_effect=AssertionError("unauthorized command")):
             result = provider.certify_network(Path("fixture-adb"), self.binding(), "192.0.2.10", authorized=False, lease_dir=Path("unused"))
             self.assertEqual(result["result"], "BLOCK")
+            forged = {**self.binding(), "expected": {"ro.serialno": ""}}
+            result = provider.certify_network(Path("fixture-adb"), forged, "192.0.2.10", authorized=True, lease_dir=Path("unused"))
+            self.assertEqual(result["reason"], "INVALID_IDENTITY_BINDING")
 
     def transaction(self, cleanup_failed=False, transition_timeout=False, tcp_mismatch=False):
         commands = []

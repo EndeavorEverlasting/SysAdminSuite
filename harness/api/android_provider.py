@@ -269,7 +269,9 @@ def parse_getprop(text: str) -> dict[str, str]:
 
 def bind_identity(observations: list[dict[str, Any]], expected: dict[str, str]) -> dict[str, Any]:
     """Require private expected stable properties; model alone never binds identity."""
-    if not expected or not any(k in expected for k in ("ro.serialno", "ro.boot.serialno")):
+    if (not isinstance(expected, dict) or not expected
+            or not all(isinstance(k, str) and isinstance(v, str) and v.strip() for k, v in expected.items())
+            or not any(k in expected and expected[k].strip().casefold() not in {"unknown", "none", "null", "0"} for k in ("ro.serialno", "ro.boot.serialno"))):
         return {"state": "BLOCK", "reason": "EXPECTED_STABLE_IDENTITY_REQUIRED", "devices": []}
     groups: dict[str, list[dict[str, Any]]] = {}
     for item in observations:
@@ -309,6 +311,10 @@ def certify_network(adb: Path, binding: dict[str, Any], ip: str, *, authorized: 
                               "tcpip_issued": False, "connect_result": "not_attempted", "readonly_proof_over_network": False,
                               "usb_revert_issued": False, "network_listener_gone": None}
     if not authorized or binding.get("state") != "IDENTITY_BOUND":
+        return result
+    rebound = bind_identity(binding.get("devices", []), binding.get("expected", {}))
+    if rebound["state"] != "IDENTITY_BOUND" or rebound["identity_ref"] != binding.get("identity_ref"):
+        result["reason"] = "INVALID_IDENTITY_BINDING"
         return result
     address = ipaddress.ip_address(ip)
     if address.version != 4 or address.is_loopback or address.is_unspecified or address.is_multicast:
