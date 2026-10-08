@@ -28,7 +28,8 @@
     "read_only": [
       "READY_TO_MAP",
       "READY_TO_ADOPT",
-      "ALREADY_MAPPED"
+      "ALREADY_MAPPED",
+      "READY_TO_ADOPT_STALE"
     ],
     "machine_registration": [
       "MAPPED_NOW",
@@ -42,6 +43,6 @@
   },
   "receipts": "%LOCALAPPDATA%\\SysAdminSuite\\PrinterMapping\\runs\\local-tcp-*.json",
   "rollback": "restore old queue port and remove only newly-created unreferenced port; incomplete cleanup fails closed",
-  "address_change": "re-resolve at each run; hostname preferred only when DNS matches current physical panel; explicit panel-IP override on mismatch/no DNS; never silently reuse historical IP",
+  "address_change": "re-resolve hostnames at each run as candidates; compare exact single IPv4 against fresh physical-panel IPv4; always pin Windows TCP port to currently panel-verified IPv4 to prevent later DNS drift; explicit panel-IP override on mismatch/no DNS; never silently reuse historical IP",
   "validation_ceiling": "static and hosted tests prove code path only; field proof requires physical device after installing changed product"
 }
