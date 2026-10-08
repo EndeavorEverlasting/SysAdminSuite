@@ -7,7 +7,7 @@
 param()
 $ErrorActionPreference = 'Stop'
 if ([Threading.Thread]::CurrentThread.ApartmentState -ne 'STA') {
-  throw 'Start via Map-LocalTcpPrinter.cmd (STA desktop launcher).'
+  throw 'Start via Map-AgilantHqPrinter.cmd (STA desktop launcher).'
 }
 Add-Type -AssemblyName System.Windows.Forms
 Add-Type -AssemblyName System.Drawing
