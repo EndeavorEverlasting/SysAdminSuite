@@ -83,6 +83,42 @@
         "runtime acceptance and failure classifications",
         "site-specific exceptions for newly acquired or independently operated hospitals"
       ]
+    },
+    {
+      "id": "agilant-hq.local-tcp-printer",
+      "organization_id": "agilant",
+      "organization_name": "Agilant",
+      "scope_type": "site_override",
+      "site_id": "hq",
+      "site_name": "Agilant HQ",
+      "status": "proven",
+      "parent_use_case_id": null,
+      "inherited_fields": [],
+      "product_workflow": "START-HERE-AGILANT-HQ-PRINTER-MAPPING.md",
+      "product_launcher": "Map-AgilantHqPrinter.cmd",
+      "product_engine": "mapping/Invoke-LocalTcpPrinter.ps1",
+      "evidence_policy": "harness/api/agilant-hq-local-tcp-printer-evidence-policy.json",
+      "agent_skill": ".claude/skills/field-workflow/SKILL.md",
+      "assumptions": {
+        "mapping_scope": "local-windows-computer",
+        "target_identity": "operator-confirmed current physical panel IPv4, reconciled against DNS",
+        "queue_identity": "operator-selected local printer name",
+        "execution_identity": "interactive local administrator",
+        "mapping_mechanism": "Add-PrinterPort, Add-Printer or Set-Printer",
+        "port_protocol": "RAW/9100",
+        "site_context": "explicit Agilant HQ confirmation; no organization-wide inheritance",
+        "driver_policy": "preinstalled exact name required",
+        "direct_ip_mapping": "only after freshly confirmed panel-IP fallback",
+        "stale_address_reuse": false,
+        "per_user_fallback": false
+      },
+      "proof": {
+        "registration": "Get-Printer queue matches exact driver and dedicated Standard TCP/IP port",
+        "runtime_acceptance": "real test page physically observed after running the SysAdminSuite app",
+        "lower_ranked_telemetry_cannot_override_runtime_acceptance": true,
+        "manual_20261008_print": "manual PowerShell field observation confirms mechanism only, not application field certification"
+      },
+      "discovery_requirements": []
     }
   ]
 }
