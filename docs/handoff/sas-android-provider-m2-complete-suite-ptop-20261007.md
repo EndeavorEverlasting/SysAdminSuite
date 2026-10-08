@@ -239,7 +239,7 @@ Sequence:
 6. connect only to the device-derived/authorized IP; never scan;
 7. run read-only proof over LAN;
 8. disconnect and revert to USB;
-9. prove cleanup/listener/session teardown;
+9. prove return to USB, listener/session teardown, removal of temporary ADB forward/reverse rules and device payloads, and provider lease release; any failed cleanup proof is `INCOMPLETE`;
 10. persist sanitized local receipt.
 
 If USB is not READY, do not invent a bypass. Record the typed blocker. Same-LAN reachability alone is not permission to enable debugging or guess an ADB endpoint.
@@ -294,3 +294,31 @@ NEXT:
 - one exact next command or one exact operator-only boundary.
 
 Do not return another architecture proposal. Execute this M2 plan.
+
+## Local implementation checkpoint
+
+The shared provider is implemented in `harness/api/android_provider.py`; the
+typed CLI and `Run-SasAndroidProvider.cmd` consume it. The H&H collector delegates
+runtime, enumeration, property parsing, read-only calls and transport transactions.
+The implementation creates no forward/reverse rules or device payloads; these
+cleanup obligations therefore remain vacuously satisfied for its current operations.
+
+P82 admission and measured decisions:
+
+| Hypothesis | Comparator / falsifier | Measurement | Decision |
+| --- | --- | --- | --- |
+| Generic extraction preserves H&H classification | Existing five H&H fixture groups; any changed classification rejects extraction | Existing suite plus mocked live-collector inventory/transport journeys | KEEP; host fallback/acquisition are deliberately tightened |
+| Bound identity and exclusive ownership prevent ambiguous mutation | Unbound aliases, duplicate USB identity, competing process, failed revert | Behavioral negative controls plus complete transport positive control | KEEP after rooted ZIP, unbound cleanup and account-scoped lease findings were repaired |
+| One prepared runtime supports all node roles offline | Missing/corrupt/extra files or PATH copy must never win | Qualified archive fixtures across all three roles, no network acquisition | KEEP at repository proof; physical AdminBox observation remains unproven |
+| PTop can certify exact LAN ADB | USB READY and qualified runtime are mandatory admission | Local host asset verification and PnP enumeration only | BLOCK: qualified bundle absent; no Android/ADB interface enumerated |
+
+Local evidence belongs under ignored `survey/output/android-provider/`:
+`validation.json`, `offline-floor.log`, `local-readiness.json`, and timestamped
+operation receipts. These files are private and must not be committed.
+
+Remaining live gate: prepare an approved official local archive, attach the
+intended already-debug-enabled/authorized device over its supported USB path,
+and supply approved private stable identity. Resolve current source admission
+before the typed probe/inventory/certification front door. Do not infer an IP,
+enable debugging, scan the LAN or change firmware. AdminBox One requires its
+own host/device observation using the same provider and offline source seal.
