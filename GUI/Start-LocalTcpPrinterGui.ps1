@@ -223,7 +223,7 @@ $btnPlan.Add_Click({
   try {
     Reset-Plan
     $outcome = Invoke-Engine -Mode Plan -Confirmed $false
-    if ($outcome.State -in @('READY_TO_MAP','READY_TO_ADOPT','ALREADY_MAPPED')) {
+    if ($outcome.State -in @('READY_TO_MAP','READY_TO_ADOPT','READY_TO_ADOPT_STALE','ALREADY_MAPPED')) {
       $script:plannedFingerprint = Fingerprint
       $btnMap.Enabled = $true
       if ($outcome.State -eq 'ALREADY_MAPPED') { $btnTest.Enabled = $true }
