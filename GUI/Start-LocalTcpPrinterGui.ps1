@@ -278,6 +278,7 @@ $btnTest.Add_Click({
     }
   } catch { $lblState.Text = 'Test page failed'; $txtResult.Text = $_.Exception.Message }
 })
+$txtPanel.Add_TextChanged({ $chkPanel.Checked = $false })
 foreach ($control in @($txtName,$txtHost,$txtPanel,$txtSsid)) {
   $control.Add_TextChanged({ Reset-Plan })
 }
