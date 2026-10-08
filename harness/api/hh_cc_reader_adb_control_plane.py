@@ -565,6 +565,16 @@ def _network_state(evidence: dict[str, Any], device_ready: bool, identity_bound:
             "network_adb_state": "NOT_EVALUATED",
             "network_adb_revert_state": "NOT_EVALUATED",
         }
+    # Provider cleanup is authoritative even when a partial transition loses
+    # USB readiness or the revert command itself failed before acknowledgment.
+    if net.get("cleanup") in {"FAILED", "PENDING"} or net.get("result") == "INCOMPLETE":
+        return {
+            "network_adb_state": "NETWORK_ADB_CERT_INCONCLUSIVE",
+            "network_adb_revert_state": "NETWORK_ADB_REVERT_FAILED",
+            "cleanup": net.get("cleanup", "FAILED"),
+            "result": "INCOMPLETE",
+            "next_action": "NETWORK_ADB_REVERT_FAILED: preserve the provider recovery journal and complete attended same-device USB/listener cleanup before continuing.",
+        }
     if _bool(net.get("scanned")) or _bool(net.get("subnet_scan")):
         return {
             "network_adb_state": "POLICY_SAFETY_CONTROL",
@@ -679,6 +689,8 @@ def _pick_terminal(mode: str, parts: dict[str, Any]) -> str:
     net = parts["network"]["network_adb_state"]
     revert = parts["network"]["network_adb_revert_state"]
     remote = parts["remote"]["remote_view_state"]
+    if parts["network"].get("result") == "INCOMPLETE":
+        return "NETWORK_ADB_REVERT_FAILED"
     if mode == "prepare-host":
         return host
     if mode == "probe":
@@ -875,6 +887,8 @@ def evaluate_control_plane(evidence: dict[str, Any]) -> dict[str, Any]:
         "campaign_target_not_used_as_current": True,
         "live_identifiers_redacted": True,
     }
+    if network.get("result") == "INCOMPLETE":
+        receipt.update({"result": "INCOMPLETE", "cleanup": network["cleanup"]})
     return receipt
 
 
@@ -997,7 +1011,7 @@ def main(argv: list[str] | None = None) -> int:
                 )
     sys.stdout.write(format_technician_stdout(receipt, path))
     sys.stderr.write(f"RECEIPT={path}\n")
-    return 0
+    return 2 if receipt.get("result") == "INCOMPLETE" else 0
 
 
 if __name__ == "__main__":

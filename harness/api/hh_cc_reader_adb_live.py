@@ -13,7 +13,9 @@ import time
 from pathlib import Path
 from typing import Any
 
-from harness.api.android_provider import (PLATFORM_TOOLS_SOURCE, OWNED_DIR, HOST_LEASE_DIR, _run, _which, resolve_host, collect_devices, allowed_shell, parse_getprop, bind_identity, certify_network)
+from contextlib import nullcontext
+
+from harness.api.android_provider import (provider_lease, PLATFORM_TOOLS_SOURCE, OWNED_DIR, HOST_LEASE_DIR, _run, _which, resolve_host, collect_devices, allowed_shell, parse_getprop, bind_identity, certify_network)
 
 def collect_usb() -> dict[str, Any]:
     ps = (
@@ -87,70 +89,75 @@ def collect_live_evidence(
             host = resolve_host()
         except Exception as exc:  # noqa: BLE001
             host["install_error"] = str(exc)
-    usb = collect_usb()
-    if otg_confirmed:
-        usb["operator_otg_client_path_confirmed"] = True
-    devices: list[dict[str, Any]] = []
-    if host["chosen"]:
-        devices = collect_devices(host["chosen"])
-    usb_rows = [row for row in devices if row.get("transport") != "tcp"]
-    ready = len(usb_rows) == 1 and usb_rows[0].get("state") == "device"
-    serial = usb_rows[0].get("_serial") if ready else None
-    identity = {
-        "expected_identity_available": bool(expected_mac),
-        "mac_correlated": False,
-        "vendor_props_match": False,
-        "single_usb_attachment": len(usb_rows) == 1,
-    }
-    inventory = None
-    network = None
-    remote = None
-    if mode in {"inventory", "orchestrate", "tcpip-cert", "remote-view", "classify"} and ready and host["chosen"]:
-        getprop = allowed_shell(host["chosen"], "getprop", serial)
-        props = parse_getprop(str(getprop.get("stdout") or ""))
-        packages = allowed_shell(host["chosen"], "pm list packages", serial)
-        ps_out = allowed_shell(host["chosen"], "ps", serial)
-        ip_addr = allowed_shell(host["chosen"], "ip addr", serial)
-        ip_route = allowed_shell(host["chosen"], "ip route", serial)
-        conn = allowed_shell(host["chosen"], "dumpsys connectivity", serial)
-        policy = allowed_shell(host["chosen"], "dumpsys device_policy", serial)
-        identity["mac_correlated"] = mac_in_text(str(ip_addr.get("stdout") or ""), expected_mac)
-        model = props.get("ro.product.model") or ""
-        identity["vendor_props_match"] = bool(re.search(r"A80|PAX", model, re.I))
-        inventory = {
-            "observed_at": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
-            "commands": {
-                "getprop": {**getprop, "properties": props},
-                "pm_list_packages": packages,
-                "ps": ps_out,
-                "ip_addr": ip_addr,
-                "ip_route": ip_route,
-                "dumpsys_connectivity": conn,
-                "dumpsys_device_policy": policy,
-            },
+    pending_network = None
+    with provider_lease(HOST_LEASE_DIR) if host["chosen"] else nullcontext():
+        usb = collect_usb()
+        if otg_confirmed:
+            usb["operator_otg_client_path_confirmed"] = True
+        devices: list[dict[str, Any]] = []
+        if host["chosen"]:
+            devices = collect_devices(host["chosen"], lease_held=True)
+        usb_rows = [row for row in devices if row.get("transport") != "tcp"]
+        ready = len(usb_rows) == 1 and usb_rows[0].get("state") == "device"
+        serial = usb_rows[0].get("_serial") if ready else None
+        identity = {
+            "expected_identity_available": bool(expected_mac),
+            "mac_correlated": False,
+            "vendor_props_match": False,
+            "single_usb_attachment": len(usb_rows) == 1,
         }
-        if mode in {"tcpip-cert", "orchestrate", "classify"}:
-            ip = first_ipv4(str(ip_addr.get("stdout") or ""))
-            network = {
-                "device_ip_known": bool(ip),
-                "scanned": False,
-                "tcpip_issued": False,
-                "connect_result": "not_attempted",
-                "readonly_proof_over_network": False,
-                "usb_revert_issued": False,
-                "network_listener_gone": None,
-                "already_listening": False,
+        inventory = None
+        network = None
+        remote = None
+        if mode in {"inventory", "orchestrate", "tcpip-cert", "remote-view", "classify"} and ready and host["chosen"]:
+            getprop = allowed_shell(host["chosen"], "getprop", serial)
+            props = parse_getprop(str(getprop.get("stdout") or ""))
+            packages = allowed_shell(host["chosen"], "pm list packages", serial)
+            ps_out = allowed_shell(host["chosen"], "ps", serial)
+            ip_addr = allowed_shell(host["chosen"], "ip addr", serial)
+            ip_route = allowed_shell(host["chosen"], "ip route", serial)
+            conn = allowed_shell(host["chosen"], "dumpsys connectivity", serial)
+            policy = allowed_shell(host["chosen"], "dumpsys device_policy", serial)
+            identity["mac_correlated"] = mac_in_text(str(ip_addr.get("stdout") or ""), expected_mac)
+            model = props.get("ro.product.model") or ""
+            identity["vendor_props_match"] = bool(re.search(r"A80|PAX", model, re.I))
+            inventory = {
+                "observed_at": time.strftime("%Y-%m-%dT%H:%M:%SZ", time.gmtime()),
+                "commands": {
+                    "getprop": {**getprop, "properties": props},
+                    "pm_list_packages": packages,
+                    "ps": ps_out,
+                    "ip_addr": ip_addr,
+                    "ip_route": ip_route,
+                    "dumpsys_connectivity": conn,
+                    "dumpsys_device_policy": policy,
+                },
             }
-            # H&H interpretation remains here; transport mechanics belong to the provider.
-            # Vendor/model alone cannot authorize a stateful transport transition.
-            stable = props.get("ro.serialno") or props.get("ro.boot.serialno")
-            if ip and expected_mac and identity["mac_correlated"] and stable:
-                observation = {**usb_rows[0], "properties": props, "device_ip": ip}
-                key = "ro.serialno" if props.get("ro.serialno") else "ro.boot.serialno"
-                binding = bind_identity([observation], {key: stable})
-                transaction = certify_network(host["chosen"], binding, ip,
-                    authorized=transport_authorized, lease_dir=HOST_LEASE_DIR, profile_authority=profile_authority)
-                network.update(transaction)
+            if mode in {"tcpip-cert", "orchestrate", "classify"}:
+                ip = first_ipv4(str(ip_addr.get("stdout") or ""))
+                network = {
+                    "device_ip_known": bool(ip),
+                    "scanned": False,
+                    "tcpip_issued": False,
+                    "connect_result": "not_attempted",
+                    "readonly_proof_over_network": False,
+                    "usb_revert_issued": False,
+                    "network_listener_gone": None,
+                    "already_listening": False,
+                }
+                # H&H interpretation remains here; transport mechanics belong to the provider.
+                # Vendor/model alone cannot authorize a stateful transport transition.
+                stable = props.get("ro.serialno") or props.get("ro.boot.serialno")
+                if ip and expected_mac and identity["mac_correlated"] and stable:
+                    observation = {**usb_rows[0], "properties": props, "device_ip": ip}
+                    key = "ro.serialno" if props.get("ro.serialno") else "ro.boot.serialno"
+                    binding = bind_identity([observation], {key: stable})
+                    pending_network = (binding, ip)
+    if pending_network is not None:
+        binding, ip = pending_network
+        transaction = certify_network(host["chosen"], binding, ip,
+            authorized=transport_authorized, lease_dir=HOST_LEASE_DIR, profile_authority=profile_authority)
+        network.update(transaction)
     if mode in {"remote-view", "orchestrate", "classify"}:
         local_scrcpy = Path(os.environ.get("LOCALAPPDATA", "")) / "SysAdminSuite" / "tools" / "scrcpy" / "scrcpy.exe"
         tool = local_scrcpy if local_scrcpy.is_file() else _which("scrcpy")

@@ -51,7 +51,12 @@ def sha256(path: Path) -> str:
         return hashlib.file_digest(stream, "sha256").hexdigest()
 
 
-def verify_bundle(directory: Path) -> dict[str, Any]:
+def qualification_anchor(directory: Path) -> Path:
+    """Independent preparation receipt; host storage remains a trust boundary."""
+    return directory.parent / (directory.name + ".qualification.json")
+
+
+def verify_bundle(directory: Path, *, require_attestation: bool = True) -> dict[str, Any]:
     """Verify every manifested byte before invoking the executable."""
     result: dict[str, Any] = {"state": "MISSING_BUNDLE", "manifest": None}
     try:
@@ -79,6 +84,12 @@ def verify_bundle(directory: Path) -> dict[str, Any]:
         actual = {p.relative_to(directory).as_posix() for p in directory.rglob("*") if p.is_file() and p.name != MANIFEST}
         if actual != set(components):
             return {"state": "UNMANIFESTED_COMPONENT", "manifest": None}
+        if require_attestation:
+            anchor = json.loads(qualification_anchor(directory).read_text(encoding="utf-8"))
+            if (anchor.get("schema_version") != "sas-android-runtime-attestation/v1"
+                    or anchor.get("archive_sha256") != manifest["sha256"]
+                    or anchor.get("manifest_sha256") != sha256(directory / MANIFEST)):
+                return {"state": "ATTESTATION_MISMATCH", "manifest": None}
         result = {"state": "READY", "manifest": manifest}
     except FileNotFoundError:
         pass
@@ -137,23 +148,46 @@ def prepare_bundle(archive: Path, expected_sha256: str, directory: Path | None =
                     "component_manifest": {p.relative_to(staging).as_posix(): sha256(p) for p in sorted(staging.rglob("*")) if p.is_file()},
                     "qualification_state": "QUALIFIED", "qualified_at": datetime.now(timezone.utc).isoformat()}
         (staging / MANIFEST).write_text(json.dumps(manifest, indent=2) + "\n", encoding="utf-8")
-        if verify_bundle(staging)["state"] != "READY":
+        if verify_bundle(staging, require_attestation=False)["state"] != "READY":
             raise RuntimeError("STAGED_BUNDLE_INVALID")
         backup = directory.with_name(directory.name + ".previous")
-        if backup.exists():
+        backup_anchor = qualification_anchor(backup)
+        if backup.exists() or backup_anchor.exists():
             raise RuntimeError("PRIOR_RUNTIME_BACKUP_REQUIRES_REVIEW")
+        anchor = qualification_anchor(directory)
+        original_anchor = anchor.read_bytes() if anchor.is_file() else None
         existed = directory.exists()
-        if existed:
-            directory.rename(backup)
+        moved = False
         try:
-            shutil.copytree(staging, directory)
-            if verify_bundle(directory)["state"] != "READY":
-                raise RuntimeError("DESTINATION_BUNDLE_INVALID")
-        except Exception:
-            if directory.exists():
-                shutil.rmtree(directory)
             if existed:
+                if original_anchor is not None:
+                    backup_anchor.write_bytes(original_anchor)
+                directory.rename(backup)
+                moved = True
+            shutil.copytree(staging, directory)
+            if verify_bundle(directory, require_attestation=False)["state"] != "READY":
+                raise RuntimeError("DESTINATION_BUNDLE_INVALID")
+            attestation = {"schema_version": "sas-android-runtime-attestation/v1",
+                           "archive_sha256": expected_sha256,
+                           "manifest_sha256": sha256(directory / MANIFEST)}
+            # Outside the replaceable bundle, bound to the approved bytes. The
+            # local host/attestation storage must remain trusted by the operator.
+            anchor.write_text(json.dumps(attestation, indent=2) + "\n", encoding="utf-8")
+            if verify_bundle(directory)["state"] != "READY":
+                raise RuntimeError("DESTINATION_ATTESTATION_INVALID")
+        except Exception:
+            if (moved or not existed) and directory.exists():
+                shutil.rmtree(directory)
+            if moved:
                 backup.rename(directory)
+            try:
+                if original_anchor is not None:
+                    anchor.write_bytes(original_anchor)
+                elif anchor.exists():
+                    anchor.unlink()
+            finally:
+                if backup_anchor.exists():
+                    backup_anchor.unlink()
             raise
         # Preserve the previous runtime for explicit rollback; no destructive cleanup.
         return manifest
@@ -332,6 +366,17 @@ def validate_profile_authority(value: Any) -> bool:
             and value["equipment"]["device_class"] == "android")
 
 
+def classify_connect_result(completed: subprocess.CompletedProcess[str], endpoint: str) -> str:
+    """Refusal requires explicit refusal evidence; other failures prove no listener state."""
+    stdout = completed.stdout or ""
+    text = stdout + "\n" + (completed.stderr or "")
+    if completed.returncode == 0 and re.search(r"^(?:already )?connected to " + re.escape(endpoint) + r"\s*$", stdout, re.M):
+        return "success"
+    if re.search(r"\bconnection refused\b|\bactively refused\b|\bWSAECONNREFUSED\b", text, re.I):
+        return "refused"
+    return "error" if completed.returncode else "inconclusive"
+
+
 def certify_network(adb: Path, binding: dict[str, Any], ip: str, *, authorized: bool, lease_dir: Path, profile_authority: dict[str, Any] | None = None) -> dict[str, Any]:
     """Exact target transaction. Revert, listener and USB proof are mandatory."""
     result: dict[str, Any] = {"result": "BLOCK", "cleanup": "NOT_REQUIRED", "authority": "AUTHORIZED" if authorized else "MUTATION_GATED",
@@ -388,10 +433,16 @@ def certify_network(adb: Path, binding: dict[str, Any], ip: str, *, authorized: 
             result["tcpip_issued"] = switch.returncode == 0
             if switch.returncode:
                 raise RuntimeError("TCP_TRANSITION_FAILED")
-            connect = _run(prefix + ["connect", endpoint], timeout=20)
-            connected = connect.returncode == 0 and bool(re.search(r"^(already )?connected to ", connect.stdout or "", re.M))
-            result["connect_result"] = "success" if connected else "refused"
-            if not connected:
+            try:
+                connect = _run(prefix + ["connect", endpoint], timeout=20)
+            except subprocess.TimeoutExpired:
+                result["connect_result"] = "timeout"
+                raise
+            except OSError:
+                result["connect_result"] = "error"
+                raise
+            result["connect_result"] = classify_connect_result(connect, endpoint)
+            if result["connect_result"] != "success":
                 raise RuntimeError("CONNECT_FAILED")
             proof = allowed_shell(adb, "getprop", endpoint)
             observed = parse_getprop(proof["stdout"])

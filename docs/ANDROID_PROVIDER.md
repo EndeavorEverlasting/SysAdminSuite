@@ -30,6 +30,14 @@ qualified bundle into the SAS-owned local cache. Runtime operations perform no
 public downloads and never select SDK/PATH copies. Existing software-deployment
 owners distribute assets; AndroidProvider is not another deployment engine.
 
+Preparation also creates the sibling `android-platform-tools.qualification.json`
+attestation, binding the approved archive digest to the complete manifest bytes.
+Distribution and attended rollback preserve that attestation with its matching
+bundle; an older unanchored runtime must be prepared again. Replacing executable
+and manifest together cannot replace this independent preparation record.
+The local host and attestation storage remain trusted: this does not protect
+against an attacker able to rewrite both the runtime and its independent anchor.
+
 Node configuration lives beside the owned runtime as `android-node.json`.
 Supported roles are `ptop_lab`, `adminbox_reference`, and
 `technician_adminbox_field`; hostname and LAN position never infer a role.

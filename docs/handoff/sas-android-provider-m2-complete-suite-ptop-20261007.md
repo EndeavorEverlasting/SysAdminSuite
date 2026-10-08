@@ -331,3 +331,9 @@ authority packet through `--profile-file`; node role and identity never supply
 those approvals. Outcome registration includes probe and TCP certification.
 Dedicated offline review suites cover each repaired boundary; physical source
 admission and device operations remain outside fixture proof.
+Further adapter review preserved failed cleanup as `INCOMPLETE`, retained a
+lease through every H&H inventory read, and separated explicit connection
+refusal from timeout/error/inconclusive results. An independent sibling runtime
+attestation now detects replacement of both bundle and colocated manifest;
+attended rollback preserves the previous matching attestation. Trusted local
+host storage remains the security boundary.
