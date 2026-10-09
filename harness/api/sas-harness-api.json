@@ -643,6 +643,30 @@
       ]
     },
     {
+      "id": "package_analysis.strong_name",
+      "summary": "Re-verify local package hashes and cryptographically validate CLR strong-name signatures for managed assemblies without executing package code.",
+      "mode": "local_read",
+      "network_activity": false,
+      "target_mutation": false,
+      "inputs": [
+        "operator_local_file_or_directory",
+        "sas_package_static_analysis_v1_result",
+        "bounded_analysis_limits"
+      ],
+      "outputs": [
+        "package_strong_name_verification.json",
+        "package_strong_name_verification.txt"
+      ],
+      "guardrails": [
+        "source_hash_reverification_required",
+        "base_proof_must_be_static_only",
+        "no_process_or_installer_execution",
+        "no_network_activity",
+        "authenticode_trust_is_separate_lane",
+        "Uses_canonical_SasRunContext"
+      ]
+    },
+    {
       "id": "package_analysis.vm_qualification_profile_validate",
       "summary": "Validate a package-specific disposable-VM qualification profile and report missing evidence without starting a VM.",
       "mode": "local_read",

@@ -1,0 +1,42 @@
+{
+  "schema_version": "sas-package-strong-name-verification-skill/v1",
+  "skill_path": ".claude/skills/package-static-analysis/SKILL.md",
+  "entrypoint_python": "tools/package-analysis/verify_dotnet_strong_name.py",
+  "entrypoint_windows": "scripts/Invoke-SasPackageStrongNameVerification.ps1",
+  "entrypoint_bash": "scripts/invoke-sas-package-strong-name-verification.sh",
+  "base_result_schema": "schemas/harness/package-static-analysis-result.schema.json",
+  "result_schema": "schemas/harness/package-strong-name-verification-result.schema.json",
+  "operation": {
+    "id": "package_analysis.strong_name",
+    "summary": "Re-verify local package hashes and cryptographically validate CLR strong-name signatures for managed assemblies without executing package code.",
+    "mode": "local_read",
+    "network_activity": false,
+    "target_mutation": false,
+    "host_mutation": false,
+    "package_execution": false,
+    "archive_payload_extraction": false,
+    "online_revocation_check": false,
+    "inputs": [
+      "operator_local_file_or_directory",
+      "sas_package_static_analysis_v1_result",
+      "bounded_analysis_limits"
+    ],
+    "outputs": [
+      "package_strong_name_verification.json",
+      "package_strong_name_verification.txt"
+    ],
+    "guardrails": [
+      "source_hash_reverification_required",
+      "base_proof_must_be_static_only",
+      "no_shortcut_following",
+      "no_archive_payload_extraction",
+      "no_process_or_installer_execution",
+      "no_network_activity",
+      "no_target_or_host_mutation",
+      "authenticode_trust_is_separate_lane",
+      "online_revocation_is_separate_lane",
+      "strong_name_presence_is_not_publisher_trust",
+      "runtime_behavior_requires_separate_vm_lane"
+    ]
+  }
+}
