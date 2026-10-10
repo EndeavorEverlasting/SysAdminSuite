@@ -28,7 +28,8 @@ def main() -> int:
         'Invoke-SasNetworkAwareField.ps1" refresh',
         "C:\\SASAL\\Probe-HHCCReader.cmd",
         "Invoke-SasHhCcReaderProbe.ps1",
-        "Probe-HHCCReader.cmd IPV4 [EXPECTED-MAC]",
+        "Probe-HHCCReader.cmd IPV4 [EXPECTED-MAC] [NETWORK-ENVIRONMENT]",
+        "HOSPITAL_GUEST_SHARED",
     ):
         assert marker in launcher, f"launcher missing marker: {marker}"
 
@@ -36,6 +37,10 @@ def main() -> int:
     # splits the command so cmd tries to run `H ...` as a program.
     assert "title SysAdminSuite - H^&H" in launcher, "probe title must escape H&&H"
     assert "title SysAdminSuite - H&H" not in launcher, "probe title leaves & unescaped"
+
+    assert 'call "C:\\SASAL\\Probe-HHCCReader.cmd" "%~1" "" "%~3"' in launcher
+    assert '-IPAddress "%~1" -NetworkEnvironment "%~3"' in launcher
+    assert 'if not "%~4"=="" goto usage' in launcher
 
     for marker in (
         "Get-NetIPConfiguration",
@@ -48,9 +53,20 @@ def main() -> int:
         "DEVICE_MISMATCH",
         "DEVICE_UNRESOLVED",
         "READ_ONLY_PROBE_COMPLETE",
+        "identity_assurance",
+        "MAC_MATCHED",
+        "MAC_UNRESOLVED",
+        "NETWORK_ONLY_MAC_NOT_SUPPLIED",
+        "NETWORK_ENVIRONMENT_UNCLASSIFIED",
+        "NetworkEnvironment",
+        "network_environment_classified",
+        "broad_discovery_performed = $false",
         "survey\\output\\hh-cc-reader",
     ):
         assert marker in script, f"probe missing marker: {marker}"
+
+    assert "-replace '[^0-9A-Fa-f]'" not in script, "probe must not strip arbitrary MAC decoration into validity"
+    assert "ExpectedMac must use colon-delimited, hyphen-delimited, or compact 12-hex format." in script
 
     # Field regression: some active adapters (for example WSL vEthernet) can expose
     # a null NetProfile under strict mode, and Windows PowerShell 5.1 can reject
@@ -93,6 +109,18 @@ def main() -> int:
     )
 
     assert "operator-managed external technician instructions remain authoritative" in docs
+    for marker in (
+        "Hospital guest/shared LAN posture",
+        "shared non-domain network environment",
+        "never widen a missing-identity problem into subnet/range discovery",
+        "SERIAL_AND_MAC",
+        "SERIAL_ONLY",
+        "MAC_ONLY",
+        "IDENTITY_INSUFFICIENT",
+        "IDENTITY_INVALID",
+        "batch planner exposes tranche counts",
+    ):
+        assert marker in docs, f"hospital guest/shared identity contract missing marker: {marker}"
     assert "HH_CC_READER_NETSTAT_BASELINE.md" in docs
     assert "PAX Store Push Service Primary (443)" in docs
     assert "EXTERNAL_FIELD_EVIDENCE.md" in docs
@@ -193,11 +221,14 @@ def main() -> int:
     assert "hh-cc-reader-probe" in entries, "command registry missing hh-cc-reader-probe"
     entry = entries["hh-cc-reader-probe"]
     assert entry["source_of_truth"] == "Probe-HHCCReader.cmd"
+    assert "[NETWORK_ENVIRONMENT]" in entry["command"]
+    assert "explicit network environment class" in entry["purpose"]
     assert entry["mutation"] == "local_runtime"
     assert entry["network"] is True
 
     print("[PASS] H&H CC-reader workflow has a tracked CMD front door")
     print("[PASS] Probe is one-target, network-gated, optional-MAC-gated, and read-only")
+    print("[PASS] Shared/guest LAN identity assurance is explicit and never widens discovery scope")
     print("[PASS] Tracked artifacts contain only TEST-NET IPv4 and synthetic MAC examples")
     print("[PASS] Netstat baseline and capture-topology semantics remain read-only and provider-neutral")
     print("[PASS] External field evidence is provider-neutral and barcode-generator work is deferred")
