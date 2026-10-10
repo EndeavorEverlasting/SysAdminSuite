@@ -339,4 +339,177 @@ catch { [Console]::Error.Write($_.Exception.Message); exit 1 }
     [pscustomobject][ordered]@{ path=$Path; hash=$hashValue; succeeded=(-not $run.timed_out -and $run.exit_code -eq 0 -and -not [string]::IsNullOrWhiteSpace($hashValue)); timed_out=$run.timed_out; exit_code=$run.exit_code; error=$run.error }
 }
 
-Export-ModuleMember -Function Invoke-SasBoundedNative,Invoke-SasBoundedPowerShell,Test-SasBoundedPath,New-SasBoundedDirectory,Copy-SasBoundedFile,Get-SasBoundedFileHash
+function Invoke-SasNativeProcess {
+    [CmdletBinding()]
+    param(
+        [Parameter(Mandatory=$true)][string]$FilePath,
+        [AllowEmptyCollection()][string[]]$Arguments = @(),
+        [ValidateRange(1,86400)][int]$TimeoutSeconds = 30,
+        [hashtable]$Environment = @{},
+        [string]$CommandLine,
+        [string]$StandardOutputPath,
+        [string]$StandardErrorPath,
+        [ValidateRange(1,10485760)][int]$MaxCaptureCharacters = 1048576
+    )
+
+    if ($FilePath -notmatch '^(?:[A-Za-z]:[\\/]|\\\\[^\\]+\\[^\\]+\\)') { throw 'NATIVE_EXECUTABLE_ABSOLUTE_PATH_REQUIRED' }
+    if ($PSBoundParameters.ContainsKey('CommandLine') -and @($Arguments).Count -gt 0) { throw 'CommandLine and Arguments are mutually exclusive.' }
+    # Pump native streams off the PowerShell thread. Capture is bounded; optional
+    # adapter-owned files receive the full stream incrementally, including before timeout.
+    if (-not ('SasNativeStreamCapture528V1' -as [type])) {
+        Add-Type -TypeDefinition @"
+using System;
+using System.IO;
+using System.Text;
+using System.Threading.Tasks;
+public sealed class SasNativeStreamCapture528V1 : IDisposable {
+    private readonly int limit;
+    private readonly StringBuilder text = new StringBuilder();
+    private readonly object gate = new object();
+    private readonly StreamWriter writer;
+    private bool truncated;
+    public SasNativeStreamCapture528V1(string path, int maximum) {
+        limit = maximum;
+        if (!String.IsNullOrEmpty(path)) {
+            writer = new StreamWriter(new FileStream(path, FileMode.Create, FileAccess.Write, FileShare.Read), new UTF8Encoding(false));
+            writer.AutoFlush = true;
+        }
+    }
+    public Task Start(StreamReader reader) { return Task.Run(() => Pump(reader)); }
+    private async Task Pump(StreamReader reader) {
+        char[] buffer = new char[4096];
+        int count;
+        while ((count = await reader.ReadAsync(buffer, 0, buffer.Length).ConfigureAwait(false)) > 0) {
+            lock (gate) {
+                int keep = Math.Min(count, limit - text.Length);
+                if (keep > 0) text.Append(buffer, 0, keep);
+                if (keep < count) truncated = true;
+            }
+            if (writer != null) writer.Write(buffer, 0, count);
+        }
+    }
+    public string Output { get { lock (gate) { return text.ToString(); } } }
+    public bool Truncated { get { lock (gate) { return truncated; } } }
+    public void Dispose() { if (writer != null) writer.Dispose(); }
+}
+"@ -ErrorAction Stop
+    }
+    # Windows CommandLineToArgvW / CRT quoting. CMD interpretation belongs to its caller.
+    $quotedArguments = foreach ($argument in $Arguments) {
+        $value = [string]$argument
+        if ($value.Length -gt 0 -and $value -notmatch '[\s"]') { $value; continue }
+        $builder = New-Object Text.StringBuilder
+        [void]$builder.Append('"')
+        $slashes = 0
+        foreach ($character in $value.ToCharArray()) {
+            if ($character -eq '\') { $slashes++; continue }
+            if ($character -eq '"') {
+                [void]$builder.Append(('\' * (2 * $slashes + 1)))
+                [void]$builder.Append('"')
+            }
+            else {
+                if ($slashes -gt 0) { [void]$builder.Append(('\' * $slashes)) }
+                [void]$builder.Append($character)
+            }
+            $slashes = 0
+        }
+        if ($slashes -gt 0) { [void]$builder.Append(('\' * (2 * $slashes))) }
+        [void]$builder.Append('"')
+        $builder.ToString()
+    }
+
+    $process = New-Object Diagnostics.Process
+    $process.StartInfo = New-Object Diagnostics.ProcessStartInfo
+    $process.StartInfo.FileName = $FilePath
+    $process.StartInfo.Arguments = $(if ($PSBoundParameters.ContainsKey('CommandLine')) { $CommandLine } else { $quotedArguments -join ' ' })
+    $process.StartInfo.UseShellExecute = $false
+    $process.StartInfo.CreateNoWindow = $true
+    $process.StartInfo.RedirectStandardOutput = $true
+    $process.StartInfo.RedirectStandardError = $true
+    foreach ($key in $Environment.Keys) {
+        if ($null -eq $Environment[$key]) { $process.StartInfo.EnvironmentVariables.Remove([string]$key) }
+        else { $process.StartInfo.EnvironmentVariables[[string]$key] = [string]$Environment[$key] }
+    }
+    $startedUtc = (Get-Date).ToUniversalTime()
+    $childPid = $null
+    $exitCode = $null
+    $timedOut = $false
+    $terminationAttempted = $false
+    $terminationAcknowledged = $false
+    $outputComplete = $false
+    $stdout = ''
+    $stderr = ''
+    $stdoutCapture = $null
+    $stderrCapture = $null
+    try {
+        $stdoutCapture = New-Object SasNativeStreamCapture528V1 -ArgumentList @($StandardOutputPath,$MaxCaptureCharacters)
+        $stderrCapture = New-Object SasNativeStreamCapture528V1 -ArgumentList @($StandardErrorPath,$MaxCaptureCharacters)
+        if (-not $process.Start()) { throw 'Unable to start native child process.' }
+        $childPid = [int]$process.Id
+        $stdoutTask = $stdoutCapture.Start($process.StandardOutput)
+        $stderrTask = $stderrCapture.Start($process.StandardError)
+        $wait = [Diagnostics.Stopwatch]::StartNew()
+        $exited = $false
+        while (-not $exited -and $wait.ElapsedMilliseconds -lt ($TimeoutSeconds * 1000)) {
+            if ($stdoutTask.IsFaulted) { throw $stdoutTask.Exception.GetBaseException() }
+            if ($stderrTask.IsFaulted) { throw $stderrTask.Exception.GetBaseException() }
+            $remaining = [int][Math]::Max(1, ($TimeoutSeconds * 1000) - $wait.ElapsedMilliseconds)
+            $exited = $process.WaitForExit([Math]::Min(100, $remaining))
+        }
+        if (-not $exited) {
+            $timedOut = $true
+            # Only the still-owned live process is eligible for PID-bound cleanup.
+            if (-not $process.HasExited) {
+                $terminationAttempted = $true
+                $terminationAcknowledged = Stop-SasBoundedProcessTree -ProcessId $childPid -TimeoutSeconds 5
+                if (-not $process.HasExited) { try { $process.Kill() } catch { } }
+            }
+        }
+        else { $exitCode = [int]$process.ExitCode }
+
+        # A descendant can retain redirected handles after the root exits. Never call
+        # parameterless WaitForExit or await an unfinished ReadToEndAsync task.
+        $drain = [Diagnostics.Stopwatch]::StartNew()
+        while ((-not $stdoutTask.IsCompleted -or -not $stderrTask.IsCompleted) -and $drain.ElapsedMilliseconds -lt 2000) {
+            [Threading.Thread]::Sleep(20)
+        }
+        $outputComplete = ($stdoutTask.Status -eq [Threading.Tasks.TaskStatus]::RanToCompletion -and
+            $stderrTask.Status -eq [Threading.Tasks.TaskStatus]::RanToCompletion)
+        if ($stdoutTask.IsFaulted) { throw $stdoutTask.Exception.GetBaseException() }
+        if ($stderrTask.IsFaulted) { throw $stderrTask.Exception.GetBaseException() }
+        $stdout = $stdoutCapture.Output
+        $stderr = $stderrCapture.Output
+        [pscustomobject][ordered]@{
+            process_id = $childPid
+            exit_code = $exitCode
+            timed_out = $timedOut
+            timeout_seconds = $TimeoutSeconds
+            output = $stdout
+            error = $stderr
+            started_utc = $startedUtc.ToString('o')
+            completed_utc = (Get-Date).ToUniversalTime().ToString('o')
+            child_tree_termination_attempted = $terminationAttempted
+            # This is taskkill acknowledgment, never independently verified descendant absence.
+            child_tree_terminated = $terminationAcknowledged
+            output_complete = $outputComplete
+            output_truncated = $stdoutCapture.Truncated
+            error_truncated = $stderrCapture.Truncated
+        }
+    }
+    finally {
+        if ($null -ne $childPid) {
+            if (-not $process.HasExited) {
+                [void](Stop-SasBoundedProcessTree -ProcessId $childPid -TimeoutSeconds 5)
+                if (-not $process.HasExited) { try { $process.Kill() } catch { } }
+            }
+            if (-not $outputComplete) {
+                try { $process.StandardOutput.Close() } catch { }
+                try { $process.StandardError.Close() } catch { }
+            }
+        }
+        if ($null -ne $stdoutCapture) { try { $stdoutCapture.Dispose() } catch { } }
+        if ($null -ne $stderrCapture) { try { $stderrCapture.Dispose() } catch { } }
+        $process.Dispose()
+    }
+}
+Export-ModuleMember -Function Invoke-SasNativeProcess,Invoke-SasBoundedNative,Invoke-SasBoundedPowerShell,Test-SasBoundedPath,New-SasBoundedDirectory,Copy-SasBoundedFile,Get-SasBoundedFileHash

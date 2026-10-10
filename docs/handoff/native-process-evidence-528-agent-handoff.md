@@ -5,6 +5,14 @@ Repository: `EndeavorEverlasting/SysAdminSuite`. Canonical issue: #528. Exact pl
 
 **Parent objective:** eliminate recurring Windows 5.1 child-process / native-command proof and receipt bugs by reusing proven repository owners where safe. **Do not** conflate PTop (ASUS laptop, local sprint target) with DTop (separate desktop). Already-completed PTop Android development installation must remain usable; SAS ADB qualification is explicitly still blocked by independent digest authority in #522.
 
+## Execution checkpoint: PR #530
+
+P95 approved option B in [the frozen design](../plans/native-process-seam-528.design.md) after actual concurrent native-subagent research returned [core](../research/native-process-528-core.md) and [caller](../research/native-process-528-callers.md) audits. A second concurrent P07 wave implemented the neutral module interface and independent regressions. Both waves ran through the local native collaboration API; the provisional JSON and unavailable TokenCorridor #142 dispatcher supply no launch proof.
+
+The selected consumer is Android toolchain Invoke-Bounded. Git refresh, existing S4U reconciliation, AndroidProvider M2, independent source qualification and DTop are unchanged. Actual harmless children passed under PowerShell 5.1 and 7, including stderr-only success, silent output, nonzero exit, exact argv, environment isolation, timeout descendant termination and bounded inherited-pipe draining. Android seven-group contracts, S4U reconciliation/runtime-repair controls and Git stderr controls passed. Independent second-pass review found no actionable defect. Hosted checks, full fixture/loopback E2E and default-branch integration must still be read from PR #530 provider state; do not infer them from this checkpoint.
+
+Remaining live proof boundary: canonical read-only PTop Verify after integration, with no Apply, BuildSmoke, LaunchStudio or BootEmulator. SAS qualification remains blocked by unavailable independent approved manifest, as accepted by the operator in #522.
+
 ## Coordinator run — one handoff, no operator scheduling
 
 1. Resolve P04/P95/P07 from current TokenCorridor upstream catalog (do not guess); read #528 and the tracked plan. Refresh GitHub provider truth and local canonical checkout with repo-governed path/network safety: `AGENTS.md`, `CODEBASE_MAP.md`, `harness/workflows/fresh-agent-intake.yaml`, `harness/api/canonical-path-registry.json`. Inspect `git status --short --branch`, `git worktree list --porcelain`, `git remote -v`, `git fetch --all --prune --tags`, actual default head, open overlapping PRs and private local PTop receipt location if already accessible. Do not reset/overwrite dirty work.

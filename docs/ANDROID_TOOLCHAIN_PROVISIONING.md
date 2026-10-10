@@ -72,3 +72,16 @@ disabled USB and mDNS discovery, and exact emulator cleanup. SDK ADB in this lan
 is emulator development proof only, never SAS qualification or physical-device
 authority. SAS preparation remains blocked until independent qualification
 authority supplies the approved archive digest.
+
+Native execution is owned by `Invoke-SasNativeProcess` in
+`scripts/SasBoundedNative.psm1`; the Android adapter owns log files, failure
+classification and validated CMD composition. Stdout and stderr remain separate,
+including empty stdout and stderr-only success. Timeout and incomplete stream
+drain fail closed. Sealed runtimes must seal this module alongside the engine.
+S4U reconciliation and independent ADB source qualification remain separate.
+
+Streams spool incrementally to adapter-owned log files while commands run.
+Returned text is bounded to 1048576 characters per stream; truncated capture
+fails closed as SUBPROCESS_CAPTURE_LIMIT, with full file evidence retained.
+This preserves partial diagnostics during interruption without retaining
+unlimited stdout/stderr strings in memory.

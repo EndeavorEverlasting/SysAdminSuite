@@ -31,37 +31,31 @@ function Invoke-Bounded([string]$Exe,[string[]]$Arguments,[int]$Seconds=$Timeout
  $id=[guid]::NewGuid().ToString('N');$stdout=Join-Path $OutputRoot "$id.stdout.log";$stderr=Join-Path $OutputRoot "$id.stderr.log"
  # Windows command-line quoting preserves paths with spaces; reject embedded quotes.
  $quoted=@($Arguments|ForEach-Object {if($_ -match '"'){throw 'UNSAFE_ARGUMENT'};'"'+$_+'"'})
- $priorModulePath=$env:PSModulePath
- try {
-  # Provider admission uses Windows PowerShell; pwsh's inherited module path is incompatible.
-  $env:PSModulePath=($env:ProgramFiles+'\WindowsPowerShell\Modules;'+$env:SystemRoot+'\System32\WindowsPowerShell\v1.0\Modules')
-  $commandLine=$quoted -join ' '
-  if($Exe -eq $env:ComSpec){
-   if($Arguments[0] -ne '/d' -or $Arguments[1] -ne '/c'){throw 'UNSAFE_CMD_INVOCATION'}
-   foreach($arg in $Arguments[2..($Arguments.Count-1)]){if($arg -match '[&|<>^%\r\n]'){throw 'UNSAFE_CMD_ARGUMENT'}}
-   $commandLine='/d /s /c "'+(($quoted[2..($quoted.Count-1)]) -join ' ')+'"'
-  }
-  $process=Start-Process -FilePath $Exe -ArgumentList $commandLine -PassThru -WindowStyle Hidden -RedirectStandardOutput $stdout -RedirectStandardError $stderr
- } finally {$env:PSModulePath=$priorModulePath}
- # Retain the native handle before waiting: Windows PowerShell 5.1 otherwise loses ExitCode.
- $ownedHandle=$process.Handle
- if(-not $process.WaitForExit($Seconds*1000)){
-  # The returned PID owns this process tree; never terminate by executable name.
-  & "$env:SystemRoot/System32/taskkill.exe" /PID $process.Id /T /F | Out-Null
-  $result.checks+=@(@{executable=$Exe;arguments=$Arguments;exit_code=$null;stdout=$stdout;stderr=$stderr;timed_out=$true})
-  throw 'SUBPROCESS_TIMEOUT'
+ $invoke=@{FilePath=$Exe;Arguments=$Arguments;TimeoutSeconds=$Seconds}
+ if($Exe -eq $env:ComSpec){
+  if($Arguments.Count -lt 3 -or $Arguments[0] -ne '/d' -or $Arguments[1] -ne '/c'){throw 'UNSAFE_CMD_INVOCATION'}
+  foreach($arg in $Arguments[2..($Arguments.Count-1)]){if($arg -match '[&|<>^%\r\n]'){throw 'UNSAFE_CMD_ARGUMENT'}}
+  # CMD owns its command-string grammar; native argv quoting is not interchangeable.
+  $invoke.Remove('Arguments')
+  $invoke.CommandLine='/d /s /c "'+(($quoted[2..($quoted.Count-1)]) -join ' ')+'"'
  }
- $process.Refresh();$text=(Get-Content $stdout -Raw -ErrorAction SilentlyContinue)+(Get-Content $stderr -Raw -ErrorAction SilentlyContinue)
- $check=[ordered]@{executable=$Exe;arguments=$Arguments;exit_code=$process.ExitCode;stdout=$stdout;stderr=$stderr}
+ $childEnvironment=@{PSModulePath=($env:ProgramFiles+'\WindowsPowerShell\Modules;'+$env:SystemRoot+'\System32\WindowsPowerShell\v1.0\Modules')}
+ $run=Invoke-SasNativeProcess @invoke -Environment $childEnvironment -StandardOutputPath $stdout -StandardErrorPath $stderr
+ $check=[ordered]@{executable=$Exe;arguments=$Arguments;exit_code=$run.exit_code;stdout=$stdout;stderr=$stderr}
+ if($run.timed_out){$check.timed_out=$true}
  $result.checks+=@($check)
- if($process.ExitCode -ne 0){
-  if($null -eq $process.ExitCode){throw 'SUBPROCESS_EXIT_UNPROVEN'}
+ if($run.timed_out){throw 'SUBPROCESS_TIMEOUT'}
+ if(-not $run.output_complete){throw 'SUBPROCESS_OUTPUT_INCOMPLETE'}
+ if($run.output_truncated -or $run.error_truncated){throw 'SUBPROCESS_CAPTURE_LIMIT'}
+ $text=[string]$run.output+[string]$run.error
+ if($run.exit_code -ne 0){
+  if($null -eq $run.exit_code){throw 'SUBPROCESS_EXIT_UNPROVEN'}
   if($text -match '(?i)license|accept.*terms'){throw 'LICENSE_ACCEPTANCE_REQUIRED'}
   if($text -match '(?i)access.*denied|administrator|elevation'){throw 'ADMIN_APPROVAL_REQUIRED'}
   if($text -match '(?i)no space|disk.*full'){throw 'INSUFFICIENT_DISK_SPACE'}
   if($text -match '(?i)network|resolve host|connection|download.*failed'){throw 'NETWORK_DOWNLOAD_FAILED'}
   throw 'COMMAND_FAILED'
- };return [string]::Concat('',[string](Get-Content $stdout -Raw -ErrorAction SilentlyContinue))
+ };return [string]::Concat('',[string]$run.output)
 }
 function Read-Inventory {
  if($fixture){return $fixture.inventory}
@@ -100,8 +94,11 @@ try {
   if($repo -eq 'C:\SASAL'){
    $state=Get-Content (Join-Path $env:LOCALAPPDATA 'SysAdminSuite/autologon-short-runtime.json') -Raw|ConvertFrom-Json
    $sealed=@($state.tracked_file_hashes|ForEach-Object {$_.path.Replace('\','/')})
-   foreach($required in @('scripts/Invoke-SasAndroidToolchain.ps1','Config/android-toolchain-profile.json','Manage-AndroidToolchain.cmd')){if($required -notin $sealed){throw 'ANDROID_TOOLCHAIN_CAPABILITY_NOT_SEALED'}}
+   foreach($required in @('scripts/Invoke-SasAndroidToolchain.ps1','scripts/SasBoundedNative.psm1','Config/android-toolchain-profile.json','Manage-AndroidToolchain.cmd')){if($required -notin $sealed -or -not (Test-Path -LiteralPath (Join-Path $repo $required) -PathType Leaf)){throw 'ANDROID_TOOLCHAIN_CAPABILITY_NOT_SEALED'}}
   }
+  $nativeModule=Join-Path $PSScriptRoot 'SasBoundedNative.psm1'
+  if(-not (Test-Path -LiteralPath $nativeModule -PathType Leaf)){throw 'NATIVE_PROCESS_MODULE_REQUIRED'}
+  Import-Module $nativeModule -Force -ErrorAction Stop
   $python=Find-Tool python.exe @();if(-not $python){throw 'PYTHON_REQUIRED'}
   # Reuse AndroidProvider M2 source admission; never weaken canonical/sealed currentness.
   $admission='import sys,json;sys.path.insert(0,sys.argv[1]);from harness.api.android_provider_cli import admit_source;print(json.dumps(admit_source(sys.argv[2] or None)))'

@@ -116,6 +116,47 @@ foreach($case in (Get-Content $Cases -Raw|ConvertFrom-Json)){
         assert process.returncode == 0, (process.stdout, process.stderr)
 
 
+def test_missing_module_produces_receipt_and_fixture_needs_no_module():
+    """Actual isolated engine path, never the host sealed runtime or source admission."""
+    shell = shutil.which("pwsh")
+    with tempfile.TemporaryDirectory(prefix="sas-module-admission-") as directory:
+        root = Path(directory)
+        (root / "scripts").mkdir()
+        (root / "Config").mkdir()
+        engine = root / "scripts/Invoke-SasAndroidToolchain.ps1"
+        engine.write_text(SCRIPT.read_text(encoding="utf-8-sig"), encoding="utf-8")
+        shutil.copyfile(ROOT / "Config/android-toolchain-profile.json", root / "Config/android-toolchain-profile.json")
+        for operation, fixture, expected in [("Plan", True, None), ("Inventory", False, "NATIVE_PROCESS_MODULE_REQUIRED")]:
+            output = root / ("fixture" if fixture else "missing")
+            command = [shell, "-NoProfile", "-File", str(engine), "-Operation", operation, "-OutputRoot", str(output)]
+            if fixture:
+                command += ["-FixturePath", str(FIXTURES / "healthy.fixture.json")]
+            run = subprocess.run(command, capture_output=True, text=True, timeout=30)
+            receipt = load(next(output.glob("receipt-*.json")))
+            assert run.returncode == (0 if fixture else 2), (run.stdout, run.stderr)
+            assert receipt["result"] == ("SUCCESS" if fixture else "BLOCK")
+            if expected:
+                assert expected in receipt["reason_codes"], receipt
+            assert not receipt["checks"] and receipt["source"] is None
+        if os.name == "nt":
+            # Select the sealed branch only in this isolated copy; exercise the actual dependency gate.
+            text = engine.read_text(encoding="utf-8-sig")
+            marker = "if($repo -eq 'C:\\SASAL'){"
+            assert marker in text
+            engine.write_text(text.replace(marker, "if($true){"), encoding="utf-8")
+            state = root / "private-state/SysAdminSuite"
+            state.mkdir(parents=True)
+            entries = ["scripts/Invoke-SasAndroidToolchain.ps1", "scripts/SasBoundedNative.psm1", "Config/android-toolchain-profile.json", "Manage-AndroidToolchain.cmd"]
+            (state / "autologon-short-runtime.json").write_text(json.dumps({"tracked_file_hashes": [{"path": path} for path in entries]}), encoding="utf-8")
+            env = {**os.environ, "LOCALAPPDATA": str(state.parent)}
+            output = root / "sealed-missing"
+            run = subprocess.run([shell, "-NoProfile", "-File", str(engine), "-Operation", "Inventory", "-OutputRoot", str(output)], env=env, capture_output=True, text=True, timeout=30)
+            receipt = load(next(output.glob("receipt-*.json")))
+            assert run.returncode == 2, (run.stdout, run.stderr)
+            assert "ANDROID_TOOLCHAIN_CAPABILITY_NOT_SEALED" in receipt["reason_codes"], receipt
+            assert not receipt["checks"] and receipt["source"] is None
+
+
 def test_registry_wiring():
     def by_id(name, collection, key="id"):
         return {row[key]: row for row in load(ROOT / f"harness/api/{name}.json")[collection]}
@@ -138,6 +179,7 @@ def test_windows_powershell_owned_subprocess_exit():
         probe = Path(output) / "process.ps1"
         probe.write_text(r'''param($Engine,$OutputRoot)
 $ErrorActionPreference='Stop';$fixture=$null;$TimeoutSeconds=10;$result=@{checks=@()}
+Import-Module (Join-Path (Split-Path (Split-Path $Engine -Parent) -Parent) 'scripts/SasBoundedNative.psm1') -Force
 $ast=[System.Management.Automation.Language.Parser]::ParseFile($Engine,[ref]$null,[ref]$null)
 $function=$ast.Find({param($node) $node -is [System.Management.Automation.Language.FunctionDefinitionAst] -and $node.Name -eq 'Invoke-Bounded'},$true)
 . ([scriptblock]::Create($function.Extent.Text))
@@ -146,6 +188,10 @@ $serialized=$result|ConvertTo-Json -Depth 12
 if($result.source -isnot [string]){throw 'SOURCE_TEXT_CONTRACT_MISMATCH'}
 if($serialized.Length -gt 4000 -or $serialized -match 'PSProvider'){throw 'SUBPROCESS_TEXT_METADATA_LEAK'}
 if($result.checks[-1].exit_code -ne 0){throw 'ZERO_EXIT_LOST'}
+$stderrOnly=Invoke-Bounded "$env:SystemRoot/System32/WindowsPowerShell/v1.0/powershell.exe" @('-NoProfile','-Command',"[Console]::Error.Write('stderr-success'); exit 0")
+if($stderrOnly){throw 'STDERR_CONTAMINATED_STDOUT'}
+if((Get-Content $result.checks[-1].stderr -Raw) -ne 'stderr-success'){throw 'STDERR_LOG_LOST'}
+if($result.checks[-1].exit_code -ne 0){throw 'STDERR_SUCCESS_EXIT_LOST'}
 $empty=Invoke-Bounded "$env:SystemRoot/System32/WindowsPowerShell/v1.0/powershell.exe" @('-NoProfile','-Command','exit 0')
 if($empty -and $empty.Length){throw 'EMPTY_OUTPUT_CONTRACT'}
 $wrapper=Join-Path $OutputRoot 'tiny wrapper.bat'
@@ -156,6 +202,11 @@ $wrapped=Invoke-Bounded $env:ComSpec @('/d','/c',$wrapper)
 if($wrapped.Trim() -ne 'wrapper-success'){throw 'CMD_SPACES_OUTPUT_CONTRACT'}
 try{Invoke-Bounded "$env:SystemRoot/System32/WindowsPowerShell/v1.0/powershell.exe" @('-NoProfile','-Command','exit 7');throw 'NONZERO_EXIT_ACCEPTED'}catch{if($_.Exception.Message -ne 'COMMAND_FAILED'){throw}}
 if($result.checks[-1].exit_code -ne 7){throw 'NONZERO_EXIT_LOST'}
+try{Invoke-Bounded (Get-Command python.exe).Source @('-c','print(chr(120)*1200000,end=str())');throw 'CAPTURE_LIMIT_ACCEPTED'}catch{if($_.Exception.Message -ne 'SUBPROCESS_CAPTURE_LIMIT'){throw}}
+if((Get-Item $result.checks[-1].stdout).Length -ne 1200000){throw 'FULL_LOG_LOST_AT_CAPTURE_LIMIT'}
+
+try{Invoke-Bounded "$env:SystemRoot/System32/WindowsPowerShell/v1.0/powershell.exe" @('-NoProfile','-Command',"[Console]::Out.Write('partial-output'); [Console]::Out.Flush(); Start-Sleep -Seconds 15") 2;throw 'TIMEOUT_ACCEPTED'}catch{if($_.Exception.Message -ne 'SUBPROCESS_TIMEOUT'){throw}}
+if((Get-Content $result.checks[-1].stdout -Raw) -ne 'partial-output'){throw 'TIMEOUT_PARTIAL_ADAPTER_LOG_LOST'}
 ''', encoding="utf-8")
         process = subprocess.run([shell, "-NoProfile", "-File", str(probe), str(SCRIPT), output], capture_output=True, text=True, timeout=30)
         assert process.returncode == 0, (process.stdout, process.stderr)
