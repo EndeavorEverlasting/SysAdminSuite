@@ -161,6 +161,9 @@ $wrapped=Invoke-Bounded $env:ComSpec @('/d','/c',$wrapper)
 if($wrapped.Trim() -ne 'wrapper-success'){throw 'CMD_SPACES_OUTPUT_CONTRACT'}
 try{Invoke-Bounded "$env:SystemRoot/System32/WindowsPowerShell/v1.0/powershell.exe" @('-NoProfile','-Command','exit 7');throw 'NONZERO_EXIT_ACCEPTED'}catch{if($_.Exception.Message -ne 'COMMAND_FAILED'){throw}}
 if($result.checks[-1].exit_code -ne 7){throw 'NONZERO_EXIT_LOST'}
+try{Invoke-Bounded (Get-Command python.exe).Source @('-c','print(chr(120)*1200000,end=str())');throw 'CAPTURE_LIMIT_ACCEPTED'}catch{if($_.Exception.Message -ne 'SUBPROCESS_CAPTURE_LIMIT'){throw}}
+if((Get-Item $result.checks[-1].stdout).Length -ne 1200000){throw 'FULL_LOG_LOST_AT_CAPTURE_LIMIT'}
+
 try{Invoke-Bounded "$env:SystemRoot/System32/WindowsPowerShell/v1.0/powershell.exe" @('-NoProfile','-Command',"[Console]::Out.Write('partial-output'); [Console]::Out.Flush(); Start-Sleep -Seconds 15") 2;throw 'TIMEOUT_ACCEPTED'}catch{if($_.Exception.Message -ne 'SUBPROCESS_TIMEOUT'){throw}}
 if((Get-Content $result.checks[-1].stdout -Raw) -ne 'partial-output'){throw 'TIMEOUT_PARTIAL_ADAPTER_LOG_LOST'}
 ''', encoding="utf-8")
