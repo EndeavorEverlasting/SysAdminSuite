@@ -21,6 +21,7 @@ The harness:
 - resumes only when both the image and GNU ddrescue mapfile already exist;
 - attaches images, BitLocker mappers, and NTFS filesystems read-only;
 - writes evidence and recovered files only to the explicit destination;
+- can run an explicitly requested sustained **read-only** NVMe reproduction test after preservation, with bounded terminal output and automatic postmortem capture;
 - never runs `chkdsk`, `ntfsfix`, `bootrec`, filesystem repair, BitLocker decryption-in-place, or writes an image back to the source.
 
 A successful percentage shown by ddrescue is not the same as a verified file evacuation. Keep the source preserved until priority files have been copied and validated from the image.
@@ -157,26 +158,68 @@ bash /mnt/sas/recovery/systemrescue/sas-recovery.sh cleanup --mount /mnt/recover
 
 Cleanup refuses to detach a loop device unless the state file is a regular non-symlink file, names a valid read-only loop device, records the same canonical image path supplied by the operator, and matches the loop device's current backing file.
 
-## QR-safe command catalog
+## Read-only NVMe forensics after preservation
+
+When preservation is complete but the physical failure mode is still unresolved, use [`NVME_FORENSICS.md`](NVME_FORENSICS.md). Do not improvise long terminal dumps.
+
+Capture a compact baseline:
+
+```bash
+bash /mnt/sas/recovery/systemrescue/sas-recovery.sh nvme-baseline --source /dev/nvme0n1 --expect-model 'CONFIRMED MODEL' --expect-serial 'CONFIRMED SERIAL' --workdir /tmp/sas-nvme-case/baseline
+```
+
+If sustained source reads are justified, run the guarded reproduction lane:
+
+```bash
+bash /mnt/sas/recovery/systemrescue/sas-recovery.sh nvme-read-repro --source /dev/nvme0n1 --expect-model 'CONFIRMED MODEL' --expect-serial 'CONFIRMED SERIAL' --workdir /tmp/sas-nvme-case/repro
+```
+
+The reproduction command forces and verifies host `RO=1`, refuses a mounted source, reads the source to `/dev/null`, writes only diagnostic artifacts outside the source, records the ddrescue exit code and kernel delta, and classifies timeout/reset/device-disable outcomes. It does not retry a disabled source automatically.
+
+Terminal summaries are intentionally viewport-bounded. Full SMART, PCIe, AER, dmesg, ddrescue, and postmortem evidence is stored in files for later review.
+
+## QR-safe command catalogs
 
 The repository follows **QR = pointer, not payload**. Do not embed full shell scripts in QR codes.
 
-After device paths and case paths are confirmed, generate exact commands:
+After device paths and case paths are confirmed, generate exact recovery commands:
 
 ```bash
 bash recovery/systemrescue/sas-recovery.sh qr-catalog --repo-mount /mnt/sas --source /dev/nvme0n1 --expect-model 'CONFIRMED MODEL' --expect-serial 'CONFIRMED SERIAL' --destination /dev/sda2 --destination-label Expansion --workdir /mnt/expansion/CASE_RECOVERY --image full-disk.img --map full-disk.map --bitlocker-partition-number 3 --mode resume --max-chars 240
 ```
 
-The catalog:
+Generate the shorter forensic pointer sequence separately:
 
-- emits numbered commands;
-- reports each exact character count;
-- fails if any command exceeds the selected limit;
-- requires confirmed source model/serial, destination label, and BitLocker partition number;
-- uses one short environment-setting QR followed by pointer commands;
-- contains no base64 script payloads.
+```bash
+bash recovery/systemrescue/sas-recovery.sh forensics-qr-catalog --repo-mount /mnt/sas --source /dev/nvme0n1 --expect-model 'CONFIRMED MODEL' --expect-serial 'CONFIRMED SERIAL' --workdir /tmp/sas-nvme-case --max-chars 240
+```
 
-The default practical limit is 240 characters, below the 300-character truncation observed in the field workflow.
+The catalogs:
+
+- emit numbered commands;
+- report each exact character count;
+- fail if any command exceeds the selected limit;
+- require confirmed source identity;
+- use short environment-setting/pointer commands;
+- contain no base64 script payloads.
+
+The default practical limit is 240 characters, below the 300-character truncation observed in the field workflow. Transport length and visible terminal-output length are separate budgets: verbose evidence belongs in files, not on a single photo screen.
+
+## Portable field kit
+
+To copy only the reusable SystemRescue tooling onto a verified writable companion/data filesystem:
+
+```bash
+bash recovery/systemrescue/export-field-kit.sh --target-root /mnt/field-media
+```
+
+The exporter refuses a read-only target and refuses to overwrite an existing kit. It creates a SHA-256 manifest. Verify the copy before use:
+
+```bash
+bash /mnt/field-media/sas-systemrescue-field-kit/recovery/systemrescue/verify-field-kit.sh
+```
+
+Do not assume the SystemRescue ISO/hybrid boot partition itself is writable. A dedicated writable data partition or companion USB is often the safer persistence target.
 
 ## Docking-station guidance
 
@@ -190,11 +233,17 @@ Repository contract tests:
 
 ```bash
 python Tests/recovery/test_systemrescue_recovery_contracts.py
+python Tests/recovery/test_systemrescue_nvme_forensics_contracts.py
 ```
 
 Local shell checks:
 
 ```bash
 bash -n recovery/systemrescue/sas-recovery.sh
+for file in recovery/systemrescue/lib/*.sh; do bash -n "$file"; done
+bash -n recovery/systemrescue/export-field-kit.sh
+bash -n recovery/systemrescue/verify-field-kit.sh
 bash recovery/systemrescue/sas-recovery.sh --help
 ```
+
+The GitHub `SystemRescue recovery contracts` workflow is the authoritative repository-level gate for this lane.
