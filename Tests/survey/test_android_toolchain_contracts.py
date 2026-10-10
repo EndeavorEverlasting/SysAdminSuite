@@ -147,6 +147,10 @@ $serialized=$result|ConvertTo-Json -Depth 12
 if($result.source -isnot [string]){throw 'SOURCE_TEXT_CONTRACT_MISMATCH'}
 if($serialized.Length -gt 4000 -or $serialized -match 'PSProvider'){throw 'SUBPROCESS_TEXT_METADATA_LEAK'}
 if($result.checks[-1].exit_code -ne 0){throw 'ZERO_EXIT_LOST'}
+$stderrOnly=Invoke-Bounded "$env:SystemRoot/System32/WindowsPowerShell/v1.0/powershell.exe" @('-NoProfile','-Command',"[Console]::Error.Write('stderr-success'); exit 0")
+if($stderrOnly){throw 'STDERR_CONTAMINATED_STDOUT'}
+if((Get-Content $result.checks[-1].stderr -Raw) -ne 'stderr-success'){throw 'STDERR_LOG_LOST'}
+if($result.checks[-1].exit_code -ne 0){throw 'STDERR_SUCCESS_EXIT_LOST'}
 $empty=Invoke-Bounded "$env:SystemRoot/System32/WindowsPowerShell/v1.0/powershell.exe" @('-NoProfile','-Command','exit 0')
 if($empty -and $empty.Length){throw 'EMPTY_OUTPUT_CONTRACT'}
 $wrapper=Join-Path $OutputRoot 'tiny wrapper.bat'
