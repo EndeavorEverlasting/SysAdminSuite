@@ -61,7 +61,7 @@ function Invoke-Bounded([string]$Exe,[string[]]$Arguments,[int]$Seconds=$Timeout
   if($text -match '(?i)no space|disk.*full'){throw 'INSUFFICIENT_DISK_SPACE'}
   if($text -match '(?i)network|resolve host|connection|download.*failed'){throw 'NETWORK_DOWNLOAD_FAILED'}
   throw 'COMMAND_FAILED'
- };return [string]::Concat((Get-Content $stdout -Raw -ErrorAction SilentlyContinue))
+ };return [string]::Concat('',[string](Get-Content $stdout -Raw -ErrorAction SilentlyContinue))
 }
 function Read-Inventory {
  if($fixture){return $fixture.inventory}
