@@ -169,6 +169,8 @@ This is the **last bounded home attempt**, not a required certification gate.
 
 **Measure:** `Bound=true` plus real SHA256, silent args, and detection evidence.
 
+**Status (2026-10-07 Lane A):** KEEP. Bound ScanSnap Home 4.1.0.5 (`WinSSHomeInstaller_4_1_0.exe`) from Ricoh offline CDN `https://origin.pfultd.com/downloads/ss/sshinst/w-410/WinSSHOfflineInstaller_4_1_0.exe`; SilentArgs from vendor `.iss`; DetectValue `C:\Program Files (x86)\PFU\ScanSnap\Home`.
+
 ### E4 — protected Northwell target readiness
 
 **Hypothesis:** the existing SysAdminSuite protected-network authority + low-noise SMB/Task Scheduler path can reach the two exact field targets without a ScanSnap-specific transport fork.

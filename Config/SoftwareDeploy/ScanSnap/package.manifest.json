@@ -1,16 +1,16 @@
 {
   "ProductName": "ScanSnap",
-  "InstallerFileName": "",
-  "Sha256": "",
-  "Type": "",
-  "SilentArgs": "",
-  "DetectType": "",
-  "DetectValue": "",
-  "Bound": false,
-  "BoundAtUtc": null,
-  "BoundBy": null,
+  "InstallerFileName": "WinSSHomeInstaller_4_1_0.exe",
+  "Sha256": "A297B84628334F88BE24559C9D2C164E07BC8D952149FE439A19FB3A53CBDDC8",
+  "Type": "exe",
+  "SilentArgs": "-s -f1\".\\WinSSHomeInstaller_4_1_0.iss\"",
+  "DetectType": "file",
+  "DetectValue": "C:\\Program Files (x86)\\PFU\\ScanSnap\\Home\\PfuSshMain.exe",
+  "Bound": true,
+  "BoundAtUtc": "2026-10-07T06:29:00.5501595Z",
+  "BoundBy": "qualified-admin-box-package-observation",
   "TaskName": "SysAdminSuite_ScanSnap_Install",
   "RemoteStageRelativePath": "SoftwareRepo\\ScanSnap",
   "RemoteProgramDataRelativePath": "ProgramData\\SysAdminSuite\\SoftwareDeploy\\ScanSnap",
-  "Notes": "Operator-provided installer required. Do not invent URL, SilentArgs, or DetectValue. Set Bound=true only after Bind-ScanSnapPackage.ps1 freezes truth from a real package."
+  "Notes": "ScanSnap Home 4.1.0.5. Source: Ricoh/PFU offline installer WinSSHOfflineInstaller_4_1_0.exe from https://origin.pfultd.com/downloads/ss/sshinst/w-410/WinSSHOfflineInstaller_4_1_0.exe (vendor page https://www.pfu.ricoh.com/imaging/ssacc/en/start_download_21.html; winurl.js pin). Bound component extracted from SSHomeDownloadInstaller\\download. SilentArgs from vendor InstallShield response WinSSHomeInstaller_4_1_0.iss. DetectValue is the measured installed ScanSnap Home executable PfuSshMain.exe on 64-bit Windows. Keep matching .iss beside the exe in installers\\."
 }

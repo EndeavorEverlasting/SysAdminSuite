@@ -29,6 +29,9 @@ def test_surfaces_and_closed_result_schema() -> None:
     assert schema["properties"]["transport"]["const"] == "SmbScheduledTask"
     assert schema["properties"]["fallback_attempted"]["const"] is False
     assert schema["properties"]["target"]["format"] == "hostname"
+    assert "support_files" in schema["required"]
+    assert schema["properties"]["support_files"]["maxItems"] == 16
+    assert schema["properties"]["support_files"]["items"]["additionalProperties"] is False
     assert schema["properties"]["status"]["enum"] == [
         "failed_before_staging", "staged_hash_verified", "task_started",
         "deployment_failed_pending_cleanup", "deployment_failed_cleaned",
@@ -63,6 +66,10 @@ def test_smb_adapter_pins_hashes_system_identity_and_complete_teardown() -> None
         "C:\\ProgramData\\SysAdminSuite\\SoftwareInstall\\$RunId",
         "Source SHA-256 changed before SMB staging",
         "Target or transient worker SHA-256 mismatch before task creation",
+        "SupportFilePaths exceeds the bounded maximum of 16 companion files",
+        "Duplicate support file leaf name is not allowed",
+        "supportHashesVerified",
+        "WorkingDirectory = $workingDirectory",
         "Get-FileHash -LiteralPath $config.installer_path",
         "S-1-5-18",
         "'/RU','SYSTEM'",
