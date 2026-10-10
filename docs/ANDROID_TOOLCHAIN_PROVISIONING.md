@@ -79,3 +79,9 @@ classification and validated CMD composition. Stdout and stderr remain separate,
 including empty stdout and stderr-only success. Timeout and incomplete stream
 drain fail closed. Sealed runtimes must seal this module alongside the engine.
 S4U reconciliation and independent ADB source qualification remain separate.
+
+Streams spool incrementally to adapter-owned log files while commands run.
+Returned text is bounded to 1048576 characters per stream; truncated capture
+fails closed as SUBPROCESS_CAPTURE_LIMIT, with full file evidence retained.
+This preserves partial diagnostics during interruption without retaining
+unlimited stdout/stderr strings in memory.

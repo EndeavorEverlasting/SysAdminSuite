@@ -41,14 +41,13 @@ function Invoke-Bounded([string]$Exe,[string[]]$Arguments,[int]$Seconds=$Timeout
   $invoke.CommandLine='/d /s /c "'+(($quoted[2..($quoted.Count-1)]) -join ' ')+'"'
  }
  $childEnvironment=@{PSModulePath=($env:ProgramFiles+'\WindowsPowerShell\Modules;'+$env:SystemRoot+'\System32\WindowsPowerShell\v1.0\Modules')}
- $run=Invoke-SasNativeProcess @invoke -Environment $childEnvironment
- [IO.File]::WriteAllText($stdout,[string]$run.output)
- [IO.File]::WriteAllText($stderr,[string]$run.error)
+ $run=Invoke-SasNativeProcess @invoke -Environment $childEnvironment -StandardOutputPath $stdout -StandardErrorPath $stderr
  $check=[ordered]@{executable=$Exe;arguments=$Arguments;exit_code=$run.exit_code;stdout=$stdout;stderr=$stderr}
  if($run.timed_out){$check.timed_out=$true}
  $result.checks+=@($check)
  if($run.timed_out){throw 'SUBPROCESS_TIMEOUT'}
  if(-not $run.output_complete){throw 'SUBPROCESS_OUTPUT_INCOMPLETE'}
+ if($run.output_truncated -or $run.error_truncated){throw 'SUBPROCESS_CAPTURE_LIMIT'}
  $text=[string]$run.output+[string]$run.error
  if($run.exit_code -ne 0){
   if($null -eq $run.exit_code){throw 'SUBPROCESS_EXIT_UNPROVEN'}
