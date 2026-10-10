@@ -1,24 +1,24 @@
 # Local-agent coordinator handoff — #528 P04 → P95 → conditional P07
 
 **START HERE ON PTOP. THIS IS AN EXECUTION HANDOFF, NOT A REQUEST TO REWRITE THE PLAN.**
-Repository: \`EndeavorEverlasting/SysAdminSuite\`. Canonical issue: #528. Exact plan: \`docs/plans/native-command-evidence-p04-20261010.plan.md\`. Typed transport: \`docs/plans/native-process-evidence-528-dispatch.provisional.json\`.
+Repository: `EndeavorEverlasting/SysAdminSuite`. Canonical issue: #528. Exact plan: `docs/plans/native-command-evidence-p04-20261010.plan.md`. Typed transport: `docs/plans/native-process-evidence-528-dispatch.provisional.json`.
 
 **Parent objective:** eliminate recurring Windows 5.1 child-process / native-command proof and receipt bugs by reusing proven repository owners where safe. **Do not** conflate PTop (ASUS laptop, local sprint target) with DTop (separate desktop). Already-completed PTop Android development installation must remain usable; SAS ADB qualification is explicitly still blocked by independent digest authority in #522.
 
 ## Coordinator run — one handoff, no operator scheduling
 
-1. Resolve P04/P95/P07 from current TokenCorridor upstream catalog (do not guess); read #528 and the tracked plan. Refresh GitHub provider truth and local canonical checkout with repo-governed path/network safety: \`AGENTS.md\`, \`CODEBASE_MAP.md\`, \`harness/workflows/fresh-agent-intake.yaml\`, \`harness/api/canonical-path-registry.json\`. Inspect \`git status --short --branch\`, \`git worktree list --porcelain\`, \`git remote -v\`, \`git fetch --all --prune --tags\`, actual default head, open overlapping PRs and private local PTop receipt location if already accessible. Do not reset/overwrite dirty work.
-2. **Immediately dispatch Panel 1 + Panel 2 in parallel** through your proven local native child-agent/task worker interface, each with disjoint worktrees and its self-contained prompt below. If native child workers unavailable, probe installed repo orchestration adapters, provider task workers, CI job matrix, then genuinely independent subprocesses. If none genuinely works, execute independently in series and report \`PARALLEL EXECUTION: DEGRADED\` with adapter evidence. No invented parallel completion or asking the operator to paste multiple prompts.
+1. Resolve P04/P95/P07 from current TokenCorridor upstream catalog (do not guess); read #528 and the tracked plan. Refresh GitHub provider truth and local canonical checkout with repo-governed path/network safety: `AGENTS.md`, `CODEBASE_MAP.md`, `harness/workflows/fresh-agent-intake.yaml`, `harness/api/canonical-path-registry.json`. Inspect `git status --short --branch`, `git worktree list --porcelain`, `git remote -v`, `git fetch --all --prune --tags`, actual default head, open overlapping PRs and private local PTop receipt location if already accessible. Do not reset/overwrite dirty work.
+2. **Immediately dispatch Panel 1 + Panel 2 in parallel** through your proven local native child-agent/task worker interface, each with disjoint worktrees and its self-contained prompt below. If native child workers unavailable, probe installed repo orchestration adapters, provider task workers, CI job matrix, then genuinely independent subprocesses. If none genuinely works, execute independently in series and report `PARALLEL EXECUTION: DEGRADED` with adapter evidence. No invented parallel completion or asking the operator to paste multiple prompts.
 3. Rejoin and verify both research outputs. Run Panel 3 (P95) with a single design owner. P95 is a *decision* gate, not a mandatory refactor: test alternative seams in disposable workspace if necessary, retain S4U safety, reject if costly.
-4. Only when Panel 3 records \`INTEGRATION_APPROVED\` with scope/acceptance proof, launch Panel 4 + Panel 5 concurrently, separately owned. Then dispatch Panel 6 for consumer integration, CI, merge and PTop read-only proof.
+4. Only when Panel 3 records `INTEGRATION_APPROVED` with scope/acceptance proof, launch Panel 4 + Panel 5 concurrently, separately owned. Then dispatch Panel 6 for consumer integration, CI, merge and PTop read-only proof.
 5. If P95 rejects consolidation or only a tiny targeted test fix is justified, record that and stop the unjustified implementation lanes. Do not create churn to satisfy a lane count.
 6. Return **CHANGED | PROVED | NEXT** including fresh Git head, branch/PR/merge status, changed files, named tests with actual results/skips, evidence ledger, runtime proof ceiling, adapter/parallel proof, and #522 independent-approval status. Update #528 with final decision and links. Keep private Windows receipts untracked.
 
-**Current partition:** GitHub ChatGPT remote inspection/plan already complete. Local Windows code/test/agent dispatch belongs to \`LOCAL_AGENT_RUNTIME\`. Public provider GitHub is not a host. TokenCorridor #142 already owns the missing standardized P04 executable manifest and dispatcher. Current local launch adapter is unknown to this chat; the tracked provisional JSON is **not** a TokenCorridor-schema-validated runnable manifest. Do not claim \`observed_parallelism=true\` without actual worker receipt.
+**Current partition:** GitHub ChatGPT remote inspection/plan already complete. Local Windows code/test/agent dispatch belongs to `LOCAL_AGENT_RUNTIME`. Public provider GitHub is not a host. TokenCorridor #142 already owns the missing standardized P04 executable manifest and dispatcher. Current local launch adapter is unknown to this chat; the tracked provisional JSON is **not** a TokenCorridor-schema-validated runnable manifest. Do not claim `observed_parallelism=true` without actual worker receipt.
 
 ## Panel 1 — P95-Core (parallel wave 1)
 
-\`\`\`text
+```text
 EXECUTE REPOSITORY EVIDENCE SPRINT — P95-CORE — DO NOT REPLAN.
 Repo: EndeavorEverlasting/SysAdminSuite. On PTop, find canonical local path through scripts/Resolve-SasCanonicalDevelopmentPath.ps1; never infer a named-user path.
 Issue: #528. Plan: docs/plans/native-command-evidence-p04-20261010.plan.md. Branch/worktree: isolated analysis worktree from refreshed main, scoped to this lane; existing open #519/#520 forbidden.
@@ -31,11 +31,11 @@ Validate: git diff --check; corroborate paths/functions/test contracts; no inven
 Proof ceiling: repository inspection + any actually executed local read-only tests, NOT production S4U live observation.
 Final: CHANGED | PROVED | NEXT, exact branch/ref, read paths/observations, commands/test outputs/skips, artifact, conflict-free handoff to P95-DECIDE.
 NEXT: submit your research ref/artifact to P95-DECIDE coordinator.
-\`\`\`
+```
 
 ## Panel 2 — P95-Callers (parallel wave 1)
 
-\`\`\`text
+```text
 EXECUTE REPOSITORY EVIDENCE SPRINT — P95-CALLERS — DO NOT REPLAN.
 Repo: EndeavorEverlasting/SysAdminSuite. PTop only; canonical checkout resolved from repo, never a guessed local path. Issue #528; docs/plans/native-command-evidence-p04-20261010.plan.md.
 Branch/worktree: independently isolated research worktree from refreshed main, no file overlap with P95-CORE.
@@ -48,11 +48,11 @@ Validate: git diff --check, source/contract cross-check, run available read-only
 Proof ceiling: source/history inspection and actually run focused local tests, not SAS host/device qualification.
 Final: CHANGED | PROVED | NEXT, complete report, branch/ref, observed discrepancies, candidate regression cases.
 NEXT: submit artifact/ref to P95-DECIDE coordinator.
-\`\`\`
+```
 
 ## Panel 3 — P95-Decision (serial ownership, after wave 1)
 
-\`\`\`text
+```text
 EXECUTE P95 PROGRAM/SEAM ARCHITECTURE GATE — P95-DECIDE.
 Repo: EndeavorEverlasting/SysAdminSuite; PTop local execution where needed; issue #528. Plan docs/plans/native-command-evidence-p04-20261010.plan.md.
 Hard prerequisites: P95-CORE and P95-CALLERS factual audits and refs; refreshed remote/PR/local worktree truth. Do not begin implementation before resolving ownership/design.
@@ -65,11 +65,11 @@ Commit tracked decision/read-only research; open/update scoped design PR if requ
 Proof ceiling: design + disposable prototype only; no production migration.
 Final: CHANGED | PROVED | NEXT, exact selected option/interface, branch/PR/head, go/no-go and downstream owned files.
 NEXT: if INTEGRATION_APPROVED dispatch P07-CORE and P07-TESTS simultaneously; otherwise close #528 with rejection evidence.
-\`\`\`
+```
 
 ## Panel 4 — P07-Core (conditional parallel wave 2)
 
-\`\`\`text
+```text
 EXECUTE P07 BOUNDED IMPLEMENTATION — P07-CORE. DO NOT REWRITE THE PLAN.
 Repo: EndeavorEverlasting/SysAdminSuite; issue #528. PTop; current main fetch required. Read docs/plans/native-command-evidence-p04-20261010.plan.md and design docs/plans/native-process-seam-528.design.md.
 HARD GATE: P95-DECIDE outcome INTEGRATION_APPROVED with exact interface; otherwise DO NOT START. Operate isolated owned branch/worktree.
@@ -79,11 +79,11 @@ Validate: parser PS5.1/7, meaningful harmless-child local smoke, git diff --chec
 Proof ceiling: core local test/code readiness, not integrated consumer or production.
 Final: CHANGED | PROVED | NEXT, owned diff, tests, branch/head, behavioral guarantees, exact integration seam.
 NEXT: give ref to P07-MERGE.
-\`\`\`
+```
 
 ## Panel 5 — P07-Regression (conditional parallel wave 2)
 
-\`\`\`text
+```text
 EXECUTE P07 REGRESSION GATE — P07-TESTS. DO NOT REWRITE THE PLAN.
 Repo: EndeavorEverlasting/SysAdminSuite; issue #528; PTop; read docs/plans/native-command-evidence-p04-20261010.plan.md and approved P95 design.
 HARD GATE: explicit P95 INTEGRATION_APPROVED and frozen interface. Isolated worktree; never share writes with P07-CORE.
@@ -94,11 +94,11 @@ Commit/push isolated ref. Do not rewrite implementation to force test pass; repo
 Proof ceiling: regression test contract + actual test outputs.
 Final: CHANGED | PROVED | NEXT, tests/files, observed failures or passes, branch/head.
 NEXT: give ref to P07-MERGE.
-\`\`\`
+```
 
 ## Panel 6 — P07 Consumer / convergence (after wave 2)
 
-\`\`\`text
+```text
 EXECUTE P07 INTEGRATION / CONVERGENCE — P07-MERGE. DO NOT STOP AT A GREEN PR.
 Repo: EndeavorEverlasting/SysAdminSuite; canonical issue #528; PTop is the only local host in scope. Plan docs/plans/native-command-evidence-p04-20261010.plan.md; approved design docs/plans/native-process-seam-528.design.md.
 HARD DEPENDENCIES: complete P07-CORE and P07-TESTS refs and their actual validations; if P95 REJECTED, skip this sprint. Refresh all GitHub/main/local branch and PR state before cherry-pick/integration. Preserve independently owned/dirty work; one writer on final branch.
@@ -109,7 +109,7 @@ Suggested focused commands after checking actual paths/test dependencies: python
 Proof ceiling: merged code + tests + optional read-only PTop smoke. SAS digest remains unqualified (#522) unless separately independently approved; no physical-device / production claim.
 Final: CHANGED | PROVED | NEXT, exact tests/results/skips, files, validated head/PR/merge SHA, main readback, PTop live ceiling, and #528 closure decision.
 NEXT: report merged main SHA and original #522 status; if blocked, provide exact evidence-backed recovery gate, not another generic plan.
-\`\`\`
+```
 
 ## Last checkpoint
 
