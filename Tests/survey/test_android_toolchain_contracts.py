@@ -116,6 +116,47 @@ foreach($case in (Get-Content $Cases -Raw|ConvertFrom-Json)){
         assert process.returncode == 0, (process.stdout, process.stderr)
 
 
+def test_missing_module_produces_receipt_and_fixture_needs_no_module():
+    """Actual isolated engine path, never the host sealed runtime or source admission."""
+    shell = shutil.which("pwsh")
+    with tempfile.TemporaryDirectory(prefix="sas-module-admission-") as directory:
+        root = Path(directory)
+        (root / "scripts").mkdir()
+        (root / "Config").mkdir()
+        engine = root / "scripts/Invoke-SasAndroidToolchain.ps1"
+        engine.write_text(SCRIPT.read_text(encoding="utf-8-sig"), encoding="utf-8")
+        shutil.copyfile(ROOT / "Config/android-toolchain-profile.json", root / "Config/android-toolchain-profile.json")
+        for operation, fixture, expected in [("Plan", True, None), ("Inventory", False, "NATIVE_PROCESS_MODULE_REQUIRED")]:
+            output = root / ("fixture" if fixture else "missing")
+            command = [shell, "-NoProfile", "-File", str(engine), "-Operation", operation, "-OutputRoot", str(output)]
+            if fixture:
+                command += ["-FixturePath", str(FIXTURES / "healthy.fixture.json")]
+            run = subprocess.run(command, capture_output=True, text=True, timeout=30)
+            receipt = load(next(output.glob("receipt-*.json")))
+            assert run.returncode == (0 if fixture else 2), (run.stdout, run.stderr)
+            assert receipt["result"] == ("SUCCESS" if fixture else "BLOCK")
+            if expected:
+                assert expected in receipt["reason_codes"], receipt
+            assert not receipt["checks"] and receipt["source"] is None
+        if os.name == "nt":
+            # Rebind only this isolated copy's sealed-root identity. The actual gate executes.
+            text = engine.read_text(encoding="utf-8-sig")
+            marker = "if($repo -eq 'C:\\SASAL'){"
+            assert marker in text
+            engine.write_text(text.replace(marker, "if($repo -eq '" + str(root).replace("'", "''") + "'){"), encoding="utf-8")
+            state = root / "private-state/SysAdminSuite"
+            state.mkdir(parents=True)
+            entries = ["scripts/Invoke-SasAndroidToolchain.ps1", "scripts/SasBoundedNative.psm1", "Config/android-toolchain-profile.json", "Manage-AndroidToolchain.cmd"]
+            (state / "autologon-short-runtime.json").write_text(json.dumps({"tracked_file_hashes": [{"path": path} for path in entries]}), encoding="utf-8")
+            env = {**os.environ, "LOCALAPPDATA": str(state.parent)}
+            output = root / "sealed-missing"
+            run = subprocess.run([shell, "-NoProfile", "-File", str(engine), "-Operation", "Inventory", "-OutputRoot", str(output)], env=env, capture_output=True, text=True, timeout=30)
+            receipt = load(next(output.glob("receipt-*.json")))
+            assert run.returncode == 2, (run.stdout, run.stderr)
+            assert "ANDROID_TOOLCHAIN_CAPABILITY_NOT_SEALED" in receipt["reason_codes"], receipt
+            assert not receipt["checks"] and receipt["source"] is None
+
+
 def test_registry_wiring():
     def by_id(name, collection, key="id"):
         return {row[key]: row for row in load(ROOT / f"harness/api/{name}.json")[collection]}

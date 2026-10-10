@@ -17,7 +17,6 @@ $profile=Get-Content (Join-Path $repo 'Config/android-toolchain-profile.json') -
 if(-not $OutputRoot){$OutputRoot=Join-Path $repo 'survey/output/android-toolchain'}
 $result=[ordered]@{schema_version='sas-android-toolchain-result/v1';operation=$Operation;node_role=$NodeRole;result='BLOCK';reason_codes=@();proof=@();actions=@();inventory=$null;checks=@();source=$null}
 $fixture=$null
-Import-Module (Join-Path $PSScriptRoot 'SasBoundedNative.psm1') -Force -ErrorAction Stop
 function Assert-PTopProfile($Authority,$Equipment,[string]$RequestedOperation){
  if($Authority.schema_version -ne 'sas-android-toolchain-host-authority/v1' -or $Authority.status -ne 'RESOLVED' -or $Authority.node_role -ne 'ptop_lab' -or -not $Authority.evidence_ref -or $RequestedOperation -notin @($Authority.allowed_operations)){throw 'PTOP_PROFILE_AUTHORITY_INVALID'}
  if(-not $Authority.manufacturer -or -not $Authority.model -or $Authority.manufacturer -ne $Equipment.Manufacturer -or $Authority.model -ne $Equipment.Model){throw 'PTOP_EQUIPMENT_PROFILE_MISMATCH'}
@@ -95,8 +94,11 @@ try {
   if($repo -eq 'C:\SASAL'){
    $state=Get-Content (Join-Path $env:LOCALAPPDATA 'SysAdminSuite/autologon-short-runtime.json') -Raw|ConvertFrom-Json
    $sealed=@($state.tracked_file_hashes|ForEach-Object {$_.path.Replace('\','/')})
-   foreach($required in @('scripts/Invoke-SasAndroidToolchain.ps1','scripts/SasBoundedNative.psm1','Config/android-toolchain-profile.json','Manage-AndroidToolchain.cmd')){if($required -notin $sealed){throw 'ANDROID_TOOLCHAIN_CAPABILITY_NOT_SEALED'}}
+   foreach($required in @('scripts/Invoke-SasAndroidToolchain.ps1','scripts/SasBoundedNative.psm1','Config/android-toolchain-profile.json','Manage-AndroidToolchain.cmd')){if($required -notin $sealed -or -not (Test-Path -LiteralPath (Join-Path $repo $required) -PathType Leaf)){throw 'ANDROID_TOOLCHAIN_CAPABILITY_NOT_SEALED'}}
   }
+  $nativeModule=Join-Path $PSScriptRoot 'SasBoundedNative.psm1'
+  if(-not (Test-Path -LiteralPath $nativeModule -PathType Leaf)){throw 'NATIVE_PROCESS_MODULE_REQUIRED'}
+  Import-Module $nativeModule -Force -ErrorAction Stop
   $python=Find-Tool python.exe @();if(-not $python){throw 'PYTHON_REQUIRED'}
   # Reuse AndroidProvider M2 source admission; never weaken canonical/sealed currentness.
   $admission='import sys,json;sys.path.insert(0,sys.argv[1]);from harness.api.android_provider_cli import admit_source;print(json.dumps(admit_source(sys.argv[2] or None)))'

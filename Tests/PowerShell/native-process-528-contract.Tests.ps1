@@ -6,6 +6,7 @@ $ErrorActionPreference='Stop'
 if(-not $ModulePath){$ModulePath=Join-Path (Split-Path (Split-Path $PSScriptRoot -Parent) -Parent) 'scripts/SasBoundedNative.psm1'}
 Import-Module $ModulePath -Force
 if(-not (Get-Command Invoke-SasNativeProcess -ErrorAction SilentlyContinue)){throw 'BASELINE_MISSING_NATIVE_PROCESS_SEAM'}
+try{Invoke-SasNativeProcess -FilePath 'python.exe';throw 'PATH_SEARCH_ACCEPTED'}catch{if($_.Exception.Message -ne 'NATIVE_EXECUTABLE_ABSOLUTE_PATH_REQUIRED'){throw}}
 $python=(Get-Command python.exe -ErrorAction Stop).Source
 $temp=Join-Path $env:TEMP ('sas native 528 '+[guid]::NewGuid().ToString('N'))
 New-Item -ItemType Directory $temp | Out-Null

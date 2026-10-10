@@ -352,6 +352,7 @@ function Invoke-SasNativeProcess {
         [ValidateRange(1,10485760)][int]$MaxCaptureCharacters = 1048576
     )
 
+    if ($FilePath -notmatch '^(?:[A-Za-z]:[\\/]|\\\\[^\\]+\\[^\\]+\\)') { throw 'NATIVE_EXECUTABLE_ABSOLUTE_PATH_REQUIRED' }
     if ($PSBoundParameters.ContainsKey('CommandLine') -and @($Arguments).Count -gt 0) { throw 'CommandLine and Arguments are mutually exclusive.' }
     # Pump native streams off the PowerShell thread. Capture is bounded; optional
     # adapter-owned files receive the full stream incrementally, including before timeout.
