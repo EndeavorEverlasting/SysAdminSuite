@@ -2,6 +2,7 @@
   "schema_version": "sas-harness-command-registry/v1",
   "repository": "EndeavorEverlasting/SysAdminSuite",
   "commands": [
+    {"id":"android-toolchain","kind":"run","command":"Manage-AndroidToolchain.cmd OPERATION","source_of_truth":"scripts/Invoke-SasAndroidToolchain.ps1","mutation":"local_runtime","network":true,"purpose":"PTop-only preserved Android toolchain Inventory/Plan/Apply/Verify/Repair; explicit install authority and separate license, elevation, runtime and SAS qualification gates."},
     {"id":"android-provider","kind":"run","command":"Run-SasAndroidProvider.cmd OPERATION","source_of_truth":"harness/api/android_provider_cli.py","mutation":"authorized_target_mutation","network":true,"purpose":"Typed qualified Android host, inventory and exact-target transport operations; preparation local only; explicit transport authority and cleanup required."},
     {"id":"harness-validate","kind":"validate","command":"python harness/validators/validate-harness-registries.py","source_of_truth":"harness/api/harness-validator-registry.json","mutation":"repository_read_only","network":false,"purpose":"Validate harness registries and fresh-agent wiring before broader checks."},
     {"id":"harness-outcome-validate","kind":"validate","command":"python harness/validators/validate-outcome-contracts.py","source_of_truth":"harness/api/harness-outcome-registry.json","mutation":"repository_read_only","network":false,"purpose":"Validate that command chains resolve artifacts or terminal outcomes and do not stop at tests-only or status-only intermediate gates."},

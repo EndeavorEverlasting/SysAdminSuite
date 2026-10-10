@@ -63,6 +63,9 @@ Use this map to load only the files needed for a task.
 
 ## Developer workstation provisioning
 
+- `Manage-AndroidToolchain.cmd`, `scripts/Invoke-SasAndroidToolchain.ps1`, `Config/android-toolchain-profile.json`, and `docs/ANDROID_TOOLCHAIN_PROVISIONING.md` — preserved PTop Android Inventory/Plan/Apply/Verify/Repair; official acquisition and independent installation, CLI, GUI, build, emulator and SAS qualification proof.
+- `Tests/survey/test_android_toolchain_contracts.py`, `Tests/Fixtures/android-toolchain/`, and `.github/workflows/android-toolchain.yml` — synthetic negative controls and bounded fixture execution; no live workstation proof.
+
 - `docs/DEVELOPER_WORKSTATION_PROVISIONING.md` — layered WezTerm terminal, tmux workspace, Windows WSL backend, native-Linux backend, PowerShell fallback, and ownership contract.
 - `docs/DEVELOPER_WORKSTATION_PR_STACK.md` — preservation, blocking, repair, and supersession decisions for workstation PRs #199–#204.
 - `schemas/harness/developer-workstation-profile.schema.json` — fail-closed v3 terminal/workspace/backend/shell/agent-domain contract.
