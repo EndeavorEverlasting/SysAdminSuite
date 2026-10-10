@@ -92,6 +92,8 @@ $requiredFiles = @(
     'schemas/harness/agent-sprint-capsule.schema.json',
     $harnessApiPath,
     'harness/workflows/agent-sprint-capsule.yaml',
+    'harness/contracts/protected-network-offline-execution.v1.json',
+    'harness/validators/validate-protected-network-offline-execution.py',
     'scripts/SasRunContext.psm1',
     'scripts/Render-SasEnglishReport.ps1',
     'scripts/install-local-harness-hooks.sh',
@@ -111,7 +113,8 @@ $reviewableJsonFiles = @(
     'schemas/harness/agent-capability-manifest.schema.json',
     'schemas/harness/agent-routing-manifest.schema.json',
     'schemas/harness/agent-sprint-capsule.schema.json',
-    'Tests/Fixtures/capsules/agent-sprint-capsule.v2.sample.json'
+    'Tests/Fixtures/capsules/agent-sprint-capsule.v2.sample.json',
+    'harness/contracts/protected-network-offline-execution.v1.json'
 )
 foreach ($file in $reviewableJsonFiles) {
     if (-not (Test-Path -LiteralPath $file -PathType Leaf)) { continue }
