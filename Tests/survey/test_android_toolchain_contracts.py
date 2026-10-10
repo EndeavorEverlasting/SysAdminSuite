@@ -80,6 +80,40 @@ def test_inventory_is_not_a_runtime_claim():
     assert receipt["proof"] == ["FIXTURE_ONLY"]
 
 
+def test_host_authority_requires_independent_profile():
+    """Execute the production pure authority gate, with no host or installer calls."""
+    authority = {"schema_version": "sas-android-toolchain-host-authority/v1",
+                 "status": "RESOLVED", "node_role": "ptop_lab",
+                 "manufacturer": "SyntheticVendor", "model": "SyntheticLaptop",
+                 "allowed_operations": ["Apply", "Repair"], "evidence_ref": "synthetic-operator"}
+    equipment = {"Manufacturer": "SyntheticVendor", "Model": "SyntheticLaptop"}
+    cases = [(authority, equipment, "Apply", "PASS")]
+    for field, value in [("status", "UNKNOWN"), ("node_role", "other_role"),
+                         ("evidence_ref", ""), ("allowed_operations", [])]:
+        cases.append(({**authority, field: value}, equipment, "Apply", "PTOP_PROFILE_AUTHORITY_INVALID"))
+    cases.append((authority, {**equipment, "Model": "OtherWorkstation"}, "Apply", "PTOP_EQUIPMENT_PROFILE_MISMATCH"))
+    with tempfile.TemporaryDirectory(prefix="sas-authority-") as directory:
+        fixture = Path(directory) / "cases.json"
+        fixture.write_text(json.dumps(cases), encoding="utf-8")
+        script = r"""
+param($Engine,$Cases)
+$ast=[System.Management.Automation.Language.Parser]::ParseFile($Engine,[ref]$null,[ref]$null)
+$function=$ast.Find({param($node) $node -is [System.Management.Automation.Language.FunctionDefinitionAst] -and $node.Name -eq 'Assert-PTopProfile'},$true)
+if(-not $function){throw 'PRODUCTION_AUTHORITY_GATE_MISSING'}
+. ([scriptblock]::Create($function.Extent.Text))
+foreach($case in (Get-Content $Cases -Raw|ConvertFrom-Json)){
+ $actual='PASS'
+ try{Assert-PTopProfile $case[0] $case[1] $case[2]}catch{$actual=$_.Exception.Message}
+ if($actual -ne $case[3]){throw ('Authority sensitivity failure: '+$actual)}
+}
+"""
+        probe = Path(directory) / "authority.ps1"
+        probe.write_text(script, encoding="utf-8")
+        process = subprocess.run([shutil.which("pwsh"), "-NoProfile", "-File", str(probe),
+                                  str(SCRIPT), str(fixture)], capture_output=True, text=True, timeout=60)
+        assert process.returncode == 0, (process.stdout, process.stderr)
+
+
 def test_registry_wiring():
     def by_id(name, collection, key="id"):
         return {row[key]: row for row in load(ROOT / f"harness/api/{name}.json")[collection]}
