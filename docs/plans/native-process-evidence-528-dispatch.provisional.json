@@ -1,0 +1,434 @@
+{
+  "schema_version": "sas-p04-dispatch-provisional/v1",
+  "canonical_expected_contract": "prompt-parallel-dispatch/v1",
+  "standard_contract_validation": "BLOCKED_TOKENCORRIDOR_ISSUE_142",
+  "standard_runner": "UNAVAILABLE_ON_TOKENCORRIDOR_MAIN",
+  "source_issue": "sysadmin:issue:528",
+  "plan_path": "docs/plans/native-command-evidence-p04-20261010.plan.md",
+  "handoff_path": "docs/handoff/native-process-evidence-528-agent-handoff.md",
+  "host": "LOCAL_AGENT_RUNTIME",
+  "provider_routes": [
+    "GitHub"
+  ],
+  "current_chat_completed": [
+    "P04 resolution",
+    "remote GitHub repo and PR inspection",
+    "tracked plan and handoff preparation"
+  ],
+  "execution_status": "NOT_DISPATCHED",
+  "parallel_execution": "DEGRADED_FROM_CURRENT_CHAT",
+  "expected_parallel_width": 2,
+  "observed_parallelism": false,
+  "reason": "Current chat has GitHub connector but no callable local agent adapter; upstream TokenCorridor #142 tracks missing executable schema/runner",
+  "owner": "SysAdminSuite #528",
+  "lanes": [
+    {
+      "lane_id": "P95-CORE",
+      "wave": 1,
+      "mission": "Trace shared bounded native process and S4U reconciliation paths",
+      "dependencies": [],
+      "owned_mutation_surfaces": [
+        "docs/research/native-process-528-core.md"
+      ],
+      "forbidden_surfaces": [
+        "harness/api/android_provider.py",
+        "harness/api/android_provider_cli.py",
+        "scripts/Invoke-SasAndroidToolchain.ps1 unless designated consumer wave",
+        "unrelated printer/recovery work",
+        "PTop private credentials and receipt exports"
+      ],
+      "execution_environment": "LOCAL_AGENT_RUNTIME",
+      "required_capabilities": [
+        "repository-read",
+        "PowerShell source inspection",
+        "S4U safety contracts"
+      ],
+      "provider_access": [
+        {
+          "provider_family": "GitHub",
+          "operation": "fetch_current_repo_truth; PR read/write only when branch authority proven",
+          "authority_state": "AVAILABLE_UNVERIFIED",
+          "mutation_authority": false
+        }
+      ],
+      "evidence_inputs": [
+        {
+          "evidence_type": "merge_metadata",
+          "source_owner": "SysAdminSuite",
+          "sanitized_ref": "sysadmin:pr:523-527",
+          "revision_or_freshness": "historical-main@846e8c1b00cf12134574d06ab0ddf071832c7024",
+          "visibility": "PUBLIC_TRACKED",
+          "proof_ceiling": "Provider merger identity only, not local Windows live proof"
+        },
+        {
+          "evidence_type": "strategic_issue",
+          "source_owner": "SysAdminSuite",
+          "sanitized_ref": "sysadmin:issue:528",
+          "revision_or_freshness": "2026-10-10",
+          "visibility": "PUBLIC_TRACKED",
+          "proof_ceiling": "P141 question and bounded route"
+        },
+        {
+          "evidence_type": "runtime_closeout",
+          "source_owner": "PTop-local agent",
+          "sanitized_ref": "opaque:ptop-android-toolchain-522-closeout",
+          "revision_or_freshness": "2026-10-10 operator reported",
+          "visibility": "PROTECTED_EXTERNAL",
+          "proof_ceiling": "Reported Windows runtime status; not independently observed in current chat"
+        }
+      ],
+      "selected_adapter": "LOCAL_AGENT_COORDINATOR_TO_DISCOVER_NATIVE_CHILD_WORKERS",
+      "adapter_proof": "NOT_OBSERVED_FROM_CURRENT_CHAT",
+      "launch_action": "Local coordinator ingests docs/handoff/native-process-evidence-528-agent-handoff.md panel P95-CORE; dispatch using confirmed native child-agent/task API or isolate worktree. Do not ask operator to manually schedule multiple panels.",
+      "expected_artifact": "docs/research/native-process-528-core.md",
+      "validation": [
+        "document all exit/output/timeout/S4U failure contract and regression references"
+      ],
+      "convergence_owner": "P95-DECIDE for first wave; P07-MERGE for implementation",
+      "status": "READY_CONDITIONAL_LOCAL_ADAPTER"
+    },
+    {
+      "lane_id": "P95-CALLERS",
+      "wave": 1,
+      "mission": "Trace Android toolchain and Git refresh wrappers, current tests",
+      "dependencies": [],
+      "owned_mutation_surfaces": [
+        "docs/research/native-process-528-callers.md"
+      ],
+      "forbidden_surfaces": [
+        "harness/api/android_provider.py",
+        "harness/api/android_provider_cli.py",
+        "scripts/Invoke-SasAndroidToolchain.ps1 unless designated consumer wave",
+        "unrelated printer/recovery work",
+        "PTop private credentials and receipt exports"
+      ],
+      "execution_environment": "LOCAL_AGENT_RUNTIME",
+      "required_capabilities": [
+        "repository-read",
+        "Windows process knowledge",
+        "Android and Git refresh test inspection"
+      ],
+      "provider_access": [
+        {
+          "provider_family": "GitHub",
+          "operation": "fetch_current_repo_truth; PR read/write only when branch authority proven",
+          "authority_state": "AVAILABLE_UNVERIFIED",
+          "mutation_authority": false
+        }
+      ],
+      "evidence_inputs": [
+        {
+          "evidence_type": "merge_metadata",
+          "source_owner": "SysAdminSuite",
+          "sanitized_ref": "sysadmin:pr:523-527",
+          "revision_or_freshness": "historical-main@846e8c1b00cf12134574d06ab0ddf071832c7024",
+          "visibility": "PUBLIC_TRACKED",
+          "proof_ceiling": "Provider merger identity only, not local Windows live proof"
+        },
+        {
+          "evidence_type": "strategic_issue",
+          "source_owner": "SysAdminSuite",
+          "sanitized_ref": "sysadmin:issue:528",
+          "revision_or_freshness": "2026-10-10",
+          "visibility": "PUBLIC_TRACKED",
+          "proof_ceiling": "P141 question and bounded route"
+        },
+        {
+          "evidence_type": "runtime_closeout",
+          "source_owner": "PTop-local agent",
+          "sanitized_ref": "opaque:ptop-android-toolchain-522-closeout",
+          "revision_or_freshness": "2026-10-10 operator reported",
+          "visibility": "PROTECTED_EXTERNAL",
+          "proof_ceiling": "Reported Windows runtime status; not independently observed in current chat"
+        }
+      ],
+      "selected_adapter": "LOCAL_AGENT_COORDINATOR_TO_DISCOVER_NATIVE_CHILD_WORKERS",
+      "adapter_proof": "NOT_OBSERVED_FROM_CURRENT_CHAT",
+      "launch_action": "Local coordinator ingests docs/handoff/native-process-evidence-528-agent-handoff.md panel P95-CALLERS; dispatch using confirmed native child-agent/task API or isolate worktree. Do not ask operator to manually schedule multiple panels.",
+      "expected_artifact": "docs/research/native-process-528-callers.md",
+      "validation": [
+        "document four PR repairs; failure examples; duplicate integration risk"
+      ],
+      "convergence_owner": "P95-DECIDE for first wave; P07-MERGE for implementation",
+      "status": "READY_CONDITIONAL_LOCAL_ADAPTER"
+    },
+    {
+      "lane_id": "P95-DECIDE",
+      "wave": 2,
+      "mission": "Converge P95 call-stack design, compare direct reuse vs extraction vs contract-only, reject if harm outweighs benefit",
+      "dependencies": [
+        "P95-CORE",
+        "P95-CALLERS"
+      ],
+      "owned_mutation_surfaces": [
+        "docs/plans/native-process-seam-528.design.md"
+      ],
+      "forbidden_surfaces": [
+        "harness/api/android_provider.py",
+        "harness/api/android_provider_cli.py",
+        "scripts/Invoke-SasAndroidToolchain.ps1 unless designated consumer wave",
+        "unrelated printer/recovery work",
+        "PTop private credentials and receipt exports"
+      ],
+      "execution_environment": "LOCAL_AGENT_RUNTIME",
+      "required_capabilities": [
+        "PowerShell 5.1/7",
+        "Windows disposable prototype if needed",
+        "architecture tradeoff analysis"
+      ],
+      "provider_access": [
+        {
+          "provider_family": "GitHub",
+          "operation": "fetch_current_repo_truth; PR read/write only when branch authority proven",
+          "authority_state": "AVAILABLE_UNVERIFIED",
+          "mutation_authority": false
+        }
+      ],
+      "evidence_inputs": [
+        {
+          "evidence_type": "merge_metadata",
+          "source_owner": "SysAdminSuite",
+          "sanitized_ref": "sysadmin:pr:523-527",
+          "revision_or_freshness": "historical-main@846e8c1b00cf12134574d06ab0ddf071832c7024",
+          "visibility": "PUBLIC_TRACKED",
+          "proof_ceiling": "Provider merger identity only, not local Windows live proof"
+        },
+        {
+          "evidence_type": "strategic_issue",
+          "source_owner": "SysAdminSuite",
+          "sanitized_ref": "sysadmin:issue:528",
+          "revision_or_freshness": "2026-10-10",
+          "visibility": "PUBLIC_TRACKED",
+          "proof_ceiling": "P141 question and bounded route"
+        },
+        {
+          "evidence_type": "runtime_closeout",
+          "source_owner": "PTop-local agent",
+          "sanitized_ref": "opaque:ptop-android-toolchain-522-closeout",
+          "revision_or_freshness": "2026-10-10 operator reported",
+          "visibility": "PROTECTED_EXTERNAL",
+          "proof_ceiling": "Reported Windows runtime status; not independently observed in current chat"
+        }
+      ],
+      "selected_adapter": "LOCAL_AGENT_COORDINATOR_TO_DISCOVER_NATIVE_CHILD_WORKERS",
+      "adapter_proof": "NOT_OBSERVED_FROM_CURRENT_CHAT",
+      "launch_action": "Local coordinator ingests docs/handoff/native-process-evidence-528-agent-handoff.md panel P95-DECIDE; dispatch using confirmed native child-agent/task API or isolate worktree. Do not ask operator to manually schedule multiple panels.",
+      "expected_artifact": "docs/plans/native-process-seam-528.design.md",
+      "validation": [
+        "P95 explicit selected alternative; user outcomes; owned state; safe failure path; rollback; allowed P07 scope or REJECT_CONSOLIDATION"
+      ],
+      "convergence_owner": "P95-DECIDE for first wave; P07-MERGE for implementation",
+      "status": "WAITING_FOR_P95_EVIDENCE"
+    },
+    {
+      "lane_id": "P07-CORE",
+      "wave": 3,
+      "mission": "Build the chosen core native process seam only if P95 approves",
+      "dependencies": [
+        "P95-DECIDE"
+      ],
+      "owned_mutation_surfaces": [
+        "scripts/SasBoundedNative.psm1 or P95-owned extracted core"
+      ],
+      "forbidden_surfaces": [
+        "harness/api/android_provider.py",
+        "harness/api/android_provider_cli.py",
+        "scripts/Invoke-SasAndroidToolchain.ps1 unless designated consumer wave",
+        "unrelated printer/recovery work",
+        "PTop private credentials and receipt exports"
+      ],
+      "execution_environment": "LOCAL_AGENT_RUNTIME",
+      "required_capabilities": [
+        "PowerShell 5.1/7",
+        "safe child process and cancellation semantics",
+        "repo testing"
+      ],
+      "provider_access": [
+        {
+          "provider_family": "GitHub",
+          "operation": "fetch_current_repo_truth; PR read/write only when branch authority proven",
+          "authority_state": "AVAILABLE_UNVERIFIED",
+          "mutation_authority": false
+        }
+      ],
+      "evidence_inputs": [
+        {
+          "evidence_type": "merge_metadata",
+          "source_owner": "SysAdminSuite",
+          "sanitized_ref": "sysadmin:pr:523-527",
+          "revision_or_freshness": "historical-main@846e8c1b00cf12134574d06ab0ddf071832c7024",
+          "visibility": "PUBLIC_TRACKED",
+          "proof_ceiling": "Provider merger identity only, not local Windows live proof"
+        },
+        {
+          "evidence_type": "strategic_issue",
+          "source_owner": "SysAdminSuite",
+          "sanitized_ref": "sysadmin:issue:528",
+          "revision_or_freshness": "2026-10-10",
+          "visibility": "PUBLIC_TRACKED",
+          "proof_ceiling": "P141 question and bounded route"
+        },
+        {
+          "evidence_type": "runtime_closeout",
+          "source_owner": "PTop-local agent",
+          "sanitized_ref": "opaque:ptop-android-toolchain-522-closeout",
+          "revision_or_freshness": "2026-10-10 operator reported",
+          "visibility": "PROTECTED_EXTERNAL",
+          "proof_ceiling": "Reported Windows runtime status; not independently observed in current chat"
+        }
+      ],
+      "selected_adapter": "LOCAL_AGENT_COORDINATOR_TO_DISCOVER_NATIVE_CHILD_WORKERS",
+      "adapter_proof": "NOT_OBSERVED_FROM_CURRENT_CHAT",
+      "launch_action": "Local coordinator ingests docs/handoff/native-process-evidence-528-agent-handoff.md panel P07-CORE; dispatch using confirmed native child-agent/task API or isolate worktree. Do not ask operator to manually schedule multiple panels.",
+      "expected_artifact": "P07 owned core diff and private test receipt",
+      "validation": [
+        "exact P95 contract plus canary; special S4U unchanged"
+      ],
+      "convergence_owner": "P95-DECIDE for first wave; P07-MERGE for implementation",
+      "status": "CONDITIONAL_P95_APPROVAL"
+    },
+    {
+      "lane_id": "P07-TESTS",
+      "wave": 3,
+      "mission": "Create non-overlapping regression contracts and negative fixtures in parallel with core",
+      "dependencies": [
+        "P95-DECIDE"
+      ],
+      "owned_mutation_surfaces": [
+        "Tests/PowerShell/native-process-528-*",
+        "Tests/survey/test_native_process_boundary_contracts.py"
+      ],
+      "forbidden_surfaces": [
+        "harness/api/android_provider.py",
+        "harness/api/android_provider_cli.py",
+        "scripts/Invoke-SasAndroidToolchain.ps1 unless designated consumer wave",
+        "unrelated printer/recovery work",
+        "PTop private credentials and receipt exports"
+      ],
+      "execution_environment": "LOCAL_AGENT_RUNTIME",
+      "required_capabilities": [
+        "PowerShell testing",
+        "Python fixture design",
+        "Windows CI"
+      ],
+      "provider_access": [
+        {
+          "provider_family": "GitHub",
+          "operation": "fetch_current_repo_truth; PR read/write only when branch authority proven",
+          "authority_state": "AVAILABLE_UNVERIFIED",
+          "mutation_authority": false
+        }
+      ],
+      "evidence_inputs": [
+        {
+          "evidence_type": "merge_metadata",
+          "source_owner": "SysAdminSuite",
+          "sanitized_ref": "sysadmin:pr:523-527",
+          "revision_or_freshness": "historical-main@846e8c1b00cf12134574d06ab0ddf071832c7024",
+          "visibility": "PUBLIC_TRACKED",
+          "proof_ceiling": "Provider merger identity only, not local Windows live proof"
+        },
+        {
+          "evidence_type": "strategic_issue",
+          "source_owner": "SysAdminSuite",
+          "sanitized_ref": "sysadmin:issue:528",
+          "revision_or_freshness": "2026-10-10",
+          "visibility": "PUBLIC_TRACKED",
+          "proof_ceiling": "P141 question and bounded route"
+        },
+        {
+          "evidence_type": "runtime_closeout",
+          "source_owner": "PTop-local agent",
+          "sanitized_ref": "opaque:ptop-android-toolchain-522-closeout",
+          "revision_or_freshness": "2026-10-10 operator reported",
+          "visibility": "PROTECTED_EXTERNAL",
+          "proof_ceiling": "Reported Windows runtime status; not independently observed in current chat"
+        }
+      ],
+      "selected_adapter": "LOCAL_AGENT_COORDINATOR_TO_DISCOVER_NATIVE_CHILD_WORKERS",
+      "adapter_proof": "NOT_OBSERVED_FROM_CURRENT_CHAT",
+      "launch_action": "Local coordinator ingests docs/handoff/native-process-evidence-528-agent-handoff.md panel P07-TESTS; dispatch using confirmed native child-agent/task API or isolate worktree. Do not ask operator to manually schedule multiple panels.",
+      "expected_artifact": "P07 fixtures/test diff and private run receipt",
+      "validation": [
+        "empty stdout, stderr-only, nonzero, null types, timeouts, spaces, S4U uncertainty, privacy"
+      ],
+      "convergence_owner": "P95-DECIDE for first wave; P07-MERGE for implementation",
+      "status": "CONDITIONAL_P95_APPROVAL"
+    },
+    {
+      "lane_id": "P07-MERGE",
+      "wave": 4,
+      "mission": "Integrate core and tests, migrate one selected consumer, test Windows/CI and converge into main",
+      "dependencies": [
+        "P07-CORE",
+        "P07-TESTS"
+      ],
+      "owned_mutation_surfaces": [
+        "scripts/Invoke-SasAndroidToolchain.ps1 OR scripts/Refresh-SasOperatorCommand.ps1",
+        "harness/api/harness-*-registry.json only if schema requires",
+        "related .github/workflows path",
+        "docs/plan closeout and issue #528 updates"
+      ],
+      "forbidden_surfaces": [
+        "harness/api/android_provider.py",
+        "harness/api/android_provider_cli.py",
+        "scripts/Invoke-SasAndroidToolchain.ps1 unless designated consumer wave",
+        "unrelated printer/recovery work",
+        "PTop private credentials and receipt exports"
+      ],
+      "execution_environment": "LOCAL_AGENT_RUNTIME",
+      "required_capabilities": [
+        "Git/PR/CI runner",
+        "PowerShell 5.1 and 7",
+        "PTop local safe proof if available"
+      ],
+      "provider_access": [
+        {
+          "provider_family": "GitHub",
+          "operation": "fetch_current_repo_truth; PR read/write only when branch authority proven",
+          "authority_state": "AVAILABLE_UNVERIFIED",
+          "mutation_authority": false
+        }
+      ],
+      "evidence_inputs": [
+        {
+          "evidence_type": "merge_metadata",
+          "source_owner": "SysAdminSuite",
+          "sanitized_ref": "sysadmin:pr:523-527",
+          "revision_or_freshness": "historical-main@846e8c1b00cf12134574d06ab0ddf071832c7024",
+          "visibility": "PUBLIC_TRACKED",
+          "proof_ceiling": "Provider merger identity only, not local Windows live proof"
+        },
+        {
+          "evidence_type": "strategic_issue",
+          "source_owner": "SysAdminSuite",
+          "sanitized_ref": "sysadmin:issue:528",
+          "revision_or_freshness": "2026-10-10",
+          "visibility": "PUBLIC_TRACKED",
+          "proof_ceiling": "P141 question and bounded route"
+        },
+        {
+          "evidence_type": "runtime_closeout",
+          "source_owner": "PTop-local agent",
+          "sanitized_ref": "opaque:ptop-android-toolchain-522-closeout",
+          "revision_or_freshness": "2026-10-10 operator reported",
+          "visibility": "PROTECTED_EXTERNAL",
+          "proof_ceiling": "Reported Windows runtime status; not independently observed in current chat"
+        }
+      ],
+      "selected_adapter": "LOCAL_AGENT_COORDINATOR_TO_DISCOVER_NATIVE_CHILD_WORKERS",
+      "adapter_proof": "NOT_OBSERVED_FROM_CURRENT_CHAT",
+      "launch_action": "Local coordinator ingests docs/handoff/native-process-evidence-528-agent-handoff.md panel P07-MERGE; dispatch using confirmed native child-agent/task API or isolate worktree. Do not ask operator to manually schedule multiple panels.",
+      "expected_artifact": "Merged PR, exact SHA, CI and clearly labeled PTop proof (if run)",
+      "validation": [
+        "git diff --check",
+        "selected PowerShell and Python contract tests",
+        "host-only read-only smoke if permitted",
+        "provider reviewed merge exact head and verified main"
+      ],
+      "convergence_owner": "P95-DECIDE for first wave; P07-MERGE for implementation",
+      "status": "CONDITIONAL_P95_APPROVAL"
+    }
+  ],
+  "stop_condition": "P95 REJECT closes work; otherwise convergence on verified main after P07 and validation. Unqualified SAS digest remains #522"
+}
