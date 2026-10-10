@@ -1,0 +1,151 @@
+<# Windows-native, preservation-first Android development lifecycle. Raw receipts remain private. #>
+[CmdletBinding()]
+param(
+ [ValidateSet('Inventory','Plan','Apply','Verify','Repair')][string]$Operation='Inventory',
+ [string]$NodeRole='ptop_lab', [string]$SdkRoot, [string]$JavaHome,
+ [string]$OutputRoot, [string]$FixturePath, [switch]$MutationAuthorized,
+ [switch]$LicenseAccepted, [switch]$LaunchStudio, [switch]$BuildSmoke,
+ [switch]$BootEmulator, [string]$AvdName, [string]$ExpectedCommit,
+ [int]$TimeoutSeconds=1800
+)
+$ErrorActionPreference='Stop'
+$repo=Split-Path $PSScriptRoot -Parent
+$profile=Get-Content (Join-Path $repo 'Config/android-toolchain-profile.json') -Raw | ConvertFrom-Json
+if(-not $OutputRoot){$OutputRoot=Join-Path $repo 'survey/output/android-toolchain'}
+$result=[ordered]@{schema_version='sas-android-toolchain-result/v1';operation=$Operation;node_role=$NodeRole;result='BLOCK';reason_codes=@();proof=@();actions=@();inventory=$null;checks=@();source=$null}
+$fixture=$null
+function Find-Tool([string]$Name,[string[]]$Candidates){
+ foreach($candidate in $Candidates){if($candidate -and (Test-Path -LiteralPath $candidate -PathType Leaf)){return (Resolve-Path -LiteralPath $candidate).Path}}
+ $command=Get-Command $Name -ErrorAction SilentlyContinue
+ if($command){return $command.Source};return $null
+}
+function Invoke-Bounded([string]$Exe,[string[]]$Arguments,[int]$Seconds=$TimeoutSeconds){
+ if($fixture){throw 'FIXTURE_EXECUTION_FORBIDDEN'}
+ $id=[guid]::NewGuid().ToString('N');$stdout=Join-Path $OutputRoot "$id.stdout.log";$stderr=Join-Path $OutputRoot "$id.stderr.log"
+ # Windows command-line quoting preserves paths with spaces; reject embedded quotes.
+ $quoted=@($Arguments|ForEach-Object {if($_ -match '"'){throw 'UNSAFE_ARGUMENT'};'"'+$_+'"'})
+ $priorModulePath=$env:PSModulePath
+ try {
+  # Provider admission uses Windows PowerShell; pwsh's inherited module path is incompatible.
+  $env:PSModulePath=($env:ProgramFiles+'\WindowsPowerShell\Modules;'+$env:SystemRoot+'\System32\WindowsPowerShell\v1.0\Modules')
+  $process=Start-Process -FilePath $Exe -ArgumentList ($quoted -join ' ') -PassThru -WindowStyle Hidden -RedirectStandardOutput $stdout -RedirectStandardError $stderr
+ } finally {$env:PSModulePath=$priorModulePath}
+ if(-not $process.WaitForExit($Seconds*1000)){Stop-Process -Id $process.Id -Force -ErrorAction SilentlyContinue;throw 'SUBPROCESS_TIMEOUT'}
+ $process.Refresh();$text=(Get-Content $stdout -Raw -ErrorAction SilentlyContinue)+(Get-Content $stderr -Raw -ErrorAction SilentlyContinue)
+ $check=[ordered]@{executable=$Exe;arguments=$Arguments;exit_code=$process.ExitCode;stdout=$stdout;stderr=$stderr}
+ $result.checks+=@($check)
+ if($process.ExitCode -ne 0){
+  if($text -match '(?i)license|accept.*terms'){throw 'LICENSE_ACCEPTANCE_REQUIRED'}
+  if($text -match '(?i)access.*denied|administrator|elevation'){throw 'ADMIN_APPROVAL_REQUIRED'}
+  if($text -match '(?i)no space|disk.*full'){throw 'INSUFFICIENT_DISK_SPACE'}
+  if($text -match '(?i)network|resolve host|connection|download.*failed'){throw 'NETWORK_DOWNLOAD_FAILED'}
+  throw 'COMMAND_FAILED'
+ };return $text
+}
+function Read-Inventory {
+ if($fixture){return $fixture.inventory}
+ if(-not $script:SdkRoot){$script:SdkRoot=if($env:ANDROID_HOME){$env:ANDROID_HOME}else{Join-Path $env:LOCALAPPDATA 'Android/Sdk'}}
+ $jdkCandidates=@($JavaHome,$env:JAVA_HOME,'C:/Program Files/Java/jdk-21')
+ $java=Find-Tool java.exe @($jdkCandidates|Where-Object {$_}|ForEach-Object {Join-Path $_ 'bin/java.exe'})
+ $javac=Find-Tool javac.exe @($jdkCandidates|Where-Object {$_}|ForEach-Object {Join-Path $_ 'bin/javac.exe'})
+ $studio=Find-Tool studio64.exe @('C:/Program Files/Android/Android Studio/bin/studio64.exe',(Join-Path $env:LOCALAPPDATA 'Programs/Android Studio/bin/studio64.exe'))
+ $cli=Find-Tool android.exe @((Join-Path $env:LOCALAPPDATA 'Microsoft/WinGet/Links/android.exe'))
+ $sdkmanager=Find-Tool sdkmanager.bat @((Join-Path $SdkRoot 'cmdline-tools/latest/bin/sdkmanager.bat'))
+ $packages=@();if(Test-Path $SdkRoot){$packages=@(Get-ChildItem $SdkRoot -Filter source.properties -Recurse -File -ErrorAction SilentlyContinue|ForEach-Object { $relative=$_.DirectoryName.Substring($SdkRoot.TrimEnd('\','/').Length).TrimStart('\','/');$relative.Replace('\','/')})}
+ $drive=Get-PSDrive -PSProvider FileSystem | Where-Object {$SdkRoot.StartsWith($_.Root,[StringComparison]::OrdinalIgnoreCase)} | Select-Object -First 1
+ return [pscustomobject]@{sdk_root=$SdkRoot;android_cli=$cli;studio=$studio;java=$java;javac=$javac;sdkmanager=$sdkmanager;packages=$packages;free_gib=if($drive){[math]::Round($drive.Free/1GB,2)}else{0};scope='CURRENT_USER';platform='windows-native';android_home=$env:ANDROID_HOME;avds=@(Get-ChildItem (Join-Path $env:USERPROFILE '.android/avd') -Filter '*.ini' -ErrorAction SilentlyContinue|ForEach-Object {$_.BaseName})}
+}
+try {
+ New-Item -ItemType Directory -Path $OutputRoot -Force | Out-Null
+ if($NodeRole -ne 'ptop_lab'){throw 'NODE_ROLE_MISMATCH'}
+ if($FixturePath){$fixture=Get-Content -LiteralPath $FixturePath -Raw | ConvertFrom-Json;if($fixture.synthetic -ne $true){throw 'SYNTHETIC_FIXTURE_REQUIRED'}}
+ if($fixture -and $Operation -in @('Apply','Repair')){throw 'FIXTURE_MUTATION_FORBIDDEN'}
+ if(-not $fixture -and ($Operation -in @('Apply','Repair','Verify'))){
+  $python=Find-Tool python.exe @();if(-not $python){throw 'PYTHON_REQUIRED'}
+  # Reuse AndroidProvider M2 source admission; never weaken canonical/sealed currentness.
+  $admission='import sys,json;sys.path.insert(0,sys.argv[1]);from harness.api.android_provider_cli import admit_source;print(json.dumps(admit_source(sys.argv[2] or None)))'
+  $result.source=Invoke-Bounded $python @('-c',$admission,$repo,$ExpectedCommit) 120
+ }
+ $inventory=Read-Inventory;$result.inventory=$inventory
+ if($fixture -and $fixture.PSObject.Properties['reason_codes']){$result.reason_codes+=@($fixture.reason_codes)}
+ $missing=@($profile.required_packages|Where-Object {$_ -notin @($inventory.packages)})
+ foreach($prefix in $profile.native_package_prefixes){if(-not @($inventory.packages|Where-Object {$_.StartsWith($prefix)}).Count){$missing+=@($prefix+'LATEST_SUPPORTED')}}
+ if(-not @($inventory.packages|Where-Object {$_.StartsWith('system-images/') -and $_ -match 'x86_64$'}).Count){$missing+=@($profile.system_image_prefix)}
+ $result.actions=@($missing|ForEach-Object {@{action='INSTALL_MISSING';package=$_}})
+ if(-not $inventory.java -or -not $inventory.javac){$result.reason_codes+=@('MISSING_STANDALONE_JDK')}
+ if(-not $inventory.android_cli){$result.reason_codes+=@('MISSING_ANDROID_CLI')}
+ if(-not $inventory.studio){$result.reason_codes+=@('MISSING_ANDROID_STUDIO')}
+ if($inventory.android_home -and $inventory.android_home.TrimEnd('\','/') -ne $inventory.sdk_root.TrimEnd('\','/')){$result.reason_codes+=@('SDK_ROOT_MISMATCH')}
+ if($Operation -eq 'Verify' -and $missing.Count){$result.reason_codes+=@('SDK_PACKAGES_MISSING')}
+ if($Operation -eq 'Verify' -and $inventory.free_gib -lt $profile.minimum_free_gib){$result.reason_codes+=@('INSUFFICIENT_DISK_SPACE')}
+ if($Operation -in @('Apply','Repair')){
+  if(-not $MutationAuthorized){throw 'MUTATION_AUTHORIZATION_REQUIRED'}
+  if($inventory.free_gib -lt $profile.minimum_free_gib){throw 'INSUFFICIENT_DISK_SPACE'}
+  # WinGet exact vendor identities are acquisition only; no license acceptance flags.
+  # Existing executables win over package-manager metadata and are never reinstalled.
+  $installIds=@{}
+  if(-not $inventory.java -or -not $inventory.javac){$installIds['MISSING_STANDALONE_JDK']='EclipseAdoptium.Temurin.21.JDK'}
+  if(-not $inventory.android_cli){$installIds['MISSING_ANDROID_CLI']='Google.AndroidCLI'}
+  if(-not $inventory.studio){$installIds['MISSING_ANDROID_STUDIO']='Google.AndroidStudio'}
+  if($installIds.Count){
+   $winget=Find-Tool winget.exe @();if(-not $winget){throw 'PACKAGE_MANAGER_REQUIRED'}
+   foreach($reason in @($installIds.Keys)){
+    Invoke-Bounded $winget @('install','--id',$installIds[$reason],'--exact','--source','winget','--disable-interactivity')|Out-Null
+   }
+   # Resolve newly acquired tools from their user/system install roots, independent of old PATH.
+   $temurin=Get-ChildItem 'C:/Program Files/Eclipse Adoptium' -Directory -Filter 'jdk-21*' -ErrorAction SilentlyContinue|Select-Object -First 1
+   if($temurin){$script:JavaHome=$temurin.FullName}
+   $inventory=Read-Inventory;$result.inventory=$inventory
+   $result.reason_codes=@($result.reason_codes|Where-Object {$_ -notin @($installIds.Keys)})
+   if(-not $inventory.java -or -not $inventory.javac){throw 'JDK_INSTALL_NOT_VERIFIED'}
+   if(-not $inventory.android_cli){throw 'ANDROID_CLI_INSTALL_NOT_VERIFIED'}
+   if(-not $inventory.studio){throw 'STUDIO_INSTALL_NOT_VERIFIED'}
+  }
+  if($result.reason_codes.Count){throw $result.reason_codes[0]}
+  # The first-party CLI owns package download integrity and installer provenance.
+  $available=Invoke-Bounded $inventory.android_cli @("--sdk=$SdkRoot",'sdk','list','--all')
+  foreach($package in $missing){
+   if($package.EndsWith('LATEST_SUPPORTED')){
+    $prefix=$package.Replace('LATEST_SUPPORTED','');$matches=[regex]::Matches($available,[regex]::Escape($prefix)+'[0-9][0-9.]*')|ForEach-Object {$_.Value}|Sort-Object -Unique
+    $package=$matches|Sort-Object {[version]($_.Substring($prefix.Length))} -Descending|Select-Object -First 1
+   }
+   if(-not $package -or $available -notmatch [regex]::Escape($package)){throw 'SDK_PACKAGE_UNSUPPORTED'}
+   # No stdin yes pipeline, license hashes, or automatic acceptance flag.
+   Invoke-Bounded $inventory.android_cli @("--sdk=$SdkRoot",'sdk','install',$package,'--no-downgrade') | Out-Null
+  }
+  [Environment]::SetEnvironmentVariable('ANDROID_HOME',$SdkRoot,'User');$env:ANDROID_HOME=$SdkRoot
+  $result.inventory=Read-Inventory;$result.proof+=@('WINDOWS_INSTALLED')
+ }
+ if($Operation -eq 'Verify' -and -not $fixture){
+  if($result.reason_codes.Count){throw $result.reason_codes[0]}
+  Invoke-Bounded $inventory.java @('-version')|Out-Null;Invoke-Bounded $inventory.javac @('-version')|Out-Null
+  Invoke-Bounded $inventory.android_cli @('-V')|Out-Null;Invoke-Bounded $inventory.android_cli @("--sdk=$SdkRoot",'info')|Out-Null
+  Invoke-Bounded $inventory.android_cli @("--sdk=$SdkRoot",'sdk','list')|Out-Null;$result.proof+=@('CLI_VERIFIED')
+  if($LaunchStudio){$p=Start-Process $inventory.studio -PassThru;Start-Sleep -Seconds 8;if($p.HasExited -and -not (Get-Process studio64 -ErrorAction SilentlyContinue)){throw 'STUDIO_LAUNCH_FAILED'};$result.proof+=@('GUI_PROCESS_OBSERVED')}
+  if($BuildSmoke){
+   $project=Join-Path $OutputRoot ('kotlin-smoke-'+[guid]::NewGuid().ToString('N'))
+   Invoke-Bounded $inventory.android_cli @("--sdk=$SdkRoot",'create','--name','SasSmoke','--namespace','org.example.sassmoke','--application-id','org.example.sassmoke','--output',$project,'empty-activity')|Out-Null
+   $wrapper=Join-Path $project 'gradlew.bat';if(-not (Test-Path $wrapper)){throw 'GRADLE_WRAPPER_MISSING'}
+   $env:JAVA_HOME=Split-Path (Split-Path $inventory.javac -Parent) -Parent
+   Invoke-Bounded $env:ComSpec @('/d','/c',$wrapper,'-p',$project,'assembleDebug')|Out-Null
+   if(-not (Get-ChildItem $project -Recurse -Filter '*.apk')){throw 'BUILD_APK_MISSING'};$result.proof+=@('BUILD_VERIFIED')
+  }
+  if($BootEmulator){
+   $emulator=Join-Path $SdkRoot 'emulator/emulator.exe';$adb=Join-Path $SdkRoot 'platform-tools/adb.exe'
+   $avds=Invoke-Bounded $emulator @('-list-avds');if(-not $AvdName){$AvdName=@($inventory.avds)[0]};if(-not $AvdName -or $avds -notmatch [regex]::Escape($AvdName)){throw 'AVD_REQUIRED'}
+   $emu=Start-Process $emulator -ArgumentList @('-avd',$AvdName,'-no-snapshot-save','-port','5580') -WindowStyle Hidden -PassThru
+   try{$deadline=[datetime]::UtcNow.AddSeconds(300);$booted=$false
+    while([datetime]::UtcNow -lt $deadline -and -not $emu.HasExited){try{$boot=Invoke-Bounded $adb @('-s','emulator-5580','shell','getprop','sys.boot_completed') 15;if($boot.Trim() -eq '1'){$booted=$true;break}}catch{if($_.Exception.Message -ne 'COMMAND_FAILED'){throw}};Start-Sleep -Seconds 5}
+    if(-not $booted){throw 'EMULATOR_BOOT_FAILED'};$result.proof+=@('EMULATOR_BOOT_VERIFIED')
+   }finally{if(-not $emu.HasExited){Stop-Process -Id $emu.Id -Force -ErrorAction SilentlyContinue}}
+  }
+  foreach($op in @('status','doctor','verify')){try{Invoke-Bounded $python @((Join-Path $repo 'harness/api/android_provider_cli.py'),$op,'--role','ptop_lab') 120|Out-Null}catch{$result.reason_codes+=@('SAS_PROVIDER_NOT_READY')}}
+ }
+ if($fixture){$result.proof=@('FIXTURE_ONLY')}
+ if($Operation -in @('Inventory','Plan')){$result.result='SUCCESS'}elseif(-not $result.reason_codes.Count){$result.result='SUCCESS'}
+}catch{$result.reason_codes+=@($_.Exception.Message);$result.result='BLOCK'}
+$result.reason_codes=@($result.reason_codes|Select-Object -Unique)
+$receipt=Join-Path $OutputRoot ('receipt-'+[datetime]::UtcNow.ToString('yyyyMMddTHHmmssfffffff')+'.json')
+$result|ConvertTo-Json -Depth 12|Set-Content -LiteralPath $receipt -Encoding UTF8
+Write-Output ($result|ConvertTo-Json -Depth 12)
+if($result.result -ne 'SUCCESS'){exit 2}

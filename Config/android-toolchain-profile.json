@@ -1,0 +1,12 @@
+{
+  "schema_version": "sas-android-toolchain-profile/v1",
+  "node_role": "ptop_lab",
+  "platform": "windows-native",
+  "required_packages": ["cmdline-tools/latest", "platform-tools", "build-tools/36.0.0", "platforms/android-35", "platforms/android-36", "platforms/android-37.0", "emulator"],
+  "native_package_prefixes": ["ndk/", "cmake/"],
+  "system_image_prefix": "system-images/android-37.0/google_apis/x86_64",
+  "minimum_free_gib": 15,
+  "preferred_java_major": 21,
+  "preserve_existing_avds": true,
+  "sas_adb_qualification": "INDEPENDENT_APPROVED_ARCHIVE_SHA256_REQUIRED"
+}
