@@ -1,0 +1,94 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://example.invalid/schemas/sas-finding-event.v1.schema.json",
+  "title": "Private SysAdminSuite observation event",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "event_id",
+    "logical_subject_key",
+    "event_type",
+    "occurred_at",
+    "evidence_ref",
+    "category",
+    "proof_level",
+    "privacy",
+    "finding"
+  ],
+  "properties": {
+    "schema_version": {
+      "const": "sas-finding-event/v1"
+    },
+    "event_id": {
+      "type": "string",
+      "pattern": "^[a-z0-9][a-z0-9._-]{7,79}$"
+    },
+    "logical_subject_key": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 200
+    },
+    "event_type": {
+      "const": "FINDING_RECORDED"
+    },
+    "occurred_at": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "evidence_ref": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 2048
+    },
+    "category": {
+      "enum": [
+        "hardware",
+        "software",
+        "network",
+        "storage",
+        "workstation",
+        "deployment",
+        "automation",
+        "workflow",
+        "other"
+      ]
+    },
+    "proof_level": {
+      "enum": [
+        "operator_reported",
+        "historical_capture",
+        "observed_runtime",
+        "locally_validated",
+        "integration_validated"
+      ]
+    },
+    "privacy": {
+      "enum": [
+        "private_operational",
+        "restricted_organization"
+      ]
+    },
+    "finding": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "summary"
+      ],
+      "properties": {
+        "summary": {
+          "type": "string",
+          "minLength": 1,
+          "maxLength": 2000
+        },
+        "details": {
+          "type": "string",
+          "maxLength": 20000
+        },
+        "measurements": {
+          "type": "object"
+        }
+      }
+    }
+  }
+}

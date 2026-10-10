@@ -286,3 +286,7 @@ The machine-readable command authority is `harness/api/harness-command-registry.
 - `schemas/harness/android-provider-receipt.schema.json` — receipt states and successful transport cleanup/authority requirements.
 - `Tests/survey/test_android_provider_implementation.py` — offline bundle, alias/lease, source admission, migrated H&H adapter and CMD fixture proof.
 - `docs/ANDROID_PROVIDER.md` — preparation, node roles, offline admission, private identity and recovery contract.
+
+## Cross-session finding continuity
+- `harness/api/sas_finding_ingest.py`, `schemas/harness/sas-finding-event.schema.json`, `Tests/survey/test_sas_finding_ingest.py`, and `.github/workflows/sas-finding-continuity.yml` — one-write offline private finding event with idempotent admission, fail-closed conflict, safe review candidate, local receipts and isolated CI.
+- `docs/SAS_FINDING_CONTINUITY.md` — routing, authority vs publication state, external adapter boundary, and precise proof ceilings. Reuses the existing operational-publication-boundary/v1; never add an independent Git/Drive sync authority.

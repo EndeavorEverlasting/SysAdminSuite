@@ -10,7 +10,7 @@
 
 Triggers route work only. They never authorize network activity, target mutation, destructive Git operations, secret handling, or proof claims. Progressive disclosure is a repository requirement; do not preload every skill, capability, plan, or handoff.
 ## Agent operating principles
-- **Evidence before action:** inspect repository, branch, PR, worktree, contracts, and existing evidence before mutation.
+- **Evidence before action:** inspect repository, branch, PR, worktree, contracts, and existing evidence before mutation. For an evidence-backed finding in an authorized SAS session, invoke `harness/api/sas_finding_ingest.py` once, retain private data locally, and route only reviewed reusable patterns for public contribution per `docs/SAS_FINDING_CONTINUITY.md` (no automatic Drive/Git publication).
 - **Floor before furniture:** establish governance, safety boundaries, validation, and rollback before convenience features.
 - **Bounded sprints with declared scope:** every writing sprint declares its lane, mission, owned scope, forbidden scope, artifacts, validation, and proof ceiling.
 - **One writer per branch:** parallel agents use isolated branches or worktrees and do not make competing writes.
