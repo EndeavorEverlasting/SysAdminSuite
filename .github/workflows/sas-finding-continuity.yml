@@ -1,0 +1,25 @@
+name: SAS finding continuity contracts
+
+on:
+  pull_request:
+    paths:
+      - 'harness/api/sas_finding_ingest.py'
+      - 'schemas/harness/sas-finding-event.schema.json'
+      - 'Tests/survey/test_sas_finding_ingest.py'
+      - 'docs/SAS_FINDING_CONTINUITY.md'
+      - '.github/workflows/sas-finding-continuity.yml'
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  offline-private-event-intake:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - run: python -m py_compile harness/api/sas_finding_ingest.py
+      - run: python Tests/survey/test_sas_finding_ingest.py
