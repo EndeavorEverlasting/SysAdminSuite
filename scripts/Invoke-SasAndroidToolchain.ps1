@@ -37,7 +37,12 @@ function Invoke-Bounded([string]$Exe,[string[]]$Arguments,[int]$Seconds=$Timeout
   }
   $process=Start-Process -FilePath $Exe -ArgumentList $commandLine -PassThru -WindowStyle Hidden -RedirectStandardOutput $stdout -RedirectStandardError $stderr
  } finally {$env:PSModulePath=$priorModulePath}
- if(-not $process.WaitForExit($Seconds*1000)){Stop-Process -Id $process.Id -Force -ErrorAction SilentlyContinue;throw 'SUBPROCESS_TIMEOUT'}
+ if(-not $process.WaitForExit($Seconds*1000)){
+  # The returned PID owns this process tree; never terminate by executable name.
+  & "$env:SystemRoot/System32/taskkill.exe" /PID $process.Id /T /F | Out-Null
+  $result.checks+=@(@{executable=$Exe;arguments=$Arguments;exit_code=$null;stdout=$stdout;stderr=$stderr;timed_out=$true})
+  throw 'SUBPROCESS_TIMEOUT'
+ }
  $process.Refresh();$text=(Get-Content $stdout -Raw -ErrorAction SilentlyContinue)+(Get-Content $stderr -Raw -ErrorAction SilentlyContinue)
  $check=[ordered]@{executable=$Exe;arguments=$Arguments;exit_code=$process.ExitCode;stdout=$stdout;stderr=$stderr}
  $result.checks+=@($check)
@@ -146,7 +151,7 @@ try {
    $pwsh=Find-Tool pwsh.exe @('C:/Program Files/PowerShell/7/pwsh.exe');if(-not $pwsh){throw 'POWERSHELL7_FETCHER_REQUIRED'}
    Invoke-Bounded $pwsh @('-NoProfile','-File',(Join-Path $repo 'Config/Fetch-Installers.ps1'),'-RepoRoot',$staging,'-FetchMap',$map)|Out-Null
   }
-  $result.reason_codes+=@('QUALIFICATION_AUTHORITY_REQUIRED')
+  try{Invoke-Bounded $python @((Join-Path $repo 'harness/api/android_provider_cli.py'),'verify','--role','ptop_lab') 120|Out-Null;$result.proof+=@('SAS_HOST_READY')}catch{$result.reason_codes+=@('QUALIFICATION_AUTHORITY_REQUIRED')}
  }
  if($Operation -eq 'Verify' -and -not $fixture){
   if($result.reason_codes.Count){throw $result.reason_codes[0]}
@@ -157,7 +162,7 @@ try {
   Invoke-Bounded $env:ComSpec @('/d','/c',$inventory.sdkmanager,'--list_installed')|Out-Null
   Invoke-Bounded (Join-Path $SdkRoot 'cmake/3.22.1/bin/cmake.exe') @('--version')|Out-Null
   Invoke-Bounded (Join-Path $SdkRoot 'ndk/28.2.13676358/toolchains/llvm/prebuilt/windows-x86_64/bin/clang.exe') @('--version')|Out-Null
-  if($LaunchStudio){$p=Start-Process $inventory.studio -PassThru;Start-Sleep -Seconds 8;if($p.HasExited -and -not (Get-Process studio64 -ErrorAction SilentlyContinue)){throw 'STUDIO_LAUNCH_FAILED'};$result.proof+=@('GUI_PROCESS_OBSERVED')}
+  if($LaunchStudio){$p=Start-Process $inventory.studio -PassThru -WindowStyle Hidden;Start-Sleep -Seconds 8;$studioProcesses=@(Get-Process studio64 -ErrorAction SilentlyContinue|Where-Object {$_.Path -eq $inventory.studio});if(-not $studioProcesses.Count){throw 'STUDIO_LAUNCH_FAILED'};$result.proof+=@('GUI_PROCESS_OBSERVED');if(@($studioProcesses|Where-Object {$_.MainWindowHandle -ne 0 -and $_.MainWindowTitle}).Count){$result.proof+=@('GUI_WINDOW_OBSERVED')}}
   if($BuildSmoke){
    $project=Join-Path $OutputRoot ('kotlin-smoke-'+[guid]::NewGuid().ToString('N'))
    Invoke-Bounded $inventory.android_cli @("--sdk=$SdkRoot",'create','--name','SasSmoke','--namespace','org.example.sassmoke','--application-id','org.example.sassmoke','--output',$project,'empty-activity')|Out-Null
@@ -170,7 +175,7 @@ try {
      # JDK's documented Unix socket temp property forces its built-in TCP pipe fallback.
      # Scoped to this build; no firewall, host security, or global JVM changes.
      $noUnix=Join-Path $OutputRoot ('tcp-pipe-unavailable-'+[guid]::NewGuid().ToString('N'))
-     $env:JAVA_TOOL_OPTIONS=($previousJavaOptions+' -Djdk.net.unixdomain.tmpdir='+$noUnix).Trim()
+     $env:JAVA_TOOL_OPTIONS=($previousJavaOptions+' "-Djdk.net.unixdomain.tmpdir='+$noUnix+'"').Trim()
      $result.actions+=@(@{action='SCOPED_JDK_TCP_PIPE_FALLBACK'})
     }
     Invoke-Bounded $env:ComSpec @('/d','/c',$wrapper,'-p',$project,'--no-daemon','assembleDebug')|Out-Null
@@ -180,7 +185,7 @@ try {
   if($BootEmulator){
    $emulator=Join-Path $SdkRoot 'emulator/emulator.exe';$adb=Join-Path $SdkRoot 'platform-tools/adb.exe'
    $avds=Invoke-Bounded $emulator @('-list-avds');if(-not $AvdName){$AvdName=@($inventory.avds)[0]};if(-not $AvdName -or $AvdName -notin @($avds -split '\r?\n'|ForEach-Object {$_.Trim()})){throw 'AVD_REQUIRED'}
-   foreach($port in @(5580,5581,5589)){if(Get-NetTCPConnection -LocalPort $port -ErrorAction SilentlyContinue){throw 'EMULATOR_PORT_IN_USE'}}
+   foreach($port in @(5580,5581,5589)){if(Get-NetTCPConnection -LocalPort $port -State Listen -ErrorAction SilentlyContinue){throw 'EMULATOR_PORT_IN_USE'}}
    $priorAdbPort=$env:ANDROID_ADB_SERVER_PORT;$priorMdns=$env:ADB_MDNS_AUTO_CONNECT;$priorUsb=$env:ADB_USB;$priorMdnsEnabled=$env:ADB_MDNS
    $env:ANDROID_ADB_SERVER_PORT='5589';$env:ADB_MDNS_AUTO_CONNECT='0';$env:ADB_USB='0';$env:ADB_MDNS='0'
    $emu=$null
@@ -193,7 +198,7 @@ try {
     $deadline=[datetime]::UtcNow.AddSeconds(300);$booted=$false
     while([datetime]::UtcNow -lt $deadline -and -not $emu.HasExited){try{$boot=Invoke-Bounded $adb @('-P','5589','-s','emulator-5580','shell','getprop','sys.boot_completed') 15;if($boot.Trim() -eq '1'){$booted=$true;break}}catch{if($_.Exception.Message -ne 'COMMAND_FAILED'){throw}};Start-Sleep -Seconds 5}
     if(-not $booted){throw 'EMULATOR_BOOT_FAILED'};$result.proof+=@('EMULATOR_BOOT_VERIFIED')
-   }finally{if($emu -and -not $emu.HasExited){try{Invoke-Bounded $adb @('-P','5589','-s','emulator-5580','emu','kill') 15|Out-Null}catch{$result.reason_codes+=@('EMULATOR_CLEANUP_COMMAND_FAILED')};if(-not $emu.WaitForExit(15000)){Stop-Process -Id $emu.Id -Force -ErrorAction SilentlyContinue}};try{Invoke-Bounded $adb @('-P','5589','kill-server') 30|Out-Null}catch{$result.reason_codes+=@('ADB_CLEANUP_FAILED')}finally{$env:ANDROID_ADB_SERVER_PORT=$priorAdbPort;$env:ADB_MDNS_AUTO_CONNECT=$priorMdns;$env:ADB_USB=$priorUsb;$env:ADB_MDNS=$priorMdnsEnabled};if(Get-NetTCPConnection -LocalPort 5580,5581,5589 -ErrorAction SilentlyContinue){$result.reason_codes+=@('OWNED_PORT_CLEANUP_INCOMPLETE')}}
+   }finally{if($emu -and -not $emu.HasExited){try{Invoke-Bounded $adb @('-P','5589','-s','emulator-5580','emu','kill') 15|Out-Null}catch{$result.reason_codes+=@('EMULATOR_CLEANUP_COMMAND_FAILED')};if(-not $emu.WaitForExit(15000)){& "$env:SystemRoot/System32/taskkill.exe" /PID $emu.Id /T /F|Out-Null}};try{Invoke-Bounded $adb @('-P','5589','kill-server') 30|Out-Null}catch{$result.reason_codes+=@('ADB_CLEANUP_FAILED')}finally{$env:ANDROID_ADB_SERVER_PORT=$priorAdbPort;$env:ADB_MDNS_AUTO_CONNECT=$priorMdns;$env:ADB_USB=$priorUsb;$env:ADB_MDNS=$priorMdnsEnabled};if(Get-NetTCPConnection -State Listen -LocalPort 5580,5581,5589 -ErrorAction SilentlyContinue){$result.reason_codes+=@('OWNED_PORT_CLEANUP_INCOMPLETE')}}
   }
   foreach($op in @('status','doctor','verify')){try{Invoke-Bounded $python @((Join-Path $repo 'harness/api/android_provider_cli.py'),$op,'--role','ptop_lab') 120|Out-Null}catch{$result.reason_codes+=@('SAS_PROVIDER_NOT_READY')}}
  }
