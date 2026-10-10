@@ -139,11 +139,11 @@ def test_missing_module_produces_receipt_and_fixture_needs_no_module():
                 assert expected in receipt["reason_codes"], receipt
             assert not receipt["checks"] and receipt["source"] is None
         if os.name == "nt":
-            # Rebind only this isolated copy's sealed-root identity. The actual gate executes.
+            # Select the sealed branch only in this isolated copy; exercise the actual dependency gate.
             text = engine.read_text(encoding="utf-8-sig")
             marker = "if($repo -eq 'C:\\SASAL'){"
             assert marker in text
-            engine.write_text(text.replace(marker, "if($repo -eq '" + str(root).replace("'", "''") + "'){"), encoding="utf-8")
+            engine.write_text(text.replace(marker, "if($true){"), encoding="utf-8")
             state = root / "private-state/SysAdminSuite"
             state.mkdir(parents=True)
             entries = ["scripts/Invoke-SasAndroidToolchain.ps1", "scripts/SasBoundedNative.psm1", "Config/android-toolchain-profile.json", "Manage-AndroidToolchain.cmd"]
