@@ -61,3 +61,8 @@ This checklist prevents premature hardware-failure claims or writes to the wrong
 ### Proof boundary
 
 This tracked note documents observed setup/desktop facts and a read-only decision procedure. It is **not** evidence that the new OS has been remotely inspected, secondary storage initialized, recovery media verified on another boot, original SSD forensics completed, activation confirmed, or deployment/tooling rebuilt.
+
+
+## Observed outcome (2026-10-09)
+
+The operator identified the 4 TB-class secondary model through read-only PowerShell before initializing it. A later Disk Management screenshot shows the secondary disk Basic/Online with one healthy NTFS volume, while File Explorer independently shows its E: mount and approximately 3.72 TB of free capacity. The earlier condition `SECONDARY_VOLUME_NOT_VISIBLE_IN_EXPLORER` is resolved for this case. SMART health, sustained I/O, future-boot persistence, activation, and developer tooling remain unverified. The checklist above remains the reusable first-boot method, but its pending language is historical to this completed case.
