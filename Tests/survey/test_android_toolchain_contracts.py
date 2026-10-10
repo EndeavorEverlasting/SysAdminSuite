@@ -146,6 +146,14 @@ $serialized=$result|ConvertTo-Json -Depth 12
 if($result.source -isnot [string]){throw 'SOURCE_TEXT_CONTRACT_MISMATCH'}
 if($serialized.Length -gt 4000 -or $serialized -match 'PSProvider'){throw 'SUBPROCESS_TEXT_METADATA_LEAK'}
 if($result.checks[-1].exit_code -ne 0){throw 'ZERO_EXIT_LOST'}
+$empty=Invoke-Bounded "$env:SystemRoot/System32/WindowsPowerShell/v1.0/powershell.exe" @('-NoProfile','-Command','exit 0')
+if($empty -and $empty.Length){throw 'EMPTY_OUTPUT_CONTRACT'}
+$wrapper=Join-Path $OutputRoot 'tiny wrapper.bat'
+Set-Content $wrapper '@echo off
+echo wrapper-success
+exit /b 0' -Encoding ASCII
+$wrapped=Invoke-Bounded $env:ComSpec @('/d','/c',$wrapper)
+if($wrapped.Trim() -ne 'wrapper-success'){throw 'CMD_SPACES_OUTPUT_CONTRACT'}
 try{Invoke-Bounded "$env:SystemRoot/System32/WindowsPowerShell/v1.0/powershell.exe" @('-NoProfile','-Command','exit 7');throw 'NONZERO_EXIT_ACCEPTED'}catch{if($_.Exception.Message -ne 'COMMAND_FAILED'){throw}}
 if($result.checks[-1].exit_code -ne 7){throw 'NONZERO_EXIT_LOST'}
 ''', encoding="utf-8")
