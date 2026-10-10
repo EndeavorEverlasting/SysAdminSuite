@@ -43,6 +43,8 @@ function Invoke-Bounded([string]$Exe,[string[]]$Arguments,[int]$Seconds=$Timeout
   }
   $process=Start-Process -FilePath $Exe -ArgumentList $commandLine -PassThru -WindowStyle Hidden -RedirectStandardOutput $stdout -RedirectStandardError $stderr
  } finally {$env:PSModulePath=$priorModulePath}
+ # Retain the native handle before waiting: Windows PowerShell 5.1 otherwise loses ExitCode.
+ $ownedHandle=$process.Handle
  if(-not $process.WaitForExit($Seconds*1000)){
   # The returned PID owns this process tree; never terminate by executable name.
   & "$env:SystemRoot/System32/taskkill.exe" /PID $process.Id /T /F | Out-Null
@@ -53,6 +55,7 @@ function Invoke-Bounded([string]$Exe,[string[]]$Arguments,[int]$Seconds=$Timeout
  $check=[ordered]@{executable=$Exe;arguments=$Arguments;exit_code=$process.ExitCode;stdout=$stdout;stderr=$stderr}
  $result.checks+=@($check)
  if($process.ExitCode -ne 0){
+  if($null -eq $process.ExitCode){throw 'SUBPROCESS_EXIT_UNPROVEN'}
   if($text -match '(?i)license|accept.*terms'){throw 'LICENSE_ACCEPTANCE_REQUIRED'}
   if($text -match '(?i)access.*denied|administrator|elevation'){throw 'ADMIN_APPROVAL_REQUIRED'}
   if($text -match '(?i)no space|disk.*full'){throw 'INSUFFICIENT_DISK_SPACE'}
