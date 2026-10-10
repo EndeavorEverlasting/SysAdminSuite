@@ -141,7 +141,9 @@ $ErrorActionPreference='Stop';$fixture=$null;$TimeoutSeconds=10;$result=@{checks
 $ast=[System.Management.Automation.Language.Parser]::ParseFile($Engine,[ref]$null,[ref]$null)
 $function=$ast.Find({param($node) $node -is [System.Management.Automation.Language.FunctionDefinitionAst] -and $node.Name -eq 'Invoke-Bounded'},$true)
 . ([scriptblock]::Create($function.Extent.Text))
-Invoke-Bounded "$env:SystemRoot/System32/WindowsPowerShell/v1.0/powershell.exe" @('-NoProfile','-Command','exit 0')|Out-Null
+$result.source=Invoke-Bounded "$env:SystemRoot/System32/WindowsPowerShell/v1.0/powershell.exe" @('-NoProfile','-Command','Write-Output success; exit 0')
+$serialized=$result|ConvertTo-Json -Depth 12
+if($serialized.Length -gt 4000 -or $serialized -match 'PSProvider'){throw 'SUBPROCESS_TEXT_METADATA_LEAK'}
 if($result.checks[-1].exit_code -ne 0){throw 'ZERO_EXIT_LOST'}
 try{Invoke-Bounded "$env:SystemRoot/System32/WindowsPowerShell/v1.0/powershell.exe" @('-NoProfile','-Command','exit 7');throw 'NONZERO_EXIT_ACCEPTED'}catch{if($_.Exception.Message -ne 'COMMAND_FAILED'){throw}}
 if($result.checks[-1].exit_code -ne 7){throw 'NONZERO_EXIT_LOST'}

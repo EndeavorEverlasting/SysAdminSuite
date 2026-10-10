@@ -61,7 +61,7 @@ function Invoke-Bounded([string]$Exe,[string[]]$Arguments,[int]$Seconds=$Timeout
   if($text -match '(?i)no space|disk.*full'){throw 'INSUFFICIENT_DISK_SPACE'}
   if($text -match '(?i)network|resolve host|connection|download.*failed'){throw 'NETWORK_DOWNLOAD_FAILED'}
   throw 'COMMAND_FAILED'
- };return (Get-Content $stdout -Raw -ErrorAction SilentlyContinue)
+ };return [string]::Concat((Get-Content $stdout -Raw -ErrorAction SilentlyContinue))
 }
 function Read-Inventory {
  if($fixture){return $fixture.inventory}
@@ -107,6 +107,7 @@ try {
   $admission='import sys,json;sys.path.insert(0,sys.argv[1]);from harness.api.android_provider_cli import admit_source;print(json.dumps(admit_source(sys.argv[2] or None)))'
   $result.source=Invoke-Bounded $python @('-c',$admission,$repo,$ExpectedCommit) 120
   $sourceState=$result.source|ConvertFrom-Json
+  $result.source=$sourceState
   if($sourceState.source_updated){
    if($SourceRestartCount -ge 1){throw 'SOURCE_RESTART_LIMIT_REACHED'}
    $restart=@{};foreach($key in $PSBoundParameters.Keys){$restart[$key]=$PSBoundParameters[$key]};$restart.SourceRestartCount=1
