@@ -161,6 +161,8 @@ $wrapped=Invoke-Bounded $env:ComSpec @('/d','/c',$wrapper)
 if($wrapped.Trim() -ne 'wrapper-success'){throw 'CMD_SPACES_OUTPUT_CONTRACT'}
 try{Invoke-Bounded "$env:SystemRoot/System32/WindowsPowerShell/v1.0/powershell.exe" @('-NoProfile','-Command','exit 7');throw 'NONZERO_EXIT_ACCEPTED'}catch{if($_.Exception.Message -ne 'COMMAND_FAILED'){throw}}
 if($result.checks[-1].exit_code -ne 7){throw 'NONZERO_EXIT_LOST'}
+try{Invoke-Bounded "$env:SystemRoot/System32/WindowsPowerShell/v1.0/powershell.exe" @('-NoProfile','-Command',"[Console]::Out.Write('partial-output'); [Console]::Out.Flush(); Start-Sleep -Seconds 15") 2;throw 'TIMEOUT_ACCEPTED'}catch{if($_.Exception.Message -ne 'SUBPROCESS_TIMEOUT'){throw}}
+if((Get-Content $result.checks[-1].stdout -Raw) -ne 'partial-output'){throw 'TIMEOUT_PARTIAL_ADAPTER_LOG_LOST'}
 ''', encoding="utf-8")
         process = subprocess.run([shell, "-NoProfile", "-File", str(probe), str(SCRIPT), output], capture_output=True, text=True, timeout=30)
         assert process.returncode == 0, (process.stdout, process.stderr)

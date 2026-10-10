@@ -13,7 +13,7 @@ $child=Join-Path $temp 'child fixture.py'
 $descendants=@()
 function Assert($Condition,[string]$Message){if(-not $Condition){throw $Message}}
 function Check-Shape($Run){
- foreach($name in @('process_id','exit_code','timed_out','timeout_seconds','output','error','started_utc','completed_utc','child_tree_termination_attempted','child_tree_terminated','output_complete')){Assert ($null -ne $Run.PSObject.Properties[$name]) ('MISSING_RESULT_FIELD_'+$name)}
+ foreach($name in @('process_id','exit_code','timed_out','timeout_seconds','output','error','started_utc','completed_utc','child_tree_termination_attempted','child_tree_terminated','output_complete','output_truncated','error_truncated')){Assert ($null -ne $Run.PSObject.Properties[$name]) ('MISSING_RESULT_FIELD_'+$name)}
  Assert ($Run.output -is [string] -and $Run.error -is [string]) 'OUTPUT_NOT_PLAIN_STRINGS'
 }
 @'
@@ -24,6 +24,18 @@ if mode=='stderr': sys.stderr.write('stderr-success');sys.exit(0)
 if mode=='nonzero': print('stdout-failure');sys.stderr.write('stderr-failure');sys.exit(7)
 if mode=='argv': print(json.dumps(sys.argv[2:],ensure_ascii=True))
 if mode=='env': print(json.dumps({'value':os.environ.get('SAS_NATIVE_528_PROBE'),'removed':os.environ.get('SAS_NATIVE_528_REMOVE')}))
+if mode=='verbose':
+    sys.stdout.write('O'*1200000);sys.stderr.write('E'*1200000)
+if mode=='slow':
+    print('partial-stdout',flush=True);sys.stderr.write('partial-stderr');sys.stderr.flush()
+    # Observe the actual spool file while this process is still running.
+    deadline=time.monotonic()+4
+    while time.monotonic()<deadline:
+        if os.path.exists(sys.argv[2]) and os.path.getsize(sys.argv[2])>0:
+            with open(sys.argv[3],'w') as f: f.write('observed-before-exit')
+            break
+        time.sleep(.05)
+    time.sleep(30)
 if mode in ('timeout','drain'):
     p=subprocess.Popen([sys.executable,'-c','import time;time.sleep(30)'])
     with open(sys.argv[2],'w') as f: f.write(str(p.pid))
@@ -49,6 +61,19 @@ try{
  Assert ($actual.Count -eq $expected.Count) ('ARGV_COUNT_CHANGED actual='+$argv.output+' count='+$actual.Count+' expected='+$expected.Count)
  for($i=0;$i -lt $expected.Count;$i++){Assert ($actual[$i] -ceq $expected[$i]) ('ARGV_CHANGED_'+$i)}
  Assert (($argv|ConvertTo-Json -Depth 12) -notmatch 'PSProvider|PSPath|PSDrive') 'TEXT_METADATA_LEAK'
+ $verboseOut=Join-Path $temp 'verbose.stdout';$verboseErr=Join-Path $temp 'verbose.stderr'
+ $verbose=Invoke-SasNativeProcess -FilePath $python -Arguments @($child,'verbose') -TimeoutSeconds 10 -StandardOutputPath $verboseOut -StandardErrorPath $verboseErr
+ Assert ($verbose.exit_code -eq 0 -and $verbose.output_complete) 'VERBOSE_PROCESS_FAILED'
+ Assert ($verbose.output_truncated -and $verbose.error_truncated) 'VERBOSE_CAPTURE_NOT_MARKED_TRUNCATED'
+ Assert ($verbose.output.Length -eq 1048576 -and $verbose.error.Length -eq 1048576) 'CAPTURE_MEMORY_NOT_BOUNDED'
+ Assert ((Get-Content $verboseOut -Raw).Length -eq 1200000 -and (Get-Content $verboseErr -Raw).Length -eq 1200000) 'FULL_VERBOSE_SPOOL_LOST'
+ $small=Invoke-SasNativeProcess -FilePath $python -Arguments @($child,'verbose') -TimeoutSeconds 10 -MaxCaptureCharacters 32
+ Assert ($small.output.Length -eq 32 -and $small.error.Length -eq 32 -and $small.output_truncated -and $small.error_truncated) 'EXPLICIT_CAPTURE_BOUND_IGNORED'
+ $slowOut=Join-Path $temp 'slow.stdout';$slowErr=Join-Path $temp 'slow.stderr';$observed=Join-Path $temp 'spool-observed.marker'
+ $slow=Invoke-SasNativeProcess -FilePath $python -Arguments @($child,'slow',$slowOut,$observed) -TimeoutSeconds 6 -StandardOutputPath $slowOut -StandardErrorPath $slowErr
+ Assert ($slow.timed_out -and $slow.child_tree_termination_attempted) 'SLOW_TIMEOUT_NOT_REPORTED'
+ Assert (Test-Path $observed) 'LOG_NOT_VISIBLE_WHILE_PROCESS_RUNNING'
+ Assert ((Get-Content $slowOut -Raw).Trim() -eq 'partial-stdout' -and (Get-Content $slowErr -Raw) -eq 'partial-stderr') 'TIMEOUT_PARTIAL_LOGS_LOST'
  $batch=Join-Path $temp 'tiny wrapper.cmd'
  Set-Content $batch "@echo off`r`necho wrapper-success`r`nexit /b 0" -Encoding ASCII
  $cmdRun=Invoke-SasNativeProcess -FilePath $env:ComSpec -CommandLine ('/d /s /c ""'+$batch+'""') -TimeoutSeconds 5
