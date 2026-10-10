@@ -143,6 +143,7 @@ $function=$ast.Find({param($node) $node -is [System.Management.Automation.Langua
 . ([scriptblock]::Create($function.Extent.Text))
 $result.source=Invoke-Bounded "$env:SystemRoot/System32/WindowsPowerShell/v1.0/powershell.exe" @('-NoProfile','-Command','Write-Output success; exit 0')
 $serialized=$result|ConvertTo-Json -Depth 12
+if($result.source -isnot [string]){throw 'SOURCE_TEXT_CONTRACT_MISMATCH'}
 if($serialized.Length -gt 4000 -or $serialized -match 'PSProvider'){throw 'SUBPROCESS_TEXT_METADATA_LEAK'}
 if($result.checks[-1].exit_code -ne 0){throw 'ZERO_EXIT_LOST'}
 try{Invoke-Bounded "$env:SystemRoot/System32/WindowsPowerShell/v1.0/powershell.exe" @('-NoProfile','-Command','exit 7');throw 'NONZERO_EXIT_ACCEPTED'}catch{if($_.Exception.Message -ne 'COMMAND_FAILED'){throw}}
