@@ -346,10 +346,53 @@ function Invoke-SasNativeProcess {
         [AllowEmptyCollection()][string[]]$Arguments = @(),
         [ValidateRange(1,86400)][int]$TimeoutSeconds = 30,
         [hashtable]$Environment = @{},
-        [string]$CommandLine
+        [string]$CommandLine,
+        [string]$StandardOutputPath,
+        [string]$StandardErrorPath,
+        [ValidateRange(1,10485760)][int]$MaxCaptureCharacters = 1048576
     )
 
     if ($PSBoundParameters.ContainsKey('CommandLine') -and @($Arguments).Count -gt 0) { throw 'CommandLine and Arguments are mutually exclusive.' }
+    # Pump native streams off the PowerShell thread. Capture is bounded; optional
+    # adapter-owned files receive the full stream incrementally, including before timeout.
+    if (-not ('SasNativeStreamCapture528V1' -as [type])) {
+        Add-Type -TypeDefinition @"
+using System;
+using System.IO;
+using System.Text;
+using System.Threading.Tasks;
+public sealed class SasNativeStreamCapture528V1 : IDisposable {
+    private readonly int limit;
+    private readonly StringBuilder text = new StringBuilder();
+    private readonly object gate = new object();
+    private readonly StreamWriter writer;
+    private bool truncated;
+    public SasNativeStreamCapture528V1(string path, int maximum) {
+        limit = maximum;
+        if (!String.IsNullOrEmpty(path)) {
+            writer = new StreamWriter(new FileStream(path, FileMode.Create, FileAccess.Write, FileShare.Read), new UTF8Encoding(false));
+            writer.AutoFlush = true;
+        }
+    }
+    public Task Start(StreamReader reader) { return Task.Run(() => Pump(reader)); }
+    private async Task Pump(StreamReader reader) {
+        char[] buffer = new char[4096];
+        int count;
+        while ((count = await reader.ReadAsync(buffer, 0, buffer.Length).ConfigureAwait(false)) > 0) {
+            lock (gate) {
+                int keep = Math.Min(count, limit - text.Length);
+                if (keep > 0) text.Append(buffer, 0, keep);
+                if (keep < count) truncated = true;
+            }
+            if (writer != null) writer.Write(buffer, 0, count);
+        }
+    }
+    public string Output { get { lock (gate) { return text.ToString(); } } }
+    public bool Truncated { get { lock (gate) { return truncated; } } }
+    public void Dispose() { if (writer != null) writer.Dispose(); }
+}
+"@ -ErrorAction Stop
+    }
     # Windows CommandLineToArgvW / CRT quoting. CMD interpretation belongs to its caller.
     $quotedArguments = foreach ($argument in $Arguments) {
         $value = [string]$argument
@@ -395,12 +438,24 @@ function Invoke-SasNativeProcess {
     $outputComplete = $false
     $stdout = ''
     $stderr = ''
+    $stdoutCapture = $null
+    $stderrCapture = $null
     try {
+        $stdoutCapture = New-Object SasNativeStreamCapture528V1 -ArgumentList @($StandardOutputPath,$MaxCaptureCharacters)
+        $stderrCapture = New-Object SasNativeStreamCapture528V1 -ArgumentList @($StandardErrorPath,$MaxCaptureCharacters)
         if (-not $process.Start()) { throw 'Unable to start native child process.' }
         $childPid = [int]$process.Id
-        $stdoutTask = $process.StandardOutput.ReadToEndAsync()
-        $stderrTask = $process.StandardError.ReadToEndAsync()
-        if (-not $process.WaitForExit($TimeoutSeconds * 1000)) {
+        $stdoutTask = $stdoutCapture.Start($process.StandardOutput)
+        $stderrTask = $stderrCapture.Start($process.StandardError)
+        $wait = [Diagnostics.Stopwatch]::StartNew()
+        $exited = $false
+        while (-not $exited -and $wait.ElapsedMilliseconds -lt ($TimeoutSeconds * 1000)) {
+            if ($stdoutTask.IsFaulted) { throw $stdoutTask.Exception.GetBaseException() }
+            if ($stderrTask.IsFaulted) { throw $stderrTask.Exception.GetBaseException() }
+            $remaining = [int][Math]::Max(1, ($TimeoutSeconds * 1000) - $wait.ElapsedMilliseconds)
+            $exited = $process.WaitForExit([Math]::Min(100, $remaining))
+        }
+        if (-not $exited) {
             $timedOut = $true
             # Only the still-owned live process is eligible for PID-bound cleanup.
             if (-not $process.HasExited) {
@@ -419,8 +474,10 @@ function Invoke-SasNativeProcess {
         }
         $outputComplete = ($stdoutTask.Status -eq [Threading.Tasks.TaskStatus]::RanToCompletion -and
             $stderrTask.Status -eq [Threading.Tasks.TaskStatus]::RanToCompletion)
-        if ($stdoutTask.Status -eq [Threading.Tasks.TaskStatus]::RanToCompletion) { $stdout = [string]$stdoutTask.Result }
-        if ($stderrTask.Status -eq [Threading.Tasks.TaskStatus]::RanToCompletion) { $stderr = [string]$stderrTask.Result }
+        if ($stdoutTask.IsFaulted) { throw $stdoutTask.Exception.GetBaseException() }
+        if ($stderrTask.IsFaulted) { throw $stderrTask.Exception.GetBaseException() }
+        $stdout = $stdoutCapture.Output
+        $stderr = $stderrCapture.Output
         [pscustomobject][ordered]@{
             process_id = $childPid
             exit_code = $exitCode
@@ -434,15 +491,23 @@ function Invoke-SasNativeProcess {
             # This is taskkill acknowledgment, never independently verified descendant absence.
             child_tree_terminated = $terminationAcknowledged
             output_complete = $outputComplete
+            output_truncated = $stdoutCapture.Truncated
+            error_truncated = $stderrCapture.Truncated
         }
     }
     finally {
         if ($null -ne $childPid) {
+            if (-not $process.HasExited) {
+                [void](Stop-SasBoundedProcessTree -ProcessId $childPid -TimeoutSeconds 5)
+                if (-not $process.HasExited) { try { $process.Kill() } catch { } }
+            }
             if (-not $outputComplete) {
                 try { $process.StandardOutput.Close() } catch { }
                 try { $process.StandardError.Close() } catch { }
             }
         }
+        if ($null -ne $stdoutCapture) { try { $stdoutCapture.Dispose() } catch { } }
+        if ($null -ne $stderrCapture) { try { $stderrCapture.Dispose() } catch { } }
         $process.Dispose()
     }
 }
