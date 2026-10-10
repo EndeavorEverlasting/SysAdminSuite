@@ -7,6 +7,8 @@ param(
  [switch]$LicenseAccepted, [switch]$LaunchStudio, [switch]$BuildSmoke,
  [switch]$BootEmulator, [string]$AvdName, [string]$ExpectedCommit,
  [switch]$TcpPipeFallback,
+ [string]$HostProfile,
+ [ValidateRange(0,1)][int]$SourceRestartCount=0,
  [int]$TimeoutSeconds=1800
 )
 $ErrorActionPreference='Stop'
@@ -52,7 +54,7 @@ function Invoke-Bounded([string]$Exe,[string[]]$Arguments,[int]$Seconds=$Timeout
   if($text -match '(?i)no space|disk.*full'){throw 'INSUFFICIENT_DISK_SPACE'}
   if($text -match '(?i)network|resolve host|connection|download.*failed'){throw 'NETWORK_DOWNLOAD_FAILED'}
   throw 'COMMAND_FAILED'
- };return $text
+ };return (Get-Content $stdout -Raw -ErrorAction SilentlyContinue)
 }
 function Read-Inventory {
  if($fixture){return $fixture.inventory}
@@ -86,7 +88,7 @@ try {
  if($NodeRole -ne 'ptop_lab'){throw 'NODE_ROLE_MISMATCH'}
  if($FixturePath){$fixture=Get-Content -LiteralPath $FixturePath -Raw | ConvertFrom-Json;if($fixture.synthetic -ne $true){throw 'SYNTHETIC_FIXTURE_REQUIRED'}}
  if($fixture -and $Operation -in @('Apply','Repair')){throw 'FIXTURE_MUTATION_FORBIDDEN'}
- if(-not $fixture -and ($Operation -in @('Apply','Repair','Verify'))){
+ if(-not $fixture){
   if($repo -eq 'C:\SASAL'){
    $state=Get-Content (Join-Path $env:LOCALAPPDATA 'SysAdminSuite/autologon-short-runtime.json') -Raw|ConvertFrom-Json
    $sealed=@($state.tracked_file_hashes|ForEach-Object {$_.path.Replace('\','/')})
@@ -96,12 +98,19 @@ try {
   # Reuse AndroidProvider M2 source admission; never weaken canonical/sealed currentness.
   $admission='import sys,json;sys.path.insert(0,sys.argv[1]);from harness.api.android_provider_cli import admit_source;print(json.dumps(admit_source(sys.argv[2] or None)))'
   $result.source=Invoke-Bounded $python @('-c',$admission,$repo,$ExpectedCommit) 120
+  $sourceState=$result.source|ConvertFrom-Json
+  if($sourceState.source_updated){
+   if($SourceRestartCount -ge 1){throw 'SOURCE_RESTART_LIMIT_REACHED'}
+   $restart=@{};foreach($key in $PSBoundParameters.Keys){$restart[$key]=$PSBoundParameters[$key]};$restart.SourceRestartCount=1
+   & $PSCommandPath @restart
+   exit $LASTEXITCODE
+  }
  }
  $inventory=Read-Inventory;$result.inventory=$inventory
  if($fixture -and $fixture.PSObject.Properties['reason_codes']){$result.reason_codes+=@($fixture.reason_codes)}
  $missing=@($profile.required_packages|Where-Object {$_ -notin @($inventory.packages)})
  foreach($package in $profile.native_packages){if($package -notin @($inventory.packages)){$missing+=@($package)}}
- if(-not @($inventory.packages|Where-Object {$_.StartsWith('system-images/') -and $_ -match 'x86_64$'}).Count){$missing+=@($profile.system_image_prefix)}
+ if(-not @($inventory.packages|Where-Object {$_ -in @($profile.accepted_system_images)}).Count){$missing+=@($profile.system_image_prefix)}
  $result.actions=@($missing|ForEach-Object {@{action='INSTALL_MISSING';package=$_}})
  if(-not $inventory.java -or -not $inventory.javac){$result.reason_codes+=@('MISSING_STANDALONE_JDK')}
  if(-not $inventory.android_cli){$result.reason_codes+=@('MISSING_ANDROID_CLI')}
@@ -113,6 +122,13 @@ try {
  if($Operation -eq 'Verify' -and $inventory.free_gib -lt $profile.minimum_free_gib){$result.reason_codes+=@('INSUFFICIENT_DISK_SPACE')}
  if($Operation -in @('Apply','Repair')){
   if(-not $MutationAuthorized){throw 'MUTATION_AUTHORIZATION_REQUIRED'}
+  # Caller-supplied role is routing, not approved equipment-profile authority.
+  if(-not $HostProfile){$HostProfile=Join-Path $env:LOCALAPPDATA 'SysAdminSuite/android-toolchain/host-profile.json'}
+  if(-not (Test-Path -LiteralPath $HostProfile)){throw 'PTOP_PROFILE_AUTHORITY_REQUIRED'}
+  $authority=Get-Content -LiteralPath $HostProfile -Raw|ConvertFrom-Json
+  $hostEquipment=Get-CimInstance Win32_ComputerSystem
+  if($authority.schema_version -ne 'sas-android-toolchain-host-authority/v1' -or $authority.status -ne 'RESOLVED' -or $authority.node_role -ne 'ptop_lab' -or -not $authority.evidence_ref -or $Operation -notin @($authority.allowed_operations)){throw 'PTOP_PROFILE_AUTHORITY_INVALID'}
+  if($authority.manufacturer -ne $hostEquipment.Manufacturer -or $authority.model -ne $hostEquipment.Model){throw 'PTOP_EQUIPMENT_PROFILE_MISMATCH'}
   if($inventory.free_gib -lt $profile.minimum_free_gib){throw 'INSUFFICIENT_DISK_SPACE'}
   # WinGet exact vendor identities are acquisition only; no license acceptance flags.
   # Existing executables win over package-manager metadata and are never reinstalled.
@@ -156,7 +172,7 @@ try {
   [Environment]::SetEnvironmentVariable('PATH',($entries -join ';'),'User');$env:PATH=((Join-Path $jdkRoot 'bin')+';'+$env:PATH+';'+($entries -join ';'))
   $result.inventory=Read-Inventory
   if(@(($profile.required_packages+$profile.native_packages)|Where-Object {$_ -notin @($result.inventory.packages)}).Count){throw 'INSTALL_READBACK_INCOMPLETE'}
-  if(-not @($result.inventory.packages|Where-Object {$_.StartsWith('system-images/') -and $_ -match 'x86_64$'}).Count){throw 'SYSTEM_IMAGE_READBACK_INCOMPLETE'}
+  if(-not @($result.inventory.packages|Where-Object {$_ -in @($profile.accepted_system_images)}).Count){throw 'SYSTEM_IMAGE_READBACK_INCOMPLETE'}
   $result.proof+=@('WINDOWS_INSTALLED')
   # Acquisition is separate from independent SAS qualification; own hash is never approval.
   $staging=Join-Path $OutputRoot 'sas-platform-tools-staging';New-Item -ItemType Directory -Force $staging|Out-Null
@@ -177,7 +193,7 @@ try {
   Invoke-Bounded $env:ComSpec @('/d','/c',$inventory.sdkmanager,'--list_installed')|Out-Null
   Invoke-Bounded (Join-Path $SdkRoot 'cmake/3.22.1/bin/cmake.exe') @('--version')|Out-Null
   Invoke-Bounded (Join-Path $SdkRoot 'ndk/28.2.13676358/toolchains/llvm/prebuilt/windows-x86_64/bin/clang.exe') @('--version')|Out-Null
-  if($LaunchStudio){$p=Start-Process $inventory.studio -PassThru -WindowStyle Hidden;Start-Sleep -Seconds 8;$studioProcesses=@(Get-Process studio64 -ErrorAction SilentlyContinue|Where-Object {$_.Path -eq $inventory.studio});if(-not $studioProcesses.Count){throw 'STUDIO_LAUNCH_FAILED'};$result.proof+=@('GUI_PROCESS_OBSERVED');if(@($studioProcesses|Where-Object {$_.MainWindowHandle -ne 0 -and $_.MainWindowTitle}).Count){$result.proof+=@('GUI_WINDOW_OBSERVED')}}
+  if($LaunchStudio){$studioProcesses=@(Get-Process studio64 -ErrorAction SilentlyContinue|Where-Object {$_.Path -eq $inventory.studio -and $_.MainWindowHandle -ne 0});if($studioProcesses.Count){$result.actions+=@(@{action='REUSE_EXISTING_STUDIO'})}else{$p=Start-Process $inventory.studio -PassThru -WindowStyle Hidden;Start-Sleep -Seconds 8};$studioProcesses=@(Get-Process studio64 -ErrorAction SilentlyContinue|Where-Object {$_.Path -eq $inventory.studio});if(-not $studioProcesses.Count){throw 'STUDIO_LAUNCH_FAILED'};$result.proof+=@('GUI_PROCESS_OBSERVED');if(@($studioProcesses|Where-Object {$_.MainWindowHandle -ne 0 -and $_.MainWindowTitle}).Count){$result.proof+=@('GUI_WINDOW_OBSERVED')}}
   if($BuildSmoke){
    $project=Join-Path $OutputRoot ('kotlin-smoke-'+[guid]::NewGuid().ToString('N'))
    Invoke-Bounded $inventory.android_cli @("--sdk=$SdkRoot",'create','--name','SasSmoke','--namespace','org.example.sassmoke','--application-id','org.example.sassmoke','--output',$project,'empty-activity')|Out-Null

@@ -53,6 +53,13 @@ Apply requires `-MutationAuthorized`; Verify can request `-LaunchStudio`,
 `-BuildSmoke`, and `-BootEmulator`. `-JavaHome` selects an independently installed
 JDK explicitly. User environment changes are backed up before additive updates;
 machine PATH may still take precedence in a new terminal and must be measured.
+Apply and Repair also require a private resolved host authority at
+`%LOCALAPPDATA%/SysAdminSuite/android-toolchain/host-profile.json` (or `-HostProfile`).
+It binds the approved `ptop_lab` role, manufacturer/model, allowed operation and
+operator evidence reference. A caller-selected role alone never admits mutation.
+Every non-fixture operation uses canonical source admission; a freshness update
+restarts the engine before further execution. Existing Studio sessions are reused
+to preserve user work rather than opening duplicate instances.
 
 `-TcpPipeFallback` scopes a JDK Unix-domain temporary-path override to the smoke
 build, selecting the JDK's built-in TCP pipe fallback when Windows Unix sockets
