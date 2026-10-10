@@ -56,6 +56,8 @@ def test_prerequisites_and_synthetic_observations():
         assert code == (2 if expected["reasons"] else 0), (fixture.name, receipt)
         assert receipt["result"] == ("BLOCK" if expected["reasons"] else "SUCCESS")
         assert set(receipt["proof"]) <= {"FIXTURE_ONLY"}, receipt
+        if receipt["result"] == "SUCCESS":
+            assert receipt["proof"] == ["FIXTURE_ONLY"], receipt
         assert receipt["checks"] == [] and receipt["source"] is None
         try:
             import jsonschema

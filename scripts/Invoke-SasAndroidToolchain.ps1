@@ -62,7 +62,8 @@ function Invoke-Bounded([string]$Exe,[string[]]$Arguments,[int]$Seconds=$Timeout
 }
 function Read-Inventory {
  if($fixture){return $fixture.inventory}
- if(-not $script:SdkRoot){$script:SdkRoot=if($env:ANDROID_HOME){$env:ANDROID_HOME}else{Join-Path $env:LOCALAPPDATA 'Android/Sdk'}}
+ if(-not $script:SdkRoot){$script:SdkRoot=if($env:ANDROID_HOME){$env:ANDROID_HOME}elseif($env:ANDROID_SDK_ROOT){$env:ANDROID_SDK_ROOT}else{Join-Path $env:LOCALAPPDATA 'Android/Sdk'}}
+ if($env:ANDROID_SDK_ROOT -and $env:ANDROID_SDK_ROOT.TrimEnd('\','/').Replace('\','/') -ne $script:SdkRoot.TrimEnd('\','/').Replace('\','/')){throw 'SDK_ROOT_MISMATCH'}
  $jdkCandidates=@($JavaHome,$env:JAVA_HOME,'C:/Program Files/Java/jdk-21')
  $java=Find-Tool java.exe @($jdkCandidates|Where-Object {$_}|ForEach-Object {Join-Path $_ 'bin/java.exe'})
  $javac=Find-Tool javac.exe @($jdkCandidates|Where-Object {$_}|ForEach-Object {Join-Path $_ 'bin/javac.exe'})
@@ -168,11 +169,15 @@ try {
   $jdkRoot=Split-Path (Split-Path $inventory.javac -Parent) -Parent
   $before=@{ANDROID_HOME=[Environment]::GetEnvironmentVariable('ANDROID_HOME','User');JAVA_HOME=[Environment]::GetEnvironmentVariable('JAVA_HOME','User');PATH=[Environment]::GetEnvironmentVariable('PATH','User')}
   $before|ConvertTo-Json|Set-Content (Join-Path $OutputRoot ('user-environment-before-'+[guid]::NewGuid().ToString('N')+'.json')) -Encoding UTF8
+  if($before.ANDROID_HOME -and $before.ANDROID_HOME.TrimEnd('\','/') -ne $SdkRoot.TrimEnd('\','/')){throw 'ANDROID_HOME_MISMATCH'}
+  if($before.JAVA_HOME -and $before.JAVA_HOME.TrimEnd('\','/') -ne $jdkRoot.TrimEnd('\','/')){throw 'JAVA_HOME_MISMATCH'}
+  try{
   [Environment]::SetEnvironmentVariable('ANDROID_HOME',$SdkRoot,'User');$env:ANDROID_HOME=$SdkRoot
   [Environment]::SetEnvironmentVariable('JAVA_HOME',$jdkRoot,'User');$env:JAVA_HOME=$jdkRoot
   $entries=@((Join-Path $jdkRoot 'bin'))+@($before.PATH -split ';'|Where-Object {$_ -and $_ -ne (Join-Path $jdkRoot 'bin')})
   foreach($entry in @((Join-Path $jdkRoot 'bin'),(Join-Path $SdkRoot 'cmdline-tools/latest/bin'),(Join-Path $SdkRoot 'platform-tools'),(Split-Path $inventory.android_cli -Parent))){if($entry -notin $entries){$entries+=@($entry)}}
   [Environment]::SetEnvironmentVariable('PATH',($entries -join ';'),'User');$env:PATH=((Join-Path $jdkRoot 'bin')+';'+$env:PATH+';'+($entries -join ';'))
+  }catch{foreach($name in @('ANDROID_HOME','JAVA_HOME','PATH')){[Environment]::SetEnvironmentVariable($name,$before[$name],'User')};throw}
   $result.inventory=Read-Inventory
   if(@(($profile.required_packages+$profile.native_packages)|Where-Object {$_ -notin @($result.inventory.packages)}).Count){throw 'INSTALL_READBACK_INCOMPLETE'}
   if(-not @($result.inventory.packages|Where-Object {$_ -in @($profile.accepted_system_images)}).Count){throw 'SYSTEM_IMAGE_READBACK_INCOMPLETE'}
@@ -222,17 +227,19 @@ try {
    foreach($port in @(5580,5581,5589)){if(Get-NetTCPConnection -LocalPort $port -State Listen -ErrorAction SilentlyContinue){throw 'EMULATOR_PORT_IN_USE'}}
    $priorAdbPort=$env:ANDROID_ADB_SERVER_PORT;$priorMdns=$env:ADB_MDNS_AUTO_CONNECT;$priorUsb=$env:ADB_USB;$priorMdnsEnabled=$env:ADB_MDNS
    $env:ANDROID_ADB_SERVER_PORT='5589';$env:ADB_MDNS_AUTO_CONNECT='0';$env:ADB_USB='0';$env:ADB_MDNS='0'
-   $emu=$null
+   $emu=$null;$adbServer=$null
    try{
     # ADB's tcp:PORT syntax binds loopback; hostname syntax is unsupported in 37.0.1.
-    Invoke-Bounded $adb @('-L','tcp:5589','--one-device','emulator-5580','start-server') 30|Out-Null
+    $adbServer=Start-Process $adb -ArgumentList @('-L','tcp:5589','--one-device','emulator-5580','nodaemon','server') -WindowStyle Hidden -PassThru -RedirectStandardOutput (Join-Path $OutputRoot 'owned-adb.stdout.log') -RedirectStandardError (Join-Path $OutputRoot 'owned-adb.stderr.log')
+    Start-Sleep -Seconds 2
+    if($adbServer.HasExited){throw 'OWNED_ADB_START_FAILED'}
     $listener=@(Get-NetTCPConnection -LocalPort 5589 -State Listen -ErrorAction SilentlyContinue)
-    if(-not $listener.Count -or @($listener|Where-Object {$_.LocalAddress -notin @('127.0.0.1','::1')}).Count){throw 'ADB_LOOPBACK_BIND_UNPROVEN'}
+    if(-not $listener.Count -or @($listener|Where-Object {$_.OwningProcess -ne $adbServer.Id -or $_.LocalAddress -notin @('127.0.0.1','::1')}).Count){throw 'ADB_LOOPBACK_BIND_UNPROVEN'}
     $emu=Start-Process $emulator -ArgumentList @('-avd',$AvdName,'-no-window','-no-audio','-no-snapshot-save','-gpu','swiftshader','-cores','4','-port','5580') -WindowStyle Hidden -PassThru
     $deadline=[datetime]::UtcNow.AddSeconds(300);$booted=$false
     while([datetime]::UtcNow -lt $deadline -and -not $emu.HasExited){try{$boot=Invoke-Bounded $adb @('-P','5589','-s','emulator-5580','shell','getprop','sys.boot_completed') 15;if($boot.Trim() -eq '1'){$booted=$true;break}}catch{if($_.Exception.Message -ne 'COMMAND_FAILED'){throw}};Start-Sleep -Seconds 5}
     if(-not $booted){throw 'EMULATOR_BOOT_FAILED'};$result.proof+=@('EMULATOR_BOOT_VERIFIED')
-   }finally{if($emu -and -not $emu.HasExited){try{Invoke-Bounded $adb @('-P','5589','-s','emulator-5580','emu','kill') 15|Out-Null}catch{$result.reason_codes+=@('EMULATOR_CLEANUP_COMMAND_FAILED')};if(-not $emu.WaitForExit(15000)){& "$env:SystemRoot/System32/taskkill.exe" /PID $emu.Id /T /F|Out-Null}};try{Invoke-Bounded $adb @('-P','5589','kill-server') 30|Out-Null}catch{$result.reason_codes+=@('ADB_CLEANUP_FAILED')}finally{$env:ANDROID_ADB_SERVER_PORT=$priorAdbPort;$env:ADB_MDNS_AUTO_CONNECT=$priorMdns;$env:ADB_USB=$priorUsb;$env:ADB_MDNS=$priorMdnsEnabled};if(Get-NetTCPConnection -State Listen -LocalPort 5580,5581,5589 -ErrorAction SilentlyContinue){$result.reason_codes+=@('OWNED_PORT_CLEANUP_INCOMPLETE')}}
+   }finally{if($emu -and -not $emu.HasExited){try{Invoke-Bounded $adb @('-P','5589','-s','emulator-5580','emu','kill') 15|Out-Null}catch{$result.reason_codes+=@('EMULATOR_CLEANUP_COMMAND_FAILED')};if(-not $emu.WaitForExit(15000)){& "$env:SystemRoot/System32/taskkill.exe" /PID $emu.Id /T /F|Out-Null}};try{if($adbServer -and -not $adbServer.HasExited){Stop-Process -Id $adbServer.Id -ErrorAction Stop;$adbServer.WaitForExit(15000)|Out-Null}}catch{$result.reason_codes+=@('ADB_CLEANUP_FAILED')}finally{$env:ANDROID_ADB_SERVER_PORT=$priorAdbPort;$env:ADB_MDNS_AUTO_CONNECT=$priorMdns;$env:ADB_USB=$priorUsb;$env:ADB_MDNS=$priorMdnsEnabled};if(Get-NetTCPConnection -State Listen -LocalPort 5580,5581,5589 -ErrorAction SilentlyContinue){$result.reason_codes+=@('OWNED_PORT_CLEANUP_INCOMPLETE')}}
   }
   foreach($op in @('status','doctor','verify')){try{Invoke-Bounded $python @((Join-Path $repo 'harness/api/android_provider_cli.py'),$op,'--role','ptop_lab') 120|Out-Null}catch{$result.reason_codes+=@('SAS_PROVIDER_NOT_READY')}}
  }
