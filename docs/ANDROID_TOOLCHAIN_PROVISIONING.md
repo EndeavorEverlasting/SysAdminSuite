@@ -27,8 +27,9 @@ requires a successful compatible Gradle Wrapper build and an actual APK;
 emulator proof requires bounded boot observation and exact emulator identity.
 Fixture execution and CI cannot establish those PTop runtime claims.
 
-The initial engine fails closed when Studio, the Android CLI or an independent
-JDK is missing; it does not yet acquire those prerequisite applications itself.
+Apply acquires missing Studio, Android CLI and independent JDK through exact
+vendor WinGet identities, without license-acceptance switches. Existing executable
+paths take precedence over package-manager metadata and are preserved.
 The synthetic suite directly exercises prerequisite, role, SDK coherence, disk,
 and fixture mutation gates. Other failure fixtures exercise propagation of
 supplied synthetic observations, not actual network, installer, license prompt,
@@ -46,3 +47,21 @@ Run `python Tests/survey/test_android_toolchain_contracts.py` for the synthetic
 contract gate and `python harness/validators/validate-harness-registries.py` for
 registration integrity. Actual installation and runtime proof require the
 authorized Windows host and private receipts from the engine.
+
+The launcher resolves the canonical checkout through the repository path authority.
+Apply requires `-MutationAuthorized`; Verify can request `-LaunchStudio`,
+`-BuildSmoke`, and `-BootEmulator`. `-JavaHome` selects an independently installed
+JDK explicitly. User environment changes are backed up before additive updates;
+machine PATH may still take precedence in a new terminal and must be measured.
+
+`-TcpPipeFallback` scopes a JDK Unix-domain temporary-path override to the smoke
+build, selecting the JDK's built-in TCP pipe fallback when Windows Unix sockets
+fail. It never changes global JVM, firewall, or security configuration. The receipt
+records that compatibility workaround. Studio process observation alone is
+`GUI_PROCESS_OBSERVED`, not complete visual interaction proof.
+
+Emulator verification uses only the selected AVD, a separate loopback ADB server,
+disabled USB and mDNS discovery, and exact emulator cleanup. SDK ADB in this lane
+is emulator development proof only, never SAS qualification or physical-device
+authority. SAS preparation remains blocked until independent qualification
+authority supplies the approved archive digest.

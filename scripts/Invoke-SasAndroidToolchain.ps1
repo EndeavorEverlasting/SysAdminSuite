@@ -6,6 +6,7 @@ param(
  [string]$OutputRoot, [string]$FixturePath, [switch]$MutationAuthorized,
  [switch]$LicenseAccepted, [switch]$LaunchStudio, [switch]$BuildSmoke,
  [switch]$BootEmulator, [string]$AvdName, [string]$ExpectedCommit,
+ [switch]$TcpPipeFallback,
  [int]$TimeoutSeconds=1800
 )
 $ErrorActionPreference='Stop'
@@ -28,7 +29,13 @@ function Invoke-Bounded([string]$Exe,[string[]]$Arguments,[int]$Seconds=$Timeout
  try {
   # Provider admission uses Windows PowerShell; pwsh's inherited module path is incompatible.
   $env:PSModulePath=($env:ProgramFiles+'\WindowsPowerShell\Modules;'+$env:SystemRoot+'\System32\WindowsPowerShell\v1.0\Modules')
-  $process=Start-Process -FilePath $Exe -ArgumentList ($quoted -join ' ') -PassThru -WindowStyle Hidden -RedirectStandardOutput $stdout -RedirectStandardError $stderr
+  $commandLine=$quoted -join ' '
+  if($Exe -eq $env:ComSpec){
+   if($Arguments[0] -ne '/d' -or $Arguments[1] -ne '/c'){throw 'UNSAFE_CMD_INVOCATION'}
+   foreach($arg in $Arguments[2..($Arguments.Count-1)]){if($arg -match '[&|<>^%\r\n]'){throw 'UNSAFE_CMD_ARGUMENT'}}
+   $commandLine='/d /s /c "'+(($quoted[2..($quoted.Count-1)]) -join ' ')+'"'
+  }
+  $process=Start-Process -FilePath $Exe -ArgumentList $commandLine -PassThru -WindowStyle Hidden -RedirectStandardOutput $stdout -RedirectStandardError $stderr
  } finally {$env:PSModulePath=$priorModulePath}
  if(-not $process.WaitForExit($Seconds*1000)){Stop-Process -Id $process.Id -Force -ErrorAction SilentlyContinue;throw 'SUBPROCESS_TIMEOUT'}
  $process.Refresh();$text=(Get-Content $stdout -Raw -ErrorAction SilentlyContinue)+(Get-Content $stderr -Raw -ErrorAction SilentlyContinue)
@@ -82,6 +89,7 @@ try {
  if(-not $inventory.studio){$result.reason_codes+=@('MISSING_ANDROID_STUDIO')}
  if($inventory.android_home -and $inventory.android_home.TrimEnd('\','/') -ne $inventory.sdk_root.TrimEnd('\','/')){$result.reason_codes+=@('SDK_ROOT_MISMATCH')}
  if($Operation -eq 'Verify' -and $missing.Count){$result.reason_codes+=@('SDK_PACKAGES_MISSING')}
+ if($Operation -eq 'Verify' -and -not $inventory.sdkmanager){$result.reason_codes+=@('MISSING_SDK_COMMANDLINE_TOOLS')}
  if($Operation -eq 'Verify' -and $inventory.free_gib -lt $profile.minimum_free_gib){$result.reason_codes+=@('INSUFFICIENT_DISK_SPACE')}
  if($Operation -in @('Apply','Repair')){
   if(-not $MutationAuthorized){throw 'MUTATION_AUTHORIZATION_REQUIRED'}
@@ -123,11 +131,12 @@ try {
   $before|ConvertTo-Json|Set-Content (Join-Path $OutputRoot ('user-environment-before-'+[guid]::NewGuid().ToString('N')+'.json')) -Encoding UTF8
   [Environment]::SetEnvironmentVariable('ANDROID_HOME',$SdkRoot,'User');$env:ANDROID_HOME=$SdkRoot
   [Environment]::SetEnvironmentVariable('JAVA_HOME',$jdkRoot,'User');$env:JAVA_HOME=$jdkRoot
-  $entries=@($before.PATH -split ';'|Where-Object {$_})
+  $entries=@((Join-Path $jdkRoot 'bin'))+@($before.PATH -split ';'|Where-Object {$_ -and $_ -ne (Join-Path $jdkRoot 'bin')})
   foreach($entry in @((Join-Path $jdkRoot 'bin'),(Join-Path $SdkRoot 'cmdline-tools/latest/bin'),(Join-Path $SdkRoot 'platform-tools'),(Split-Path $inventory.android_cli -Parent))){if($entry -notin $entries){$entries+=@($entry)}}
-  [Environment]::SetEnvironmentVariable('PATH',($entries -join ';'),'User');$env:PATH=($env:PATH+';'+($entries -join ';'))
+  [Environment]::SetEnvironmentVariable('PATH',($entries -join ';'),'User');$env:PATH=((Join-Path $jdkRoot 'bin')+';'+$env:PATH+';'+($entries -join ';'))
   $result.inventory=Read-Inventory
   if(@(($profile.required_packages+$profile.native_packages)|Where-Object {$_ -notin @($result.inventory.packages)}).Count){throw 'INSTALL_READBACK_INCOMPLETE'}
+  if(-not @($result.inventory.packages|Where-Object {$_.StartsWith('system-images/') -and $_ -match 'x86_64$'}).Count){throw 'SYSTEM_IMAGE_READBACK_INCOMPLETE'}
   $result.proof+=@('WINDOWS_INSTALLED')
   # Acquisition is separate from independent SAS qualification; own hash is never approval.
   $staging=Join-Path $OutputRoot 'sas-platform-tools-staging';New-Item -ItemType Directory -Force $staging|Out-Null
@@ -144,29 +153,47 @@ try {
   Invoke-Bounded $inventory.java @('-version')|Out-Null;Invoke-Bounded $inventory.javac @('-version')|Out-Null
   Invoke-Bounded $inventory.android_cli @('-V')|Out-Null;Invoke-Bounded $inventory.android_cli @("--sdk=$SdkRoot",'info')|Out-Null
   Invoke-Bounded $inventory.android_cli @("--sdk=$SdkRoot",'sdk','list')|Out-Null;$result.proof+=@('CLI_VERIFIED')
+  $env:JAVA_HOME=Split-Path (Split-Path $inventory.javac -Parent) -Parent
+  Invoke-Bounded $env:ComSpec @('/d','/c',$inventory.sdkmanager,'--list_installed')|Out-Null
+  Invoke-Bounded (Join-Path $SdkRoot 'cmake/3.22.1/bin/cmake.exe') @('--version')|Out-Null
+  Invoke-Bounded (Join-Path $SdkRoot 'ndk/28.2.13676358/toolchains/llvm/prebuilt/windows-x86_64/bin/clang.exe') @('--version')|Out-Null
   if($LaunchStudio){$p=Start-Process $inventory.studio -PassThru;Start-Sleep -Seconds 8;if($p.HasExited -and -not (Get-Process studio64 -ErrorAction SilentlyContinue)){throw 'STUDIO_LAUNCH_FAILED'};$result.proof+=@('GUI_PROCESS_OBSERVED')}
   if($BuildSmoke){
    $project=Join-Path $OutputRoot ('kotlin-smoke-'+[guid]::NewGuid().ToString('N'))
    Invoke-Bounded $inventory.android_cli @("--sdk=$SdkRoot",'create','--name','SasSmoke','--namespace','org.example.sassmoke','--application-id','org.example.sassmoke','--output',$project,'empty-activity')|Out-Null
    $wrapper=Join-Path $project 'gradlew.bat';if(-not (Test-Path $wrapper)){throw 'GRADLE_WRAPPER_MISSING'}
    $env:JAVA_HOME=Split-Path (Split-Path $inventory.javac -Parent) -Parent
-   Invoke-Bounded $env:ComSpec @('/d','/c',$wrapper,'-p',$project,'assembleDebug')|Out-Null
-   if(-not (Get-ChildItem $project -Recurse -Filter '*.apk')){throw 'BUILD_APK_MISSING'};$result.proof+=@('BUILD_VERIFIED')
+   if(-not (Get-ChildItem $project -Recurse -Filter '*.kt')){throw 'KOTLIN_SOURCE_MISSING'}
+   $previousJavaOptions=$env:JAVA_TOOL_OPTIONS
+   try {
+    if($TcpPipeFallback){
+     # JDK's documented Unix socket temp property forces its built-in TCP pipe fallback.
+     # Scoped to this build; no firewall, host security, or global JVM changes.
+     $noUnix=Join-Path $OutputRoot ('tcp-pipe-unavailable-'+[guid]::NewGuid().ToString('N'))
+     $env:JAVA_TOOL_OPTIONS=($previousJavaOptions+' -Djdk.net.unixdomain.tmpdir='+$noUnix).Trim()
+     $result.actions+=@(@{action='SCOPED_JDK_TCP_PIPE_FALLBACK'})
+    }
+    Invoke-Bounded $env:ComSpec @('/d','/c',$wrapper,'-p',$project,'--no-daemon','assembleDebug')|Out-Null
+   }finally{$env:JAVA_TOOL_OPTIONS=$previousJavaOptions}
+   if(-not (Get-ChildItem (Join-Path $project 'app/build/outputs/apk/debug') -Filter '*.apk' -ErrorAction SilentlyContinue)){throw 'BUILD_APK_MISSING'};$result.proof+=@('BUILD_VERIFIED')
   }
   if($BootEmulator){
    $emulator=Join-Path $SdkRoot 'emulator/emulator.exe';$adb=Join-Path $SdkRoot 'platform-tools/adb.exe'
-   $avds=Invoke-Bounded $emulator @('-list-avds');if(-not $AvdName){$AvdName=@($inventory.avds)[0]};if(-not $AvdName -or $avds -notmatch [regex]::Escape($AvdName)){throw 'AVD_REQUIRED'}
+   $avds=Invoke-Bounded $emulator @('-list-avds');if(-not $AvdName){$AvdName=@($inventory.avds)[0]};if(-not $AvdName -or $AvdName -notin @($avds -split '\r?\n'|ForEach-Object {$_.Trim()})){throw 'AVD_REQUIRED'}
    foreach($port in @(5580,5581,5589)){if(Get-NetTCPConnection -LocalPort $port -ErrorAction SilentlyContinue){throw 'EMULATOR_PORT_IN_USE'}}
-   $priorAdbPort=$env:ANDROID_ADB_SERVER_PORT;$priorMdns=$env:ADB_MDNS_AUTO_CONNECT
-   $env:ANDROID_ADB_SERVER_PORT='5589';$env:ADB_MDNS_AUTO_CONNECT='0'
+   $priorAdbPort=$env:ANDROID_ADB_SERVER_PORT;$priorMdns=$env:ADB_MDNS_AUTO_CONNECT;$priorUsb=$env:ADB_USB;$priorMdnsEnabled=$env:ADB_MDNS
+   $env:ANDROID_ADB_SERVER_PORT='5589';$env:ADB_MDNS_AUTO_CONNECT='0';$env:ADB_USB='0';$env:ADB_MDNS='0'
    $emu=$null
    try{
-    Invoke-Bounded $adb @('-L','tcp:127.0.0.1:5589','--one-device','emulator-5580','start-server') 30|Out-Null
-    $emu=Start-Process $emulator -ArgumentList @('-avd',$AvdName,'-no-snapshot-save','-port','5580') -WindowStyle Hidden -PassThru
+    # ADB's tcp:PORT syntax binds loopback; hostname syntax is unsupported in 37.0.1.
+    Invoke-Bounded $adb @('-L','tcp:5589','--one-device','emulator-5580','start-server') 30|Out-Null
+    $listener=@(Get-NetTCPConnection -LocalPort 5589 -State Listen -ErrorAction SilentlyContinue)
+    if(-not $listener.Count -or @($listener|Where-Object {$_.LocalAddress -notin @('127.0.0.1','::1')}).Count){throw 'ADB_LOOPBACK_BIND_UNPROVEN'}
+    $emu=Start-Process $emulator -ArgumentList @('-avd',$AvdName,'-no-window','-no-audio','-no-snapshot-save','-gpu','swiftshader','-cores','4','-port','5580') -WindowStyle Hidden -PassThru
     $deadline=[datetime]::UtcNow.AddSeconds(300);$booted=$false
     while([datetime]::UtcNow -lt $deadline -and -not $emu.HasExited){try{$boot=Invoke-Bounded $adb @('-P','5589','-s','emulator-5580','shell','getprop','sys.boot_completed') 15;if($boot.Trim() -eq '1'){$booted=$true;break}}catch{if($_.Exception.Message -ne 'COMMAND_FAILED'){throw}};Start-Sleep -Seconds 5}
     if(-not $booted){throw 'EMULATOR_BOOT_FAILED'};$result.proof+=@('EMULATOR_BOOT_VERIFIED')
-   }finally{if($emu -and -not $emu.HasExited){Stop-Process -Id $emu.Id -Force -ErrorAction SilentlyContinue};try{Invoke-Bounded $adb @('-P','5589','kill-server') 30|Out-Null}finally{$env:ANDROID_ADB_SERVER_PORT=$priorAdbPort;$env:ADB_MDNS_AUTO_CONNECT=$priorMdns}}
+   }finally{if($emu -and -not $emu.HasExited){try{Invoke-Bounded $adb @('-P','5589','-s','emulator-5580','emu','kill') 15|Out-Null}catch{$result.reason_codes+=@('EMULATOR_CLEANUP_COMMAND_FAILED')};if(-not $emu.WaitForExit(15000)){Stop-Process -Id $emu.Id -Force -ErrorAction SilentlyContinue}};try{Invoke-Bounded $adb @('-P','5589','kill-server') 30|Out-Null}catch{$result.reason_codes+=@('ADB_CLEANUP_FAILED')}finally{$env:ANDROID_ADB_SERVER_PORT=$priorAdbPort;$env:ADB_MDNS_AUTO_CONNECT=$priorMdns;$env:ADB_USB=$priorUsb;$env:ADB_MDNS=$priorMdnsEnabled};if(Get-NetTCPConnection -LocalPort 5580,5581,5589 -ErrorAction SilentlyContinue){$result.reason_codes+=@('OWNED_PORT_CLEANUP_INCOMPLETE')}}
   }
   foreach($op in @('status','doctor','verify')){try{Invoke-Bounded $python @((Join-Path $repo 'harness/api/android_provider_cli.py'),$op,'--role','ptop_lab') 120|Out-Null}catch{$result.reason_codes+=@('SAS_PROVIDER_NOT_READY')}}
  }

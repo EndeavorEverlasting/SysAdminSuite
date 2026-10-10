@@ -6,7 +6,7 @@
     "studio": "SYNTHETIC_STUDIO",
     "java": "SYNTHETIC_JAVA",
     "javac": "SYNTHETIC_JAVAC",
-    "sdkmanager": "SYNTHETIC_SDKMANAGER",
+    "sdkmanager": null,
     "packages": [
       "cmdline-tools/latest",
       "platform-tools",
@@ -27,15 +27,12 @@
       "Synthetic_AVD"
     ]
   },
-  "reason_codes": [
-    "SDK_STUDIO_MISMATCH"
-  ],
   "test_expectation": {
     "operation": "Verify",
     "node_role": "ptop_lab",
     "reasons": [
-      "SDK_STUDIO_MISMATCH"
+      "MISSING_SDK_COMMANDLINE_TOOLS"
     ],
-    "classification": "synthetic_observation_propagation"
+    "classification": "prerequisite_gate"
   }
 }
