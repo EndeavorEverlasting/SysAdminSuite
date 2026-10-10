@@ -61,6 +61,11 @@ try {
  if($FixturePath){$fixture=Get-Content -LiteralPath $FixturePath -Raw | ConvertFrom-Json;if($fixture.synthetic -ne $true){throw 'SYNTHETIC_FIXTURE_REQUIRED'}}
  if($fixture -and $Operation -in @('Apply','Repair')){throw 'FIXTURE_MUTATION_FORBIDDEN'}
  if(-not $fixture -and ($Operation -in @('Apply','Repair','Verify'))){
+  if($repo -eq 'C:\SASAL'){
+   $state=Get-Content (Join-Path $env:LOCALAPPDATA 'SysAdminSuite/autologon-short-runtime.json') -Raw|ConvertFrom-Json
+   $sealed=@($state.tracked_file_hashes|ForEach-Object {$_.path.Replace('\','/')})
+   foreach($required in @('scripts/Invoke-SasAndroidToolchain.ps1','Config/android-toolchain-profile.json','Manage-AndroidToolchain.cmd')){if($required -notin $sealed){throw 'ANDROID_TOOLCHAIN_CAPABILITY_NOT_SEALED'}}
+  }
   $python=Find-Tool python.exe @();if(-not $python){throw 'PYTHON_REQUIRED'}
   # Reuse AndroidProvider M2 source admission; never weaken canonical/sealed currentness.
   $admission='import sys,json;sys.path.insert(0,sys.argv[1]);from harness.api.android_provider_cli import admit_source;print(json.dumps(admit_source(sys.argv[2] or None)))'
@@ -69,7 +74,7 @@ try {
  $inventory=Read-Inventory;$result.inventory=$inventory
  if($fixture -and $fixture.PSObject.Properties['reason_codes']){$result.reason_codes+=@($fixture.reason_codes)}
  $missing=@($profile.required_packages|Where-Object {$_ -notin @($inventory.packages)})
- foreach($prefix in $profile.native_package_prefixes){if(-not @($inventory.packages|Where-Object {$_.StartsWith($prefix)}).Count){$missing+=@($prefix+'LATEST_SUPPORTED')}}
+ foreach($package in $profile.native_packages){if($package -notin @($inventory.packages)){$missing+=@($package)}}
  if(-not @($inventory.packages|Where-Object {$_.StartsWith('system-images/') -and $_ -match 'x86_64$'}).Count){$missing+=@($profile.system_image_prefix)}
  $result.actions=@($missing|ForEach-Object {@{action='INSTALL_MISSING';package=$_}})
  if(-not $inventory.java -or -not $inventory.javac){$result.reason_codes+=@('MISSING_STANDALONE_JDK')}
@@ -113,8 +118,23 @@ try {
    # No stdin yes pipeline, license hashes, or automatic acceptance flag.
    Invoke-Bounded $inventory.android_cli @("--sdk=$SdkRoot",'sdk','install',$package,'--no-downgrade') | Out-Null
   }
+  $jdkRoot=Split-Path (Split-Path $inventory.javac -Parent) -Parent
+  $before=@{ANDROID_HOME=[Environment]::GetEnvironmentVariable('ANDROID_HOME','User');JAVA_HOME=[Environment]::GetEnvironmentVariable('JAVA_HOME','User');PATH=[Environment]::GetEnvironmentVariable('PATH','User')}
+  $before|ConvertTo-Json|Set-Content (Join-Path $OutputRoot ('user-environment-before-'+[guid]::NewGuid().ToString('N')+'.json')) -Encoding UTF8
   [Environment]::SetEnvironmentVariable('ANDROID_HOME',$SdkRoot,'User');$env:ANDROID_HOME=$SdkRoot
-  $result.inventory=Read-Inventory;$result.proof+=@('WINDOWS_INSTALLED')
+  [Environment]::SetEnvironmentVariable('JAVA_HOME',$jdkRoot,'User');$env:JAVA_HOME=$jdkRoot
+  $entries=@($before.PATH -split ';'|Where-Object {$_})
+  foreach($entry in @((Join-Path $jdkRoot 'bin'),(Join-Path $SdkRoot 'cmdline-tools/latest/bin'),(Join-Path $SdkRoot 'platform-tools'),(Split-Path $inventory.android_cli -Parent))){if($entry -notin $entries){$entries+=@($entry)}}
+  [Environment]::SetEnvironmentVariable('PATH',($entries -join ';'),'User');$env:PATH=($env:PATH+';'+($entries -join ';'))
+  $result.inventory=Read-Inventory
+  if(@(($profile.required_packages+$profile.native_packages)|Where-Object {$_ -notin @($result.inventory.packages)}).Count){throw 'INSTALL_READBACK_INCOMPLETE'}
+  $result.proof+=@('WINDOWS_INSTALLED')
+  # Acquisition is separate from independent SAS qualification; own hash is never approval.
+  $staging=Join-Path $OutputRoot 'sas-platform-tools-staging';New-Item -ItemType Directory -Force $staging|Out-Null
+  $map=Join-Path $staging 'fetch-map.csv'
+  @([pscustomobject]@{Name='Android Platform Tools';Url='https://dl.google.com/android/repository/platform-tools-latest-windows.zip';FileName='platform-tools-windows.zip';Type='zip';Version='latest';SilentArgs='';AllowDomains='dl.google.com'})|Export-Csv -NoTypeInformation $map
+  if(-not (Test-Path (Join-Path $staging 'installers/platform-tools-windows.zip'))){Invoke-Bounded 'powershell.exe' @('-NoProfile','-File',(Join-Path $repo 'Config/Fetch-Installers.ps1'),'-RepoRoot',$staging,'-FetchMap',$map)|Out-Null}
+  $result.reason_codes+=@('QUALIFICATION_AUTHORITY_REQUIRED')
  }
  if($Operation -eq 'Verify' -and -not $fixture){
   if($result.reason_codes.Count){throw $result.reason_codes[0]}
@@ -133,11 +153,15 @@ try {
   if($BootEmulator){
    $emulator=Join-Path $SdkRoot 'emulator/emulator.exe';$adb=Join-Path $SdkRoot 'platform-tools/adb.exe'
    $avds=Invoke-Bounded $emulator @('-list-avds');if(-not $AvdName){$AvdName=@($inventory.avds)[0]};if(-not $AvdName -or $avds -notmatch [regex]::Escape($AvdName)){throw 'AVD_REQUIRED'}
+   foreach($port in @(5580,5581,5589)){if(Get-NetTCPConnection -LocalPort $port -ErrorAction SilentlyContinue){throw 'EMULATOR_PORT_IN_USE'}}
+   $priorAdbPort=$env:ANDROID_ADB_SERVER_PORT;$priorMdns=$env:ADB_MDNS_AUTO_CONNECT
+   $env:ANDROID_ADB_SERVER_PORT='5589';$env:ADB_MDNS_AUTO_CONNECT='0'
+   Invoke-Bounded $adb @('-P','5589','--one-device','emulator-5580','start-server') 30|Out-Null
    $emu=Start-Process $emulator -ArgumentList @('-avd',$AvdName,'-no-snapshot-save','-port','5580') -WindowStyle Hidden -PassThru
    try{$deadline=[datetime]::UtcNow.AddSeconds(300);$booted=$false
-    while([datetime]::UtcNow -lt $deadline -and -not $emu.HasExited){try{$boot=Invoke-Bounded $adb @('-s','emulator-5580','shell','getprop','sys.boot_completed') 15;if($boot.Trim() -eq '1'){$booted=$true;break}}catch{if($_.Exception.Message -ne 'COMMAND_FAILED'){throw}};Start-Sleep -Seconds 5}
+    while([datetime]::UtcNow -lt $deadline -and -not $emu.HasExited){try{$boot=Invoke-Bounded $adb @('-P','5589','-s','emulator-5580','shell','getprop','sys.boot_completed') 15;if($boot.Trim() -eq '1'){$booted=$true;break}}catch{if($_.Exception.Message -ne 'COMMAND_FAILED'){throw}};Start-Sleep -Seconds 5}
     if(-not $booted){throw 'EMULATOR_BOOT_FAILED'};$result.proof+=@('EMULATOR_BOOT_VERIFIED')
-   }finally{if(-not $emu.HasExited){Stop-Process -Id $emu.Id -Force -ErrorAction SilentlyContinue}}
+   }finally{if(-not $emu.HasExited){Stop-Process -Id $emu.Id -Force -ErrorAction SilentlyContinue};try{Invoke-Bounded $adb @('-P','5589','kill-server') 30|Out-Null}finally{$env:ANDROID_ADB_SERVER_PORT=$priorAdbPort;$env:ADB_MDNS_AUTO_CONNECT=$priorMdns}}
   }
   foreach($op in @('status','doctor','verify')){try{Invoke-Bounded $python @((Join-Path $repo 'harness/api/android_provider_cli.py'),$op,'--role','ptop_lab') 120|Out-Null}catch{$result.reason_codes+=@('SAS_PROVIDER_NOT_READY')}}
  }
