@@ -63,9 +63,23 @@ function Read-Inventory {
  $studio=Find-Tool studio64.exe @('C:/Program Files/Android/Android Studio/bin/studio64.exe',(Join-Path $env:LOCALAPPDATA 'Programs/Android Studio/bin/studio64.exe'))
  $cli=Find-Tool android.exe @((Join-Path $env:LOCALAPPDATA 'Microsoft/WinGet/Links/android.exe'))
  $sdkmanager=Find-Tool sdkmanager.bat @((Join-Path $SdkRoot 'cmdline-tools/latest/bin/sdkmanager.bat'))
+ $studioSdk=$null
+ if($studio){
+  $studioRoot=Split-Path (Split-Path $studio -Parent) -Parent
+  $productPath=Join-Path $studioRoot 'product-info.json'
+  if(Test-Path -LiteralPath $productPath){
+   $product=Get-Content -LiteralPath $productPath -Raw|ConvertFrom-Json
+   $sdkOption=Join-Path $env:APPDATA ('Google/'+$product.dataDirectoryName+'/options/android.sdk.path.xml')
+   if(Test-Path -LiteralPath $sdkOption){
+    [xml]$sdkXml=Get-Content -LiteralPath $sdkOption -Raw
+    $sdkNode=$sdkXml.SelectSingleNode('//option[@name="androidSdkAbsolutePath"]')
+    if($sdkNode){$studioSdk=$sdkNode.GetAttribute('value')}
+   }
+  }
+ }
  $packages=@();if(Test-Path $SdkRoot){$packages=@(Get-ChildItem $SdkRoot -Filter source.properties -Recurse -File -ErrorAction SilentlyContinue|ForEach-Object { $relative=$_.DirectoryName.Substring($SdkRoot.TrimEnd('\','/').Length).TrimStart('\','/');$relative.Replace('\','/')})}
  $drive=Get-PSDrive -PSProvider FileSystem | Where-Object {$SdkRoot.StartsWith($_.Root,[StringComparison]::OrdinalIgnoreCase)} | Select-Object -First 1
- return [pscustomobject]@{sdk_root=$SdkRoot;android_cli=$cli;studio=$studio;java=$java;javac=$javac;sdkmanager=$sdkmanager;packages=$packages;free_gib=if($drive){[math]::Round($drive.Free/1GB,2)}else{0};scope='CURRENT_USER';platform='windows-native';android_home=$env:ANDROID_HOME;avds=@(Get-ChildItem (Join-Path $env:USERPROFILE '.android/avd') -Filter '*.ini' -ErrorAction SilentlyContinue|ForEach-Object {$_.BaseName})}
+ return [pscustomobject]@{sdk_root=$SdkRoot;android_cli=$cli;studio=$studio;studio_sdk_root=$studioSdk;java=$java;javac=$javac;sdkmanager=$sdkmanager;packages=$packages;free_gib=if($drive){[math]::Round($drive.Free/1GB,2)}else{0};scope='CURRENT_USER';platform='windows-native';android_home=$env:ANDROID_HOME;avds=@(Get-ChildItem (Join-Path $env:USERPROFILE '.android/avd') -Filter '*.ini' -ErrorAction SilentlyContinue|ForEach-Object {$_.BaseName})}
 }
 try {
  New-Item -ItemType Directory -Path $OutputRoot -Force | Out-Null
@@ -93,6 +107,7 @@ try {
  if(-not $inventory.android_cli){$result.reason_codes+=@('MISSING_ANDROID_CLI')}
  if(-not $inventory.studio){$result.reason_codes+=@('MISSING_ANDROID_STUDIO')}
  if($inventory.android_home -and $inventory.android_home.TrimEnd('\','/') -ne $inventory.sdk_root.TrimEnd('\','/')){$result.reason_codes+=@('SDK_ROOT_MISMATCH')}
+ if($inventory.studio_sdk_root -and $inventory.studio_sdk_root.TrimEnd('\','/').Replace('\','/') -ne $inventory.sdk_root.TrimEnd('\','/').Replace('\','/')){$result.reason_codes+=@('SDK_STUDIO_DISAGREEMENT')}
  if($Operation -eq 'Verify' -and $missing.Count){$result.reason_codes+=@('SDK_PACKAGES_MISSING')}
  if($Operation -eq 'Verify' -and -not $inventory.sdkmanager){$result.reason_codes+=@('MISSING_SDK_COMMANDLINE_TOOLS')}
  if($Operation -eq 'Verify' -and $inventory.free_gib -lt $profile.minimum_free_gib){$result.reason_codes+=@('INSUFFICIENT_DISK_SPACE')}

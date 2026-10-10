@@ -25,17 +25,16 @@
     "android_home": "SYNTHETIC_SDK",
     "avds": [
       "Synthetic_AVD"
-    ]
+    ],
+    "studio_sdk_root": "SYNTHETIC_OTHER_SDK"
   },
-  "reason_codes": [
-    "SDK_STUDIO_MISMATCH"
-  ],
+  "reason_codes": [],
   "test_expectation": {
     "operation": "Verify",
     "node_role": "ptop_lab",
     "reasons": [
       "SDK_STUDIO_MISMATCH"
     ],
-    "classification": "synthetic_observation_propagation"
+    "classification": "prerequisite_gate"
   }
 }
