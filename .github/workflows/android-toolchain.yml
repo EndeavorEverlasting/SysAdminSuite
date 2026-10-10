@@ -4,7 +4,8 @@ on:
     paths:
       - 'scripts/Invoke-SasAndroidToolchain.ps1'
       - 'scripts/SasBoundedNative.psm1'
-      - 'Tests/Invoke-SasNativeProcess.Tests.ps1'
+      - 'Tests/PowerShell/native-process-528-contract.Tests.ps1'
+      - 'Tests/survey/test_native_process_boundary_contracts.py'
       - 'Manage-AndroidToolchain.cmd'
       - 'Config/android-toolchain-profile.json'
       - 'schemas/harness/android-toolchain-result.schema.json'
@@ -18,7 +19,8 @@ on:
     paths:
       - 'scripts/Invoke-SasAndroidToolchain.ps1'
       - 'scripts/SasBoundedNative.psm1'
-      - 'Tests/Invoke-SasNativeProcess.Tests.ps1'
+      - 'Tests/PowerShell/native-process-528-contract.Tests.ps1'
+      - 'Tests/survey/test_native_process_boundary_contracts.py'
       - 'Manage-AndroidToolchain.cmd'
       - 'Config/android-toolchain-profile.json'
       - 'schemas/harness/android-toolchain-result.schema.json'
@@ -42,6 +44,9 @@ jobs:
       - name: Validate synthetic toolchain controls
         shell: pwsh
         run: python Tests/survey/test_android_toolchain_contracts.py
+      - name: Validate native process boundary under Windows PowerShell 5.1 and PowerShell 7
+        shell: pwsh
+        run: python Tests/survey/test_native_process_boundary_contracts.py
       - name: Parse toolchain engine
         shell: pwsh
         run: |
