@@ -92,6 +92,20 @@ class FindingIngestTests(unittest.TestCase):
         with self.assertRaises(mod.AdmissionError):
             mod._root(str(ROOT / "docs"))
 
+    def test_direct_api_cannot_write_to_tracked_repository(self):
+        with self.assertRaises(mod.AdmissionError):
+            mod.ingest(sample(), ROOT / "docs")
+
+    def test_parallel_admission_rejects_existing_lock(self):
+        event = sample()
+        locks = self.root / "locks"
+        locks.mkdir()
+        marker = locks / (event["event_id"] + ".lock")
+        marker.write_text("synthetic competing writer")
+        with self.assertRaisesRegex(mod.AdmissionError, "EVENT_BUSY"):
+            mod.ingest(event, self.root)
+        self.assertFalse((self.root / "private").exists())
+
     def test_stdin_cli_receipt_and_no_private_stdout(self):
         event = sample()
         run = subprocess.run([sys.executable, str(MODULE), "--input", "-", "--output-root", str(self.root)], input=json.dumps(event), capture_output=True, text=True, check=False)

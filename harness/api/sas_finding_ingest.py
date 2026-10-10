@@ -122,40 +122,51 @@ def _atomic_write(path: Path, payload: bytes) -> None:
 
 def ingest(event: dict[str, Any], output_root: Path) -> dict[str, Any]:
     validate(event)
+    output_root = _root(str(output_root))  # API callers cannot bypass the CLI's private-root guard.
     raw = _canonical(event)
     digest = hashlib.sha256(raw).hexdigest()
     event_file = output_root / "private" / (event["event_id"] + ".json")
     candidate_file = output_root / "candidates" / (event["event_id"] + ".json")
     receipt_file = output_root / "receipts" / (event["event_id"] + ".json")
-    existed = event_file.exists()
-    if existed and hashlib.sha256(event_file.read_bytes()).hexdigest() != digest:
-        raise AdmissionError("CONFLICT: event_id already binds different evidence; no files changed")
+    lock = output_root / "locks" / (event["event_id"] + ".lock")
+    lock.parent.mkdir(mode=0o700, parents=True, exist_ok=True)
+    try:
+        lock_fd = os.open(lock, os.O_CREAT | os.O_EXCL | os.O_WRONLY, 0o600)
+    except FileExistsError as exc:
+        raise AdmissionError("EVENT_BUSY: the same event is already being admitted") from exc
+    try:
+        existed = event_file.exists()
+        if existed and hashlib.sha256(event_file.read_bytes()).hexdigest() != digest:
+            raise AdmissionError("CONFLICT: event_id already binds different evidence; no files changed")
 
-    # Only constant, allowlisted values can pass into this *local* public-candidate projection.
-    # No caller-provided title, machine identity, evidence path, event id, notes, links, or timestamps.
-    candidate = {
-        "schema_version": CANDIDATE_VERSION,
-        "category": event["category"],
-        "proof_level": event["proof_level"],
-        "publication_state": "CANDIDATE",
-        "approval_state": "REVIEW_REQUIRED",
-        "reusable_pattern": PATTERNS[event["category"]],
-        "provenance": "PRIVATE_LOCAL_EVIDENCE_NOT_PUBLISHED",
-    }
-    receipt = {
-        "schema_version": RECEIPT_VERSION,
-        "admission_state": "IDEMPOTENT_REPLAY" if existed else "RECORDED_PRIVATE",
-        "private_evidence_state": "PERSISTED_LOCAL",
-        "repository_publication_state": "CANDIDATE_ONLY_NOT_COMMITTED",
-        "private_provider_sync_state": "NOT_CONFIGURED",
-        "external_push_performed": False,
-        "event_sha256": digest,
-    }
-    # Recover safely from a partial interrupted first write; no network or target contact.
-    _atomic_write(event_file, raw)
-    _atomic_write(candidate_file, _canonical(candidate))
-    _atomic_write(receipt_file, _canonical(receipt))
-    return receipt
+        # Only constant, allowlisted values can pass into this *local* public-candidate projection.
+        # No caller-provided title, machine identity, evidence path, event id, notes, links, or timestamps.
+        candidate = {
+            "schema_version": CANDIDATE_VERSION,
+            "category": event["category"],
+            "proof_level": event["proof_level"],
+            "publication_state": "CANDIDATE",
+            "approval_state": "REVIEW_REQUIRED",
+            "reusable_pattern": PATTERNS[event["category"]],
+            "provenance": "PRIVATE_LOCAL_EVIDENCE_NOT_PUBLISHED",
+        }
+        receipt = {
+            "schema_version": RECEIPT_VERSION,
+            "admission_state": "IDEMPOTENT_REPLAY" if existed else "RECORDED_PRIVATE",
+            "private_evidence_state": "PERSISTED_LOCAL",
+            "repository_publication_state": "CANDIDATE_ONLY_NOT_COMMITTED",
+            "private_provider_sync_state": "NOT_CONFIGURED",
+            "external_push_performed": False,
+            "event_sha256": digest,
+        }
+        # Recover safely from a partial interrupted first write; no network or target contact.
+        _atomic_write(event_file, raw)
+        _atomic_write(candidate_file, _canonical(candidate))
+        _atomic_write(receipt_file, _canonical(receipt))
+        return receipt
+    finally:
+        os.close(lock_fd)
+        lock.unlink()
 
 
 def main(argv: list[str] | None = None) -> int:
@@ -171,7 +182,7 @@ def main(argv: list[str] | None = None) -> int:
         result = ingest(event, _root(args.output_root))
     except (AdmissionError, OSError, ValueError, UnicodeError) as exc:
         # Do not echo raw input, private data or file paths in errors.
-        label = "CONFLICT" if "CONFLICT" in str(exc) else "ADMISSION_REJECTED"
+        label = "CONFLICT" if "CONFLICT" in str(exc) else "EVENT_BUSY" if "EVENT_BUSY" in str(exc) else "ADMISSION_REJECTED"
         print(json.dumps({"admission_state": label, "external_push_performed": False}))
         return 2
     print(json.dumps(result, sort_keys=True))
