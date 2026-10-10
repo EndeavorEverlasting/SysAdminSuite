@@ -17,6 +17,7 @@ $profile=Get-Content (Join-Path $repo 'Config/android-toolchain-profile.json') -
 if(-not $OutputRoot){$OutputRoot=Join-Path $repo 'survey/output/android-toolchain'}
 $result=[ordered]@{schema_version='sas-android-toolchain-result/v1';operation=$Operation;node_role=$NodeRole;result='BLOCK';reason_codes=@();proof=@();actions=@();inventory=$null;checks=@();source=$null}
 $fixture=$null
+Import-Module (Join-Path $PSScriptRoot 'SasBoundedNative.psm1') -Force -ErrorAction Stop
 function Assert-PTopProfile($Authority,$Equipment,[string]$RequestedOperation){
  if($Authority.schema_version -ne 'sas-android-toolchain-host-authority/v1' -or $Authority.status -ne 'RESOLVED' -or $Authority.node_role -ne 'ptop_lab' -or -not $Authority.evidence_ref -or $RequestedOperation -notin @($Authority.allowed_operations)){throw 'PTOP_PROFILE_AUTHORITY_INVALID'}
  if(-not $Authority.manufacturer -or -not $Authority.model -or $Authority.manufacturer -ne $Equipment.Manufacturer -or $Authority.model -ne $Equipment.Model){throw 'PTOP_EQUIPMENT_PROFILE_MISMATCH'}
@@ -31,37 +32,32 @@ function Invoke-Bounded([string]$Exe,[string[]]$Arguments,[int]$Seconds=$Timeout
  $id=[guid]::NewGuid().ToString('N');$stdout=Join-Path $OutputRoot "$id.stdout.log";$stderr=Join-Path $OutputRoot "$id.stderr.log"
  # Windows command-line quoting preserves paths with spaces; reject embedded quotes.
  $quoted=@($Arguments|ForEach-Object {if($_ -match '"'){throw 'UNSAFE_ARGUMENT'};'"'+$_+'"'})
- $priorModulePath=$env:PSModulePath
- try {
-  # Provider admission uses Windows PowerShell; pwsh's inherited module path is incompatible.
-  $env:PSModulePath=($env:ProgramFiles+'\WindowsPowerShell\Modules;'+$env:SystemRoot+'\System32\WindowsPowerShell\v1.0\Modules')
-  $commandLine=$quoted -join ' '
-  if($Exe -eq $env:ComSpec){
-   if($Arguments[0] -ne '/d' -or $Arguments[1] -ne '/c'){throw 'UNSAFE_CMD_INVOCATION'}
-   foreach($arg in $Arguments[2..($Arguments.Count-1)]){if($arg -match '[&|<>^%\r\n]'){throw 'UNSAFE_CMD_ARGUMENT'}}
-   $commandLine='/d /s /c "'+(($quoted[2..($quoted.Count-1)]) -join ' ')+'"'
-  }
-  $process=Start-Process -FilePath $Exe -ArgumentList $commandLine -PassThru -WindowStyle Hidden -RedirectStandardOutput $stdout -RedirectStandardError $stderr
- } finally {$env:PSModulePath=$priorModulePath}
- # Retain the native handle before waiting: Windows PowerShell 5.1 otherwise loses ExitCode.
- $ownedHandle=$process.Handle
- if(-not $process.WaitForExit($Seconds*1000)){
-  # The returned PID owns this process tree; never terminate by executable name.
-  & "$env:SystemRoot/System32/taskkill.exe" /PID $process.Id /T /F | Out-Null
-  $result.checks+=@(@{executable=$Exe;arguments=$Arguments;exit_code=$null;stdout=$stdout;stderr=$stderr;timed_out=$true})
-  throw 'SUBPROCESS_TIMEOUT'
+ $invoke=@{FilePath=$Exe;Arguments=$Arguments;TimeoutSeconds=$Seconds}
+ if($Exe -eq $env:ComSpec){
+  if($Arguments.Count -lt 3 -or $Arguments[0] -ne '/d' -or $Arguments[1] -ne '/c'){throw 'UNSAFE_CMD_INVOCATION'}
+  foreach($arg in $Arguments[2..($Arguments.Count-1)]){if($arg -match '[&|<>^%\r\n]'){throw 'UNSAFE_CMD_ARGUMENT'}}
+  # CMD owns its command-string grammar; native argv quoting is not interchangeable.
+  $invoke.Remove('Arguments')
+  $invoke.CommandLine='/d /s /c "'+(($quoted[2..($quoted.Count-1)]) -join ' ')+'"'
  }
- $process.Refresh();$text=(Get-Content $stdout -Raw -ErrorAction SilentlyContinue)+(Get-Content $stderr -Raw -ErrorAction SilentlyContinue)
- $check=[ordered]@{executable=$Exe;arguments=$Arguments;exit_code=$process.ExitCode;stdout=$stdout;stderr=$stderr}
+ $childEnvironment=@{PSModulePath=($env:ProgramFiles+'\WindowsPowerShell\Modules;'+$env:SystemRoot+'\System32\WindowsPowerShell\v1.0\Modules')}
+ $run=Invoke-SasNativeProcess @invoke -Environment $childEnvironment
+ [IO.File]::WriteAllText($stdout,[string]$run.output)
+ [IO.File]::WriteAllText($stderr,[string]$run.error)
+ $check=[ordered]@{executable=$Exe;arguments=$Arguments;exit_code=$run.exit_code;stdout=$stdout;stderr=$stderr}
+ if($run.timed_out){$check.timed_out=$true}
  $result.checks+=@($check)
- if($process.ExitCode -ne 0){
-  if($null -eq $process.ExitCode){throw 'SUBPROCESS_EXIT_UNPROVEN'}
+ if($run.timed_out){throw 'SUBPROCESS_TIMEOUT'}
+ if(-not $run.output_complete){throw 'SUBPROCESS_OUTPUT_INCOMPLETE'}
+ $text=[string]$run.output+[string]$run.error
+ if($run.exit_code -ne 0){
+  if($null -eq $run.exit_code){throw 'SUBPROCESS_EXIT_UNPROVEN'}
   if($text -match '(?i)license|accept.*terms'){throw 'LICENSE_ACCEPTANCE_REQUIRED'}
   if($text -match '(?i)access.*denied|administrator|elevation'){throw 'ADMIN_APPROVAL_REQUIRED'}
   if($text -match '(?i)no space|disk.*full'){throw 'INSUFFICIENT_DISK_SPACE'}
   if($text -match '(?i)network|resolve host|connection|download.*failed'){throw 'NETWORK_DOWNLOAD_FAILED'}
   throw 'COMMAND_FAILED'
- };return [string]::Concat('',[string](Get-Content $stdout -Raw -ErrorAction SilentlyContinue))
+ };return [string]::Concat('',[string]$run.output)
 }
 function Read-Inventory {
  if($fixture){return $fixture.inventory}
@@ -100,7 +96,7 @@ try {
   if($repo -eq 'C:\SASAL'){
    $state=Get-Content (Join-Path $env:LOCALAPPDATA 'SysAdminSuite/autologon-short-runtime.json') -Raw|ConvertFrom-Json
    $sealed=@($state.tracked_file_hashes|ForEach-Object {$_.path.Replace('\','/')})
-   foreach($required in @('scripts/Invoke-SasAndroidToolchain.ps1','Config/android-toolchain-profile.json','Manage-AndroidToolchain.cmd')){if($required -notin $sealed){throw 'ANDROID_TOOLCHAIN_CAPABILITY_NOT_SEALED'}}
+   foreach($required in @('scripts/Invoke-SasAndroidToolchain.ps1','scripts/SasBoundedNative.psm1','Config/android-toolchain-profile.json','Manage-AndroidToolchain.cmd')){if($required -notin $sealed){throw 'ANDROID_TOOLCHAIN_CAPABILITY_NOT_SEALED'}}
   }
   $python=Find-Tool python.exe @();if(-not $python){throw 'PYTHON_REQUIRED'}
   # Reuse AndroidProvider M2 source admission; never weaken canonical/sealed currentness.

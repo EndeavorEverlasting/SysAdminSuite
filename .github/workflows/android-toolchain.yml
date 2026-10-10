@@ -3,6 +3,8 @@ on:
   pull_request:
     paths:
       - 'scripts/Invoke-SasAndroidToolchain.ps1'
+      - 'scripts/SasBoundedNative.psm1'
+      - 'Tests/Invoke-SasNativeProcess.Tests.ps1'
       - 'Manage-AndroidToolchain.cmd'
       - 'Config/android-toolchain-profile.json'
       - 'schemas/harness/android-toolchain-result.schema.json'
@@ -15,6 +17,8 @@ on:
     branches: [main]
     paths:
       - 'scripts/Invoke-SasAndroidToolchain.ps1'
+      - 'scripts/SasBoundedNative.psm1'
+      - 'Tests/Invoke-SasNativeProcess.Tests.ps1'
       - 'Manage-AndroidToolchain.cmd'
       - 'Config/android-toolchain-profile.json'
       - 'schemas/harness/android-toolchain-result.schema.json'
