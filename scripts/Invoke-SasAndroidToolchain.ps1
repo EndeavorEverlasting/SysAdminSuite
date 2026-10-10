@@ -133,7 +133,10 @@ try {
   $staging=Join-Path $OutputRoot 'sas-platform-tools-staging';New-Item -ItemType Directory -Force $staging|Out-Null
   $map=Join-Path $staging 'fetch-map.csv'
   @([pscustomobject]@{Name='Android Platform Tools';Url='https://dl.google.com/android/repository/platform-tools-latest-windows.zip';FileName='platform-tools-windows.zip';Type='zip';Version='latest';SilentArgs='';AllowDomains='dl.google.com'})|Export-Csv -NoTypeInformation $map
-  if(-not (Test-Path (Join-Path $staging 'installers/platform-tools-windows.zip'))){Invoke-Bounded 'powershell.exe' @('-NoProfile','-File',(Join-Path $repo 'Config/Fetch-Installers.ps1'),'-RepoRoot',$staging,'-FetchMap',$map)|Out-Null}
+  if(-not (Test-Path (Join-Path $staging 'installers/platform-tools-windows.zip'))){
+   $pwsh=Find-Tool pwsh.exe @('C:/Program Files/PowerShell/7/pwsh.exe');if(-not $pwsh){throw 'POWERSHELL7_FETCHER_REQUIRED'}
+   Invoke-Bounded $pwsh @('-NoProfile','-File',(Join-Path $repo 'Config/Fetch-Installers.ps1'),'-RepoRoot',$staging,'-FetchMap',$map)|Out-Null
+  }
   $result.reason_codes+=@('QUALIFICATION_AUTHORITY_REQUIRED')
  }
  if($Operation -eq 'Verify' -and -not $fixture){
@@ -156,12 +159,14 @@ try {
    foreach($port in @(5580,5581,5589)){if(Get-NetTCPConnection -LocalPort $port -ErrorAction SilentlyContinue){throw 'EMULATOR_PORT_IN_USE'}}
    $priorAdbPort=$env:ANDROID_ADB_SERVER_PORT;$priorMdns=$env:ADB_MDNS_AUTO_CONNECT
    $env:ANDROID_ADB_SERVER_PORT='5589';$env:ADB_MDNS_AUTO_CONNECT='0'
-   Invoke-Bounded $adb @('-P','5589','--one-device','emulator-5580','start-server') 30|Out-Null
-   $emu=Start-Process $emulator -ArgumentList @('-avd',$AvdName,'-no-snapshot-save','-port','5580') -WindowStyle Hidden -PassThru
-   try{$deadline=[datetime]::UtcNow.AddSeconds(300);$booted=$false
+   $emu=$null
+   try{
+    Invoke-Bounded $adb @('-L','tcp:127.0.0.1:5589','--one-device','emulator-5580','start-server') 30|Out-Null
+    $emu=Start-Process $emulator -ArgumentList @('-avd',$AvdName,'-no-snapshot-save','-port','5580') -WindowStyle Hidden -PassThru
+    $deadline=[datetime]::UtcNow.AddSeconds(300);$booted=$false
     while([datetime]::UtcNow -lt $deadline -and -not $emu.HasExited){try{$boot=Invoke-Bounded $adb @('-P','5589','-s','emulator-5580','shell','getprop','sys.boot_completed') 15;if($boot.Trim() -eq '1'){$booted=$true;break}}catch{if($_.Exception.Message -ne 'COMMAND_FAILED'){throw}};Start-Sleep -Seconds 5}
     if(-not $booted){throw 'EMULATOR_BOOT_FAILED'};$result.proof+=@('EMULATOR_BOOT_VERIFIED')
-   }finally{if(-not $emu.HasExited){Stop-Process -Id $emu.Id -Force -ErrorAction SilentlyContinue};try{Invoke-Bounded $adb @('-P','5589','kill-server') 30|Out-Null}finally{$env:ANDROID_ADB_SERVER_PORT=$priorAdbPort;$env:ADB_MDNS_AUTO_CONNECT=$priorMdns}}
+   }finally{if($emu -and -not $emu.HasExited){Stop-Process -Id $emu.Id -Force -ErrorAction SilentlyContinue};try{Invoke-Bounded $adb @('-P','5589','kill-server') 30|Out-Null}finally{$env:ANDROID_ADB_SERVER_PORT=$priorAdbPort;$env:ADB_MDNS_AUTO_CONNECT=$priorMdns}}
   }
   foreach($op in @('status','doctor','verify')){try{Invoke-Bounded $python @((Join-Path $repo 'harness/api/android_provider_cli.py'),$op,'--role','ptop_lab') 120|Out-Null}catch{$result.reason_codes+=@('SAS_PROVIDER_NOT_READY')}}
  }
