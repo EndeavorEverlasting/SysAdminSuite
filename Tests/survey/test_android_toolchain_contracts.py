@@ -129,6 +129,27 @@ def test_registry_wiring():
     assert outcome["failure_outcome"] == "blocked_with_actionable_gate"
 
 
+def test_windows_powershell_owned_subprocess_exit():
+    """Execute production process helper with real harmless children under PS5.1."""
+    if os.name != "nt":
+        return
+    shell = str(Path(os.environ["SystemRoot"]) / "System32/WindowsPowerShell/v1.0/powershell.exe")
+    with tempfile.TemporaryDirectory(prefix="sas process spaces ") as output:
+        probe = Path(output) / "process.ps1"
+        probe.write_text(r'''param($Engine,$OutputRoot)
+$ErrorActionPreference='Stop';$fixture=$null;$TimeoutSeconds=10;$result=@{checks=@()}
+$ast=[System.Management.Automation.Language.Parser]::ParseFile($Engine,[ref]$null,[ref]$null)
+$function=$ast.Find({param($node) $node -is [System.Management.Automation.Language.FunctionDefinitionAst] -and $node.Name -eq 'Invoke-Bounded'},$true)
+. ([scriptblock]::Create($function.Extent.Text))
+Invoke-Bounded "$env:SystemRoot/System32/WindowsPowerShell/v1.0/powershell.exe" @('-NoProfile','-Command','exit 0')|Out-Null
+if($result.checks[-1].exit_code -ne 0){throw 'ZERO_EXIT_LOST'}
+try{Invoke-Bounded "$env:SystemRoot/System32/WindowsPowerShell/v1.0/powershell.exe" @('-NoProfile','-Command','exit 7');throw 'NONZERO_EXIT_ACCEPTED'}catch{if($_.Exception.Message -ne 'COMMAND_FAILED'){throw}}
+if($result.checks[-1].exit_code -ne 7){throw 'NONZERO_EXIT_LOST'}
+''', encoding="utf-8")
+        process = subprocess.run([shell, "-NoProfile", "-File", str(probe), str(SCRIPT), output], capture_output=True, text=True, timeout=30)
+        assert process.returncode == 0, (process.stdout, process.stderr)
+
+
 if __name__ == "__main__":
     for name, function in sorted(globals().copy().items()):
         if name.startswith("test_") and callable(function):
