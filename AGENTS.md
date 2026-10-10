@@ -10,7 +10,7 @@
 
 Triggers route work only. They never authorize network activity, target mutation, destructive Git operations, secret handling, or proof claims. Progressive disclosure is a repository requirement; do not preload every skill, capability, plan, or handoff.
 ## Agent operating principles
-- **Evidence before action:** inspect repository, branch, PR, worktree, contracts, and existing evidence before mutation.
+- **Evidence before action:** inspect repository, branch, PR, worktree, contracts, and existing evidence before mutation. For an evidence-backed finding in an authorized SAS session, invoke `harness/api/sas_finding_ingest.py` once, retain private data locally, and route only reviewed reusable patterns for public contribution per `docs/SAS_FINDING_CONTINUITY.md` (no automatic Drive/Git publication).
 - **Floor before furniture:** establish governance, safety boundaries, validation, and rollback before convenience features.
 - **Bounded sprints with declared scope:** every writing sprint declares its lane, mission, owned scope, forbidden scope, artifacts, validation, and proof ceiling.
 - **One writer per branch:** parallel agents use isolated branches or worktrees and do not make competing writes.
@@ -117,8 +117,3 @@ Also report skipped checks, remaining gaps or risks, and the proof ceiling reach
 - Completion claims without running checks.
 - Secret, credential, live-target, or private-evidence exposure.
 - Destructive cleanup, force-push, default-branch mutation, or scope expansion without explicit authority.
-
-## Evidence-backed finding continuity
-- During an authorized SAS repository/session workflow, route every substantive new observation to a single typed `sas-finding-event/v1` using `harness/api/sas_finding_ingest.py` when a local private evidence runtime is available. Record source and proof level; do not retype the same finding into multiple independent ledgers. The producer persists the private event and a review-gated, constant-only publication candidate; it never automatically posts private machine data to public Git.
-- The captured event is authoritative evidence, not authorization to probe, repair, install, deploy, or publish. Derived reusable patterns require ordinary review, validation, and PR integration. An external private provider (such as Drive) may be updated via a separately authorized connector and must have independent readback proof. If local/event source access is absent, report the precise missing boundary rather than claiming unattended capture or sync.
-- See `docs/SAS_FINDING_CONTINUITY.md` and preserve `harness/api/operational-publication-boundary.v1.json`, `docs/EXTERNAL_FIELD_EVIDENCE.md`, and the repository's local-data exclusion rules.
