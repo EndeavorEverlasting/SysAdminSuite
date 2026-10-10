@@ -138,6 +138,7 @@ def test_windows_powershell_owned_subprocess_exit():
         probe = Path(output) / "process.ps1"
         probe.write_text(r'''param($Engine,$OutputRoot)
 $ErrorActionPreference='Stop';$fixture=$null;$TimeoutSeconds=10;$result=@{checks=@()}
+Import-Module (Join-Path (Split-Path (Split-Path $Engine -Parent) -Parent) 'scripts/SasBoundedNative.psm1') -Force
 $ast=[System.Management.Automation.Language.Parser]::ParseFile($Engine,[ref]$null,[ref]$null)
 $function=$ast.Find({param($node) $node -is [System.Management.Automation.Language.FunctionDefinitionAst] -and $node.Name -eq 'Invoke-Bounded'},$true)
 . ([scriptblock]::Create($function.Extent.Text))
