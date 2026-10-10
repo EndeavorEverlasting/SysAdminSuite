@@ -107,7 +107,7 @@ try {
  if(-not $inventory.android_cli){$result.reason_codes+=@('MISSING_ANDROID_CLI')}
  if(-not $inventory.studio){$result.reason_codes+=@('MISSING_ANDROID_STUDIO')}
  if($inventory.android_home -and $inventory.android_home.TrimEnd('\','/') -ne $inventory.sdk_root.TrimEnd('\','/')){$result.reason_codes+=@('SDK_ROOT_MISMATCH')}
- if($inventory.studio_sdk_root -and $inventory.studio_sdk_root.TrimEnd('\','/').Replace('\','/') -ne $inventory.sdk_root.TrimEnd('\','/').Replace('\','/')){$result.reason_codes+=@('SDK_STUDIO_DISAGREEMENT')}
+ if($inventory.studio_sdk_root -and $inventory.studio_sdk_root.TrimEnd('\','/').Replace('\','/') -ne $inventory.sdk_root.TrimEnd('\','/').Replace('\','/')){$result.reason_codes+=@('SDK_STUDIO_MISMATCH')}
  if($Operation -eq 'Verify' -and $missing.Count){$result.reason_codes+=@('SDK_PACKAGES_MISSING')}
  if($Operation -eq 'Verify' -and -not $inventory.sdkmanager){$result.reason_codes+=@('MISSING_SDK_COMMANDLINE_TOOLS')}
  if($Operation -eq 'Verify' -and $inventory.free_gib -lt $profile.minimum_free_gib){$result.reason_codes+=@('INSUFFICIENT_DISK_SPACE')}
