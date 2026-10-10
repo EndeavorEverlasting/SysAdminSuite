@@ -1,0 +1,38 @@
+{
+  "synthetic": true,
+  "inventory": {
+    "sdk_root": "SYNTHETIC_SDK",
+    "android_cli": "SYNTHETIC_ANDROID",
+    "studio": "SYNTHETIC_STUDIO",
+    "java": null,
+    "javac": null,
+    "sdkmanager": "SYNTHETIC_SDKMANAGER",
+    "packages": [
+      "cmdline-tools/latest",
+      "platform-tools",
+      "build-tools/36.0.0",
+      "platforms/android-35",
+      "platforms/android-36",
+      "platforms/android-37.0",
+      "emulator",
+      "ndk/28.2.13676358",
+      "cmake/3.22.1",
+      "system-images/android-37.0/google_apis/x86_64"
+    ],
+    "free_gib": 100,
+    "scope": "CURRENT_USER",
+    "platform": "windows-native",
+    "android_home": "SYNTHETIC_SDK",
+    "avds": [
+      "Synthetic_AVD"
+    ]
+  },
+  "test_expectation": {
+    "operation": "Verify",
+    "node_role": "ptop_lab",
+    "reasons": [
+      "MISSING_STANDALONE_JDK"
+    ],
+    "classification": "prerequisite_gate"
+  }
+}

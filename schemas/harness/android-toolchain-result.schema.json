@@ -1,0 +1,17 @@
+{
+ "$schema": "https://json-schema.org/draft/2020-12/schema",
+ "title": "Private Windows Android toolchain result",
+ "type": "object",
+ "required": ["schema_version", "operation", "node_role", "result", "reason_codes", "proof", "actions", "inventory", "checks", "source"],
+ "additionalProperties": false,
+ "properties": {
+  "schema_version": {"const": "sas-android-toolchain-result/v1"},
+  "operation": {"enum": ["Inventory", "Plan", "Apply", "Verify", "Repair"]},
+  "node_role": {"type": "string"},
+  "result": {"enum": ["SUCCESS", "BLOCK"]},
+  "reason_codes": {"type": "array", "items": {"type": "string"}},
+  "proof": {"type": "array", "items": {"type": "string"}},
+  "actions": {"type": "array"}, "inventory": {"type": ["object", "null"]},
+  "checks": {"type": "array"}, "source": {"type": ["string", "null"]}
+ }
+}

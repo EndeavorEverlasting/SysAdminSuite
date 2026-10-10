@@ -1,0 +1,49 @@
+name: Android Toolchain Contracts
+on:
+  pull_request:
+    paths:
+      - 'scripts/Invoke-SasAndroidToolchain.ps1'
+      - 'Manage-AndroidToolchain.cmd'
+      - 'Config/android-toolchain-profile.json'
+      - 'schemas/harness/android-toolchain-result.schema.json'
+      - 'Tests/Fixtures/android-toolchain/**'
+      - 'Tests/survey/test_android_toolchain_contracts.py'
+      - 'harness/api/harness-*-registry.json'
+      - 'docs/ANDROID_TOOLCHAIN_PROVISIONING.md'
+      - '.github/workflows/android-toolchain.yml'
+  push:
+    branches: [main]
+    paths:
+      - 'scripts/Invoke-SasAndroidToolchain.ps1'
+      - 'Manage-AndroidToolchain.cmd'
+      - 'Config/android-toolchain-profile.json'
+      - 'schemas/harness/android-toolchain-result.schema.json'
+      - 'Tests/Fixtures/android-toolchain/**'
+      - 'Tests/survey/test_android_toolchain_contracts.py'
+      - 'docs/ANDROID_TOOLCHAIN_PROVISIONING.md'
+      - '.github/workflows/android-toolchain.yml'
+permissions:
+  contents: read
+jobs:
+  contracts:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.x'
+      - name: Validate synthetic toolchain controls
+        shell: pwsh
+        run: python Tests/survey/test_android_toolchain_contracts.py
+      - name: Parse toolchain engine
+        shell: pwsh
+        run: |
+          $tokens=$null; $errors=$null
+          [void][System.Management.Automation.Language.Parser]::ParseFile((Resolve-Path 'scripts/Invoke-SasAndroidToolchain.ps1'),[ref]$tokens,[ref]$errors)
+          if (@($errors).Count) { throw $errors[0].Message }
+      - name: Validate registrations
+        shell: pwsh
+        run: python harness/validators/validate-harness-registries.py
