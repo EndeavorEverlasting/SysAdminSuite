@@ -7,10 +7,21 @@ on:
       - 'Tests/PowerShell/native-process-528-contract.Tests.ps1'
       - 'Tests/survey/test_native_process_boundary_contracts.py'
       - 'Manage-AndroidToolchain.cmd'
+      - 'Manage-AdminBoxAndroidToolchain.cmd'
+      - 'scripts/Start-SasAdminBoxAndroidToolchain.ps1'
       - 'Config/android-toolchain-profile.json'
+      - 'Config/android-adminbox-toolchain-profile.json'
       - 'schemas/harness/android-toolchain-result.schema.json'
       - 'Tests/Fixtures/android-toolchain/**'
+      - 'Tests/Fixtures/android-adminbox-toolchain/**'
+      - 'Tests/survey/test_android_adminbox_*.py'
       - 'Tests/survey/test_android_toolchain_contracts.py'
+      - 'Tests/survey/test_android_adminbox_coldstart_dispatch_contracts.py'
+      - 'docs/plans/android-adminbox1-coldstart-bootstrap-p04-20261010.plan.md'
+      - 'docs/handoff/android-adminbox1-bootstrap-opencode-20261010.md'
+      - 'docs/plans/android-suite-closeout-p04-20261010.plan.md'
+      - 'docs/handoff/android-suite-closeout-agent-20261010.md'
+      - 'docs/plans/android-suite-closeout-dispatch.provisional.json'
       - 'harness/api/harness-*-registry.json'
       - 'docs/ANDROID_TOOLCHAIN_PROVISIONING.md'
       - '.github/workflows/android-toolchain.yml'
@@ -22,10 +33,21 @@ on:
       - 'Tests/PowerShell/native-process-528-contract.Tests.ps1'
       - 'Tests/survey/test_native_process_boundary_contracts.py'
       - 'Manage-AndroidToolchain.cmd'
+      - 'Manage-AdminBoxAndroidToolchain.cmd'
+      - 'scripts/Start-SasAdminBoxAndroidToolchain.ps1'
       - 'Config/android-toolchain-profile.json'
+      - 'Config/android-adminbox-toolchain-profile.json'
       - 'schemas/harness/android-toolchain-result.schema.json'
       - 'Tests/Fixtures/android-toolchain/**'
+      - 'Tests/Fixtures/android-adminbox-toolchain/**'
+      - 'Tests/survey/test_android_adminbox_*.py'
       - 'Tests/survey/test_android_toolchain_contracts.py'
+      - 'Tests/survey/test_android_adminbox_coldstart_dispatch_contracts.py'
+      - 'docs/plans/android-adminbox1-coldstart-bootstrap-p04-20261010.plan.md'
+      - 'docs/handoff/android-adminbox1-bootstrap-opencode-20261010.md'
+      - 'docs/plans/android-suite-closeout-p04-20261010.plan.md'
+      - 'docs/handoff/android-suite-closeout-agent-20261010.md'
+      - 'docs/plans/android-suite-closeout-dispatch.provisional.json'
       - 'docs/ANDROID_TOOLCHAIN_PROVISIONING.md'
       - '.github/workflows/android-toolchain.yml'
 permissions:
@@ -44,6 +66,9 @@ jobs:
       - name: Validate synthetic toolchain controls
         shell: pwsh
         run: python Tests/survey/test_android_toolchain_contracts.py
+      - name: Validate Admin Box cold-start P04 dependency and authority contract
+        shell: pwsh
+        run: python Tests/survey/test_android_adminbox_coldstart_dispatch_contracts.py
       - name: Validate native process boundary under Windows PowerShell 5.1 and PowerShell 7
         shell: pwsh
         run: python Tests/survey/test_native_process_boundary_contracts.py

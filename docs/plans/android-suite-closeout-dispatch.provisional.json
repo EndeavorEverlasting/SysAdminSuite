@@ -4,20 +4,21 @@
   "standard_contract_validation": "BLOCKED_TOKENCORRIDOR_ISSUE_142",
   "standard_runner": "UNAVAILABLE_ON_TOKENCORRIDOR_MAIN",
   "owner": "SysAdminSuite #522",
-  "source_plan": "docs/plans/android-suite-closeout-p04-20261010.plan.md",
-  "handoff": "docs/handoff/android-suite-closeout-agent-20261010.md",
+  "source_plan": "docs/plans/android-adminbox1-coldstart-bootstrap-p04-20261010.plan.md",
+  "handoff": "docs/handoff/android-adminbox1-bootstrap-opencode-20261010.md",
   "repo": "EndeavorEverlasting/SysAdminSuite",
   "baseline_main_sha": "3a4494114543c0a6898114387b5cb60d489360f0",
   "host": "LOCAL_AGENT_RUNTIME",
   "provider_routes": [
     "GitHub"
   ],
-  "execution_status": "NOT_DISPATCHED",
+  "execution_status": "REMOTE_PLAN_PERSISTED; LOCAL_AGENT_AND_INSTALL_NOT_OBSERVED",
   "current_chat_completed": [
     "resolved TokenCorridor P04 by current registry",
     "recovered source and merged PR facts",
     "persisted sanitized P04 plan, handoff and provisional dependency map",
-    "corrected coordinator placement to expected OpenCode on Admin Box 1; separated Admin Box host readiness from PTop prior proof"
+    "corrected coordinator placement to expected OpenCode on Admin Box 1; separated Admin Box host readiness from PTop prior proof",
+    "P04 cold-start plan and one-shot OpenCode bootstrap handoff persisted; actual authorized Admin Box Install/Verify delegated to local session only"
   ],
   "parallel_execution": "NOT_OBSERVED_FROM_CURRENT_CHAT",
   "expected_parallel_width": 3,
@@ -27,253 +28,478 @@
   "safety": "No PTop-specific Manage-AndroidToolchain operations on Admin Box 1; no cross-host identity/proof reassignment; no approved source pin self-generation, SDK/PATH ADB SAS fallback, physical reader/firmware actions, DTop work, competing ADB server interruption, protected-network source bypass or private material publication Every sealed-runtime provider command must carry independently verified selected --expected-commit SHA.",
   "lanes": [
     {
-      "lane_id": "W0-ADMINBOX",
+      "lane_id": "W0-INTAKE",
       "wave": 0,
-      "mission": "Verify actual Admin Box 1 host, source/offline seal, node role and OpenCode worker capability",
+      "mission": "Host and network/source admission; detect complete missing developer toolchain on Admin Box 1",
       "dependencies": [],
       "owned_mutation_surfaces": [
-        "private ignored Admin Box 1 preflight receipt"
+        "private ignored survey/output/android-adminbox-bootstrap/ inventory"
       ],
       "forbidden_surfaces": [
-        "DTop/PTop host mutation",
-        "protected network transition",
-        "dirty-worktree reset",
-        "physical Android device actions"
+        "untrusted host-role inference",
+        "PTop/DTop work",
+        "protected network fetch",
+        "policy bypass"
       ],
-      "branch_or_worktree": "No tracked writes in wave; use isolated worktrees only if regression proves code change",
+      "branch_or_worktree": "Independent safe worktree per writer; actual host Apply on admitted canonical runtime only",
       "execution_environment": "LOCAL_AGENT_RUNTIME",
       "provider_access": [],
       "required_capabilities": [
-        "Windows host profile",
-        "canonical SAS path/source seal",
-        "git",
-        "OpenCode native worker discovery"
+        "Windows profile identity",
+        "OpenCode worker",
+        "WinGet and vendor executable inventory",
+        "disk/virtualization/network"
       ],
       "evidence_inputs": [
         {
-          "evidence_type": "merged_plan",
-          "source_owner": "SysAdminSuite",
-          "sanitized_ref": "sysadmin:pr:531",
-          "freshness": "historical; refresh at execution",
-          "proof_ceiling": "Planning integration only"
+          "evidence_type": "operator_host_correction",
+          "source_owner": "Operator",
+          "sanitized_ref": "opaque:adminbox1-missing-sdk-cli",
+          "freshness": "historical until refreshed locally",
+          "proof_ceiling": "Reported missing stack; must verify host before mutation"
         }
       ],
-      "selected_adapter": "OpenCode local coordinator if actually installed and admissible",
-      "adapter_proof": "UNOBSERVED; validate on actual controller",
-      "launch_action": "Coordinator consumes handoff W0; verify Admin Box 1 identity and adminbox_reference authority, then simultaneously launch W1-ABOX, W1-AUTH and W1-PTOP through a proved adapter",
-      "expected_artifact": "private W0 host+role+adapter proof",
+      "selected_adapter": "OpenCode coordinator on verified Admin Box 1",
+      "adapter_proof": "NOT_OBSERVED; require actual worker start/end receipt",
+      "launch_action": "Verify actual Admin Box 1 role and policy; inventory Android CLI/SDK/JDK/Studio before assuming any installed; discover agent adapter; then autonomously dispatch B1-CONTRACT || B2-SOURCE || B3-TESTS.",
+      "expected_artifact": "ignored private W0 inventory, source/role, package capabilities and approved acquisition posture",
       "validation": [
-        "approved host identity and role",
-        "git/source/whitelist seal",
-        "OpenCode adapter real operation"
+        "actual host not inferred",
+        "existing install not overwritten",
+        "private evidence"
       ],
-      "convergence_owner": "W2-CONVERGE",
-      "status": "READY_CONDITIONAL_CONTROLLER_ADMISSION",
-      "proof_ceiling": "Only recorded host/runtime operations; no physical device or production proof"
+      "convergence_owner": "B4-INTEGRATE for bootstrap wave, W2-CONVERGE for qualification",
+      "status": "READY_ACTUAL_ADMINBOX",
+      "proof_ceiling": "Only actually executed local commands can prove host install; developer SDK adb never qualifies SAS provider"
     },
     {
-      "lane_id": "W1-ABOX",
+      "lane_id": "B1-CONTRACT",
       "wave": 1,
-      "mission": "Read-only Admin Box 1 reference node readiness; correctly classify SAS-owned bundle/seal/cache status",
+      "mission": "Extend PTop-only Android toolchain lifecycle to profile-authorized Admin Box 1 and add tracked front door",
       "dependencies": [
-        "W0-ADMINBOX"
+        "W0-INTAKE"
       ],
       "owned_mutation_surfaces": [
-        "private ignored Admin Box 1 provider status/doctor/verify receipts"
+        "scripts/Invoke-SasAndroidToolchain.ps1 role factoring",
+        "new Admin Box tracked CMD bootstrap front door",
+        "sanitized Admin Box dev package profile",
+        "focused shared lifecycle tests"
       ],
       "forbidden_surfaces": [
-        "Manage-AndroidToolchain.cmd",
-        "ptop_lab",
-        "DTop",
-        "physical USB/LAN/firmware",
-        "unapproved provider prepare"
+        "AndroidProvider runtime/roles",
+        "firmware",
+        "PTop role spoof",
+        "unrelated PRs"
       ],
-      "branch_or_worktree": "No tracked writes in wave; use isolated worktrees only if regression proves code change",
+      "branch_or_worktree": "Independent safe worktree per writer; actual host Apply on admitted canonical runtime only",
       "execution_environment": "LOCAL_AGENT_RUNTIME",
       "provider_access": [],
       "required_capabilities": [
-        "Run-SasAndroidProvider.cmd",
-        "adminbox_reference source/profile admission",
-        "offline seal",
-        "Python",
-        "trusted selected sealed source commit SHA"
+        "PowerShell 5.1/7",
+        "source seal",
+        "native process module",
+        "role/profile contract and regressions"
       ],
       "evidence_inputs": [
         {
-          "evidence_type": "provider_contract",
-          "source_owner": "SysAdminSuite PR #517",
-          "sanitized_ref": "sysadmin:pr:517",
-          "freshness": "historical; refresh at execution",
-          "proof_ceiling": "M2 software implementation, not Admin Box 1 live readiness"
+          "evidence_type": "operator_host_correction",
+          "source_owner": "Operator",
+          "sanitized_ref": "opaque:adminbox1-missing-sdk-cli",
+          "freshness": "historical until refreshed locally",
+          "proof_ceiling": "Reported missing stack; must verify host before mutation"
         }
       ],
-      "selected_adapter": "OpenCode delegated read-only worker",
-      "adapter_proof": "UNOBSERVED; validate on actual controller",
-      "launch_action": "On verified Admin Box 1 recover exact approved selected refreshed/prepared 40-hex source commit; if source admission succeeds run Run-SasAndroidProvider.cmd status --role adminbox_reference --expected-commit SELECTED_EXPECTED_COMMIT, then doctor/verify each with same --expected-commit. Do not prepare in this lane; no physical device.",
-      "expected_artifact": "private W1-ABOX typed readiness report",
+      "selected_adapter": "OpenCode native worker if actually available, else safe available adapter",
+      "adapter_proof": "NOT_OBSERVED; require actual worker start/end receipt",
+      "launch_action": "Follow new bootstrap handoff B1-CONTRACT: implement shared role-aware Inventory/Plan/Apply/Verify/Repair and approved adminbox_reference host profile without regressing ptop_lab. Commit isolated writer branch for B4.",
+      "expected_artifact": "scoped B1 implementation ref with tests, sources, new role/profile and launcher",
       "validation": [
-        "source/role correctness",
-        "private receipt preservation",
-        "negative provider fixtures where available"
+        "PTop unchanged",
+        "role/host mismatch fails closed",
+        "offline source admission",
+        "launcher correctness"
       ],
-      "convergence_owner": "W2-CONVERGE",
+      "convergence_owner": "B4-INTEGRATE for bootstrap wave, W2-CONVERGE for qualification",
       "status": "READY_AFTER_W0",
-      "proof_ceiling": "Only recorded host/runtime operations; no physical device or production proof"
+      "proof_ceiling": "Only actually executed local commands can prove host install; developer SDK adb never qualifies SAS provider"
     },
     {
-      "lane_id": "W1-AUTH",
+      "lane_id": "B2-SOURCE",
       "wave": 1,
-      "mission": "Recover independent approved Windows Platform-Tools archive SHA-256 or exact authority packet",
+      "mission": "Discover official vendor package provenance and managed-network acquisition path; recover independent SAS archive approval",
       "dependencies": [
-        "W0-ADMINBOX"
+        "W0-INTAKE"
       ],
       "owned_mutation_surfaces": [
-        "private ignored provenance report"
+        "disjoint sanitized source research",
+        "private source/authority receipts"
       ],
       "forbidden_surfaces": [
-        "Run-SasAndroidProvider.cmd prepare",
-        "self-approving computed hash",
-        "SDK adb fallback",
-        "reader probe"
+        "installer Apply",
+        "self-approved SHA",
+        "unapproved network bypass",
+        "private tokens"
       ],
-      "branch_or_worktree": "No tracked writes in wave; use isolated worktrees only if regression proves code change",
+      "branch_or_worktree": "Independent safe worktree per writer; actual host Apply on admitted canonical runtime only",
       "execution_environment": "LOCAL_AGENT_RUNTIME",
       "provider_access": [],
       "required_capabilities": [
-        "trusted manifest/provenance investigation",
-        "approved digest lineage validation"
+        "official CLI/SDK/JDK/Studio versions and compatibility",
+        "SAS fetcher",
+        "approved network/source",
+        "offline staging"
       ],
       "evidence_inputs": [
         {
-          "evidence_type": "qualification_gate",
-          "source_owner": "SysAdminSuite docs/ANDROID_PROVIDER.md",
-          "sanitized_ref": "sysadmin:android-provider-doc",
-          "freshness": "historical; refresh at execution",
-          "proof_ceiling": "Qualifying rule only, not granted source approval"
+          "evidence_type": "operator_host_correction",
+          "source_owner": "Operator",
+          "sanitized_ref": "opaque:adminbox1-missing-sdk-cli",
+          "freshness": "historical until refreshed locally",
+          "proof_ceiling": "Reported missing stack; must verify host before mutation"
         }
       ],
-      "selected_adapter": "OpenCode delegated read-only worker",
-      "adapter_proof": "UNOBSERVED; validate on actual controller",
-      "launch_action": "Execute handoff W1-AUTH concurrently with W1-ABOX; never prepare using self-hash or unapproved candidate pin",
-      "expected_artifact": "private W1-AUTH approved-authority or QUALIFICATION_AUTHORITY_REQUIRED report",
+      "selected_adapter": "OpenCode native worker if actually available, else safe available adapter",
+      "adapter_proof": "NOT_OBSERVED; require actual worker start/end receipt",
+      "launch_action": "Follow B2-SOURCE: recover vetted WinGet package IDs, SDK component/version profile, sanctioned online/offline fetch plan, installer license/elevation gates; independent SAS archive pin if available. No installation or qualification mutation.",
+      "expected_artifact": "typed approved developer acquisition plan + independent SAS source authority decision",
       "validation": [
-        "independent approval distinct from candidate hash",
-        "complete official archive",
-        "redacted receipt"
+        "source independence",
+        "license gate",
+        "approved network posture",
+        "no developer adb as SAS"
       ],
-      "convergence_owner": "W2-CONVERGE",
+      "convergence_owner": "B4-INTEGRATE for bootstrap wave, W2-CONVERGE for qualification",
       "status": "READY_AFTER_W0",
-      "proof_ceiling": "Only recorded host/runtime operations; no physical device or production proof"
+      "proof_ceiling": "Only actually executed local commands can prove host install; developer SDK adb never qualifies SAS provider"
+    },
+    {
+      "lane_id": "B3-TESTS",
+      "wave": 1,
+      "mission": "Write adversarial Admin Box first-run and role separation tests in disjoint new test files",
+      "dependencies": [
+        "W0-INTAKE"
+      ],
+      "owned_mutation_surfaces": [
+        "new cold-start fixture/test files only"
+      ],
+      "forbidden_surfaces": [
+        "shared existing engine",
+        "existing test files",
+        "host install/SDK/user data"
+      ],
+      "branch_or_worktree": "Independent safe worktree per writer; actual host Apply on admitted canonical runtime only",
+      "execution_environment": "LOCAL_AGENT_RUNTIME",
+      "provider_access": [],
+      "required_capabilities": [
+        "Python tests",
+        "PowerShell fixtures",
+        "negative suite"
+      ],
+      "evidence_inputs": [
+        {
+          "evidence_type": "operator_host_correction",
+          "source_owner": "Operator",
+          "sanitized_ref": "opaque:adminbox1-missing-sdk-cli",
+          "freshness": "historical until refreshed locally",
+          "proof_ceiling": "Reported missing stack; must verify host before mutation"
+        }
+      ],
+      "selected_adapter": "OpenCode native worker if actually available, else safe available adapter",
+      "adapter_proof": "NOT_OBSERVED; require actual worker start/end receipt",
+      "launch_action": "Follow B3-TESTS: add cold-host missing CLI/SDK/JDK, wrong PATH/profile/source, protected network, staged installer, rollback/recovery, idempotent Apply and emulator-resource negative cases; commit disjoint worktree.",
+      "expected_artifact": "isolated new test+fixture ref and test results",
+      "validation": [
+        "negative/positive controls",
+        "no PTop regression",
+        "no fixture/live conflation"
+      ],
+      "convergence_owner": "B4-INTEGRATE for bootstrap wave, W2-CONVERGE for qualification",
+      "status": "READY_AFTER_W0",
+      "proof_ceiling": "Only actually executed local commands can prove host install; developer SDK adb never qualifies SAS provider"
     },
     {
       "lane_id": "W1-PTOP",
       "wave": 1,
-      "mission": "Audit historical PTop build/emulator proof; optional fresh testing only from an independently verified actual PTop worker",
+      "mission": "Review historical PTop SDK/APK/AVD proof; fresh test only on actually verified separate PTop worker",
       "dependencies": [
-        "W0-ADMINBOX"
+        "W0-INTAKE"
       ],
       "owned_mutation_surfaces": [
-        "private PTop historical proof ledger",
-        "PTop-only ignored receipts if authorized worker exists"
+        "sanitized PTop historical-vs-fresh evidence ledger"
       ],
       "forbidden_surfaces": [
-        "running Manage-AndroidToolchain.cmd on Admin Box 1",
-        "assuming PTop connectivity",
+        "Admin Box SDK installation",
+        "PTop credential export",
         "DTop",
-        "Admin Box ADB runtime mutation"
+        "host proof inheritance"
       ],
-      "branch_or_worktree": "No tracked writes in wave; use isolated worktrees only if regression proves code change",
+      "branch_or_worktree": "Independent safe worktree per writer; actual host Apply on admitted canonical runtime only",
       "execution_environment": "LOCAL_AGENT_RUNTIME",
       "provider_access": [],
       "required_capabilities": [
-        "GitHub PR proof retrieval",
-        "optional verified PTop worker adapter"
+        "GitHub #523/#528 evidence review",
+        "optional separately approved PTop agent"
       ],
       "evidence_inputs": [
         {
-          "evidence_type": "prior_build_emulator",
-          "source_owner": "SysAdminSuite PR #523",
-          "sanitized_ref": "sysadmin:pr:523",
-          "freshness": "historical; refresh at execution",
-          "proof_ceiling": "Historical PTop Kotlin APK and AVD boot"
-        },
-        {
-          "evidence_type": "read_only_native",
-          "source_owner": "PTop local #528",
-          "sanitized_ref": "opaque:ptop-528-readonly",
-          "freshness": "historical; refresh at execution",
-          "proof_ceiling": "12 checks; not fresh build/AVD"
+          "evidence_type": "operator_host_correction",
+          "source_owner": "Operator",
+          "sanitized_ref": "opaque:adminbox1-missing-sdk-cli",
+          "freshness": "historical until refreshed locally",
+          "proof_ceiling": "Reported missing stack; must verify host before mutation"
         }
       ],
-      "selected_adapter": "OpenCode read-only evidence worker; optional separate verified PTop runtime adapter",
-      "adapter_proof": "UNOBSERVED; validate on actual controller",
-      "launch_action": "Reconcile #523 and #528; only with separately verified, authorized actual PTop worker perform PTop development Verify/BuildSmoke/BootEmulator; otherwise explicitly mark LIVE_NOT_OBSERVED",
-      "expected_artifact": "private W1-PTOP historical-vs-fresh evidence report",
+      "selected_adapter": "OpenCode native worker if actually available, else safe available adapter",
+      "adapter_proof": "NOT_OBSERVED; require actual worker start/end receipt",
+      "launch_action": "Review previous PTop proof only; if actual authorized PTop worker exists run it there, otherwise PTOP_LIVE_REVALIDATION_NOT_OBSERVED. Never run PTop lifecycle on Admin Box 1.",
+      "expected_artifact": "PTop previous vs fresh truth ledger",
       "validation": [
-        "prior/fresh state separation",
-        "host-attested real PTop identity if live",
-        "no Admin Box test misattribution"
+        "historical proof distinct from latest",
+        "no cross-host operations"
       ],
-      "convergence_owner": "W2-CONVERGE",
+      "convergence_owner": "B4-INTEGRATE for bootstrap wave, W2-CONVERGE for qualification",
       "status": "READY_AFTER_W0",
-      "proof_ceiling": "Only recorded host/runtime operations; no physical device or production proof"
+      "proof_ceiling": "Only actually executed local commands can prove host install; developer SDK adb never qualifies SAS provider"
+    },
+    {
+      "lane_id": "B4-INTEGRATE",
+      "wave": 2,
+      "mission": "Integrate B1+B2+B3 and prove profile-aware tracked Admin Box installer correctness",
+      "dependencies": [
+        "B1-CONTRACT",
+        "B2-SOURCE",
+        "B3-TESTS"
+      ],
+      "owned_mutation_surfaces": [
+        "shared lifecycle/test/schema/registry integration in one worktree"
+      ],
+      "forbidden_surfaces": [
+        "physical reader",
+        "unapproved source pin",
+        "unrelated current work"
+      ],
+      "branch_or_worktree": "Independent safe worktree per writer; actual host Apply on admitted canonical runtime only",
+      "execution_environment": "LOCAL_AGENT_RUNTIME",
+      "provider_access": [],
+      "required_capabilities": [
+        "PowerShell",
+        "Python validators",
+        "Git and CI"
+      ],
+      "evidence_inputs": [
+        {
+          "evidence_type": "operator_host_correction",
+          "source_owner": "Operator",
+          "sanitized_ref": "opaque:adminbox1-missing-sdk-cli",
+          "freshness": "historical until refreshed locally",
+          "proof_ceiling": "Reported missing stack; must verify host before mutation"
+        }
+      ],
+      "selected_adapter": "OpenCode coordinator on verified Admin Box 1",
+      "adapter_proof": "NOT_OBSERVED; require actual worker start/end receipt",
+      "launch_action": "Integrate isolated worker branches under single owner; make new Admin Box CMD wrapper route to same proven engine with approved profile, exact sanctioned packages, scoped env backup and repair. Run negatives and relevant baseline contracts.",
+      "expected_artifact": "integrated and locally tested Admin Box lifecycle implementation",
+      "validation": [
+        "reproducing tests",
+        "current profile role preserved",
+        "source policy and no auto-license acceptance"
+      ],
+      "convergence_owner": "B4-INTEGRATE for bootstrap wave, W2-CONVERGE for qualification",
+      "status": "WAITING_WAVE1",
+      "proof_ceiling": "Only actually executed local commands can prove host install; developer SDK adb never qualifies SAS provider"
+    },
+    {
+      "lane_id": "B5-LIVE-APPLY",
+      "wave": 3,
+      "mission": "Actual Admin Box 1 developer package acquisition, installation, fresh-shell config and APK/AVD verification",
+      "dependencies": [
+        "B4-INTEGRATE"
+      ],
+      "owned_mutation_surfaces": [
+        "approved Admin Box development packages and user-scope environment",
+        "private ignored install logs"
+      ],
+      "forbidden_surfaces": [
+        "PTop/DTop",
+        "unauthorized protected network",
+        "silent license acceptance",
+        "firmware",
+        "SDK adb promotion to SAS"
+      ],
+      "branch_or_worktree": "Independent safe worktree per writer; actual host Apply on admitted canonical runtime only",
+      "execution_environment": "LOCAL_AGENT_RUNTIME",
+      "provider_access": [],
+      "required_capabilities": [
+        "approved host profile",
+        "vendor package acquisition",
+        "WinGet/CLI",
+        "Gradle Wrapper",
+        "PowerShell CMD"
+      ],
+      "evidence_inputs": [
+        {
+          "evidence_type": "operator_host_correction",
+          "source_owner": "Operator",
+          "sanitized_ref": "opaque:adminbox1-missing-sdk-cli",
+          "freshness": "historical until refreshed locally",
+          "proof_ceiling": "Reported missing stack; must verify host before mutation"
+        }
+      ],
+      "selected_adapter": "OpenCode coordinator on verified Admin Box 1",
+      "adapter_proof": "NOT_OBSERVED; require actual worker start/end receipt",
+      "launch_action": "After machine/policy approvals execute new Admin Box launcher Inventory/Plan/Apply/Verify and conditional Repair on actual host. Install missing CLI/SDK/JDK/Studio components, fresh-shell verify, compile Kotlin APK, bounded isolated AVD if resource eligible; no-op reapply. Record exact blockers.",
+      "expected_artifact": "real Admin Box install/verify typed receipts or exact external authority blocker",
+      "validation": [
+        "real tools version/executable proof",
+        "SDK coherence",
+        "actual APK",
+        "emulator resource gating",
+        "idempotent install and cleanup"
+      ],
+      "convergence_owner": "B4-INTEGRATE for bootstrap wave, W2-CONVERGE for qualification",
+      "status": "WAITING_IMPLEMENTATION_AND_HOST_AUTHORITY",
+      "proof_ceiling": "Only actually executed local commands can prove host install; developer SDK adb never qualifies SAS provider"
+    },
+    {
+      "lane_id": "W1-ABOX",
+      "wave": 4,
+      "mission": "Read-only post-bootstrap SAS provider status on independently verified Admin Box role",
+      "dependencies": [
+        "B5-LIVE-APPLY"
+      ],
+      "owned_mutation_surfaces": [
+        "Admin Box SAS private readiness receipts"
+      ],
+      "forbidden_surfaces": [
+        "developer SDK as SAS provider runtime",
+        "device mutation",
+        "provider prepare without pin"
+      ],
+      "branch_or_worktree": "Independent safe worktree per writer; actual host Apply on admitted canonical runtime only",
+      "execution_environment": "LOCAL_AGENT_RUNTIME",
+      "provider_access": [],
+      "required_capabilities": [
+        "prepared source seal",
+        "adminbox_reference",
+        "Run-SasAndroidProvider.cmd"
+      ],
+      "evidence_inputs": [
+        {
+          "evidence_type": "operator_host_correction",
+          "source_owner": "Operator",
+          "sanitized_ref": "opaque:adminbox1-missing-sdk-cli",
+          "freshness": "historical until refreshed locally",
+          "proof_ceiling": "Reported missing stack; must verify host before mutation"
+        }
+      ],
+      "selected_adapter": "OpenCode native worker if actually available, else safe available adapter",
+      "adapter_proof": "NOT_OBSERVED; require actual worker start/end receipt",
+      "launch_action": "Run status/doctor/verify --role adminbox_reference each with --expected-commit SELECTED_EXPECTED_COMMIT after verifying exact selected SHA and source/network posture; report actual bundle/role state.",
+      "expected_artifact": "typed Admin Box postbootstrap SAS readiness receipt",
+      "validation": [
+        "approved node profile",
+        "source admission",
+        "no SDK fallback"
+      ],
+      "convergence_owner": "B4-INTEGRATE for bootstrap wave, W2-CONVERGE for qualification",
+      "status": "WAITING_B5",
+      "proof_ceiling": "Only actually executed local commands can prove host install; developer SDK adb never qualifies SAS provider"
+    },
+    {
+      "lane_id": "W1-AUTH",
+      "wave": 4,
+      "mission": "Revalidate independent Platform-Tools qualification pin from B2 source lane",
+      "dependencies": [
+        "B2-SOURCE",
+        "B5-LIVE-APPLY"
+      ],
+      "owned_mutation_surfaces": [
+        "private final provenance/approved pin receipt"
+      ],
+      "forbidden_surfaces": [
+        "self-approved SHA",
+        "SAS prepare",
+        "host reader ops"
+      ],
+      "branch_or_worktree": "Independent safe worktree per writer; actual host Apply on admitted canonical runtime only",
+      "execution_environment": "LOCAL_AGENT_RUNTIME",
+      "provider_access": [],
+      "required_capabilities": [
+        "trusted vendor/owner approved independent digest"
+      ],
+      "evidence_inputs": [
+        {
+          "evidence_type": "operator_host_correction",
+          "source_owner": "Operator",
+          "sanitized_ref": "opaque:adminbox1-missing-sdk-cli",
+          "freshness": "historical until refreshed locally",
+          "proof_ceiling": "Reported missing stack; must verify host before mutation"
+        }
+      ],
+      "selected_adapter": "OpenCode native worker if actually available, else safe available adapter",
+      "adapter_proof": "NOT_OBSERVED; require actual worker start/end receipt",
+      "launch_action": "Consume B2 independent authority result; validate its currentness for actual complete official archive and Admin Box role; if none report QUALIFICATION_AUTHORITY_REQUIRED. Do not rediscover from scratch or autoapprove.",
+      "expected_artifact": "typed independent source approval or blocker",
+      "validation": [
+        "separate supplier pin vs computed archive hash",
+        "no source trust upgrade"
+      ],
+      "convergence_owner": "B4-INTEGRATE for bootstrap wave, W2-CONVERGE for qualification",
+      "status": "WAITING_B2_AND_B5",
+      "proof_ceiling": "Only actually executed local commands can prove host install; developer SDK adb never qualifies SAS provider"
     },
     {
       "lane_id": "W2-CONVERGE",
-      "wave": 2,
-      "mission": "Join receipts; qualified runtime preparation on Admin Box 1 only if independent approved pin; test, integrate and report",
+      "wave": 5,
+      "mission": "Conditional Admin Box SAS bundle preparation, protected-provider verification and integrated closeout",
       "dependencies": [
         "W1-ABOX",
         "W1-AUTH",
         "W1-PTOP"
       ],
       "owned_mutation_surfaces": [
-        "Admin Box qualified provider runtime only when independently authorized",
-        "scoped regression repairs/PR and sanitized closeout only if needed"
+        "SAS-owned runtime only after independent pin",
+        "final normalized repository program closeout"
       ],
       "forbidden_surfaces": [
-        "DTop",
-        "unqualified source prepare",
-        "real reader/firmware",
-        "stale host proof promotion",
-        "reopening #522 solely due to plan"
+        "PTop role for Admin Box",
+        "unapproved bundle",
+        "device/firmware",
+        "DTop"
       ],
-      "branch_or_worktree": "No tracked writes in wave; use isolated worktrees only if regression proves code change",
+      "branch_or_worktree": "Independent safe worktree per writer; actual host Apply on admitted canonical runtime only",
       "execution_environment": "LOCAL_AGENT_RUNTIME",
       "provider_access": [],
       "required_capabilities": [
-        "actual complete approved archive+digest if present",
-        "source seal",
-        "adminbox_reference role",
-        "provider tests",
-        "GitHub PR/CI",
-        "selected prepared source commit pinned with --expected-commit"
+        "selected sealed source SHA",
+        "approved Google Windows archive",
+        "AndroidProvider and H&H tests",
+        "PR checks"
       ],
       "evidence_inputs": [
         {
-          "evidence_type": "joined_wave_receipts",
-          "source_owner": "W1-ABOX W1-AUTH W1-PTOP",
-          "sanitized_ref": "opaque:adminbox-android-closeout-wave1",
-          "freshness": "historical; refresh at execution",
-          "proof_ceiling": "Observed or typed-blocked only"
+          "evidence_type": "operator_host_correction",
+          "source_owner": "Operator",
+          "sanitized_ref": "opaque:adminbox1-missing-sdk-cli",
+          "freshness": "historical until refreshed locally",
+          "proof_ceiling": "Reported missing stack; must verify host before mutation"
         }
       ],
-      "selected_adapter": "OpenCode coordinator serial convergence",
-      "adapter_proof": "UNOBSERVED; validate on actual controller",
-      "launch_action": "After W1 join, verify selected 40-hex source commit from canonical refreshed/prepared seal and independently approved archive digest; then and only then Run-SasAndroidProvider.cmd prepare --role adminbox_reference --archive EXACT_APPROVED_ARCHIVE --archive-sha256 EXACT_INDEPENDENT_APPROVED_PIN --expected-commit SELECTED_EXPECTED_COMMIT. Run status/doctor/verify all with same --expected-commit; otherwise preserve qualified-runtime blocked state and finish independent proof.",
-      "expected_artifact": "private Admin Box 1 qualification report + sanitized GitHub status/PR if changed",
+      "selected_adapter": "OpenCode coordinator on verified Admin Box 1",
+      "adapter_proof": "NOT_OBSERVED; require actual worker start/end receipt",
+      "launch_action": "Only if approved digest+role+source seal execute Run-SasAndroidProvider.cmd prepare --role adminbox_reference --archive APPROVED_ARCHIVE --archive-sha256 INDEPENDENT_PIN --expected-commit SELECTED_EXPECTED_COMMIT then status/doctor/verify with the same commit. Record held qualification if missing; test/review/merge code and complete CHANGED|PROVED|NEXT.",
+      "expected_artifact": "closeout receipt + merged main status + precise authority blocker or qualified SAS runtime",
       "validation": [
-        "provider/H&H boundary and firmware refusals",
-        "harness validators and PS native regressions",
-        "exact CI/PR/merge state",
-        "no cross-host promotion"
+        "CI+PowerShell+Android provider regression",
+        "actual host install proof separate from source qualification",
+        "private receipts"
       ],
-      "convergence_owner": "W2-CONVERGE",
-      "status": "WAITING_ON_WAVE1; CONDITIONAL_SOURCE_APPROVAL",
-      "proof_ceiling": "Only recorded host/runtime operations; no physical device or production proof"
+      "convergence_owner": "B4-INTEGRATE for bootstrap wave, W2-CONVERGE for qualification",
+      "status": "WAITING_ON_POST_BOOTSTRAP",
+      "proof_ceiling": "Only actually executed local commands can prove host install; developer SDK adb never qualifies SAS provider"
     }
   ],
-  "proof_ceiling": "Plan and dispatch placement corrected in GitHub only. No OpenCode agent or Admin Box 1 runtime invoked from ChatGPT. PTop prior developer proof remains historical; Admin Box 1 and field/device remain unproven until observed.",
+  "proof_ceiling": "Current GitHub operation documents and dispatches executable work to a local Admin Box OpenCode coordinator; no live agent, package installation, protected-network changes or SAS qualification were observed from current runtime. Developer install and qualified SAS ADB are distinct proof domains.",
   "coordinator": {
     "expected_machine": "Admin Box 1",
     "identity_state": "UNVERIFIED",
@@ -298,5 +524,9 @@
     "no_auto_remote_access": true,
     "developer_toolchain_script_host_restriction": "ptop_lab"
   },
-  "issue_522_observed_state": "CLOSED_COMPLETED_AT_PLAN_CORRECTION; refresh, do not auto-reopen"
+  "issue_522_observed_state": "CLOSED_COMPLETED_AT_PLAN_CORRECTION; refresh, do not auto-reopen",
+  "downstream_plan": "docs/plans/android-suite-closeout-p04-20261010.plan.md",
+  "downstream_handoff": "docs/handoff/android-suite-closeout-agent-20261010.md",
+  "operator_correction": "Admin Box 1 lacks developer Android SDK and Google Android CLI; PTop toolchain is not installed here",
+  "developer_install_state": "MISSING_OR_UNVERIFIED_ON_ADMIN_BOX_1"
 }
