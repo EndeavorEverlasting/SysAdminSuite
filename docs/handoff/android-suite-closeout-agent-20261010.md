@@ -1,0 +1,57 @@
+# Android Suite P04 — single local coordinating-agent execution handoff
+
+**EXECUTE THE SPRINT, DO NOT REWRITE THIS PLAN.** Target repository `EndeavorEverlasting/SysAdminSuite`; canonical issue #522. Target computer **PTop only** (ASUS laptop), explicitly **not DTop**. Durable plan: `docs/plans/android-suite-closeout-p04-20261010.plan.md`. Typed provisional transport: `docs/plans/android-suite-closeout-dispatch.provisional.json`. Main at authoring `0a9447f54b7f342d5bbef6bf01d562b36859feb7`; refresh branch/PR/provider truth. The local path must be resolved via `scripts/Resolve-SasCanonicalDevelopmentPath.ps1` rather than guessing from an account name.
+
+## Exact coordinator run
+
+1. Read `AGENTS.md`, `CODEBASE_MAP.md`, `harness/workflows/fresh-agent-intake.yaml`, local canonical path resolver, the P04 plan, this handoff and provisional dispatch; then `docs/ANDROID_TOOLCHAIN_PROVISIONING.md`, `docs/ANDROID_PROVIDER.md`, `scripts/Invoke-SasAndroidToolchain.ps1`, `Run-SasAndroidProvider.cmd`, `harness/api/android_provider_cli.py`, tests/CI. Resolve P04 from current TokenCorridor export **without changing canonical prompt bodies**. Inspect #522, #528 and merged PRs #517/#523–#530. Stop treating #528 as active implementation.
+2. Read-only preflight: identify PTop using actual profile/model + repo host authority; `git status --short --branch`; `git rev-parse HEAD`; `git worktree list --porcelain`; `git remote -v`; safe `git fetch origin` when network policy permits; reconcile clean/current canonical main vs isolated dirty branches. Preserve all private ignored receipts, active worktrees, AVDs, keys and unqualified staged archive. No destructive reset/clean, security setting changes or speculative downloads.
+3. Detect local native subagents/delegation API. Launch **W1-DEV and W1-AUTH concurrently** with distinct state and evidence output using the two self-contained panels below. Never run competing ADB servers or allow agent write overlap. If no supported native interface, probe repo runners, OpenCode/Cursor adapters, CI fanout, harmless independent processes. Record exact adapter and actual launches. If impossible, execute lanes in serial without inventing parallel proof; report and route `AUTONOMY_GAP` to TokenCorridor #142.
+4. After both wave-1 receipts, execute W2-CONVERGE as a single owner. Condition: `APPROVED_INDEPENDENT_MANIFEST_FOUND` with admissible third-party/owner authority, not just a generated digest. Without it, do not `prepare`; preserve `QUALIFICATION_AUTHORITY_REQUIRED` and complete all safe PTop developer validation.
+5. Only proven code defects authorize a minimal one-writer repair branch + tests; run required local/hosted gates, review, merge when safe, and verify refreshed main. Do not manufacture implementation to replace independent approval. Update #522 with sanitized evidence and accurate closure/blocked disposition.
+6. Final response **CHANGED | PROVED | NEXT**. List exact branch/head, wave/agent/parallel receipt, observed build/APK/Studio/AVD toolchain, executable version/scopes, SAS qualification, statuses, tests, skipped/gates, PR/merge, device/deployment proof ceiling. Persist sanitized issue status and private ignored evidence refs. No work on DTop or actual CC firmware.
+
+## Panel W1-DEV — PTop developer evidence (parallel group A)
+
+```text
+EXECUTE P04 ANDROID CLOSEOUT / W1-DEV — DO NOT REPLAN.
+Repo: EndeavorEverlasting/SysAdminSuite; host: verified PTop ASUS laptop; source: refreshed clean canonical main; active issue #522.
+Read: AGENTS.md; CODEBASE_MAP.md; docs/plans/android-suite-closeout-p04-20261010.plan.md; docs/ANDROID_TOOLCHAIN_PROVISIONING.md; Manage-AndroidToolchain.cmd; scripts/Start-SasAndroidToolchain.ps1; scripts/Invoke-SasAndroidToolchain.ps1; Config/android-toolchain-profile.json; Tests/survey/test_android_toolchain_contracts.py; #523/#524-527/#530.
+Dependencies: W0 preflight. Parallel-safe with W1-AUTH because authority lane is read-only, has distinct evidence output and does not start ADB/server/device. Owned: private ignored survey/output/android-toolchain/ receipts and isolated reproducing regression file+fix only if defect actually proved; never shared registries without coordinator W3 ownership. Forbidden: DTop, provider bundle preparation, real devices/firmware/USB, cleanup/reset, license autoaccept, SDK/PATH fallback for SAS, invented CI/live results.
+Mission: Reconcile prior PTop APK+emulator success with current exact source state; revalidate or type a true blocker. Check freshness/source authorization and typed PTop host profile; inspect installed Studio/CLI/JDK/SDK/CMake/NDK and user-vs-machine scope. Execute existing Manage-AndroidToolchain.cmd Inventory, Plan, Verify (no Apply). Then execute Verify -LaunchStudio -BuildSmoke -BootEmulator -AvdName Medium_Phone_API_37.0 if existing AVD/consent/resource/host conditions permit; use repository's scoped -TcpPipeFallback only for reproduced Gradle Windows Unix-pipe failure. Observe actual APK and boot_complete/ADB emulator identity and owned cleanup, never infer from package presence. Any GUI inspection limitations must remain GUI_UNVERIFIED. Preserve first #528 SUBPROCESS_OUTPUT_INCOMPLETE receipt; rerun harmless PS5.1/7 native fixture only if issue recurs, fix with negative test before changed source.
+Validation: python Tests/survey/test_android_toolchain_contracts.py; python Tests/survey/test_native_process_boundary_contracts.py; PS5.1+PS7 focused native regressions; git diff --check on any changed code. Keep private logs untracked.
+Proof: REAL_PTOP_DEV_RUNTIME only for actually observed tests; never SAS bundle or field device proof.
+Final: CHANGED | PROVED | NEXT with current checkout SHA, versions, commands and exit codes, evidence receipt refs, APK path class (private, not public), AVD boot+cleanup outcome, studio process vs GUI, blocked/skipped classification, exact optional repair PR/ref.
+Next: submit W1-DEV receipt to W2-CONVERGE; do not close #522 alone.
+```
+
+## Panel W1-AUTH — archive provenance and approval (parallel group B)
+
+```text
+EXECUTE P04 ANDROID CLOSEOUT / W1-AUTH — DO NOT REPLAN.
+Repo: EndeavorEverlasting/SysAdminSuite; host: verified PTop only; issue #522; source refreshed main.
+Read: AGENTS.md; CODEBASE_MAP.md; docs/plans/android-suite-closeout-p04-20261010.plan.md; docs/ANDROID_PROVIDER.md; docs/ANDROID_TOOLCHAIN_PROVISIONING.md; harness/api/android_provider.py; harness/api/android_provider_cli.py; Run-SasAndroidProvider.cmd; #517/#522/#528.
+Dependencies: W0; independent and parallel with W1-DEV. Owned: private ignored survey/output/android-provider/ qualification assessment **only**; no tracked source changes. Forbidden: provider preparation, synthetic self-approval, using SDK adb as SAS runtime, root/admin/firmware, device/network/USB scans, third-party credentials, agent access to W1-DEV emulator ADB server, touching DTop.
+Mission: search for an existing independently approved Google Windows Platform-Tools archive pin/trust manifest in repository-governed local/trusted sources, existing supplier provenance, or operator-approved authority. Identify official complete Windows archive staging; verify claim lineage and manifest/attestation schema. A digest calculated from the downloaded archive is a measurement, NOT independent approval. Emit APPROVED_INDEPENDENT_MANIFEST_FOUND only when separate approved authority binds the exact original archive sha256; else QUALIFICATION_AUTHORITY_REQUIRED and a precise minimal independent-approval request containing official source/version/package, hash field to validate, approval owner/provenance requirement, and opaque private evidence pointer. Do not place archive bytes, local identifiers, secrets or unsigned self-approval into Git. Read-only SAS status/doctor/verify may report MISSING_BUNDLE; no prepare.
+Validation: cross-check source qualification invariants and existing provider negative tests; verify receipt schema and reason codes; no new code merely for a missing approval.
+Proof: SOURCE_AUTHORITY_RESOLVED or SOURCE_AUTHORITY_BLOCKED, never qualified bundle without W2 preparation.
+Final: CHANGED | PROVED | NEXT, exact discovered authority/provenance (redacted public summary), trusted/untrusted distinction, preconditions and next gate for W2.
+Next: submit W1-AUTH receipt to W2-CONVERGE.
+```
+
+## Panel W2-CONVERGE — conditional SAS qualify and closeout (serial)
+
+```text
+EXECUTE P04 ANDROID CLOSEOUT / W2-CONVERGE — DO NOT REPLAN.
+Repo: EndeavorEverlasting/SysAdminSuite; host: actual PTop; issue #522; refreshed canonical clean main.
+Read: AGENTS.md; CODEBASE_MAP.md; docs/plans/android-suite-closeout-p04-20261010.plan.md; both W1 receipts; Run-SasAndroidProvider.cmd; harness/api/android_provider_cli.py; docs/ANDROID_PROVIDER.md; Test/survey Android provider contracts; source/seal/network-intent owner.
+Dependencies: W1-DEV and W1-AUTH receipts joined and independently evaluated. Single mutation owner. Forbidden: changes to DTop; using emulator ADB or unapproved archive as SAS; physical USB or TCP/firmware; wiping journals; competing ADB server termination; overwriting previous rollback without review.
+Tasks: 1) check recent main and profile/seal/network admission, actual private archive approval independently attested; 2) if trusted pin found, run Run-SasAndroidProvider.cmd prepare --role ptop_lab --archive EXACT_APPROVED_LOCAL_FILE --archive-sha256 EXACT_INDEPENDENT_APPROVED_PIN under existing appropriate authorization, then status, doctor, verify; confirm attestation, owned runtime, offline state, no SDK/PATH fallback, zero public listener, keys private and rollback journal intact; 3) if no pin, DO NOT PREPARE, emit source qualification blocked with exact approval packet; 4) run existing focused provider/H&H firmware-policy/boundary/registry/outcome tests, repair only a reproduced failure via owned branch/regression; 5) PR/review/merge when real source changes justified and possible, then same-main verify; 6) publish sanitized #522 progress/closing state without raw host evidence; 7) classify AdminBox/technician physical parity and real device certification as unproven separate successors, not misleading automatic success.
+Validation: python Tests/survey/test_android_provider_implementation.py; python Tests/survey/test_hh_cc_reader_adb_control_plane_contracts.py; python Tests/survey/test_sas_android_provider_boundary_contracts.py; python harness/validators/validate-sas-android-provider-boundary.py; python harness/validators/validate-harness-registries.py; python harness/validators/validate-outcome-contracts.py; required PowerShell/CI based on actual changed paths; git diff --check.
+Proof: developer host and SAS bundle qualification separately; never field/production mutation. Report any unmet external authority as blocking only the gated capability.
+Final: CHANGED | PROVED | NEXT: file list, tests+skips, actual source SHA, branch/PR/merged-main state, private receipt refs, exact blocker vs approved qualified result, #522 issue state, earliest executable next gate. No re-planning or operator coordination of subagents.
+```
+
+## Guardrail on merge/closure
+
+If no code changes are needed, don't manufacture a PR. This tracked plan is not a substitute for runtime evidence. Completion remains truthfully split: PTop development proven or typed regression; SAS qualification proven or independent-authority blocked; AdminBox live and H&H device/firmware remain separate physical/organizational proof.
