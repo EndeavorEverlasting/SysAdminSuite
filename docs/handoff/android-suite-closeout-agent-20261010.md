@@ -46,7 +46,7 @@ Tasks:
 3) If trusted source found, provide private opaque pin/source authority and complete validated manifest-readiness packet to W2; if not, emit QUALIFICATION_AUTHORITY_REQUIRED plus an exact minimal owner/approval/source/version/hash decision needed.
 4) Do not alter any runtime on Admin Box 1 or PTop. Preserve field/offline execution boundaries.
 Validation: cross-check archive qualifier invariants, no secrets or host data in tracked artifacts; report what was merely inspected.
-Proof ceiling: INDEPENDENT_SOURCE_PIN_APPROVED or AUTHORITY_BLOCKED, never SAS_RUNTIME_QUALIFIED until W2 actually prepares/verifies it.
+Proof ceiling: INDEPENDENT_SOURCE_PIN_APPROVED or QUALIFICATION_AUTHORITY_REQUIRED, never SAS_RUNTIME_QUALIFIED until W2 actually prepares/verifies it.
 Final: CHANGED | PROVED | NEXT, provenance and private evidence references, authorization type, explicit source integrity decision.
 NEXT: return W1-AUTH typed receipt to W2.
 ```
