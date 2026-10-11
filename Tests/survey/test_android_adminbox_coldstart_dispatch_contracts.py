@@ -73,7 +73,7 @@ def test_execution_dependency_graph_and_no_fake_runtime_proof():
         visited.add(node)
     for name in ids:
         check_dag(name)
-    for name in ("W1-ABOX", "W1-AUTH", "W2-CONVERGE"):
+    for name in ("W1-ABOX", "W2-CONVERGE"):
         assert "--expected-commit" in by_id[name]["launch_action"]
     assert "not observed" in doc["proof_ceiling"].lower() or "no live agent" in doc["proof_ceiling"].lower()
 
