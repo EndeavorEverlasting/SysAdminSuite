@@ -7,7 +7,7 @@
   "source_plan": "docs/plans/android-suite-closeout-p04-20261010.plan.md",
   "handoff": "docs/handoff/android-suite-closeout-agent-20261010.md",
   "repo": "EndeavorEverlasting/SysAdminSuite",
-  "baseline_main_sha": "0a9447f54b7f342d5bbef6bf01d562b36859feb7",
+  "baseline_main_sha": "3a4494114543c0a6898114387b5cb60d489360f0",
   "host": "LOCAL_AGENT_RUNTIME",
   "provider_routes": [
     "GitHub"
@@ -16,227 +16,283 @@
   "current_chat_completed": [
     "resolved TokenCorridor P04 by current registry",
     "recovered source and merged PR facts",
-    "persisted sanitized P04 plan, handoff and provisional dependency map"
+    "persisted sanitized P04 plan, handoff and provisional dependency map",
+    "corrected coordinator placement to expected OpenCode on Admin Box 1; separated Admin Box host readiness from PTop prior proof"
   ],
-  "parallel_execution": "DEGRADED_FROM_CURRENT_CHAT",
-  "expected_parallel_width": 2,
+  "parallel_execution": "NOT_OBSERVED_FROM_CURRENT_CHAT",
+  "expected_parallel_width": 3,
   "observed_parallelism": false,
   "parallelism_proof": "NOT_OBSERVED",
-  "autonomy_gap": "Local coordinating agent must prove native child-agent/task API, or other supported rung; canonical P04 dispatcher missing at TokenCorridor #142",
-  "safety": "No source pin self-approval, SAS SDK ADB fallback, real-device/firmware mutation, DTop writes, competing mutable ADB servers, release proof from fixtures, or private data publication",
+  "autonomy_gap": "Actual OpenCode local worker runtime unobserved; resolve native task/subagent adapter on verified Admin Box 1; upstream standard dispatcher remains TokenCorridor #142",
+  "safety": "No PTop-specific Manage-AndroidToolchain operations on Admin Box 1; no cross-host identity/proof reassignment; no approved source pin self-generation, SDK/PATH ADB SAS fallback, physical reader/firmware actions, DTop work, competing ADB server interruption, protected-network source bypass or private material publication",
   "lanes": [
     {
-      "lane_id": "W0-PREFLIGHT",
+      "lane_id": "W0-ADMINBOX",
       "wave": 0,
-      "mission": "Bind PTop host authority, refresh source/provider and worktree facts, preserve receipts, identify safe native local workers",
+      "mission": "Verify actual Admin Box 1 host, source/offline seal, node role and OpenCode worker capability",
       "dependencies": [],
       "owned_mutation_surfaces": [
-        "private ignored preflight receipt"
+        "private ignored Admin Box 1 preflight receipt"
       ],
       "forbidden_surfaces": [
-        "DTop",
-        "firmware",
-        "all tracked code before defect proof"
+        "DTop/PTop host mutation",
+        "protected network transition",
+        "dirty-worktree reset",
+        "physical Android device actions"
       ],
-      "branch_or_worktree": "canonical main read-only; do not reset dirty trees",
-      "execution_environment": "LOCAL_AGENT_RUNTIME",
-      "provider_access": [
-        {
-          "provider_family": "GitHub",
-          "operation": "refresh PR and issue state",
-          "mutation_authority": false
-        }
-      ],
-      "required_capabilities": [
-        "PowerShell 5.1",
-        "git",
-        "canonical path resolver",
-        "host authority validation",
-        "native child-agent adapter discovery"
-      ],
-      "evidence_inputs": [
-        {
-          "evidence_type": "merged_main",
-          "source_owner": "SysAdminSuite",
-          "sanitized_ref": "sysadmin:main:0a9447f54b7f342d5bbef6bf01d562b36859feb7",
-          "freshness": "2026-10-10; refresh immediately",
-          "proof_ceiling": "remote repo revision, not local host"
-        }
-      ],
-      "selected_adapter": "LOCAL_COORDINATOR_TO_RESOLVE",
-      "launch_action": "Ingest full one-shot handoff; execute W0; then dispatch W1-DEV and W1-AUTH through actually proved local worker API",
-      "expected_artifact": "private typed W0 preflight/host git receipt",
-      "validation": [
-        "repo origin",
-        "clean status or safe isolation",
-        "host profile evidence",
-        "adapter availability"
-      ],
-      "convergence_owner": "W2-CONVERGE",
-      "status": "READY_LOCAL_EXECUTION"
-    },
-    {
-      "lane_id": "W1-DEV",
-      "wave": 1,
-      "mission": "Revalidate Android CLI/JDK/SDK, Kotlin build APK, isolated API37 emulator, Studio process vs GUI proof on PTop",
-      "dependencies": [
-        "W0-PREFLIGHT"
-      ],
-      "owned_mutation_surfaces": [
-        "survey/output/android-toolchain/ private ignored receipts",
-        "isolated focused regression only after reproducing an actual defect"
-      ],
-      "forbidden_surfaces": [
-        "DTop",
-        "SAS qualified runtime preparation",
-        "real device USB/TCP",
-        "firmware",
-        "shared registries"
-      ],
-      "branch_or_worktree": "canonical main runtime, separate isolated fix worktree only conditional",
+      "branch_or_worktree": "No tracked writes in wave; use isolated worktrees only if regression proves code change",
       "execution_environment": "LOCAL_AGENT_RUNTIME",
       "provider_access": [],
       "required_capabilities": [
-        "Windows PowerShell 5.1 and 7",
-        "Manage-AndroidToolchain.cmd",
-        "JDK/Gradle Wrapper",
-        "isolated emulator",
-        "local native worker"
+        "Windows host profile",
+        "canonical SAS path/source seal",
+        "git",
+        "OpenCode native worker discovery"
       ],
       "evidence_inputs": [
         {
-          "evidence_type": "prior_dev_proof",
-          "source_owner": "SysAdminSuite PR #523",
-          "sanitized_ref": "sysadmin:pr:523",
-          "freshness": "earlier PTop proof, needs current revision readback",
-          "proof_ceiling": "prior build/AVD boot, not #528 retest"
-        },
-        {
-          "evidence_type": "latest_readonly_verify",
-          "source_owner": "PTop-local agent #528",
-          "sanitized_ref": "opaque:ptop-528-readonly-receipts",
-          "freshness": "2026-10-10",
-          "proof_ceiling": "12 read-only checks only"
+          "evidence_type": "merged_plan",
+          "source_owner": "SysAdminSuite",
+          "sanitized_ref": "sysadmin:pr:531",
+          "freshness": "historical; refresh at execution",
+          "proof_ceiling": "Planning integration only"
         }
       ],
-      "selected_adapter": "LOCAL_NATIVE_CHILD_AGENT_IF_PROVEN",
-      "launch_action": "Coordinator dispatches handoff Panel W1-DEV via native child-agent/task API; no manual multi-chat scheduling",
-      "expected_artifact": "private W1-DEV receipt with actual command results/build/APK/emulator/cleanup",
+      "selected_adapter": "OpenCode local coordinator if actually installed and admissible",
+      "adapter_proof": "UNOBSERVED; validate on actual controller",
+      "launch_action": "Coordinator consumes handoff W0; verify Admin Box 1 identity and adminbox_reference authority, then simultaneously launch W1-ABOX, W1-AUTH and W1-PTOP through a proved adapter",
+      "expected_artifact": "private W0 host+role+adapter proof",
       "validation": [
-        "Android eight test groups as relevant",
-        "native process PS5.1/7",
-        "APK actual existence and AVD boot proof",
-        "separate GUI evidence"
+        "approved host identity and role",
+        "git/source/whitelist seal",
+        "OpenCode adapter real operation"
       ],
       "convergence_owner": "W2-CONVERGE",
-      "status": "READY_AFTER_W0"
+      "status": "READY_CONDITIONAL_CONTROLLER_ADMISSION",
+      "proof_ceiling": "Only recorded host/runtime operations; no physical device or production proof"
+    },
+    {
+      "lane_id": "W1-ABOX",
+      "wave": 1,
+      "mission": "Read-only Admin Box 1 reference node readiness; correctly classify SAS-owned bundle/seal/cache status",
+      "dependencies": [
+        "W0-ADMINBOX"
+      ],
+      "owned_mutation_surfaces": [
+        "private ignored Admin Box 1 provider status/doctor/verify receipts"
+      ],
+      "forbidden_surfaces": [
+        "Manage-AndroidToolchain.cmd",
+        "ptop_lab",
+        "DTop",
+        "physical USB/LAN/firmware",
+        "unapproved provider prepare"
+      ],
+      "branch_or_worktree": "No tracked writes in wave; use isolated worktrees only if regression proves code change",
+      "execution_environment": "LOCAL_AGENT_RUNTIME",
+      "provider_access": [],
+      "required_capabilities": [
+        "Run-SasAndroidProvider.cmd",
+        "adminbox_reference source/profile admission",
+        "offline seal",
+        "Python"
+      ],
+      "evidence_inputs": [
+        {
+          "evidence_type": "provider_contract",
+          "source_owner": "SysAdminSuite PR #517",
+          "sanitized_ref": "sysadmin:pr:517",
+          "freshness": "historical; refresh at execution",
+          "proof_ceiling": "M2 software implementation, not Admin Box 1 live readiness"
+        }
+      ],
+      "selected_adapter": "OpenCode delegated read-only worker",
+      "adapter_proof": "UNOBSERVED; validate on actual controller",
+      "launch_action": "On proven Admin Box 1, perform handoff W1-ABOX; if admission passes run provider status/doctor/verify with role adminbox_reference; never prepare in this lane",
+      "expected_artifact": "private W1-ABOX typed readiness report",
+      "validation": [
+        "source/role correctness",
+        "private receipt preservation",
+        "negative provider fixtures where available"
+      ],
+      "convergence_owner": "W2-CONVERGE",
+      "status": "READY_AFTER_W0",
+      "proof_ceiling": "Only recorded host/runtime operations; no physical device or production proof"
     },
     {
       "lane_id": "W1-AUTH",
       "wave": 1,
-      "mission": "Recover existing independently approved official Windows Platform-Tools archive SHA-256 or produce authority request without self-approval",
+      "mission": "Recover independent approved Windows Platform-Tools archive SHA-256 or exact authority packet",
       "dependencies": [
-        "W0-PREFLIGHT"
+        "W0-ADMINBOX"
       ],
       "owned_mutation_surfaces": [
-        "survey/output/android-provider/ private ignored authority assessment"
+        "private ignored provenance report"
       ],
       "forbidden_surfaces": [
-        "provider prepare or device operation",
-        "DTop",
-        "source pin self-approval",
-        "SDK/PATH adb runtime substitution"
+        "Run-SasAndroidProvider.cmd prepare",
+        "self-approving computed hash",
+        "SDK adb fallback",
+        "reader probe"
       ],
-      "branch_or_worktree": "read-only code and local trusted authority inventory",
+      "branch_or_worktree": "No tracked writes in wave; use isolated worktrees only if regression proves code change",
       "execution_environment": "LOCAL_AGENT_RUNTIME",
-      "provider_access": [
-        {
-          "provider_family": "GitHub",
-          "operation": "read documented prior authority and manifest files",
-          "mutation_authority": false
-        }
-      ],
+      "provider_access": [],
       "required_capabilities": [
-        "trusted file/provenance inspection",
-        "repo AndroidProvider read",
-        "independent authority classification"
+        "trusted manifest/provenance investigation",
+        "approved digest lineage validation"
       ],
       "evidence_inputs": [
         {
-          "evidence_type": "qualification_contract",
-          "source_owner": "SysAdminSuite #522",
-          "sanitized_ref": "sysadmin:issue:522",
-          "freshness": "2026-10-10",
-          "proof_ceiling": "requirement not external approval"
+          "evidence_type": "qualification_gate",
+          "source_owner": "SysAdminSuite docs/ANDROID_PROVIDER.md",
+          "sanitized_ref": "sysadmin:android-provider-doc",
+          "freshness": "historical; refresh at execution",
+          "proof_ceiling": "Qualifying rule only, not granted source approval"
         }
       ],
-      "selected_adapter": "LOCAL_NATIVE_CHILD_AGENT_IF_PROVEN",
-      "launch_action": "Coordinator dispatches handoff Panel W1-AUTH concurrently with W1-DEV through proved adapter",
-      "expected_artifact": "private W1-AUTH authority decision with approved pin ref or QUALIFICATION_AUTHORITY_REQUIRED packet",
+      "selected_adapter": "OpenCode delegated read-only worker",
+      "adapter_proof": "UNOBSERVED; validate on actual controller",
+      "launch_action": "Execute handoff W1-AUTH concurrently with W1-ABOX; never prepare using self-hash or unapproved candidate pin",
+      "expected_artifact": "private W1-AUTH approved-authority or QUALIFICATION_AUTHORITY_REQUIRED report",
       "validation": [
-        "official complete archive identity",
-        "pin independence and approver evidence",
-        "no prepare unless qualified"
+        "independent approval distinct from candidate hash",
+        "complete official archive",
+        "redacted receipt"
       ],
       "convergence_owner": "W2-CONVERGE",
-      "status": "READY_AFTER_W0"
+      "status": "READY_AFTER_W0",
+      "proof_ceiling": "Only recorded host/runtime operations; no physical device or production proof"
+    },
+    {
+      "lane_id": "W1-PTOP",
+      "wave": 1,
+      "mission": "Audit historical PTop build/emulator proof; optional fresh testing only from an independently verified actual PTop worker",
+      "dependencies": [
+        "W0-ADMINBOX"
+      ],
+      "owned_mutation_surfaces": [
+        "private PTop historical proof ledger",
+        "PTop-only ignored receipts if authorized worker exists"
+      ],
+      "forbidden_surfaces": [
+        "running Manage-AndroidToolchain.cmd on Admin Box 1",
+        "assuming PTop connectivity",
+        "DTop",
+        "Admin Box ADB runtime mutation"
+      ],
+      "branch_or_worktree": "No tracked writes in wave; use isolated worktrees only if regression proves code change",
+      "execution_environment": "LOCAL_AGENT_RUNTIME",
+      "provider_access": [],
+      "required_capabilities": [
+        "GitHub PR proof retrieval",
+        "optional verified PTop worker adapter"
+      ],
+      "evidence_inputs": [
+        {
+          "evidence_type": "prior_build_emulator",
+          "source_owner": "SysAdminSuite PR #523",
+          "sanitized_ref": "sysadmin:pr:523",
+          "freshness": "historical; refresh at execution",
+          "proof_ceiling": "Historical PTop Kotlin APK and AVD boot"
+        },
+        {
+          "evidence_type": "read_only_native",
+          "source_owner": "PTop local #528",
+          "sanitized_ref": "opaque:ptop-528-readonly",
+          "freshness": "historical; refresh at execution",
+          "proof_ceiling": "12 checks; not fresh build/AVD"
+        }
+      ],
+      "selected_adapter": "OpenCode read-only evidence worker; optional separate verified PTop runtime adapter",
+      "adapter_proof": "UNOBSERVED; validate on actual controller",
+      "launch_action": "Reconcile #523 and #528; only with separately verified, authorized actual PTop worker perform PTop development Verify/BuildSmoke/BootEmulator; otherwise explicitly mark LIVE_NOT_OBSERVED",
+      "expected_artifact": "private W1-PTOP historical-vs-fresh evidence report",
+      "validation": [
+        "prior/fresh state separation",
+        "host-attested real PTop identity if live",
+        "no Admin Box test misattribution"
+      ],
+      "convergence_owner": "W2-CONVERGE",
+      "status": "READY_AFTER_W0",
+      "proof_ceiling": "Only recorded host/runtime operations; no physical device or production proof"
     },
     {
       "lane_id": "W2-CONVERGE",
       "wave": 2,
-      "mission": "Reconcile both evidence receipts; conditional SAS prepare/verify only with independently approved pin; run regression/CI and converge #522 issue truth",
+      "mission": "Join receipts; qualified runtime preparation on Admin Box 1 only if independent approved pin; test, integrate and report",
       "dependencies": [
-        "W1-DEV",
-        "W1-AUTH"
+        "W1-ABOX",
+        "W1-AUTH",
+        "W1-PTOP"
       ],
       "owned_mutation_surfaces": [
-        "SAS runtime qualification only after qualified independent authority",
-        "issue #522 sanitized closeout",
-        "scoped repair branch and shared registries only if defect proven"
+        "Admin Box qualified provider runtime only when independently authorized",
+        "scoped regression repairs/PR and sanitized closeout only if needed"
       ],
       "forbidden_surfaces": [
         "DTop",
-        "unapproved archive qualification",
-        "device/firmware mutation",
-        "unrelated #519/#520",
-        "destructive git"
+        "unqualified source prepare",
+        "real reader/firmware",
+        "stale host proof promotion",
+        "reopening #522 solely due to plan"
       ],
-      "branch_or_worktree": "canonical current clean runtime; isolated fix branch only if needed",
+      "branch_or_worktree": "No tracked writes in wave; use isolated worktrees only if regression proves code change",
       "execution_environment": "LOCAL_AGENT_RUNTIME",
-      "provider_access": [
-        {
-          "provider_family": "GitHub",
-          "operation": "PR review/merge and issue update only when justified",
-          "mutation_authority": "conditional"
-        }
-      ],
+      "provider_access": [],
       "required_capabilities": [
-        "AndroidProvider typed CMD front door",
-        "approved archive evidence if present",
-        "Python tests and validators",
-        "CI/PR provider"
+        "actual complete approved archive+digest if present",
+        "source seal",
+        "adminbox_reference role",
+        "provider tests",
+        "GitHub PR/CI"
       ],
       "evidence_inputs": [
         {
           "evidence_type": "joined_wave_receipts",
-          "source_owner": "W1-DEV and W1-AUTH",
-          "sanitized_ref": "opaque:ptop-android-closeout-wave1",
-          "freshness": "fresh exact-main local",
-          "proof_ceiling": "bounded to observed operations"
+          "source_owner": "W1-ABOX W1-AUTH W1-PTOP",
+          "sanitized_ref": "opaque:adminbox-android-closeout-wave1",
+          "freshness": "historical; refresh at execution",
+          "proof_ceiling": "Observed or typed-blocked only"
         }
       ],
-      "selected_adapter": "LOCAL_COORDINATOR",
-      "launch_action": "After both wave-1 receipts, run handoff Panel W2-CONVERGE; prepare only if APPROVED_INDEPENDENT_MANIFEST_FOUND",
-      "expected_artifact": "sanitized #522 update and private closeout receipt; optional merged fix with exact-head tests",
+      "selected_adapter": "OpenCode coordinator serial convergence",
+      "adapter_proof": "UNOBSERVED; validate on actual controller",
+      "launch_action": "Execute handoff W2; if independently approved digest and clean source/role gates, Run-SasAndroidProvider.cmd prepare --role adminbox_reference with exact approved archive then status doctor verify. Else report QUALIFICATION_AUTHORITY_REQUIRED and finish independent proof. Repair only reproducible defects and integrate authorized changes.",
+      "expected_artifact": "private Admin Box 1 qualification report + sanitized GitHub status/PR if changed",
       "validation": [
-        "AndroidProvider/H&H boundary and firmware safety tests",
-        "registry/outcome validators",
-        "host prove if authority exists",
-        "PR checks if code changed"
+        "provider/H&H boundary and firmware refusals",
+        "harness validators and PS native regressions",
+        "exact CI/PR/merge state",
+        "no cross-host promotion"
       ],
-      "convergence_owner": "SysAdminSuite issue #522",
-      "status": "WAITING_ON_WAVE1; CONDITIONAL_AUTHORITY"
+      "convergence_owner": "W2-CONVERGE",
+      "status": "WAITING_ON_WAVE1; CONDITIONAL_SOURCE_APPROVAL",
+      "proof_ceiling": "Only recorded host/runtime operations; no physical device or production proof"
     }
   ],
-  "proof_ceiling": "No local agent has been launched by ChatGPT provider runtime; downstream physical AdminBox/reader and production certifications remain unproven independently."
+  "proof_ceiling": "Plan and dispatch placement corrected in GitHub only. No OpenCode agent or Admin Box 1 runtime invoked from ChatGPT. PTop prior developer proof remains historical; Admin Box 1 and field/device remain unproven until observed.",
+  "coordinator": {
+    "expected_machine": "Admin Box 1",
+    "identity_state": "UNVERIFIED",
+    "expected_agent": "OpenCode",
+    "agent_state": "UNVERIFIED",
+    "node_role": "adminbox_reference",
+    "role_authority": "CONDITIONAL_ON_APPROVED_HOST_PROFILE",
+    "execution_placement": "LOCAL_AGENT_RUNTIME",
+    "never_infer": [
+      "PTop role",
+      "DTop role",
+      "Admin Box 1 identity from hostname alone",
+      "physical target authority from same-LAN access"
+    ]
+  },
+  "developer_host": {
+    "host": "PTop",
+    "separate_from_coordinator": true,
+    "scope": "historical developer proof and optional independently verified actual-PTop worker",
+    "no_auto_remote_access": true,
+    "developer_toolchain_script_host_restriction": "ptop_lab"
+  },
+  "issue_522_observed_state": "CLOSED_COMPLETED_AT_PLAN_CORRECTION; refresh, do not auto-reopen"
 }
