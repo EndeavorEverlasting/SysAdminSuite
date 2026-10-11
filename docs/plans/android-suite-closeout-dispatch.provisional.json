@@ -1,0 +1,242 @@
+{
+  "schema_version": "sas-p04-dispatch-provisional/v1",
+  "canonical_expected_contract": "prompt-parallel-dispatch/v1",
+  "standard_contract_validation": "BLOCKED_TOKENCORRIDOR_ISSUE_142",
+  "standard_runner": "UNAVAILABLE_ON_TOKENCORRIDOR_MAIN",
+  "owner": "SysAdminSuite #522",
+  "source_plan": "docs/plans/android-suite-closeout-p04-20261010.plan.md",
+  "handoff": "docs/handoff/android-suite-closeout-agent-20261010.md",
+  "repo": "EndeavorEverlasting/SysAdminSuite",
+  "baseline_main_sha": "0a9447f54b7f342d5bbef6bf01d562b36859feb7",
+  "host": "LOCAL_AGENT_RUNTIME",
+  "provider_routes": [
+    "GitHub"
+  ],
+  "execution_status": "NOT_DISPATCHED",
+  "current_chat_completed": [
+    "resolved TokenCorridor P04 by current registry",
+    "recovered source and merged PR facts",
+    "persisted sanitized P04 plan, handoff and provisional dependency map"
+  ],
+  "parallel_execution": "DEGRADED_FROM_CURRENT_CHAT",
+  "expected_parallel_width": 2,
+  "observed_parallelism": false,
+  "parallelism_proof": "NOT_OBSERVED",
+  "autonomy_gap": "Local coordinating agent must prove native child-agent/task API, or other supported rung; canonical P04 dispatcher missing at TokenCorridor #142",
+  "safety": "No source pin self-approval, SAS SDK ADB fallback, real-device/firmware mutation, DTop writes, competing mutable ADB servers, release proof from fixtures, or private data publication",
+  "lanes": [
+    {
+      "lane_id": "W0-PREFLIGHT",
+      "wave": 0,
+      "mission": "Bind PTop host authority, refresh source/provider and worktree facts, preserve receipts, identify safe native local workers",
+      "dependencies": [],
+      "owned_mutation_surfaces": [
+        "private ignored preflight receipt"
+      ],
+      "forbidden_surfaces": [
+        "DTop",
+        "firmware",
+        "all tracked code before defect proof"
+      ],
+      "branch_or_worktree": "canonical main read-only; do not reset dirty trees",
+      "execution_environment": "LOCAL_AGENT_RUNTIME",
+      "provider_access": [
+        {
+          "provider_family": "GitHub",
+          "operation": "refresh PR and issue state",
+          "mutation_authority": false
+        }
+      ],
+      "required_capabilities": [
+        "PowerShell 5.1",
+        "git",
+        "canonical path resolver",
+        "host authority validation",
+        "native child-agent adapter discovery"
+      ],
+      "evidence_inputs": [
+        {
+          "evidence_type": "merged_main",
+          "source_owner": "SysAdminSuite",
+          "sanitized_ref": "sysadmin:main:0a9447f54b7f342d5bbef6bf01d562b36859feb7",
+          "freshness": "2026-10-10; refresh immediately",
+          "proof_ceiling": "remote repo revision, not local host"
+        }
+      ],
+      "selected_adapter": "LOCAL_COORDINATOR_TO_RESOLVE",
+      "launch_action": "Ingest full one-shot handoff; execute W0; then dispatch W1-DEV and W1-AUTH through actually proved local worker API",
+      "expected_artifact": "private typed W0 preflight/host git receipt",
+      "validation": [
+        "repo origin",
+        "clean status or safe isolation",
+        "host profile evidence",
+        "adapter availability"
+      ],
+      "convergence_owner": "W2-CONVERGE",
+      "status": "READY_LOCAL_EXECUTION"
+    },
+    {
+      "lane_id": "W1-DEV",
+      "wave": 1,
+      "mission": "Revalidate Android CLI/JDK/SDK, Kotlin build APK, isolated API37 emulator, Studio process vs GUI proof on PTop",
+      "dependencies": [
+        "W0-PREFLIGHT"
+      ],
+      "owned_mutation_surfaces": [
+        "survey/output/android-toolchain/ private ignored receipts",
+        "isolated focused regression only after reproducing an actual defect"
+      ],
+      "forbidden_surfaces": [
+        "DTop",
+        "SAS qualified runtime preparation",
+        "real device USB/TCP",
+        "firmware",
+        "shared registries"
+      ],
+      "branch_or_worktree": "canonical main runtime, separate isolated fix worktree only conditional",
+      "execution_environment": "LOCAL_AGENT_RUNTIME",
+      "provider_access": [],
+      "required_capabilities": [
+        "Windows PowerShell 5.1 and 7",
+        "Manage-AndroidToolchain.cmd",
+        "JDK/Gradle Wrapper",
+        "isolated emulator",
+        "local native worker"
+      ],
+      "evidence_inputs": [
+        {
+          "evidence_type": "prior_dev_proof",
+          "source_owner": "SysAdminSuite PR #523",
+          "sanitized_ref": "sysadmin:pr:523",
+          "freshness": "earlier PTop proof, needs current revision readback",
+          "proof_ceiling": "prior build/AVD boot, not #528 retest"
+        },
+        {
+          "evidence_type": "latest_readonly_verify",
+          "source_owner": "PTop-local agent #528",
+          "sanitized_ref": "opaque:ptop-528-readonly-receipts",
+          "freshness": "2026-10-10",
+          "proof_ceiling": "12 read-only checks only"
+        }
+      ],
+      "selected_adapter": "LOCAL_NATIVE_CHILD_AGENT_IF_PROVEN",
+      "launch_action": "Coordinator dispatches handoff Panel W1-DEV via native child-agent/task API; no manual multi-chat scheduling",
+      "expected_artifact": "private W1-DEV receipt with actual command results/build/APK/emulator/cleanup",
+      "validation": [
+        "Android eight test groups as relevant",
+        "native process PS5.1/7",
+        "APK actual existence and AVD boot proof",
+        "separate GUI evidence"
+      ],
+      "convergence_owner": "W2-CONVERGE",
+      "status": "READY_AFTER_W0"
+    },
+    {
+      "lane_id": "W1-AUTH",
+      "wave": 1,
+      "mission": "Recover existing independently approved official Windows Platform-Tools archive SHA-256 or produce authority request without self-approval",
+      "dependencies": [
+        "W0-PREFLIGHT"
+      ],
+      "owned_mutation_surfaces": [
+        "survey/output/android-provider/ private ignored authority assessment"
+      ],
+      "forbidden_surfaces": [
+        "provider prepare or device operation",
+        "DTop",
+        "source pin self-approval",
+        "SDK/PATH adb runtime substitution"
+      ],
+      "branch_or_worktree": "read-only code and local trusted authority inventory",
+      "execution_environment": "LOCAL_AGENT_RUNTIME",
+      "provider_access": [
+        {
+          "provider_family": "GitHub",
+          "operation": "read documented prior authority and manifest files",
+          "mutation_authority": false
+        }
+      ],
+      "required_capabilities": [
+        "trusted file/provenance inspection",
+        "repo AndroidProvider read",
+        "independent authority classification"
+      ],
+      "evidence_inputs": [
+        {
+          "evidence_type": "qualification_contract",
+          "source_owner": "SysAdminSuite #522",
+          "sanitized_ref": "sysadmin:issue:522",
+          "freshness": "2026-10-10",
+          "proof_ceiling": "requirement not external approval"
+        }
+      ],
+      "selected_adapter": "LOCAL_NATIVE_CHILD_AGENT_IF_PROVEN",
+      "launch_action": "Coordinator dispatches handoff Panel W1-AUTH concurrently with W1-DEV through proved adapter",
+      "expected_artifact": "private W1-AUTH authority decision with approved pin ref or QUALIFICATION_AUTHORITY_REQUIRED packet",
+      "validation": [
+        "official complete archive identity",
+        "pin independence and approver evidence",
+        "no prepare unless qualified"
+      ],
+      "convergence_owner": "W2-CONVERGE",
+      "status": "READY_AFTER_W0"
+    },
+    {
+      "lane_id": "W2-CONVERGE",
+      "wave": 2,
+      "mission": "Reconcile both evidence receipts; conditional SAS prepare/verify only with independently approved pin; run regression/CI and converge #522 issue truth",
+      "dependencies": [
+        "W1-DEV",
+        "W1-AUTH"
+      ],
+      "owned_mutation_surfaces": [
+        "SAS runtime qualification only after qualified independent authority",
+        "issue #522 sanitized closeout",
+        "scoped repair branch and shared registries only if defect proven"
+      ],
+      "forbidden_surfaces": [
+        "DTop",
+        "unapproved archive qualification",
+        "device/firmware mutation",
+        "unrelated #519/#520",
+        "destructive git"
+      ],
+      "branch_or_worktree": "canonical current clean runtime; isolated fix branch only if needed",
+      "execution_environment": "LOCAL_AGENT_RUNTIME",
+      "provider_access": [
+        {
+          "provider_family": "GitHub",
+          "operation": "PR review/merge and issue update only when justified",
+          "mutation_authority": "conditional"
+        }
+      ],
+      "required_capabilities": [
+        "AndroidProvider typed CMD front door",
+        "approved archive evidence if present",
+        "Python tests and validators",
+        "CI/PR provider"
+      ],
+      "evidence_inputs": [
+        {
+          "evidence_type": "joined_wave_receipts",
+          "source_owner": "W1-DEV and W1-AUTH",
+          "sanitized_ref": "opaque:ptop-android-closeout-wave1",
+          "freshness": "fresh exact-main local",
+          "proof_ceiling": "bounded to observed operations"
+        }
+      ],
+      "selected_adapter": "LOCAL_COORDINATOR",
+      "launch_action": "After both wave-1 receipts, run handoff Panel W2-CONVERGE; prepare only if APPROVED_INDEPENDENT_MANIFEST_FOUND",
+      "expected_artifact": "sanitized #522 update and private closeout receipt; optional merged fix with exact-head tests",
+      "validation": [
+        "AndroidProvider/H&H boundary and firmware safety tests",
+        "registry/outcome validators",
+        "host prove if authority exists",
+        "PR checks if code changed"
+      ],
+      "convergence_owner": "SysAdminSuite issue #522",
+      "status": "WAITING_ON_WAVE1; CONDITIONAL_AUTHORITY"
+    }
+  ],
+  "proof_ceiling": "No local agent has been launched by ChatGPT provider runtime; downstream physical AdminBox/reader and production certifications remain unproven independently."
+}
