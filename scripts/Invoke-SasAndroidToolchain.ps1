@@ -13,13 +13,25 @@ param(
 )
 $ErrorActionPreference='Stop'
 $repo=Split-Path $PSScriptRoot -Parent
-$profile=Get-Content (Join-Path $repo 'Config/android-toolchain-profile.json') -Raw | ConvertFrom-Json
+$profilePath=Join-Path $repo 'Config/android-toolchain-profile.json'
+if($NodeRole -eq 'adminbox_reference'){$profilePath=Join-Path $repo 'Config/android-adminbox-toolchain-profile.json'}
+$profile=Get-Content $profilePath -Raw | ConvertFrom-Json
 if(-not $OutputRoot){$OutputRoot=Join-Path $repo 'survey/output/android-toolchain'}
 $result=[ordered]@{schema_version='sas-android-toolchain-result/v1';operation=$Operation;node_role=$NodeRole;result='BLOCK';reason_codes=@();proof=@();actions=@();inventory=$null;checks=@();source=$null}
 $fixture=$null
 function Assert-PTopProfile($Authority,$Equipment,[string]$RequestedOperation){
  if($Authority.schema_version -ne 'sas-android-toolchain-host-authority/v1' -or $Authority.status -ne 'RESOLVED' -or $Authority.node_role -ne 'ptop_lab' -or -not $Authority.evidence_ref -or $RequestedOperation -notin @($Authority.allowed_operations)){throw 'PTOP_PROFILE_AUTHORITY_INVALID'}
  if(-not $Authority.manufacturer -or -not $Authority.model -or $Authority.manufacturer -ne $Equipment.Manufacturer -or $Authority.model -ne $Equipment.Model){throw 'PTOP_EQUIPMENT_PROFILE_MISMATCH'}
+}
+function Assert-HostProfileForRole([string]$Role,$Authority,$Equipment,[string]$RequestedOperation,$DesiredState){
+ # Role routing never weakens the preserved ptop_lab authority contract.
+ if($Role -eq 'ptop_lab'){Assert-PTopProfile $Authority $Equipment $RequestedOperation;return}
+ if($Role -ne 'adminbox_reference'){throw 'NODE_ROLE_MISMATCH'}
+ if($Authority.schema_version -ne 'sas-android-toolchain-host-authority/v1' -or $Authority.status -ne 'RESOLVED' -or $Authority.node_role -ne 'adminbox_reference' -or -not $Authority.evidence_ref){throw 'ADMINBOX_PROFILE_AUTHORITY_INVALID'}
+ # The sanitized desired-state profile is the operation ceiling; private authority may only narrow it.
+ $approved=@($DesiredState.allowed_operations)
+ if(-not $approved.Count -or $RequestedOperation -notin @($Authority.allowed_operations) -or @(@($Authority.allowed_operations)|Where-Object {$_ -notin $approved}).Count){throw 'ADMINBOX_PROFILE_AUTHORITY_INVALID'}
+ if(-not $Authority.manufacturer -or -not $Authority.model -or $Authority.manufacturer -ne $Equipment.Manufacturer -or $Authority.model -ne $Equipment.Model){throw 'ADMINBOX_EQUIPMENT_PROFILE_MISMATCH'}
 }
 function Find-Tool([string]$Name,[string[]]$Candidates){
  foreach($candidate in $Candidates){if($candidate -and (Test-Path -LiteralPath $candidate -PathType Leaf)){return (Resolve-Path -LiteralPath $candidate).Path}}
@@ -87,14 +99,17 @@ function Read-Inventory {
 }
 try {
  New-Item -ItemType Directory -Path $OutputRoot -Force | Out-Null
- if($NodeRole -ne 'ptop_lab'){throw 'NODE_ROLE_MISMATCH'}
+ if($NodeRole -notin @('ptop_lab','adminbox_reference')){throw 'NODE_ROLE_MISMATCH'}
+ if($profile.node_role -ne $NodeRole){throw 'NODE_ROLE_MISMATCH'}
  if($FixturePath){$fixture=Get-Content -LiteralPath $FixturePath -Raw | ConvertFrom-Json;if($fixture.synthetic -ne $true){throw 'SYNTHETIC_FIXTURE_REQUIRED'}}
  if($fixture -and $Operation -in @('Apply','Repair')){throw 'FIXTURE_MUTATION_FORBIDDEN'}
  if(-not $fixture){
   if($repo -eq 'C:\SASAL'){
    $state=Get-Content (Join-Path $env:LOCALAPPDATA 'SysAdminSuite/autologon-short-runtime.json') -Raw|ConvertFrom-Json
    $sealed=@($state.tracked_file_hashes|ForEach-Object {$_.path.Replace('\','/')})
-   foreach($required in @('scripts/Invoke-SasAndroidToolchain.ps1','scripts/SasBoundedNative.psm1','Config/android-toolchain-profile.json','Manage-AndroidToolchain.cmd')){if($required -notin $sealed -or -not (Test-Path -LiteralPath (Join-Path $repo $required) -PathType Leaf)){throw 'ANDROID_TOOLCHAIN_CAPABILITY_NOT_SEALED'}}
+   $sealedRequired=@('scripts/Invoke-SasAndroidToolchain.ps1','scripts/SasBoundedNative.psm1','Config/android-toolchain-profile.json','Manage-AndroidToolchain.cmd')
+   if($NodeRole -eq 'adminbox_reference'){$sealedRequired=@('scripts/Invoke-SasAndroidToolchain.ps1','scripts/SasBoundedNative.psm1','Config/android-adminbox-toolchain-profile.json','Manage-AdminBoxAndroidToolchain.cmd','scripts/Start-SasAdminBoxAndroidToolchain.ps1')}
+   foreach($required in $sealedRequired){if($required -notin $sealed -or -not (Test-Path -LiteralPath (Join-Path $repo $required) -PathType Leaf)){throw 'ANDROID_TOOLCHAIN_CAPABILITY_NOT_SEALED'}}
   }
   $nativeModule=Join-Path $PSScriptRoot 'SasBoundedNative.psm1'
   if(-not (Test-Path -LiteralPath $nativeModule -PathType Leaf)){throw 'NATIVE_PROCESS_MODULE_REQUIRED'}
@@ -129,10 +144,10 @@ try {
   if(-not $MutationAuthorized){throw 'MUTATION_AUTHORIZATION_REQUIRED'}
   # Caller-supplied role is routing, not approved equipment-profile authority.
   if(-not $HostProfile){$HostProfile=Join-Path $env:LOCALAPPDATA 'SysAdminSuite/android-toolchain/host-profile.json'}
-  if(-not (Test-Path -LiteralPath $HostProfile)){throw 'PTOP_PROFILE_AUTHORITY_REQUIRED'}
+  if(-not (Test-Path -LiteralPath $HostProfile)){if($NodeRole -eq 'adminbox_reference'){throw 'ADMINBOX_PROFILE_AUTHORITY_REQUIRED'};throw 'PTOP_PROFILE_AUTHORITY_REQUIRED'}
   $authority=Get-Content -LiteralPath $HostProfile -Raw|ConvertFrom-Json
   $hostEquipment=Get-CimInstance Win32_ComputerSystem
-  Assert-PTopProfile $authority $hostEquipment $Operation
+  Assert-HostProfileForRole -Role $NodeRole -Authority $authority -Equipment $hostEquipment -RequestedOperation $Operation -DesiredState $profile
   if($inventory.free_gib -lt $profile.minimum_free_gib){throw 'INSUFFICIENT_DISK_SPACE'}
   # WinGet exact vendor identities are acquisition only; no license acceptance flags.
   # Existing executables win over package-manager metadata and are never reinstalled.
@@ -190,7 +205,7 @@ try {
    $pwsh=Find-Tool pwsh.exe @('C:/Program Files/PowerShell/7/pwsh.exe');if(-not $pwsh){throw 'POWERSHELL7_FETCHER_REQUIRED'}
    Invoke-Bounded $pwsh @('-NoProfile','-File',(Join-Path $repo 'Config/Fetch-Installers.ps1'),'-RepoRoot',$staging,'-FetchMap',$map)|Out-Null
   }
-  try{Invoke-Bounded $python @((Join-Path $repo 'harness/api/android_provider_cli.py'),'verify','--role','ptop_lab') 120|Out-Null;$result.proof+=@('SAS_HOST_READY')}catch{$result.reason_codes+=@('QUALIFICATION_AUTHORITY_REQUIRED')}
+  try{Invoke-Bounded $python @((Join-Path $repo 'harness/api/android_provider_cli.py'),'verify','--role',$NodeRole) 120|Out-Null;$result.proof+=@('SAS_HOST_READY')}catch{$result.reason_codes+=@('QUALIFICATION_AUTHORITY_REQUIRED')}
  }
  if($Operation -eq 'Verify' -and -not $fixture){
   if($result.reason_codes.Count){throw $result.reason_codes[0]}
@@ -241,7 +256,7 @@ try {
     if(-not $booted){throw 'EMULATOR_BOOT_FAILED'};$result.proof+=@('EMULATOR_BOOT_VERIFIED')
    }finally{if($emu -and -not $emu.HasExited){try{Invoke-Bounded $adb @('-P','5589','-s','emulator-5580','emu','kill') 15|Out-Null}catch{$result.reason_codes+=@('EMULATOR_CLEANUP_COMMAND_FAILED')};if(-not $emu.WaitForExit(15000)){& "$env:SystemRoot/System32/taskkill.exe" /PID $emu.Id /T /F|Out-Null}};try{if($adbServer -and -not $adbServer.HasExited){Stop-Process -Id $adbServer.Id -ErrorAction Stop;$adbServer.WaitForExit(15000)|Out-Null}}catch{$result.reason_codes+=@('ADB_CLEANUP_FAILED')}finally{$env:ANDROID_ADB_SERVER_PORT=$priorAdbPort;$env:ADB_MDNS_AUTO_CONNECT=$priorMdns;$env:ADB_USB=$priorUsb;$env:ADB_MDNS=$priorMdnsEnabled};if(Get-NetTCPConnection -State Listen -LocalPort 5580,5581,5589 -ErrorAction SilentlyContinue){$result.reason_codes+=@('OWNED_PORT_CLEANUP_INCOMPLETE')}}
   }
-  foreach($op in @('status','doctor','verify')){try{Invoke-Bounded $python @((Join-Path $repo 'harness/api/android_provider_cli.py'),$op,'--role','ptop_lab') 120|Out-Null}catch{$result.reason_codes+=@('SAS_PROVIDER_NOT_READY')}}
+  foreach($op in @('status','doctor','verify')){try{Invoke-Bounded $python @((Join-Path $repo 'harness/api/android_provider_cli.py'),$op,'--role',$NodeRole) 120|Out-Null}catch{$result.reason_codes+=@('SAS_PROVIDER_NOT_READY')}}
  }
  if($fixture){$result.proof=@('FIXTURE_ONLY')}
  if($Operation -in @('Inventory','Plan')){$result.result='SUCCESS'}elseif(-not $result.reason_codes.Count){$result.result='SUCCESS'}

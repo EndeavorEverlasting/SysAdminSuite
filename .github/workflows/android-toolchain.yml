@@ -66,6 +66,9 @@ jobs:
       - name: Validate synthetic toolchain controls
         shell: pwsh
         run: python Tests/survey/test_android_toolchain_contracts.py
+      - name: Validate Admin Box reference-role toolchain contracts
+        shell: pwsh
+        run: python Tests/survey/test_android_adminbox_toolchain_profile_contracts.py
       - name: Validate Admin Box cold-start P04 dependency and authority contract
         shell: pwsh
         run: python Tests/survey/test_android_adminbox_coldstart_dispatch_contracts.py
