@@ -1,5 +1,14 @@
 # Preserved Android developer toolchain
 
+## Admin Box 1 cold-start — mandatory successor implementation (2026-10-10)
+
+Admin Box 1 is the intended OpenCode coordinating laptop and **has not had the Android SDK or Google Android CLI bootstrap performed on PTop**. Do not presume PTop installation results apply to Admin Box 1. This existing `Manage-AndroidToolchain.cmd` / `Invoke-SasAndroidToolchain.ps1` lifecycle is **currently `ptop_lab` only** and must not be called with a spoofed Admin Box profile or by bypassing `Assert-PTopProfile`.
+
+**First read/execute** `docs/handoff/android-adminbox1-bootstrap-opencode-20261010.md` and `docs/plans/android-adminbox1-coldstart-bootstrap-p04-20261010.plan.md`. They task OpenCode on actual approved Admin Box 1 with implementing a **profile-aware reuse of this same engine**, adding a tracked Admin Box-specific developer front door, sanctioned official package acquisition (Android CLI, Studio, JDK, Android SDK and scoped optional components), private host authorization and license/elevation barriers, idempotent Inventory/Plan/Apply/Verify/Repair, fresh CMD/PowerShell executable resolution and actual Kotlin debug APK/emulator proof when feasible. Preserve PTop-specific role/source/security/tests. The P04 dependency contract is guarded by `Tests/survey/test_android_adminbox_coldstart_dispatch_contracts.py` and Android Toolchain CI. **Planning and static CI alone do not install anything.**
+
+The developer `platform-tools/adb.exe` produced by SDK bootstrap never qualifies for `Run-SasAndroidProvider.cmd`. That provider continues to require a separate official archive with an independently approved SHA-256 and a selected `--expected-commit` for sealed/offline execution. If site policies prohibit acquiring tools, emit a typed authorized acquisition/staging gate, not an arbitrary manual download procedure or safety bypass.
+
+
 `Manage-AndroidToolchain.cmd` delegates to `scripts/Invoke-SasAndroidToolchain.ps1`
 for Inventory, Plan, Apply, Verify and Repair. This workflow owns the authorized
 PTop developer toolchain only. It does not change the AndroidProvider role model
