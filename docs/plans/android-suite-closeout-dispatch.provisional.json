@@ -12,19 +12,22 @@
   "provider_routes": [
     "GitHub"
   ],
-  "execution_status": "REMOTE_PLAN_PERSISTED; LOCAL_AGENT_AND_INSTALL_NOT_OBSERVED",
+  "execution_status": "LOCAL_AGENT_EXECUTED_W0_W1_RECEIPTS_AND_B1_CONTRACT_IMPLEMENTED; B2_SOURCE_B3_TESTS_B5_LIVE_APPLY_AND_SAS_QUALIFICATION_NOT_OBSERVED",
   "current_chat_completed": [
     "resolved TokenCorridor P04 by current registry",
     "recovered source and merged PR facts",
     "persisted sanitized P04 plan, handoff and provisional dependency map",
     "corrected coordinator placement to expected OpenCode on Admin Box 1; separated Admin Box host readiness from PTop prior proof",
-    "P04 cold-start plan and one-shot OpenCode bootstrap handoff persisted; actual authorized Admin Box Install/Verify delegated to local session only"
+    "P04 cold-start plan and one-shot OpenCode bootstrap handoff persisted; actual authorized Admin Box Install/Verify delegated to local session only",
+    "verified Admin Box 1 host, guest-internet network intent and canonical clean checkout preflight on the local coordinator (W0)",
+    "recorded private W1 developer-toolchain absence and independent qualification-authority receipts on the verified coordinator",
+    "implemented B1-CONTRACT role factoring, sanitized adminbox_reference desired-state profile, tracked Admin Box front door and focused contracts; integrated registries, CI and docs"
   ],
-  "parallel_execution": "NOT_OBSERVED_FROM_CURRENT_CHAT",
+  "parallel_execution": "PARTIAL_W1_SUBAGENT_DISPATCH; EXPECTED_WAVE_WIDTH_NOT_OBSERVED",
   "expected_parallel_width": 3,
   "observed_parallelism": false,
-  "parallelism_proof": "NOT_OBSERVED",
-  "autonomy_gap": "Actual OpenCode local worker runtime unobserved; resolve native task/subagent adapter on verified Admin Box 1; upstream standard dispatcher remains TokenCorridor #142",
+  "parallelism_proof": "PARTIAL_WIDTH_2_W1_SUBAGENT_DISPATCH; EXPECTED_WIDTH_3_B1_B2_B3_NOT_OBSERVED",
+  "autonomy_gap": "Native sub-agent adapter observed for W0/W1 receipt lanes on verified Admin Box 1; B2-SOURCE, B3-TESTS and B5-LIVE-APPLY remain unexecuted; upstream standard dispatcher remains TokenCorridor #142",
   "safety": "No PTop-specific Manage-AndroidToolchain operations on Admin Box 1; no cross-host identity/proof reassignment; no approved source pin self-generation, SDK/PATH ADB SAS fallback, physical reader/firmware actions, DTop work, competing ADB server interruption, protected-network source bypass or private material publication Every sealed-runtime provider command must carry independently verified selected --expected-commit SHA.",
   "lanes": [
     {
@@ -69,7 +72,7 @@
         "private evidence"
       ],
       "convergence_owner": "B4-INTEGRATE for bootstrap wave, W2-CONVERGE for qualification",
-      "status": "READY_ACTUAL_ADMINBOX",
+      "status": "COMPLETED_LOCAL_PREFLIGHT_RECEIPTS",
       "proof_ceiling": "Only actually executed local commands can prove host install; developer SDK adb never qualifies SAS provider"
     },
     {
@@ -120,7 +123,7 @@
         "launcher correctness"
       ],
       "convergence_owner": "B4-INTEGRATE for bootstrap wave, W2-CONVERGE for qualification",
-      "status": "READY_AFTER_W0",
+      "status": "IMPLEMENTED_MERGED_PENDING_B5_EXECUTION",
       "proof_ceiling": "Only actually executed local commands can prove host install; developer SDK adb never qualifies SAS provider"
     },
     {
@@ -445,7 +448,7 @@
         "no source trust upgrade"
       ],
       "convergence_owner": "B4-INTEGRATE for bootstrap wave, W2-CONVERGE for qualification",
-      "status": "WAITING_B2_AND_B5",
+      "status": "BLOCKER_RECORDED_WAITING_B2_AND_B5",
       "proof_ceiling": "Only actually executed local commands can prove host install; developer SDK adb never qualifies SAS provider"
     },
     {
@@ -502,9 +505,9 @@
   "proof_ceiling": "Current GitHub operation documents and dispatches executable work to a local Admin Box OpenCode coordinator; no live agent, package installation, protected-network changes or SAS qualification were observed from current runtime. Developer install and qualified SAS ADB are distinct proof domains.",
   "coordinator": {
     "expected_machine": "Admin Box 1",
-    "identity_state": "UNVERIFIED",
+    "identity_state": "VERIFIED_VIA_W0_LOCAL_PREFLIGHT",
     "expected_agent": "OpenCode",
-    "agent_state": "UNVERIFIED",
+    "agent_state": "OPENCODE_COORDINATOR_OBSERVED_LOCAL",
     "node_role": "adminbox_reference",
     "role_authority": "CONDITIONAL_ON_APPROVED_HOST_PROFILE",
     "execution_placement": "LOCAL_AGENT_RUNTIME",
@@ -522,7 +525,7 @@
     "separate_from_coordinator": true,
     "scope": "historical developer proof and optional independently verified actual-PTop worker",
     "no_auto_remote_access": true,
-    "developer_toolchain_script_host_restriction": "ptop_lab"
+    "developer_toolchain_script_host_restriction": "ptop_lab via Manage-AndroidToolchain.cmd; adminbox_reference via Manage-AdminBoxAndroidToolchain.cmd"
   },
   "issue_522_observed_state": "CLOSED_COMPLETED_AT_PLAN_CORRECTION; refresh, do not auto-reopen",
   "downstream_plan": "docs/plans/android-suite-closeout-p04-20261010.plan.md",

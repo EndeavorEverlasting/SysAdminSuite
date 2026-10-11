@@ -11,6 +11,7 @@
   },
   "contracts": [
     {"command_id":"android-toolchain","success_outcome":"artifact_created","success_artifact_id":"android-toolchain-result","terminal_goals":["inventory","plan","diagnose","artifact","verified-toolchain"],"continuations":[],"failure_outcome":"blocked_with_actionable_gate"},
+    {"command_id":"android-toolchain-adminbox","success_outcome":"artifact_created","success_artifact_id":"android-toolchain-result","terminal_goals":["inventory","plan","diagnose","artifact","verified-toolchain"],"continuations":[],"failure_outcome":"blocked_with_actionable_gate"},
     {"command_id":"android-provider","success_outcome":"artifact_created","success_artifact_id":"android-provider-receipt","terminal_goals":["artifact","diagnose","readiness","inventory","probe","tcpip-cert"],"continuations":[],"failure_outcome":"blocked_with_actionable_gate"},
     {"command_id":"harness-validate","success_outcome":"artifact_created","success_artifact_id":"harness-registry-validation-result","terminal_goals":["validate","artifact"],"continuations":[],"failure_outcome":"blocked_with_actionable_gate"},
     {"command_id":"harness-outcome-validate","success_outcome":"artifact_created","success_artifact_id":"harness-outcome-validation-result","terminal_goals":["validate","artifact"],"continuations":[],"failure_outcome":"blocked_with_actionable_gate"},
