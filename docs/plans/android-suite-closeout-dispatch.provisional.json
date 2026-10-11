@@ -24,7 +24,7 @@
   "observed_parallelism": false,
   "parallelism_proof": "NOT_OBSERVED",
   "autonomy_gap": "Actual OpenCode local worker runtime unobserved; resolve native task/subagent adapter on verified Admin Box 1; upstream standard dispatcher remains TokenCorridor #142",
-  "safety": "No PTop-specific Manage-AndroidToolchain operations on Admin Box 1; no cross-host identity/proof reassignment; no approved source pin self-generation, SDK/PATH ADB SAS fallback, physical reader/firmware actions, DTop work, competing ADB server interruption, protected-network source bypass or private material publication",
+  "safety": "No PTop-specific Manage-AndroidToolchain operations on Admin Box 1; no cross-host identity/proof reassignment; no approved source pin self-generation, SDK/PATH ADB SAS fallback, physical reader/firmware actions, DTop work, competing ADB server interruption, protected-network source bypass or private material publication Every sealed-runtime provider command must carry independently verified selected --expected-commit SHA.",
   "lanes": [
     {
       "lane_id": "W0-ADMINBOX",
@@ -95,7 +95,8 @@
         "Run-SasAndroidProvider.cmd",
         "adminbox_reference source/profile admission",
         "offline seal",
-        "Python"
+        "Python",
+        "trusted selected sealed source commit SHA"
       ],
       "evidence_inputs": [
         {
@@ -108,7 +109,7 @@
       ],
       "selected_adapter": "OpenCode delegated read-only worker",
       "adapter_proof": "UNOBSERVED; validate on actual controller",
-      "launch_action": "On proven Admin Box 1, perform handoff W1-ABOX; if admission passes run provider status/doctor/verify with role adminbox_reference; never prepare in this lane",
+      "launch_action": "On verified Admin Box 1 recover exact approved selected refreshed/prepared 40-hex source commit; if source admission succeeds run Run-SasAndroidProvider.cmd status --role adminbox_reference --expected-commit SELECTED_EXPECTED_COMMIT, then doctor/verify each with same --expected-commit. Do not prepare in this lane; no physical device.",
       "expected_artifact": "private W1-ABOX typed readiness report",
       "validation": [
         "source/role correctness",
@@ -245,7 +246,8 @@
         "source seal",
         "adminbox_reference role",
         "provider tests",
-        "GitHub PR/CI"
+        "GitHub PR/CI",
+        "selected prepared source commit pinned with --expected-commit"
       ],
       "evidence_inputs": [
         {
@@ -258,7 +260,7 @@
       ],
       "selected_adapter": "OpenCode coordinator serial convergence",
       "adapter_proof": "UNOBSERVED; validate on actual controller",
-      "launch_action": "Execute handoff W2; if independently approved digest and clean source/role gates, Run-SasAndroidProvider.cmd prepare --role adminbox_reference with exact approved archive then status doctor verify. Else report QUALIFICATION_AUTHORITY_REQUIRED and finish independent proof. Repair only reproducible defects and integrate authorized changes.",
+      "launch_action": "After W1 join, verify selected 40-hex source commit from canonical refreshed/prepared seal and independently approved archive digest; then and only then Run-SasAndroidProvider.cmd prepare --role adminbox_reference --archive EXACT_APPROVED_ARCHIVE --archive-sha256 EXACT_INDEPENDENT_APPROVED_PIN --expected-commit SELECTED_EXPECTED_COMMIT. Run status/doctor/verify all with same --expected-commit; otherwise preserve qualified-runtime blocked state and finish independent proof.",
       "expected_artifact": "private Admin Box 1 qualification report + sanitized GitHub status/PR if changed",
       "validation": [
         "provider/H&H boundary and firmware refusals",
@@ -285,7 +287,9 @@
       "DTop role",
       "Admin Box 1 identity from hostname alone",
       "physical target authority from same-LAN access"
-    ]
+    ],
+    "selected_expected_commit": "REQUIRED_40_HEX_FROM_TRUSTED_REFRESHED_OR_PREPARED_SOURCE_SEAL",
+    "sealed_runtime_command_rule": "Pass --expected-commit SELECTED_EXPECTED_COMMIT on all Admin Box 1 status/doctor/verify/prepare calls; never infer SHA from untrusted local runtime."
   },
   "developer_host": {
     "host": "PTop",
