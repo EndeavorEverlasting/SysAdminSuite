@@ -1,0 +1,462 @@
+{
+  "schema_version": "sas-p04-dispatch-provisional/v1",
+  "canonical_expected_contract": "prompt-parallel-dispatch/v1",
+  "standard_contract_validation": "BLOCKED_TOKENCORRIDOR_ISSUE_142",
+  "standard_runner": "NOT_FOUND_ON_TOKENCORRIDOR_MAIN_3ad65e1c",
+  "authority_owner": "TokenCorridor #142",
+  "owner": "SysAdminSuite #534",
+  "repo": "EndeavorEverlasting/SysAdminSuite",
+  "source_handoff": "docs/handoff/android-adminbox1-autonomous-bootstrap-trustbridge-p04-20261012.md",
+  "source_plan": "docs/plans/android-adminbox1-coldstart-bootstrap-p04-20261010.plan.md",
+  "requested_invocations": [
+    "P04",
+    "PA2"
+  ],
+  "resolved_invocations": [
+    {
+      "prompt_id": "P04",
+      "name": "[PARALLEL] Repo-Aware Sprint + Harness Factoring Distributor",
+      "authority": "TokenCorridor harness/exports/prompt-invocation-catalog.v1.json"
+    }
+  ],
+  "unresolved_invocations": [
+    {
+      "prompt_id": "PA2",
+      "classification": "UNKNOWN_NOT_IN_CURRENT_CATALOG",
+      "fallback_disallowed": [
+        "P82",
+        "P42",
+        "P02"
+      ],
+      "action": "re-resolve exact TokenCorridor registry if updated; do not invent or substitute"
+    }
+  ],
+  "baseline_main_sha": "b06d5f393b3bfc8ba8cd4bbb1c1ac8e25689eef6",
+  "host": "LOCAL_AGENT_RUNTIME",
+  "controller": "OpenCode on independently verified Admin Box 1 if actual policy/adapter permits",
+  "provider_routes": [
+    "GitHub for sanitised PR/issues only; OpenCode hosted provider subject to organization data policy"
+  ],
+  "execution_status": "PENDING_LOCAL_SUCCESSOR_DISPATCH; B1_MERGED; SOURCE_ADMISSION_PROVED; SAS_BUNDLE_MISSING",
+  "expected_parallel_width": 3,
+  "observed_parallelism": false,
+  "parallelism_proof": "NONE_FOR_SUCCESSOR_W1",
+  "parallel_execution": "REQUIRED_ONCE_W0_COMPLETES_IF_SAFE_ADAPTER_AVAILABLE",
+  "autonomy_gap": "Canonical TokenCorridor P04 contract/runner absent (#142); local coordinator must use a proven child agent/runner/CI adapter and record actual receipts",
+  "safety": "No unapproved host/install/net/network switching; no self-approved checksum; no unqualified SDK ADB fallback; no payment reader/firmware mutations; no secrets in Git",
+  "lanes": [
+    {
+      "lane_id": "W0-FLOOR",
+      "wave": 0,
+      "mission": "Recover canonical current checkout, protected network posture, host identity, W0 private receipts and available local agent adapter",
+      "dependencies": [],
+      "owned_mutation_surfaces": [
+        "ignored local inventory only"
+      ],
+      "forbidden_surfaces": [
+        "host software mutation",
+        "protected network change",
+        "PTop/DTop state injection"
+      ],
+      "branch_or_worktree": "Isolated by writer; no overlapping production edits",
+      "execution_environment": "LOCAL_AGENT_RUNTIME",
+      "provider_access": [],
+      "required_capabilities": [
+        "Windows shell",
+        "git",
+        "source resolver",
+        "network intent",
+        "private local evidence"
+      ],
+      "evidence_inputs": [
+        {
+          "evidence_type": "sanitized_repo_state",
+          "source_owner": "SysAdminSuite GitHub",
+          "sanitized_ref": "main@b06d5f393b3bfc8ba8cd4bbb1c1ac8e25689eef6 / issue#534 / P141-comment#6130738526",
+          "freshness": "2026-10-12 GitHub; refresh on host",
+          "proof_ceiling": "repo and reported read-only host status, not live install"
+        }
+      ],
+      "selected_adapter": "OpenCode coordinating agent on actual approved Admin Box 1",
+      "adapter_proof": "NOT_OBSERVED_FOR_THIS_SUCCESSOR; require actual worker/process receipts",
+      "launch_action": "OpenCode coordinator delegates W0-FLOOR after dependencies; do not demand operator chat orchestration",
+      "expected_artifact": "private sanitized reference to host preflight/source/authority",
+      "validation": "currentness, clean branch and accurate machine/network role",
+      "convergence_owner": "W2-INTEGRATE",
+      "status": "READY_AFTER_DEPENDENCIES",
+      "proof_ceiling": "Declared capability only until actually executed and independently verified"
+    },
+    {
+      "lane_id": "W1-A-P95-TRUST",
+      "wave": 1,
+      "mission": "Decide independently trusted immutable archive provenance policy and exact AndroidProvider bridge",
+      "dependencies": [
+        "W0-FLOOR"
+      ],
+      "owned_mutation_surfaces": [
+        "disjoint new architecture decision doc"
+      ],
+      "forbidden_surfaces": [
+        "provider implementation",
+        "approval fabrication",
+        "runtime install"
+      ],
+      "branch_or_worktree": "Isolated by writer; no overlapping production edits",
+      "execution_environment": "LOCAL_AGENT_RUNTIME",
+      "provider_access": [],
+      "required_capabilities": [
+        "GitHub",
+        "code/architecture review"
+      ],
+      "evidence_inputs": [
+        {
+          "evidence_type": "sanitized_repo_state",
+          "source_owner": "SysAdminSuite GitHub",
+          "sanitized_ref": "main@b06d5f393b3bfc8ba8cd4bbb1c1ac8e25689eef6 / issue#534 / P141-comment#6130738526",
+          "freshness": "2026-10-12 GitHub; refresh on host",
+          "proof_ceiling": "repo and reported read-only host status, not live install"
+        }
+      ],
+      "selected_adapter": "OpenCode native child if proved; else isolated safe repo/CI route",
+      "adapter_proof": "NOT_OBSERVED_FOR_THIS_SUCCESSOR; require actual worker/process receipts",
+      "launch_action": "OpenCode coordinator delegates W1-A-P95-TRUST after dependencies; do not demand operator chat orchestration",
+      "expected_artifact": "trust-root decision, compared alternatives, source provenance contract",
+      "validation": [
+        "immutability",
+        "authority independence",
+        "truthful source URL",
+        "rollback preservation"
+      ],
+      "convergence_owner": "W2-INTEGRATE",
+      "status": "READY_AFTER_DEPENDENCIES",
+      "proof_ceiling": "Declared capability only until actually executed and independently verified"
+    },
+    {
+      "lane_id": "W1-B-SOURCE",
+      "wave": 1,
+      "mission": "Recover independent pre-approved archive hash/source and host profile without operator package research",
+      "dependencies": [
+        "W0-FLOOR"
+      ],
+      "owned_mutation_surfaces": [
+        "ignored local source/authority receipts",
+        "disjoint source research note"
+      ],
+      "forbidden_surfaces": [
+        "unsanctioned download",
+        "self-approval",
+        "device mutation"
+      ],
+      "branch_or_worktree": "Isolated by writer; no overlapping production edits",
+      "execution_environment": "LOCAL_AGENT_RUNTIME",
+      "provider_access": [],
+      "required_capabilities": [
+        "source/cache discovery",
+        "WinGet manifest reader",
+        "network policy"
+      ],
+      "evidence_inputs": [
+        {
+          "evidence_type": "sanitized_repo_state",
+          "source_owner": "SysAdminSuite GitHub",
+          "sanitized_ref": "main@b06d5f393b3bfc8ba8cd4bbb1c1ac8e25689eef6 / issue#534 / P141-comment#6130738526",
+          "freshness": "2026-10-12 GitHub; refresh on host",
+          "proof_ceiling": "repo and reported read-only host status, not live install"
+        }
+      ],
+      "selected_adapter": "OpenCode native child if proved; else isolated safe repo/CI route",
+      "adapter_proof": "NOT_OBSERVED_FOR_THIS_SUCCESSOR; require actual worker/process receipts",
+      "launch_action": "OpenCode coordinator delegates W1-B-SOURCE after dependencies; do not demand operator chat orchestration",
+      "expected_artifact": "typed approved-source decision or exact approval-required packet",
+      "validation": [
+        "source trust independence",
+        "role/private policy",
+        "guest vs protected network"
+      ],
+      "convergence_owner": "W2-INTEGRATE",
+      "status": "READY_AFTER_DEPENDENCIES",
+      "proof_ceiling": "Declared capability only until actually executed and independently verified"
+    },
+    {
+      "lane_id": "W1-C-TESTS",
+      "wave": 1,
+      "mission": "Create disjoint negative/positive cold-start and trust bridge fixtures before code",
+      "dependencies": [
+        "W0-FLOOR"
+      ],
+      "owned_mutation_surfaces": [
+        "new isolated tests and fixtures ONLY"
+      ],
+      "forbidden_surfaces": [
+        "production lifecycle engine",
+        "shared schemas/registries",
+        "live install"
+      ],
+      "branch_or_worktree": "Isolated by writer; no overlapping production edits",
+      "execution_environment": "LOCAL_AGENT_RUNTIME",
+      "provider_access": [],
+      "required_capabilities": [
+        "Python/PowerShell synthetic fixtures",
+        "git worktree"
+      ],
+      "evidence_inputs": [
+        {
+          "evidence_type": "sanitized_repo_state",
+          "source_owner": "SysAdminSuite GitHub",
+          "sanitized_ref": "main@b06d5f393b3bfc8ba8cd4bbb1c1ac8e25689eef6 / issue#534 / P141-comment#6130738526",
+          "freshness": "2026-10-12 GitHub; refresh on host",
+          "proof_ceiling": "repo and reported read-only host status, not live install"
+        }
+      ],
+      "selected_adapter": "OpenCode native child if proved; else isolated safe repo/CI route",
+      "adapter_proof": "NOT_OBSERVED_FOR_THIS_SUCCESSOR; require actual worker/process receipts",
+      "launch_action": "OpenCode coordinator delegates W1-C-TESTS after dependencies; do not demand operator chat orchestration",
+      "expected_artifact": "test branch/ref, fixture receipts and failing-positive boundary",
+      "validation": [
+        "no SDK fallback",
+        "PTop preservation",
+        "host role/approval/rollback/mutable-latest adversarial controls"
+      ],
+      "convergence_owner": "W2-INTEGRATE",
+      "status": "READY_AFTER_DEPENDENCIES",
+      "proof_ceiling": "Declared capability only until actually executed and independently verified"
+    },
+    {
+      "lane_id": "W2-INTEGRATE",
+      "wave": 2,
+      "mission": "P07 scoped implementation and test integration in the existing Admin Box developer lifecycle/provider",
+      "dependencies": [
+        "W1-A-P95-TRUST",
+        "W1-B-SOURCE",
+        "W1-C-TESTS"
+      ],
+      "owned_mutation_surfaces": [
+        "lifecycle/launcher",
+        "small policy adapter",
+        "provider provenance adaptation if proven needed",
+        "shared schema/registry/test integration"
+      ],
+      "forbidden_surfaces": [
+        "reader/firmware activity",
+        "self-approving SHA",
+        "new generic downloader",
+        "second AndroidProvider"
+      ],
+      "branch_or_worktree": "Isolated by writer; no overlapping production edits",
+      "execution_environment": "LOCAL_AGENT_RUNTIME",
+      "provider_access": [],
+      "required_capabilities": [
+        "Python",
+        "PowerShell 5.1/7",
+        "repo tests",
+        "GitHub PR"
+      ],
+      "evidence_inputs": [
+        {
+          "evidence_type": "sanitized_repo_state",
+          "source_owner": "SysAdminSuite GitHub",
+          "sanitized_ref": "main@b06d5f393b3bfc8ba8cd4bbb1c1ac8e25689eef6 / issue#534 / P141-comment#6130738526",
+          "freshness": "2026-10-12 GitHub; refresh on host",
+          "proof_ceiling": "repo and reported read-only host status, not live install"
+        }
+      ],
+      "selected_adapter": "One code writer/coordinator",
+      "adapter_proof": "NOT_OBSERVED_FOR_THIS_SUCCESSOR; require actual worker/process receipts",
+      "launch_action": "OpenCode coordinator delegates W2-INTEGRATE after dependencies; do not demand operator chat orchestration",
+      "expected_artifact": "scoped PR with code+tests and before/after proof",
+      "validation": [
+        "safe immutable approved acquisition",
+        "prepare/verify attestation",
+        "idempotent/no-op",
+        "bounded recovery",
+        "privacy"
+      ],
+      "convergence_owner": "W3-CI",
+      "status": "READY_AFTER_DEPENDENCIES",
+      "proof_ceiling": "Declared capability only until actually executed and independently verified"
+    },
+    {
+      "lane_id": "W3-CI",
+      "wave": 3,
+      "mission": "Validate, repair, hosted review and merge authorized implementation",
+      "dependencies": [
+        "W2-INTEGRATE"
+      ],
+      "owned_mutation_surfaces": [
+        "owned integration PR branch and relevant tests"
+      ],
+      "forbidden_surfaces": [
+        "unreviewed merge",
+        "unrelated PR rewrites",
+        "pretend live Windows proof"
+      ],
+      "branch_or_worktree": "Isolated by writer; no overlapping production edits",
+      "execution_environment": "LOCAL_AGENT_RUNTIME",
+      "provider_access": [],
+      "required_capabilities": [
+        "GitHub checks/reviews",
+        "regression harness"
+      ],
+      "evidence_inputs": [
+        {
+          "evidence_type": "sanitized_repo_state",
+          "source_owner": "SysAdminSuite GitHub",
+          "sanitized_ref": "main@b06d5f393b3bfc8ba8cd4bbb1c1ac8e25689eef6 / issue#534 / P141-comment#6130738526",
+          "freshness": "2026-10-12 GitHub; refresh on host",
+          "proof_ceiling": "repo and reported read-only host status, not live install"
+        }
+      ],
+      "selected_adapter": "OpenCode and CI_OR_REMOTE_RUNNER",
+      "adapter_proof": "NOT_OBSERVED_FOR_THIS_SUCCESSOR; require actual worker/process receipts",
+      "launch_action": "OpenCode coordinator delegates W3-CI after dependencies; do not demand operator chat orchestration",
+      "expected_artifact": "CI/review/merge SHA, regressions and committed documentation",
+      "validation": [
+        "green scoped tests",
+        "review resolution",
+        "exact current default head"
+      ],
+      "convergence_owner": "W4-ADMINBOX-APPLY",
+      "status": "READY_AFTER_DEPENDENCIES",
+      "proof_ceiling": "Declared capability only until actually executed and independently verified"
+    },
+    {
+      "lane_id": "W4-ADMINBOX-APPLY",
+      "wave": 4,
+      "mission": "Actual authorized Admin Box Inventory/Plan/Apply/Verify, fresh CMD/PowerShell and APK smoke",
+      "dependencies": [
+        "W3-CI"
+      ],
+      "owned_mutation_surfaces": [
+        "approved local workstation dev toolchain only",
+        "private receipts"
+      ],
+      "forbidden_surfaces": [
+        "network-policy bypass",
+        "license autogrant",
+        "PTop identity",
+        "device/firmware mutation"
+      ],
+      "branch_or_worktree": "Isolated by writer; no overlapping production edits",
+      "execution_environment": "LOCAL_AGENT_RUNTIME",
+      "provider_access": [],
+      "required_capabilities": [
+        "actual Windows Admin Box",
+        "allowed installers",
+        "CLI/JDK/Studio"
+      ],
+      "evidence_inputs": [
+        {
+          "evidence_type": "sanitized_repo_state",
+          "source_owner": "SysAdminSuite GitHub",
+          "sanitized_ref": "main@b06d5f393b3bfc8ba8cd4bbb1c1ac8e25689eef6 / issue#534 / P141-comment#6130738526",
+          "freshness": "2026-10-12 GitHub; refresh on host",
+          "proof_ceiling": "repo and reported read-only host status, not live install"
+        }
+      ],
+      "selected_adapter": "Local OpenCode with operator only for genuine authority decisions",
+      "adapter_proof": "NOT_OBSERVED_FOR_THIS_SUCCESSOR; require actual worker/process receipts",
+      "launch_action": "OpenCode coordinator delegates W4-ADMINBOX-APPLY after dependencies; do not demand operator chat orchestration",
+      "expected_artifact": "actual host before/after receipt and APK path; emulator bounded or resource blocker",
+      "validation": [
+        "host profile",
+        "source/network policy",
+        "no unnecessary reinstalls",
+        "fresh-shell versions",
+        "idempotence"
+      ],
+      "convergence_owner": "W5-SAS-QUALIFY",
+      "status": "READY_AFTER_DEPENDENCIES",
+      "proof_ceiling": "Declared capability only until actually executed and independently verified"
+    },
+    {
+      "lane_id": "W5-SAS-QUALIFY",
+      "wave": 5,
+      "mission": "Use independently approved source+SHA to prepare and verify SAS-owned AndroidProvider with exact selected source commit",
+      "dependencies": [
+        "W4-ADMINBOX-APPLY"
+      ],
+      "owned_mutation_surfaces": [
+        "SAS-owned local cache/runtime with approved private authority"
+      ],
+      "forbidden_surfaces": [
+        "SDK/PATH adb qualification",
+        "hash self-approval",
+        "reader ADB",
+        "firmware mutation"
+      ],
+      "branch_or_worktree": "Isolated by writer; no overlapping production edits",
+      "execution_environment": "LOCAL_AGENT_RUNTIME",
+      "provider_access": [],
+      "required_capabilities": [
+        "official archive",
+        "approved trust policy",
+        "AndroidProvider"
+      ],
+      "evidence_inputs": [
+        {
+          "evidence_type": "sanitized_repo_state",
+          "source_owner": "SysAdminSuite GitHub",
+          "sanitized_ref": "main@b06d5f393b3bfc8ba8cd4bbb1c1ac8e25689eef6 / issue#534 / P141-comment#6130738526",
+          "freshness": "2026-10-12 GitHub; refresh on host",
+          "proof_ceiling": "repo and reported read-only host status, not live install"
+        }
+      ],
+      "selected_adapter": "Local OpenCode only",
+      "adapter_proof": "NOT_OBSERVED_FOR_THIS_SUCCESSOR; require actual worker/process receipts",
+      "launch_action": "OpenCode coordinator delegates W5-SAS-QUALIFY after dependencies; do not demand operator chat orchestration",
+      "expected_artifact": "qualified bundle/manifest/attestation or typed independent approval blocker",
+      "validation": [
+        "approved digest independent of bytes",
+        "real prepare then verify",
+        "lease/journal/rollback safety",
+        "source commit"
+      ],
+      "convergence_owner": "W6-CLOSEOUT",
+      "status": "READY_AFTER_DEPENDENCIES",
+      "proof_ceiling": "Declared capability only until actually executed and independently verified"
+    },
+    {
+      "lane_id": "W6-CLOSEOUT",
+      "wave": 6,
+      "mission": "Sanitize proof and update issue #534 without overstating runtime/device acceptance",
+      "dependencies": [
+        "W5-SAS-QUALIFY"
+      ],
+      "owned_mutation_surfaces": [
+        "sanitized status issue comment",
+        "repo-owned handoff ledger"
+      ],
+      "forbidden_surfaces": [
+        "raw host evidence publication",
+        "closure without acceptance"
+      ],
+      "branch_or_worktree": "Isolated by writer; no overlapping production edits",
+      "execution_environment": "LOCAL_AGENT_RUNTIME",
+      "provider_access": [],
+      "required_capabilities": [
+        "GitHub issues",
+        "private receipt references"
+      ],
+      "evidence_inputs": [
+        {
+          "evidence_type": "sanitized_repo_state",
+          "source_owner": "SysAdminSuite GitHub",
+          "sanitized_ref": "main@b06d5f393b3bfc8ba8cd4bbb1c1ac8e25689eef6 / issue#534 / P141-comment#6130738526",
+          "freshness": "2026-10-12 GitHub; refresh on host",
+          "proof_ceiling": "repo and reported read-only host status, not live install"
+        }
+      ],
+      "selected_adapter": "OpenCode coordinator",
+      "adapter_proof": "NOT_OBSERVED_FOR_THIS_SUCCESSOR; require actual worker/process receipts",
+      "launch_action": "OpenCode coordinator delegates W6-CLOSEOUT after dependencies; do not demand operator chat orchestration",
+      "expected_artifact": "CHANGED | PROVED | NEXT + branch/merge and runtime/authority proof boundaries",
+      "validation": [
+        "installation vs qualification vs device distinct",
+        "next admissible gate"
+      ],
+      "convergence_owner": "SysAdminSuite #534",
+      "status": "READY_AFTER_DEPENDENCIES",
+      "proof_ceiling": "Declared capability only until actually executed and independently verified"
+    }
+  ]
+}
