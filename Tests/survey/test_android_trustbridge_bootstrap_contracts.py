@@ -26,6 +26,57 @@ SCHEMA = ROOT / "schemas/harness/sas-platform-tools-archive-pins.schema.json"
 ENGINE = ROOT / "scripts/Invoke-SasAndroidToolchain.ps1"
 ADMINBOX_PROFILE = ROOT / "Config/android-adminbox-toolchain-profile.json"
 DECISION = ROOT / "docs/plans/p95-android-platform-tools-trust-bridge-20261012.decision.md"
+FIXTURES = ROOT / "Tests/Fixtures/android-trustbridge"
+REQUIRED_NEGATIVE = {
+    "missing-winget",
+    "missing-sdk",
+    "missing-jdk",
+    "unapproved-mutable-manifest",
+    "no-trusted-hash",
+    "mismatched-archive",
+    "zip-traversal",
+    "zip-symlink",
+    "profile-role-mismatch",
+    "wrong-source-commit",
+    "offline-cache-unavailable",
+    "protected-network-denied",
+    "stale-cached-approval",
+    "interruption-rollback",
+    "no-license-gate",
+    "no-elevation-gate",
+    "sdk-path-adb-excluded",
+}
+REQUIRED_POSITIVE = {
+    "positive-trusted-immutable-manifest",
+    "positive-idempotent-receipt",
+}
+KNOWN_REASON_CODES = {
+    "QUALIFICATION_AUTHORITY_REQUIRED",
+    "INDEPENDENT_APPROVAL_REQUIRED",
+    "SOURCE_POLICY_DENIED",
+    "HASH_MISMATCH",
+    "ARCHIVE_HASH_MISMATCH",
+    "UNSAFE_ARCHIVE_ENTRY",
+    "MISSING_ASSET",
+    "ADMINBOX_PROFILE_AUTHORITY_REQUIRED",
+    "ADMINBOX_PROFILE_AUTHORITY_INVALID",
+    "NODE_ROLE_MISMATCH",
+    "LICENSE_ACCEPTANCE_REQUIRED",
+    "ADMIN_APPROVAL_REQUIRED",
+    "NETWORK_DOWNLOAD_FAILED",
+    "CANONICAL_DEVELOPMENT_CHECKOUT_REQUIRED",
+    "MUTATION_AUTHORIZATION_REQUIRED",
+    "SDK_PATH_ADB_FALLBACK_FORBIDDEN",
+    "PRIOR_RUNTIME_BACKUP_REQUIRES_REVIEW",
+    "MISSING_SDK_COMMANDLINE_TOOLS",
+    "MISSING_STANDALONE_JDK",
+    "PACKAGE_MANAGER_REQUIRED",
+    "MUTABLE_SOURCE_MANIFEST_UNAPPROVED",
+    "OFFLINE_CACHE_UNAVAILABLE",
+    "PROTECTED_NETWORK_DENIED",
+    "SOURCE_COMMIT_MISMATCH",
+    "STALE_APPROVAL_CACHE",
+}
 
 
 class TrustBridgeContracts(unittest.TestCase):
@@ -184,6 +235,25 @@ class TrustBridgeContracts(unittest.TestCase):
         self.assertTrue((ROOT / "Tests/survey/test_android_toolchain_contracts.py").is_file())
         self.assertTrue((ROOT / "Tests/survey/test_android_provider_implementation.py").is_file())
         self.assertIn("Assert-PTopProfile", text)
+
+    def test_w1c_fixture_catalog_privacy_and_reason_vocabulary(self):
+        """Converged W1-C adversarial fixture catalog; synthetic only, no live host proof."""
+        names = {path.name.removesuffix(".fixture.json") for path in FIXTURES.glob("*.fixture.json")}
+        self.assertTrue(REQUIRED_NEGATIVE | REQUIRED_POSITIVE <= names, sorted(names))
+        engine = ENGINE.read_text(encoding="utf-8-sig")
+        for path in sorted(FIXTURES.glob("*.fixture.json")):
+            data = json.loads(path.read_text(encoding="utf-8-sig"))
+            self.assertTrue(data["synthetic"])
+            self.assertEqual(data["schema_version"], "sas-android-trustbridge-fixture/v1")
+            text = path.read_text(encoding="utf-8")
+            for leak in ("C:\\Users", "hostname", "serial", "LPW003"):
+                self.assertNotIn(leak.lower(), text.lower(), path.name)
+            expectation = data["test_expectation"]
+            self.assertEqual(expectation["operation"], "Bootstrap")
+            for reason in expectation["reasons"]:
+                self.assertIn(reason, KNOWN_REASON_CODES, (path.name, reason))
+            # Engine must still own Bootstrap after W2 integration (W1-C FAILING_BEFORE cleared).
+            self.assertIn("Bootstrap", engine)
 
     def test_winget_or_sidecar_alone_cannot_approve(self):
         # Informational WinGet SHA without approved promotion_status must not resolve.

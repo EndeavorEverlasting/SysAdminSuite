@@ -1,0 +1,16 @@
+{
+  "synthetic": true,
+  "schema_version": "sas-android-trustbridge-fixture/v1",
+  "trust_bridge": {
+    "execution_surface": "android_provider_resolve_host",
+    "sdk_platform_tools_present": true,
+    "qualified_bundle_missing": true
+  },
+  "test_expectation": {
+    "operation": "Bootstrap",
+    "node_role": "adminbox_reference",
+    "reasons": ["SDK_PATH_ADB_FALLBACK_FORBIDDEN"],
+    "classification": "runtime_isolation_gate",
+    "contract_phase": "W2_IMPLEMENTATION_REQUIRED"
+  }
+}

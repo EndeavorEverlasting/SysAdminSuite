@@ -1,0 +1,34 @@
+{
+  "synthetic": true,
+  "schema_version": "sas-android-trustbridge-fixture/v1",
+  "trust_bridge": {
+    "approved_manifest": {
+      "schema_version": "sas-android-trusted-source/v1",
+      "immutable": true,
+      "package_id": "Google.PlatformTools",
+      "version": "37.0.1"
+    },
+    "offline_cache_present": false
+  },
+  "inventory": {
+    "sdk_root": "SYNTHETIC_SDK",
+    "android_cli": "SYNTHETIC_ANDROID",
+    "studio": "SYNTHETIC_STUDIO",
+    "java": "SYNTHETIC_JAVA",
+    "javac": "SYNTHETIC_JAVAC",
+    "sdkmanager": null,
+    "packages": ["platform-tools"],
+    "free_gib": 100,
+    "scope": "CURRENT_USER",
+    "platform": "windows-native",
+    "android_home": "SYNTHETIC_SDK",
+    "avds": []
+  },
+  "test_expectation": {
+    "operation": "Bootstrap",
+    "node_role": "adminbox_reference",
+    "reasons": ["MISSING_SDK_COMMANDLINE_TOOLS"],
+    "classification": "developer_prerequisite",
+    "contract_phase": "W2_IMPLEMENTATION_REQUIRED"
+  }
+}

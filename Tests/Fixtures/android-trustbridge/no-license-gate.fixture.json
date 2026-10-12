@@ -1,0 +1,29 @@
+{
+  "synthetic": true,
+  "schema_version": "sas-android-trustbridge-fixture/v1",
+  "trust_bridge": {
+    "license_accepted": false,
+    "auto_accept_forbidden": true
+  },
+  "inventory": {
+    "sdk_root": "SYNTHETIC_SDK",
+    "android_cli": "SYNTHETIC_ANDROID",
+    "studio": "SYNTHETIC_STUDIO",
+    "java": "SYNTHETIC_JAVA",
+    "javac": "SYNTHETIC_JAVAC",
+    "sdkmanager": "SYNTHETIC_SDKMANAGER",
+    "packages": ["cmdline-tools/latest"],
+    "free_gib": 100,
+    "scope": "CURRENT_USER",
+    "platform": "windows-native",
+    "android_home": "SYNTHETIC_SDK",
+    "avds": []
+  },
+  "test_expectation": {
+    "operation": "Bootstrap",
+    "node_role": "adminbox_reference",
+    "reasons": ["LICENSE_ACCEPTANCE_REQUIRED"],
+    "classification": "operator_gate",
+    "contract_phase": "W2_IMPLEMENTATION_REQUIRED"
+  }
+}

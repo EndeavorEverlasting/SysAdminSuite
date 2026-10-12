@@ -1,0 +1,17 @@
+{
+  "synthetic": true,
+  "schema_version": "sas-android-trustbridge-fixture/v1",
+  "trust_bridge": {
+    "execution_surface": "android_provider_prepare",
+    "archive_spec": "complete_platform_tools",
+    "simulate_interrupted_prepare": true,
+    "prior_runtime_backup_exists": true
+  },
+  "test_expectation": {
+    "operation": "Bootstrap",
+    "node_role": "adminbox_reference",
+    "reasons": ["PRIOR_RUNTIME_BACKUP_REQUIRES_REVIEW"],
+    "classification": "passing_now",
+    "contract_phase": "PROVIDER_SEAM_PROVEN"
+  }
+}
