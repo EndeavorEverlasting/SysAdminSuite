@@ -1,0 +1,25 @@
+{
+  "synthetic": true,
+  "schema_version": "sas-android-trustbridge-fixture/v1",
+  "trust_bridge": {
+    "execution_surface": "android_provider_prepare",
+    "archive_spec": "complete_platform_tools",
+    "approved_manifest": {
+      "schema_version": "sas-android-trusted-source/v1",
+      "immutable": true,
+      "source_url": "https://dl.google.com/android/repository/platform-tools-37.0.1-windows.zip",
+      "package_id": "Google.PlatformTools",
+      "version": "37.0.1",
+      "installer_sha256_independent": true
+    },
+    "approved_archive_sha256": "computed_at_test_time"
+  },
+  "test_expectation": {
+    "operation": "Bootstrap",
+    "node_role": "adminbox_reference",
+    "reasons": [],
+    "proof": ["TRUSTBRIDGE_PREPARE_RECEIPT", "QUALIFIED_BUNDLE_READY"],
+    "classification": "passing_now",
+    "contract_phase": "PROVIDER_SEAM_PROVEN"
+  }
+}

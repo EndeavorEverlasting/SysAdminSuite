@@ -1,0 +1,18 @@
+{
+  "synthetic": true,
+  "schema_version": "sas-android-trustbridge-fixture/v1",
+  "trust_bridge": {
+    "execution_surface": "android_provider_prepare",
+    "archive_spec": "complete_platform_tools",
+    "approved_archive_sha256": "computed_at_test_time",
+    "repeat_prepare_count": 2
+  },
+  "test_expectation": {
+    "operation": "Bootstrap",
+    "node_role": "adminbox_reference",
+    "reasons": [],
+    "proof": ["IDEMPOTENT_PREPARE", "ATTESTATION_STABLE"],
+    "classification": "passing_now",
+    "contract_phase": "PROVIDER_SEAM_PROVEN"
+  }
+}

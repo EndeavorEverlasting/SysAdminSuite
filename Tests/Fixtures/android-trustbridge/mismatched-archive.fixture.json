@@ -1,0 +1,16 @@
+{
+  "synthetic": true,
+  "schema_version": "sas-android-trustbridge-fixture/v1",
+  "trust_bridge": {
+    "execution_surface": "android_provider_prepare",
+    "approved_archive_sha256": "0000000000000000000000000000000000000000000000000000000000000000",
+    "archive_spec": "complete_platform_tools"
+  },
+  "test_expectation": {
+    "operation": "Bootstrap",
+    "node_role": "adminbox_reference",
+    "reasons": ["ARCHIVE_HASH_MISMATCH"],
+    "classification": "passing_now",
+    "contract_phase": "PROVIDER_SEAM_PROVEN"
+  }
+}
