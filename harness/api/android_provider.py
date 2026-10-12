@@ -22,6 +22,12 @@ from pathlib import Path, PureWindowsPath
 from typing import Any
 
 PLATFORM_TOOLS_SOURCE = "https://dl.google.com/android/repository/platform-tools-latest-windows.zip"
+# Legacy qualified runtimes may still record mutable-latest; new prepares must use
+# an immutable version-specific Google URL from the reviewed pin catalog.
+_PLATFORM_TOOLS_SOURCE_RE = re.compile(
+    r"^https://dl\.google\.com/android/repository/platform-tools"
+    r"(?:_r[0-9]+\.[0-9]+\.[0-9]+-win|-latest-windows)\.zip$"
+)
 OWNED_DIR = Path(os.environ.get("LOCALAPPDATA", str(Path.home()))) / "SysAdminSuite/tools/android-platform-tools"
 HOST_LEASE_DIR = Path(os.environ.get("ProgramData", str(Path.home()))) / "SysAdminSuite/android-provider"
 ROLES = frozenset({"ptop_lab", "adminbox_reference", "technician_adminbox_field"})
@@ -31,6 +37,14 @@ ALLOWED_SHELL = (
     "dumpsys connectivity", "dumpsys device_policy",
 )
 MANIFEST = "sas-platform-tools.json"
+
+
+def normalize_platform_tools_source(source: str | None) -> str:
+    """Accept legacy latest or immutable version-specific Google archive URLs only."""
+    value = (source or PLATFORM_TOOLS_SOURCE).strip()
+    if not _PLATFORM_TOOLS_SOURCE_RE.fullmatch(value):
+        raise RuntimeError("SOURCE_POLICY_DENIED")
+    return value
 
 
 def _run(args: list[str], timeout: int = 30) -> subprocess.CompletedProcess[str]:
@@ -63,7 +77,7 @@ def verify_bundle(directory: Path, *, require_attestation: bool = True) -> dict[
         manifest = json.loads((directory / MANIFEST).read_text(encoding="utf-8"))
         components = manifest["component_manifest"]
         if (manifest.get("schema_version") != "sas-android-runtime/v1"
-                or manifest.get("source") != PLATFORM_TOOLS_SOURCE
+                or not _PLATFORM_TOOLS_SOURCE_RE.fullmatch(str(manifest.get("source", "")))
                 or manifest.get("qualification_state") != "QUALIFIED"
                 or not manifest.get("version") or not manifest.get("qualified_at")
                 or not re.fullmatch(r"[a-f0-9]{64}", str(manifest.get("sha256", "")))
@@ -98,16 +112,26 @@ def verify_bundle(directory: Path, *, require_attestation: bool = True) -> dict[
     return result
 
 
-def prepare_bundle(archive: Path, expected_sha256: str, directory: Path | None = None) -> dict[str, Any]:
+def prepare_bundle(
+    archive: Path,
+    expected_sha256: str,
+    directory: Path | None = None,
+    *,
+    source: str | None = None,
+) -> dict[str, Any]:
     """Explicit offline preparation from an operator-approved official ZIP hash.
 
     Hash authority is an input, not inferred from an arbitrary downloaded file.
     Existing qualified bytes are preserved if preparation fails.
+    When ``source`` is supplied it must be the true acquisition URL (immutable
+    version-specific Google ZIP preferred); never invent mutable-latest for a
+    versioned archive.
     """
     from datetime import datetime, timezone
 
     directory = directory or OWNED_DIR
     expected_sha256 = expected_sha256.strip().lower()
+    manifest_source = normalize_platform_tools_source(source)
     archive_bytes = archive.read_bytes()
     if not re.fullmatch(r"[a-f0-9]{64}", expected_sha256) or hashlib.sha256(archive_bytes).hexdigest() != expected_sha256:
         raise RuntimeError("ARCHIVE_HASH_MISMATCH")
@@ -144,7 +168,7 @@ def prepare_bundle(archive: Path, expected_sha256: str, directory: Path | None =
         match = re.search(r"^Pkg.Revision\s*=\s*(\S+)", properties, re.M)
         if not match:
             raise RuntimeError("VERSION_METADATA_REQUIRED")
-        manifest = {"schema_version": "sas-android-runtime/v1", "source": PLATFORM_TOOLS_SOURCE,
+        manifest = {"schema_version": "sas-android-runtime/v1", "source": manifest_source,
                     "version": match.group(1), "sha256": expected_sha256,
                     "component_manifest": {p.relative_to(staging).as_posix(): sha256(p) for p in sorted(staging.rglob("*")) if p.is_file()},
                     "qualification_state": "QUALIFIED", "qualified_at": datetime.now(timezone.utc).isoformat()}

@@ -30,6 +30,18 @@ qualified bundle into the SAS-owned local cache. Runtime operations perform no
 public downloads and never select SDK/PATH copies. Existing software-deployment
 owners distribute assets; AndroidProvider is not another deployment engine.
 
+Autonomous Admin Box qualification is bridged by the reviewed pin catalog
+`configs/android-provider/sas-platform-tools-archive-pins.json` (schema
+`sas-platform-tools-archive-pins/v1`) and resolver
+`harness/api/android_platform_tools_pin.py`. Only pins with
+`promotion_status: approved_for_provider_prepare`, a non-placeholder
+`approval_reference`, and an immutable version-specific Google URL may feed
+`prepare` via `Manage-AdminBoxAndroidToolchain.cmd Bootstrap`. WinGet metadata
+and post-download checksums are candidate evidence only. Manifest `source` must
+record the true acquisition URL (not a false mutable-latest claim for a
+versioned archive). See
+`docs/plans/p95-android-platform-tools-trust-bridge-20261012.decision.md`.
+
 Preparation also creates the sibling `android-platform-tools.qualification.json`
 attestation, binding the approved archive digest to the complete manifest bytes.
 Distribution and attended rollback preserve that attestation with its matching

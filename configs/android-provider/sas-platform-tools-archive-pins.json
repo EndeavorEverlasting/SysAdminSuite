@@ -1,0 +1,16 @@
+{
+  "schema_version": "sas-platform-tools-archive-pins/v1",
+  "catalog_id": "sas-android-platform-tools-pins",
+  "pins": [
+    {
+      "artifact_id": "android-platform-tools-windows",
+      "version": "37.0.1",
+      "acquisition_url": "https://dl.google.com/android/repository/platform-tools_r37.0.1-win.zip",
+      "expected_archive_sha256": "0000000000000000000000000000000000000000000000000000000000000000",
+      "approval_reference": "PENDING-INDEPENDENT-REVIEW-DO-NOT-USE",
+      "allowed_node_roles": ["ptop_lab", "adminbox_reference", "technician_adminbox_field"],
+      "promotion_status": "blocked_pending_independent_sha256_pin",
+      "acquisition_evidence": "Candidate only: microsoft/winget-pkgs Google.PlatformTools 37.0.1 InstallerSha256 is not organizational approval. Replace expected_archive_sha256 and approval_reference after independent review, then set promotion_status to approved_for_provider_prepare."
+    }
+  ]
+}
