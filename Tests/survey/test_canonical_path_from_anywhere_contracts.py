@@ -10,6 +10,7 @@ REGISTRY = ROOT / "harness/api/canonical-path-registry.json"
 WORKFLOW = ROOT / "harness/workflows/canonical-path-resolution.yaml"
 SKILL = ROOT / "harness/skills/canonical-path-resolution/SKILL.md"
 RESOLVER = ROOT / "scripts/Resolve-SasCanonicalDevelopmentPath.ps1"
+REPARSE_MODULE = ROOT / "scripts/SasReparseInspection.psm1"
 CI = ROOT / ".github/workflows/canonical-path-contracts.yml"
 
 
@@ -65,6 +66,13 @@ def assert_resolver_fails_closed_without_cwd_authority() -> None:
         "CONFLICT_WRONG_REPOSITORY",
         "CONFLICT_NESTED_OR_WRONG_ROOT",
         "CONFLICT_REPARSE_POINT_UNINSPECTED",
+        "CONFLICT_UNSAFE_REPARSE_TAG",
+        "CONFLICT_REPARSE_IDENTITY_CHANGED",
+        "ONEDRIVE_CLOUD_PLACEHOLDER",
+        "Test-SasCanonicalReparseSafety",
+        "canonical_checkout_reparse_classification = $canonicalReparseClassification",
+        "canonical_reparse_observed_tags = $reparseObservedTags",
+        "Import-Module (Join-Path $PSScriptRoot 'SasReparseInspection.psm1')",
         "CONFLICT_GIT_IO_UNHEALTHY",
         "Invoke-SasCanonicalGitProbe",
         "canonical_git_io_health = $canonicalGitIoHealth",
@@ -172,6 +180,43 @@ def assert_bounded_copy_inventory_prevents_path_sprawl() -> None:
     assert "disposition='DISPOSABLE'" not in text, "resolver must not declare a copy disposable without content/ownership proof"
 
 
+def assert_cloud_placeholder_reparse_classification_is_bounded() -> None:
+    module = read(REPARSE_MODULE)
+    resolver = read(RESOLVER)
+    for marker in (
+        "function Get-SasFileSystemReparseTag",
+        "function Resolve-SasReparseTagClassification",
+        "function Test-SasCanonicalReparseSafety",
+        "FSCTL_GET_REPARSE_POINT",
+        "0x000900A8",
+        "FILE_FLAG_OPEN_REPARSE_POINT",
+        "FILE_FLAG_BACKUP_SEMANTICS",
+        "0xFFFF0FFF",
+        "0x9000001A",
+        "return 'ONEDRIVE_CLOUD_PLACEHOLDER'",
+        "return 'UNSAFE'",
+        "Export-ModuleMember -Function Get-SasFileSystemReparseTag, Resolve-SasReparseTagClassification, Test-SasCanonicalReparseSafety",
+    ):
+        assert marker in module, f"reparse inspection module missing bounded-classification marker: {marker}"
+    # The cloud family mask must be Int64-typed: bare 0xFFFF0FFF wraps to a
+    # negative Int32 in PowerShell and must not reappear un-suffixed.
+    assert "0xFFFF0FFFL" in module, "cloud family mask literal must carry the L suffix"
+    assert "[uint64]0xFFFF0FFF)" not in module, "unsuffixed wide hex literal regresses to negative Int32"
+    for marker in (
+        "a junction, symlink, or unknown reparse must not back the canonical checkout",
+        "the reparse identity of",
+        "changed during admission",
+    ):
+        assert marker in resolver, f"resolver missing unsafe/changed-reparse operator guidance: {marker}"
+    assert "CONFLICT_UNSAFE_REPARSE_TAG" in resolver
+    assert "CONFLICT_REPARSE_IDENTITY_CHANGED" in resolver
+    # Fail-closed posture preserved: unsafe or unclassifiable reparse points
+    # still block admission before any Git proof runs.
+    assert resolver.index("Test-SasCanonicalReparseSafety") < resolver.index("Invoke-SasCanonicalGitProbe -Root $canonicalDev"), (
+        "reparse classification must run before Git checkout proof"
+    )
+
+
 def assert_workflow_and_skill_block_the_recurrence() -> None:
     workflow = read(WORKFLOW)
     skill = read(SKILL)
@@ -218,6 +263,7 @@ def assert_provider_fixture_is_wired() -> None:
     ci = read(CI)
     for marker in (
         "scripts/Resolve-SasCanonicalDevelopmentPath.ps1",
+        "scripts/SasReparseInspection.psm1",
         "Tests/survey/test_canonical_path_from_anywhere_contracts.py",
         "windows-resolution:",
         "Start outside any Git repository",
@@ -225,7 +271,10 @@ def assert_provider_fixture_is_wired() -> None:
         "Prove wrong repository checkout fails closed",
         "Prove Git I/O unhealthy checkout fails closed",
         "Prove explicit canonical checkout succeeds",
+        "Prove junction-backed canonical checkout fails closed",
+        "Prove junction ancestor fails closed and cloud family classification is bounded",
         "CONFLICT_GIT_IO_UNHEALTHY",
+        "CONFLICT_UNSAFE_REPARSE_TAG",
         "canonical_git_io_health",
         "CONFLICT_WRONG_REPOSITORY",
         "Explicit DesktopDevRoot incorrectly replaced real Desktop Known Folder",
@@ -236,6 +285,7 @@ def assert_provider_fixture_is_wired() -> None:
 def main() -> int:
     assert_registry_owns_resolver()
     assert_resolver_fails_closed_without_cwd_authority()
+    assert_cloud_placeholder_reparse_classification_is_bounded()
     assert_execution_context_and_production_use_state_are_explicit()
     assert_bounded_copy_inventory_prevents_path_sprawl()
     assert_workflow_and_skill_block_the_recurrence()
@@ -243,11 +293,12 @@ def main() -> int:
     print("[PASS] canonical path registry owns uniqueness, Git I/O health, and atomic/default-branch-safe handoffs")
     print("[PASS] resolver keeps actual Windows Desktop Known Folder distinct from an explicit Desktop Dev override")
     print("[PASS] resolver fails closed on cwd, OneDrive conflicts, wrong origin, reparse state, and Git I/O failure")
+    print("[PASS] reparse classification admits only the OneDrive cloud placeholder family and fails closed on junctions, symlinks, and unknown tags")
     print("[PASS] execution target stays UNKNOWN unless explicitly/provably scoped; non-filesystem providers remain resolvable")
     print("[PASS] PROD_USE_STATE, same/reparse path safety, and registered production update authority are explicit")
     print("[PASS] bounded updater/worktree/cache/output/backup inventory forbids silent cleanup")
     print("[PASS] workflow blocks repeated native-continuation, production-mutation, and unmerged-helper handoff defects")
-    print("[PASS] Windows provider fixtures cover missing, wrong-repository, unhealthy-I/O, and canonical checkout states")
+    print("[PASS] Windows provider fixtures cover missing, wrong-repository, unhealthy-I/O, junction, and canonical checkout states")
     return 0
 
 

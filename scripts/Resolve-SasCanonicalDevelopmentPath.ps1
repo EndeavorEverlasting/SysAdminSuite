@@ -14,6 +14,7 @@ Set-StrictMode -Version 2.0
 $ErrorActionPreference = 'Stop'
 
 $repoRoot = Split-Path -Parent $PSScriptRoot
+Import-Module (Join-Path $PSScriptRoot 'SasReparseInspection.psm1') -Force
 $registryPath = Join-Path $repoRoot 'harness\api\canonical-path-registry.json'
 if (-not (Test-Path -LiteralPath $registryPath -PathType Leaf)) {
     throw "Canonical path registry is missing: $registryPath"
@@ -260,14 +261,35 @@ $checkoutStatus = if ($oneDriveState -eq 'MULTIPLE_ROOTS') {
 $checkoutHead = $null
 $checkoutRemote = $null
 $canonicalReparseState = 'NOT_INSPECTED_MISSING'
+$canonicalReparseClassification = 'NOT_APPLICABLE'
+$reparseObservedTags = @()
 $canonicalGitIoHealth = 'NOT_RUN'
 if (-not $profileEvidenceConflict -and (Test-Path -LiteralPath $canonicalDev -PathType Container)) {
-    $canonicalItem = Get-Item -LiteralPath $canonicalDev -Force
-    if (($canonicalItem.Attributes -band [IO.FileAttributes]::ReparsePoint) -ne 0) {
-        $canonicalReparseState = 'REPARSE_POINT_PRESENT'
-        $checkoutStatus = 'CONFLICT_REPARSE_POINT_UNINSPECTED'
-    } else {
+    # Classify every reparse point on the canonical path and its ancestors.
+    # Only the OneDrive/Cloud Files placeholder family is safely inspectable;
+    # junctions, symlinks, and unknown tags fail closed before any Git proof.
+    $reparseSafety = Test-SasCanonicalReparseSafety -Path $canonicalDev
+    $reparseObservedTags = @($reparseSafety.observed_tags)
+    $reparseClassificationValue = [string]$reparseSafety.classification
+    if ($reparseClassificationValue -eq 'NONE') {
         $canonicalReparseState = 'NORMAL_DIRECTORY'
+        $canonicalReparseClassification = 'NONE'
+    } elseif ($reparseClassificationValue -eq 'ONEDRIVE_CLOUD_PLACEHOLDER') {
+        # A classified cloud placeholder is not a name redirection: the path
+        # identity is the sync-rooted directory itself. Git proof still must
+        # succeed through the placeholder before admission.
+        $canonicalReparseState = 'ONEDRIVE_CLOUD_PLACEHOLDER'
+        $canonicalReparseClassification = 'ONEDRIVE_CLOUD_PLACEHOLDER'
+    } elseif ($reparseClassificationValue -eq 'UNSAFE') {
+        $canonicalReparseState = 'REPARSE_POINT_PRESENT'
+        $canonicalReparseClassification = 'UNSAFE'
+        $checkoutStatus = 'CONFLICT_UNSAFE_REPARSE_TAG'
+    } else {
+        $canonicalReparseState = 'REPARSE_POINT_PRESENT'
+        $canonicalReparseClassification = 'UNKNOWN'
+        $checkoutStatus = 'CONFLICT_REPARSE_POINT_UNINSPECTED'
+    }
+    if ($reparseClassificationValue -eq 'NONE' -or $reparseClassificationValue -eq 'ONEDRIVE_CLOUD_PLACEHOLDER') {
         $git = Get-Command git -ErrorAction SilentlyContinue
         if ($null -eq $git) {
             $checkoutStatus = 'UNKNOWN_GIT_UNAVAILABLE'
@@ -313,6 +335,20 @@ if (-not $profileEvidenceConflict -and (Test-Path -LiteralPath $canonicalDev -Pa
                             $checkoutStatus = 'CANONICAL_PROVED'
                             $checkoutHead = ([string]$checkoutHead).Trim().ToLowerInvariant()
                             $checkoutRemote = $remoteText
+                            if ($canonicalReparseClassification -eq 'ONEDRIVE_CLOUD_PLACEHOLDER') {
+                                # Identity-stability recheck: the reparse classification
+                                # observed before Git proof must still hold after it.
+                                $recheck = Test-SasCanonicalReparseSafety -Path $canonicalDev
+                                if ([string]$recheck.classification -ne 'ONEDRIVE_CLOUD_PLACEHOLDER' -or
+                                    ((@($recheck.observed_tags) -join ',') -ne ($reparseObservedTags -join ','))) {
+                                    $checkoutStatus = 'CONFLICT_REPARSE_IDENTITY_CHANGED'
+                                    $canonicalReparseState = 'REPARSE_POINT_PRESENT'
+                                    $canonicalReparseClassification = 'CHANGED'
+                                    $canonicalGitIoHealth = 'NOT_RUN'
+                                    $checkoutHead = $null
+                                    $checkoutRemote = $null
+                                }
+                            }
                         }
                     }
                 }
@@ -328,9 +364,9 @@ if ($productionApplicable -and (
     $pathRelation = 'UNKNOWN_REPARSE_POINT_RELATION'
     $pathRelationEvidence = "Physical relation is not trusted because canonical_reparse=$canonicalReparseState production_reparse=$productionReparseState."
 } elseif ($pathRelation -eq 'SAME_PHYSICAL_PATH_PRODUCTION_IMPACTING') {
-    $pathRelationEvidence = 'Canonical development and production/use normalize to the same path and neither observed path is an unresolved reparse point.'
+    $pathRelationEvidence = 'Canonical development and production/use normalize to the same path; no unsafe or unclassified reparse point was observed on either path.'
 } elseif ($productionApplicable) {
-    $pathRelationEvidence = 'Canonical development and production/use normalize to different paths and neither observed path is an unresolved reparse point.'
+    $pathRelationEvidence = 'Canonical development and production/use normalize to different paths; no unsafe or unclassified reparse point was observed on either path.'
 } else {
     $pathRelationEvidence = 'Selected profile has no production/use path.'
 }
@@ -442,6 +478,8 @@ $receipt = [ordered]@{
     path_disposition = $pathDisposition
     canonical_checkout_status = $checkoutStatus
     canonical_checkout_reparse_state = $canonicalReparseState
+    canonical_checkout_reparse_classification = $canonicalReparseClassification
+    canonical_reparse_observed_tags = $reparseObservedTags
     canonical_git_io_health = $canonicalGitIoHealth
     canonical_checkout_head = $checkoutHead
     canonical_checkout_remote = $checkoutRemote
@@ -453,6 +491,12 @@ $receipt = [ordered]@{
         "MISSING: create or recover the one canonical checkout at '$canonicalDev'; do not create a fallback clone elsewhere."
     } elseif ($checkoutStatus -eq 'CONFLICT_GIT_IO_UNHEALTHY') {
         "PRESERVE_AND_RECONCILE: Git cannot safely read the canonical checkout at '$canonicalDev'; inventory and repair/hydrate that checkout before fetch, status, log, worktree creation, or cleanup."
+    } elseif ($checkoutStatus -eq 'CONFLICT_UNSAFE_REPARSE_TAG') {
+        "PRESERVE_AND_RECONCILE: '$canonicalDev' resolves through an unsafe reparse point (tags: $($reparseObservedTags -join ', ')); a junction, symlink, or unknown reparse must not back the canonical checkout."
+    } elseif ($checkoutStatus -eq 'CONFLICT_REPARSE_IDENTITY_CHANGED') {
+        "PRESERVE_AND_RECONCILE: the reparse identity of '$canonicalDev' changed during admission; re-inspect before mutation."
+    } elseif ($checkoutStatus -eq 'CONFLICT_REPARSE_POINT_UNINSPECTED') {
+        "PRESERVE_AND_RECONCILE: reparse tags on '$canonicalDev' could not be classified; inspect before mutation."
     } elseif ($profileEvidenceConflict) {
         "PRESERVE_AND_RECONCILE: OneDrive profile evidence is $oneDriveState; resolve the conflicting/unavailable roots before trusting '$canonicalDev'."
     } else {
@@ -484,6 +528,7 @@ if ($AsJson) {
     Write-Host "Observed candidate: $(if ($null -ne $currentCandidate) { $currentCandidate } else { 'NON_FILESYSTEM_OR_INVALID' }) [$candidateClassification / $candidateLocationClass]"
     Write-Host "Disposition: $pathDisposition"
     Write-Host "Canonical checkout: $checkoutStatus [$canonicalReparseState]"
+    Write-Host "Reparse classification: $canonicalReparseClassification [tags: $(if ($reparseObservedTags.Count -gt 0) { $reparseObservedTags -join ', ' } else { 'none' })]"
     Write-Host "Git I/O health: $canonicalGitIoHealth"
     Write-Host "Known locations inventoried: $($knownLocations.Count); cleanup authorized: NO"
     Write-Host "Next: $($receipt.next_action)"

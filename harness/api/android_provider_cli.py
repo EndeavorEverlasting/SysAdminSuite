@@ -15,6 +15,15 @@ ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(ROOT))
 from harness.api.android_provider import AndroidProvider, OWNED_DIR, ROLES, prepare_bundle, verify_bundle
 
+# Bounded allowance for git fsck --connectivity-only only. An Admin Box 1
+# probe measured ~62.7s under OneDrive-synced repository I/O, exceeding the
+# generic 60s subprocess bound. The bound is finite and operation-specific:
+# a timeout raises SOURCE_GIT_FSCK_TIMEOUT (typed failure) and never
+# fabricates integrity success. All other source-admission subprocesses keep
+# the 60s default below.
+GIT_INTEGRITY_TIMEOUT_SECONDS = 300
+GIT_SUBPROCESS_TIMEOUT_SECONDS = 60
+
 
 def admit_source(expected_commit: str | None = None) -> dict:
     """Reuse the existing seal, or require a clean current canonical checkout.
@@ -22,8 +31,8 @@ def admit_source(expected_commit: str | None = None) -> dict:
     This never changes network posture or pulls a dirty/diverged checkout.
     Engineering worktrees execute synthetic fixtures only.
     """
-    def run(argv, cwd=None):
-        completed = subprocess.run(argv, cwd=cwd, capture_output=True, text=True, timeout=60)
+    def run(argv, cwd=None, timeout=GIT_SUBPROCESS_TIMEOUT_SECONDS):
+        completed = subprocess.run(argv, cwd=cwd, capture_output=True, text=True, timeout=timeout)
         if completed.returncode:
             raise RuntimeError("SOURCE_ADMISSION_FAILED")
         return completed.stdout.strip()
@@ -60,7 +69,12 @@ def admit_source(expected_commit: str | None = None) -> dict:
     owner = run(["powershell.exe", "-NoProfile", "-Command", "(Get-Acl -LiteralPath (Get-Location).Path).GetOwner([System.Security.Principal.SecurityIdentifier]).Value -eq [System.Security.Principal.WindowsIdentity]::GetCurrent().User.Value"], cwd=ROOT)
     if owner.casefold() != "true":
         raise RuntimeError("CANONICAL_CHECKOUT_OWNERSHIP_UNPROVEN")
-    run(prefix + ["fsck", "--connectivity-only"])
+    # subprocess.run kills the timed-out git process before re-raising
+    # TimeoutExpired; the typed failure below keeps integrity fail-closed.
+    try:
+        run(prefix + ["fsck", "--connectivity-only"], timeout=GIT_INTEGRITY_TIMEOUT_SECONDS)
+    except subprocess.TimeoutExpired:
+        raise RuntimeError("SOURCE_GIT_FSCK_TIMEOUT") from None
     git_dir = Path(run(prefix + ["rev-parse", "--absolute-git-dir"]))
     if any((git_dir / marker).exists() for marker in ("MERGE_HEAD", "CHERRY_PICK_HEAD", "REVERT_HEAD", "rebase-merge", "rebase-apply", "index.lock")):
         raise RuntimeError("CANONICAL_CHECKOUT_OPERATION_IN_PROGRESS")

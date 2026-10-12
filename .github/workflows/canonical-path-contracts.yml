@@ -14,6 +14,8 @@ on:
       - 'harness/maps/CANONICAL_PATH_MAP.md'
       - 'harness/reports/CANONICAL_PATH_STATUS.md'
       - 'scripts/Resolve-SasCanonicalDevelopmentPath.ps1'
+      - 'scripts/SasReparseInspection.psm1'
+      - 'Tests/Pester/CanonicalPathReparseSafety.Tests.ps1'
       - 'Tests/survey/test_canonical_path_harness_completeness.py'
       - 'Tests/survey/test_canonical_path_from_anywhere_contracts.py'
       - 'CODEBASE_MAP.md'
@@ -36,6 +38,8 @@ on:
       - 'harness/maps/CANONICAL_PATH_MAP.md'
       - 'harness/reports/CANONICAL_PATH_STATUS.md'
       - 'scripts/Resolve-SasCanonicalDevelopmentPath.ps1'
+      - 'scripts/SasReparseInspection.psm1'
+      - 'Tests/Pester/CanonicalPathReparseSafety.Tests.ps1'
       - 'Tests/survey/test_canonical_path_harness_completeness.py'
       - 'Tests/survey/test_canonical_path_from_anywhere_contracts.py'
       - 'CODEBASE_MAP.md'
@@ -307,3 +311,85 @@ jobs:
             Write-Host "PASS: exact canonical checkout with healthy Git I/O proved from arbitrary cwd at $fixture"
           }
           finally { Pop-Location }
+
+      - name: Prove junction-backed canonical checkout fails closed
+        shell: powershell
+        run: |
+          $resolver = (Resolve-Path '.\scripts\Resolve-SasCanonicalDevelopmentPath.ps1').Path
+          $jxDev = Join-Path $env:RUNNER_TEMP ('jx-dev-' + [guid]::NewGuid().ToString('N'))
+          $jxTarget = Join-Path $env:RUNNER_TEMP ('jx-target-' + [guid]::NewGuid().ToString('N'))
+          New-Item -ItemType Directory -Path $jxTarget -Force | Out-Null
+          git -C $jxTarget init
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          git -C $jxTarget config user.name 'SysAdminSuite CI'
+          git -C $jxTarget config user.email 'sysadminsuite-ci@example.invalid'
+          git -C $jxTarget remote add origin https://github.com/EndeavorEverlasting/SysAdminSuite.git
+          Set-Content -LiteralPath (Join-Path $jxTarget 'fixture.txt') -Value 'junction escape fixture' -Encoding ASCII
+          git -C $jxTarget add fixture.txt
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          git -C $jxTarget commit -m 'test: junction escape fixture'
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          New-Item -ItemType Directory -Path $jxDev -Force | Out-Null
+          New-Item -ItemType Junction -Path (Join-Path $jxDev 'SysAdminSuite') -Target $jxTarget | Out-Null
+
+          Push-Location $HOME
+          try {
+            $raw = & powershell.exe -NoLogo -NoProfile -ExecutionPolicy Bypass -File $resolver -DesktopDevRoot $jxDev -RequireCheckout -AsJson
+            $code = $LASTEXITCODE
+            $global:LASTEXITCODE = 0
+          }
+          finally { Pop-Location }
+          if ($code -eq 0) { throw 'Junction-backed canonical checkout incorrectly returned success.' }
+          $receipt = $raw | ConvertFrom-Json
+          if ($receipt.canonical_checkout_status -ne 'CONFLICT_UNSAFE_REPARSE_TAG') {
+            throw "Expected CONFLICT_UNSAFE_REPARSE_TAG, got $($receipt.canonical_checkout_status)"
+          }
+          if ($receipt.canonical_checkout_reparse_classification -ne 'UNSAFE' -or $receipt.path_disposition -ne 'CONFLICT') {
+            throw "Expected UNSAFE/CONFLICT, got $($receipt.canonical_checkout_reparse_classification)/$($receipt.path_disposition)"
+          }
+          Write-Host "PASS: junction-backed canonical checkout failed closed with exit $code"
+
+      - name: Prove junction ancestor fails closed and cloud family classification is bounded
+        shell: powershell
+        run: |
+          $resolver = (Resolve-Path '.\scripts\Resolve-SasCanonicalDevelopmentPath.ps1').Path
+          Import-Module '.\scripts\SasReparseInspection.psm1' -Force
+          foreach ($hex in @('9000001A', '9000101A', '9000601A', '9000701A', '9000F01A')) {
+            $tag = [uint32][Convert]::ToUInt32($hex, 16)
+            $got = Resolve-SasReparseTagClassification -Tag $tag
+            if ($got -ne 'ONEDRIVE_CLOUD_PLACEHOLDER') { throw "Cloud family tag 0x$hex classified as $got" }
+          }
+          foreach ($hex in @('A0000003', 'A000000C', '80000013', '8000001C', '9000001B')) {
+            $tag = [uint32][Convert]::ToUInt32($hex, 16)
+            $got = Resolve-SasReparseTagClassification -Tag $tag
+            if ($got -ne 'UNSAFE') { throw "Unsafe tag 0x$hex classified as $got" }
+          }
+          $anchor = Join-Path $env:RUNNER_TEMP ('anc-anchor-' + [guid]::NewGuid().ToString('N'))
+          $ancDev = Join-Path $env:RUNNER_TEMP ('anc-dev-' + [guid]::NewGuid().ToString('N'))
+          $fixture = Join-Path $anchor 'SysAdminSuite'
+          New-Item -ItemType Directory -Path $fixture -Force | Out-Null
+          git -C $fixture init
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          git -C $fixture config user.name 'SysAdminSuite CI'
+          git -C $fixture config user.email 'sysadminsuite-ci@example.invalid'
+          git -C $fixture remote add origin https://github.com/EndeavorEverlasting/SysAdminSuite.git
+          Set-Content -LiteralPath (Join-Path $fixture 'fixture.txt') -Value 'ancestor junction fixture' -Encoding ASCII
+          git -C $fixture add fixture.txt
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          git -C $fixture commit -m 'test: ancestor junction fixture'
+          if ($LASTEXITCODE -ne 0) { exit $LASTEXITCODE }
+          New-Item -ItemType Junction -Path $ancDev -Target $anchor | Out-Null
+
+          Push-Location $HOME
+          try {
+            $raw = & powershell.exe -NoLogo -NoProfile -ExecutionPolicy Bypass -File $resolver -DesktopDevRoot $ancDev -RequireCheckout -AsJson
+            $code = $LASTEXITCODE
+            $global:LASTEXITCODE = 0
+          }
+          finally { Pop-Location }
+          if ($code -eq 0) { throw 'Ancestor-junction canonical checkout incorrectly returned success.' }
+          $receipt = $raw | ConvertFrom-Json
+          if ($receipt.canonical_checkout_status -ne 'CONFLICT_UNSAFE_REPARSE_TAG') {
+            throw "Expected CONFLICT_UNSAFE_REPARSE_TAG, got $($receipt.canonical_checkout_status)"
+          }
+          Write-Host "PASS: ancestor junction failed closed with exit $code; cloud family classification is bounded"
