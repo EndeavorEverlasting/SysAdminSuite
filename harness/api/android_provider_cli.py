@@ -66,7 +66,13 @@ def admit_source(expected_commit: str | None = None) -> dict:
         raise RuntimeError("PREPARED_OFFLINE_RUNTIME_REQUIRED_ON_PROTECTED_NETWORK")
     if run(prefix + ["status", "--porcelain"]):
         raise RuntimeError("DIRTY_CANONICAL_CHECKOUT")
-    owner = run(["powershell.exe", "-NoProfile", "-Command", "(Get-Acl -LiteralPath (Get-Location).Path).GetOwner([System.Security.Principal.SecurityIdentifier]).Value -eq [System.Security.Principal.WindowsIdentity]::GetCurrent().User.Value"], cwd=ROOT)
+    # Read the owner through .NET directly: the Get-Acl cmdlet lives in the
+    # Microsoft.PowerShell.Security module, whose autoload resolves whatever
+    # PSModulePath this process inherited. When python runs inside a pwsh
+    # session that path contains PowerShell 7 module roots, and 5.1 then fails
+    # to load the module (type-data collision) before the gate can evaluate.
+    # The .NET call needs no module load and keeps the same fail-closed rule.
+    owner = run(["powershell.exe", "-NoProfile", "-Command", "[System.IO.Directory]::GetAccessControl((Get-Location).Path).GetOwner([System.Security.Principal.SecurityIdentifier]).Value -eq [System.Security.Principal.WindowsIdentity]::GetCurrent().User.Value"], cwd=ROOT)
     if owner.casefold() != "true":
         raise RuntimeError("CANONICAL_CHECKOUT_OWNERSHIP_UNPROVEN")
     # subprocess.run kills the timed-out git process before re-raising

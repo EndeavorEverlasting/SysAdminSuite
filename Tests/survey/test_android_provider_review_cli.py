@@ -1,6 +1,7 @@
 """Offline source-admission and private profile routing regressions."""
 from __future__ import annotations
 
+import inspect
 import json
 from pathlib import Path
 import subprocess
@@ -31,7 +32,7 @@ class CliReviewTests(unittest.TestCase):
             if argv[0] == "powershell.exe":
                 if "-File" in argv:
                     text = json.dumps({"canonical_development_checkout": str(root)})
-                elif "Get-Acl" in argv[-1]:
+                elif "GetOwner" in argv[-1]:
                     text = "True" if owned else "False"
                 else:
                     text = json.dumps({"classification": "GUEST_INTERNET"})
@@ -108,6 +109,20 @@ class CliReviewTests(unittest.TestCase):
         self.assertEqual(result, "SOURCE_ADMISSION_FAILED")
         self.assertFalse(any("pull" in call for call in calls))
         self.assertFalse(any("fetch" in call for call in calls))
+
+    def test_owner_gate_reads_owner_without_module_autoload(self):
+        source = inspect.getsource(cli.admit_source)
+        owner_lines = [line for line in source.splitlines() if "GetOwner" in line and "owner = run" in line]
+        self.assertTrue(owner_lines, "ownership gate missing from admit_source")
+        for line in owner_lines:
+            self.assertIn("GetAccessControl", line)
+            self.assertIn("WindowsIdentity]::GetCurrent().User.Value", line)
+            self.assertNotIn("Get-Acl", line)
+        unowned, _, _ = self.admission(owned=False)
+        self.assertEqual(unowned, "CANONICAL_CHECKOUT_OWNERSHIP_UNPROVEN")
+        owned, calls, _ = self.admission(owned=True)
+        self.assertFalse(isinstance(owned, str), owned)
+        self.assertTrue(any("GetOwner" in call[-1] for call in calls if call[0] == "powershell.exe"))
 
     def test_updated_source_reexecutes_before_provider_construction(self):
         with tempfile.TemporaryDirectory() as temporary, patch.object(cli, "ROOT", Path(temporary)), patch.object(cli, "admit_source", return_value={"source_updated": True}), patch.object(cli, "AndroidProvider", side_effect=AssertionError("stale provider used")), patch.object(cli.subprocess, "run", return_value=subprocess.CompletedProcess([], 7)) as child, patch.dict(cli.os.environ, {"SAS_ANDROID_SOURCE_RESTART": "0"}):
