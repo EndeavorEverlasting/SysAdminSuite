@@ -16,9 +16,17 @@ on:
       - 'Tests/Fixtures/android-adminbox-toolchain/**'
       - 'Tests/survey/test_android_adminbox_*.py'
       - 'Tests/survey/test_android_toolchain_contracts.py'
+      - 'Tests/survey/test_android_trustbridge_bootstrap_contracts.py'
       - 'Tests/survey/test_android_adminbox_coldstart_dispatch_contracts.py'
+      - 'harness/api/android_platform_tools_pin.py'
+      - 'harness/api/android_provider.py'
+      - 'harness/api/android_provider_cli.py'
+      - 'configs/android-provider/**'
+      - 'schemas/harness/sas-platform-tools-archive-pins.schema.json'
+      - 'docs/plans/p95-android-platform-tools-trust-bridge-20261012.decision.md'
       - 'docs/plans/android-adminbox1-coldstart-bootstrap-p04-20261010.plan.md'
       - 'docs/handoff/android-adminbox1-bootstrap-opencode-20261010.md'
+      - 'docs/handoff/android-adminbox1-autonomous-bootstrap-trustbridge-p04-20261012.md'
       - 'docs/plans/android-suite-closeout-p04-20261010.plan.md'
       - 'docs/handoff/android-suite-closeout-agent-20261010.md'
       - 'docs/plans/android-suite-closeout-dispatch.provisional.json'
@@ -42,9 +50,17 @@ on:
       - 'Tests/Fixtures/android-adminbox-toolchain/**'
       - 'Tests/survey/test_android_adminbox_*.py'
       - 'Tests/survey/test_android_toolchain_contracts.py'
+      - 'Tests/survey/test_android_trustbridge_bootstrap_contracts.py'
       - 'Tests/survey/test_android_adminbox_coldstart_dispatch_contracts.py'
+      - 'harness/api/android_platform_tools_pin.py'
+      - 'harness/api/android_provider.py'
+      - 'harness/api/android_provider_cli.py'
+      - 'configs/android-provider/**'
+      - 'schemas/harness/sas-platform-tools-archive-pins.schema.json'
+      - 'docs/plans/p95-android-platform-tools-trust-bridge-20261012.decision.md'
       - 'docs/plans/android-adminbox1-coldstart-bootstrap-p04-20261010.plan.md'
       - 'docs/handoff/android-adminbox1-bootstrap-opencode-20261010.md'
+      - 'docs/handoff/android-adminbox1-autonomous-bootstrap-trustbridge-p04-20261012.md'
       - 'docs/plans/android-suite-closeout-p04-20261010.plan.md'
       - 'docs/handoff/android-suite-closeout-agent-20261010.md'
       - 'docs/plans/android-suite-closeout-dispatch.provisional.json'
@@ -69,6 +85,9 @@ jobs:
       - name: Validate Admin Box reference-role toolchain contracts
         shell: pwsh
         run: python Tests/survey/test_android_adminbox_toolchain_profile_contracts.py
+      - name: Validate Platform-Tools trust-bridge pin contracts
+        shell: pwsh
+        run: python Tests/survey/test_android_trustbridge_bootstrap_contracts.py
       - name: Validate Admin Box cold-start P04 dependency and authority contract
         shell: pwsh
         run: python Tests/survey/test_android_adminbox_coldstart_dispatch_contracts.py

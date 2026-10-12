@@ -117,6 +117,10 @@ def main(argv=None):
     parser.add_argument("--profile-file", type=Path, help="Private operator-resolved organization/site/equipment authority for transport mutation.")
     parser.add_argument("--archive", type=Path)
     parser.add_argument("--archive-sha256")
+    parser.add_argument(
+        "--archive-source",
+        help="True acquisition URL recorded in the runtime manifest (immutable Google version ZIP preferred).",
+    )
     parser.add_argument("--authorize-transport", action="store_true")
     parser.add_argument("--expected-commit", help="Provider-selected refreshed 40-character commit for offline sealed source admission.")
     parser.add_argument("--fixture", type=Path, help="Synthetic status fixture; no device/runtime execution.")
@@ -156,7 +160,7 @@ def main(argv=None):
             if args.operation == "prepare":
                 if not args.archive or not args.archive_sha256 or not args.role:
                     raise ValueError("PREPARE_REQUIRES_ROLE_LOCAL_ARCHIVE_AND_APPROVED_HASH")
-                prepare_bundle(args.archive, args.archive_sha256)
+                prepare_bundle(args.archive, args.archive_sha256, source=args.archive_source)
                 node_file.write_text(json.dumps({"node_role": role}) + "\n", encoding="utf-8")
             if args.operation in {"doctor", "stop-server"}:
                 result.update(provider.server(stop=args.operation == "stop-server"))

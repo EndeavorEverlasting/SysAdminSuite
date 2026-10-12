@@ -1,7 +1,7 @@
 <# Windows-native, preservation-first Android development lifecycle. Raw receipts remain private. #>
 [CmdletBinding()]
 param(
- [ValidateSet('Inventory','Plan','Apply','Verify','Repair')][string]$Operation='Inventory',
+ [ValidateSet('Inventory','Plan','Apply','Verify','Repair','Bootstrap')][string]$Operation='Inventory',
  [string]$NodeRole='ptop_lab', [string]$SdkRoot, [string]$JavaHome,
  [string]$OutputRoot, [string]$FixturePath, [switch]$MutationAuthorized,
  [switch]$LicenseAccepted, [switch]$LaunchStudio, [switch]$BuildSmoke,
@@ -102,7 +102,7 @@ try {
  if($NodeRole -notin @('ptop_lab','adminbox_reference')){throw 'NODE_ROLE_MISMATCH'}
  if($profile.node_role -ne $NodeRole){throw 'NODE_ROLE_MISMATCH'}
  if($FixturePath){$fixture=Get-Content -LiteralPath $FixturePath -Raw | ConvertFrom-Json;if($fixture.synthetic -ne $true){throw 'SYNTHETIC_FIXTURE_REQUIRED'}}
- if($fixture -and $Operation -in @('Apply','Repair')){throw 'FIXTURE_MUTATION_FORBIDDEN'}
+ if($fixture -and $Operation -in @('Apply','Repair','Bootstrap')){throw 'FIXTURE_MUTATION_FORBIDDEN'}
  if(-not $fixture){
   if($repo -eq 'C:\SASAL'){
    $state=Get-Content (Join-Path $env:LOCALAPPDATA 'SysAdminSuite/autologon-short-runtime.json') -Raw|ConvertFrom-Json
@@ -140,6 +140,60 @@ try {
  if($Operation -eq 'Verify' -and $missing.Count){$result.reason_codes+=@('SDK_PACKAGES_MISSING')}
  if($Operation -eq 'Verify' -and -not $inventory.sdkmanager){$result.reason_codes+=@('MISSING_SDK_COMMANDLINE_TOOLS')}
  if($Operation -eq 'Verify' -and $inventory.free_gib -lt $profile.minimum_free_gib){$result.reason_codes+=@('INSUFFICIENT_DISK_SPACE')}
+ if($Operation -eq 'Bootstrap'){
+  if(-not $MutationAuthorized){throw 'MUTATION_AUTHORIZATION_REQUIRED'}
+  if(-not $HostProfile){$HostProfile=Join-Path $env:LOCALAPPDATA 'SysAdminSuite/android-toolchain/host-profile.json'}
+  if(-not (Test-Path -LiteralPath $HostProfile)){if($NodeRole -eq 'adminbox_reference'){throw 'ADMINBOX_PROFILE_AUTHORITY_REQUIRED'};throw 'PTOP_PROFILE_AUTHORITY_REQUIRED'}
+  $authority=Get-Content -LiteralPath $HostProfile -Raw|ConvertFrom-Json
+  $hostEquipment=Get-CimInstance Win32_ComputerSystem
+  Assert-HostProfileForRole -Role $NodeRole -Authority $authority -Equipment $hostEquipment -RequestedOperation $Operation -DesiredState $profile
+  # Independently reviewed pin catalog is the only prepare authority; never hash-of-download.
+  $pinScript=@'
+import json,sys
+from pathlib import Path
+sys.path.insert(0, sys.argv[1])
+from harness.api.android_platform_tools_pin import PinResolutionError, resolve
+try:
+    print(json.dumps(resolve(sys.argv[2])))
+except PinResolutionError as exc:
+    print(str(exc), file=sys.stderr)
+    raise SystemExit(3)
+'@
+  $pinStdout=Join-Path $OutputRoot ('pin-resolve-'+[guid]::NewGuid().ToString('N')+'.stdout.log')
+  $pinStderr=Join-Path $OutputRoot ('pin-resolve-'+[guid]::NewGuid().ToString('N')+'.stderr.log')
+  $pinRun=Invoke-SasNativeProcess -FilePath $python -Arguments @('-c',$pinScript,$repo,$NodeRole) -TimeoutSeconds 60 -StandardOutputPath $pinStdout -StandardErrorPath $pinStderr -Environment @{PSModulePath=($env:ProgramFiles+'\WindowsPowerShell\Modules;'+$env:SystemRoot+'\System32\WindowsPowerShell\v1.0\Modules')}
+  if($pinRun.exit_code -ne 0){
+   $code=((Get-Content -LiteralPath $pinStderr -Raw -ErrorAction SilentlyContinue)+'').Trim()
+   if($code -notin @('QUALIFICATION_AUTHORITY_REQUIRED','INDEPENDENT_APPROVAL_REQUIRED','SOURCE_POLICY_DENIED')){$code='QUALIFICATION_AUTHORITY_REQUIRED'}
+   throw $code
+  }
+  $pin=Get-Content -LiteralPath $pinStdout -Raw|ConvertFrom-Json
+  $staging=Join-Path $OutputRoot 'sas-platform-tools-staging';New-Item -ItemType Directory -Force $staging|Out-Null
+  $fileName=[IO.Path]::GetFileName([uri]$pin.acquisition_url)
+  if($fileName -match 'latest'){throw 'SOURCE_POLICY_DENIED'}
+  $map=Join-Path $staging 'fetch-map.csv'
+  @([pscustomobject]@{Name='Android Platform Tools';Url=$pin.acquisition_url;FileName=$fileName;Type='zip';Version=$pin.version;SilentArgs='';AllowDomains='dl.google.com'})|Export-Csv -NoTypeInformation $map
+  $archive=Join-Path $staging ('installers/'+$fileName)
+  if(-not (Test-Path -LiteralPath $archive)){
+   $pwsh=Find-Tool pwsh.exe @('C:/Program Files/PowerShell/7/pwsh.exe');if(-not $pwsh){throw 'POWERSHELL7_FETCHER_REQUIRED'}
+   Invoke-Bounded $pwsh @('-NoProfile','-File',(Join-Path $repo 'Config/Fetch-Installers.ps1'),'-RepoRoot',$staging,'-FetchMap',$map)|Out-Null
+  }
+  if(-not (Test-Path -LiteralPath $archive)){throw 'MISSING_ASSET'}
+  $actual=(Get-FileHash -LiteralPath $archive -Algorithm SHA256).Hash.ToLowerInvariant()
+  if($actual -ne ([string]$pin.expected_archive_sha256).ToLowerInvariant()){throw 'HASH_MISMATCH'}
+  $prepareArgs=@((Join-Path $repo 'harness/api/android_provider_cli.py'),'prepare','--role',$NodeRole,'--archive',$archive,'--archive-sha256',$pin.expected_archive_sha256,'--archive-source',$pin.acquisition_url)
+  if($ExpectedCommit){$prepareArgs+=@('--expected-commit',$ExpectedCommit)}
+  Invoke-Bounded $python $prepareArgs 180|Out-Null
+  $result.proof+=@('PREPARED')
+  foreach($op in @('status','doctor','verify')){
+   $verifyArgs=@((Join-Path $repo 'harness/api/android_provider_cli.py'),$op,'--role',$NodeRole)
+   if($ExpectedCommit){$verifyArgs+=@('--expected-commit',$ExpectedCommit)}
+   Invoke-Bounded $python $verifyArgs 120|Out-Null
+  }
+  $result.proof+=@('VERIFIED')
+  # Bootstrap qualifies SAS-owned Platform-Tools only; developer CLI/Studio gaps stay separate.
+  $result.reason_codes=@($result.reason_codes|Where-Object {$_ -notin @('MISSING_ANDROID_CLI','MISSING_ANDROID_STUDIO','MISSING_STANDALONE_JDK')})
+ }
  if($Operation -in @('Apply','Repair')){
   if(-not $MutationAuthorized){throw 'MUTATION_AUTHORIZATION_REQUIRED'}
   # Caller-supplied role is routing, not approved equipment-profile authority.
@@ -197,14 +251,7 @@ try {
   if(@(($profile.required_packages+$profile.native_packages)|Where-Object {$_ -notin @($result.inventory.packages)}).Count){throw 'INSTALL_READBACK_INCOMPLETE'}
   if(-not @($result.inventory.packages|Where-Object {$_ -in @($profile.accepted_system_images)}).Count){throw 'SYSTEM_IMAGE_READBACK_INCOMPLETE'}
   $result.proof+=@('WINDOWS_INSTALLED')
-  # Acquisition is separate from independent SAS qualification; own hash is never approval.
-  $staging=Join-Path $OutputRoot 'sas-platform-tools-staging';New-Item -ItemType Directory -Force $staging|Out-Null
-  $map=Join-Path $staging 'fetch-map.csv'
-  @([pscustomobject]@{Name='Android Platform Tools';Url='https://dl.google.com/android/repository/platform-tools-latest-windows.zip';FileName='platform-tools-windows.zip';Type='zip';Version='latest';SilentArgs='';AllowDomains='dl.google.com'})|Export-Csv -NoTypeInformation $map
-  if(-not (Test-Path (Join-Path $staging 'installers/platform-tools-windows.zip'))){
-   $pwsh=Find-Tool pwsh.exe @('C:/Program Files/PowerShell/7/pwsh.exe');if(-not $pwsh){throw 'POWERSHELL7_FETCHER_REQUIRED'}
-   Invoke-Bounded $pwsh @('-NoProfile','-File',(Join-Path $repo 'Config/Fetch-Installers.ps1'),'-RepoRoot',$staging,'-FetchMap',$map)|Out-Null
-  }
+  # Developer Apply never self-approves SAS qualification. Use Bootstrap with a reviewed pin.
   try{Invoke-Bounded $python @((Join-Path $repo 'harness/api/android_provider_cli.py'),'verify','--role',$NodeRole) 120|Out-Null;$result.proof+=@('SAS_HOST_READY')}catch{$result.reason_codes+=@('QUALIFICATION_AUTHORITY_REQUIRED')}
  }
  if($Operation -eq 'Verify' -and -not $fixture){

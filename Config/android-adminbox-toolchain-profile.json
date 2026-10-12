@@ -10,5 +10,5 @@
   "preferred_java_major": 21,
   "preserve_existing_avds": true,
   "sas_adb_qualification": "INDEPENDENT_APPROVED_ARCHIVE_SHA256_REQUIRED",
-  "allowed_operations": ["Inventory", "Plan", "Apply", "Verify", "Repair"]
+  "allowed_operations": ["Inventory", "Plan", "Apply", "Verify", "Repair", "Bootstrap"]
 }
