@@ -1,0 +1,374 @@
+{
+  "schema_version": "sas-p04-dispatch-provisional/v1",
+  "canonical_expected_contract": "prompt-parallel-dispatch/v1",
+  "standard_contract_validation": "UNAVAILABLE_TOKENCORRIDOR_ISSUE_142",
+  "standard_runner": "NOT_FOUND_ON_CURRENT_TOKENCORRIDOR_MAIN",
+  "warning": "NOT A STANDARD RUNNABLE MANIFEST; local coordinator must consume through proven native adapter and write real receipts",
+  "repo": "EndeavorEverlasting/SysAdminSuite",
+  "owner": "SysAdminSuite #534",
+  "strategy": "docs/plans/p141-android-deterministic-toolset-interaction-20261012.md",
+  "handoff": "docs/handoff/android-adminbox1-next-action-p04-20261012.md",
+  "historical_contracts": [
+    "#539 Bootstrap already merged",
+    "#540 19 fixture catalog merged; do not redispatch"
+  ],
+  "main_floor": "7aef5c5249de18c573c16ea7ee204865a2dbfb5f",
+  "host": "LOCAL_AGENT_RUNTIME",
+  "controller": "Cursor Task or OpenCode on independently verified Admin Box 1; optional CURRENT_CHAT_RUNTIME GitHub-only sanitation",
+  "source_proof": "GitHub merged main, #534 read-only host receipt only",
+  "expected_parallel_width": 3,
+  "observed_parallelism": false,
+  "parallel_launch_proof": "NOT_OBSERVED_FOR_THIS_SUCCESSOR",
+  "parallel_requirement": "W1-A/B/C independent and should launch concurrently if policy-approved adapter exists; live separate receipts or DEGRADED",
+  "implementation_owner": "P07 for selected P141 thesis after P04 dispatch",
+  "authority": "Pin independent approval and private adminbox_reference host profile are external human/organizational gates; draft packets don't grant either",
+  "lanes": [
+    {
+      "lane_id": "W0-FLOOR",
+      "wave": 0,
+      "mission": "Reverify source/role/current host, protected data boundary and local adapter",
+      "dependencies": [],
+      "execution_environment": "LOCAL_AGENT_RUNTIME",
+      "provider_access": "GitHub only for sanitized PRs/issues; do not expose raw host receipts",
+      "required_capabilities": [
+        "Git, Windows CMD/PS, repo skills"
+      ],
+      "evidence_inputs": [
+        {
+          "evidence_type": "repository_snapshot",
+          "source_owner": "EndeavorEverlasting/SysAdminSuite",
+          "sanitized_ref": "main@7aef5c5249de18c573c16ea7ee204865a2dbfb5f",
+          "freshness": "2026-10-12 at handoff authoring; recheck",
+          "proof_ceiling": "merged source/CI plus reported read-only Admin Box inventory, not native install"
+        }
+      ],
+      "owned_mutation_surfaces": [
+        "ignored local W0 inventory/adapter receipts"
+      ],
+      "forbidden_surfaces": [
+        "software and network mutation",
+        "cross-host identity spoof"
+      ],
+      "branch_or_worktree": "One writer per disjoint worktree, shared schema/engine reserved for W2",
+      "selected_adapter": "Cursor Task or OpenCode coordinator",
+      "adapter_proof": "PENDING_THIS_SPRINT; require actual launch and finished worker receipts",
+      "launch_action": "Local Cursor/OpenCode coordinator calls actual verified adapter for W0-FLOOR after dependencies, retains receipt",
+      "expected_artifact": "current source/host/network/proof classification",
+      "validation": [
+        "actual local source SHA and role",
+        "safe canonical path resolution",
+        "private output"
+      ],
+      "convergence_owner": "W2-P07-SHARED",
+      "status": "READY_AFTER_DEPENDENCIES",
+      "proof_ceiling": "Not executed by GitHub planning chat"
+    },
+    {
+      "lane_id": "W1-A-INTERACTION",
+      "wave": 1,
+      "mission": "Specify two-track deterministic Next operator projection",
+      "dependencies": [
+        "W0-FLOOR"
+      ],
+      "execution_environment": "LOCAL_AGENT_RUNTIME",
+      "provider_access": "GitHub only for sanitized PRs/issues; do not expose raw host receipts",
+      "required_capabilities": [
+        "repository analysis"
+      ],
+      "evidence_inputs": [
+        {
+          "evidence_type": "repository_snapshot",
+          "source_owner": "EndeavorEverlasting/SysAdminSuite",
+          "sanitized_ref": "main@7aef5c5249de18c573c16ea7ee204865a2dbfb5f",
+          "freshness": "2026-10-12 at handoff authoring; recheck",
+          "proof_ceiling": "merged source/CI plus reported read-only Admin Box inventory, not native install"
+        }
+      ],
+      "owned_mutation_surfaces": [
+        "one new disjoint UX contract document"
+      ],
+      "forbidden_surfaces": [
+        "code/schema changes",
+        "live host mutation"
+      ],
+      "branch_or_worktree": "One writer per disjoint worktree, shared schema/engine reserved for W2",
+      "selected_adapter": "Proven Cursor Task child or OpenCode delegated worker",
+      "adapter_proof": "PENDING_THIS_SPRINT; require actual launch and finished worker receipts",
+      "launch_action": "Local Cursor/OpenCode coordinator calls actual verified adapter for W1-A-INTERACTION after dependencies, retains receipt",
+      "expected_artifact": "state/action contract + exact examples",
+      "validation": [
+        "SAS vs developer readiness separate",
+        "Inventory SUCCESS != READY",
+        "stable next actions"
+      ],
+      "convergence_owner": "W2-P07-SHARED",
+      "status": "READY_AFTER_DEPENDENCIES",
+      "proof_ceiling": "Not executed by GitHub planning chat"
+    },
+    {
+      "lane_id": "W1-B-AUTHORITY",
+      "wave": 1,
+      "mission": "Inspect trusted pin/host policy and emit private draft approval packets",
+      "dependencies": [
+        "W0-FLOOR"
+      ],
+      "execution_environment": "LOCAL_AGENT_RUNTIME",
+      "provider_access": "GitHub only for sanitized PRs/issues; do not expose raw host receipts",
+      "required_capabilities": [
+        "local host/profile evidence under policy"
+      ],
+      "evidence_inputs": [
+        {
+          "evidence_type": "repository_snapshot",
+          "source_owner": "EndeavorEverlasting/SysAdminSuite",
+          "sanitized_ref": "main@7aef5c5249de18c573c16ea7ee204865a2dbfb5f",
+          "freshness": "2026-10-12 at handoff authoring; recheck",
+          "proof_ceiling": "merged source/CI plus reported read-only Admin Box inventory, not native install"
+        }
+      ],
+      "owned_mutation_surfaces": [
+        "ignored private host and pin-review receipt only"
+      ],
+      "forbidden_surfaces": [
+        "approve pin",
+        "create RESOLVED profile",
+        "unapproved download",
+        "publish host facts"
+      ],
+      "branch_or_worktree": "One writer per disjoint worktree, shared schema/engine reserved for W2",
+      "selected_adapter": "Policy-approved local observer/child, do not send private receipts to unapproved hosted provider",
+      "adapter_proof": "PENDING_THIS_SPRINT; require actual launch and finished worker receipts",
+      "launch_action": "Local Cursor/OpenCode coordinator calls actual verified adapter for W1-B-AUTHORITY after dependencies, retains receipt",
+      "expected_artifact": "private candidate/approval gap packet and exact review authority",
+      "validation": [
+        "candidate vs approved split",
+        "role authority",
+        "no self promotion"
+      ],
+      "convergence_owner": "W2-P07-SHARED",
+      "status": "READY_AFTER_DEPENDENCIES",
+      "proof_ceiling": "Not executed by GitHub planning chat"
+    },
+    {
+      "lane_id": "W1-C-TESTS",
+      "wave": 1,
+      "mission": "Write new negative Next/bootstrap-schema UX fixture contracts",
+      "dependencies": [
+        "W0-FLOOR"
+      ],
+      "execution_environment": "LOCAL_AGENT_RUNTIME",
+      "provider_access": "GitHub only for sanitized PRs/issues; do not expose raw host receipts",
+      "required_capabilities": [
+        "Python/PowerShell tests"
+      ],
+      "evidence_inputs": [
+        {
+          "evidence_type": "repository_snapshot",
+          "source_owner": "EndeavorEverlasting/SysAdminSuite",
+          "sanitized_ref": "main@7aef5c5249de18c573c16ea7ee204865a2dbfb5f",
+          "freshness": "2026-10-12 at handoff authoring; recheck",
+          "proof_ceiling": "merged source/CI plus reported read-only Admin Box inventory, not native install"
+        }
+      ],
+      "owned_mutation_surfaces": [
+        "new isolated synthetic tests/fixtures only"
+      ],
+      "forbidden_surfaces": [
+        "product engine",
+        "existing schema registry",
+        "real install"
+      ],
+      "branch_or_worktree": "One writer per disjoint worktree, shared schema/engine reserved for W2",
+      "selected_adapter": "Proven Cursor Task child or independent CI/test runner",
+      "adapter_proof": "PENDING_THIS_SPRINT; require actual launch and finished worker receipts",
+      "launch_action": "Local Cursor/OpenCode coordinator calls actual verified adapter for W1-C-TESTS after dependencies, retains receipt",
+      "expected_artifact": "new fixture tests + exact exit receipts",
+      "validation": [
+        "19 existing trustbridge fixture no duplication",
+        "no accidental mutation",
+        "deterministic sorting"
+      ],
+      "convergence_owner": "W2-P07-SHARED",
+      "status": "READY_AFTER_DEPENDENCIES",
+      "proof_ceiling": "Not executed by GitHub planning chat"
+    },
+    {
+      "lane_id": "W2-P07-SHARED",
+      "wave": 2,
+      "mission": "Integrate Next into existing CMD/engine; fix Bootstrap receipt schema drift",
+      "dependencies": [
+        "W1-A-INTERACTION",
+        "W1-B-AUTHORITY",
+        "W1-C-TESTS"
+      ],
+      "execution_environment": "LOCAL_AGENT_RUNTIME",
+      "provider_access": "GitHub only for sanitized PRs/issues; do not expose raw host receipts",
+      "required_capabilities": [
+        "Python",
+        "PowerShell 5.1 and 7",
+        "PR"
+      ],
+      "evidence_inputs": [
+        {
+          "evidence_type": "repository_snapshot",
+          "source_owner": "EndeavorEverlasting/SysAdminSuite",
+          "sanitized_ref": "main@7aef5c5249de18c573c16ea7ee204865a2dbfb5f",
+          "freshness": "2026-10-12 at handoff authoring; recheck",
+          "proof_ceiling": "merged source/CI plus reported read-only Admin Box inventory, not native install"
+        }
+      ],
+      "owned_mutation_surfaces": [
+        "single owner for CMD/engine/schema/registries",
+        "small private action projection"
+      ],
+      "forbidden_surfaces": [
+        "second installer/provider",
+        "premature pin approval",
+        "reader contact"
+      ],
+      "branch_or_worktree": "One writer per disjoint worktree, shared schema/engine reserved for W2",
+      "selected_adapter": "One code integration writer, isolated worktree",
+      "adapter_proof": "PENDING_THIS_SPRINT; require actual launch and finished worker receipts",
+      "launch_action": "Local Cursor/OpenCode coordinator calls actual verified adapter for W2-P07-SHARED after dependencies, retains receipt",
+      "expected_artifact": "PR with Next operation, strict schema, tests and docs",
+      "validation": [
+        "read-only Next",
+        "typed two-track status",
+        "private packets and stdout",
+        "PTop preserved",
+        "source/authority gates"
+      ],
+      "convergence_owner": "W3-REGRESSION",
+      "status": "READY_AFTER_DEPENDENCIES",
+      "proof_ceiling": "Not executed by GitHub planning chat"
+    },
+    {
+      "lane_id": "W3-REGRESSION",
+      "wave": 3,
+      "mission": "Run focused, Pester, validators and hosted CI; fix and merge",
+      "dependencies": [
+        "W2-P07-SHARED"
+      ],
+      "execution_environment": "CI_OR_REMOTE_RUNNER",
+      "provider_access": "GitHub sanitized source only",
+      "required_capabilities": [
+        "GitHub CI",
+        "review"
+      ],
+      "evidence_inputs": [
+        {
+          "evidence_type": "repository_snapshot",
+          "source_owner": "EndeavorEverlasting/SysAdminSuite",
+          "sanitized_ref": "main@7aef5c5249de18c573c16ea7ee204865a2dbfb5f",
+          "freshness": "2026-10-12 at handoff authoring; recheck",
+          "proof_ceiling": "merged source/CI plus reported read-only Admin Box inventory, not native install"
+        }
+      ],
+      "owned_mutation_surfaces": [
+        "one PR integration owner"
+      ],
+      "forbidden_surfaces": [
+        "unrelated PR work",
+        "claim CI as live Windows proof"
+      ],
+      "branch_or_worktree": "One writer per disjoint worktree, shared schema/engine reserved for W2",
+      "selected_adapter": "GitHub Actions plus coordinator verified merge API",
+      "adapter_proof": "PENDING_THIS_SPRINT; require actual launch and finished worker receipts",
+      "launch_action": "Local Cursor/OpenCode coordinator calls actual verified adapter for W3-REGRESSION after dependencies, retains receipt",
+      "expected_artifact": "hosted checks and merged-main SHA",
+      "validation": [
+        "android provider/trustbridge/Next tests",
+        "PS5.1/7",
+        "registry integrity",
+        "exact merge"
+      ],
+      "convergence_owner": "W2-P07-SHARED",
+      "status": "READY_AFTER_DEPENDENCIES",
+      "proof_ceiling": "Not executed by GitHub planning chat"
+    },
+    {
+      "lane_id": "W4-LIVE-NEXT",
+      "wave": 4,
+      "mission": "Use current merged Next read-only on actual verified Admin Box",
+      "dependencies": [
+        "W3-REGRESSION"
+      ],
+      "execution_environment": "LOCAL_AGENT_RUNTIME",
+      "provider_access": "GitHub only for sanitized PRs/issues; do not expose raw host receipts",
+      "required_capabilities": [
+        "Windows host",
+        "canonical operator launcher"
+      ],
+      "evidence_inputs": [
+        {
+          "evidence_type": "repository_snapshot",
+          "source_owner": "EndeavorEverlasting/SysAdminSuite",
+          "sanitized_ref": "main@7aef5c5249de18c573c16ea7ee204865a2dbfb5f",
+          "freshness": "2026-10-12 at handoff authoring; recheck",
+          "proof_ceiling": "merged source/CI plus reported read-only Admin Box inventory, not native install"
+        }
+      ],
+      "owned_mutation_surfaces": [
+        "private ignored host proof"
+      ],
+      "forbidden_surfaces": [
+        "Apply/Bootstrap without authority",
+        "device scans",
+        "data publication"
+      ],
+      "branch_or_worktree": "One writer per disjoint worktree, shared schema/engine reserved for W2",
+      "selected_adapter": "Local approved Windows Cursor/OpenCode session",
+      "adapter_proof": "PENDING_THIS_SPRINT; require actual launch and finished worker receipts",
+      "launch_action": "Local Cursor/OpenCode coordinator calls actual verified adapter for W4-LIVE-NEXT after dependencies, retains receipt",
+      "expected_artifact": "read-only next/action/private packet receipt from real Admin Box",
+      "validation": [
+        "no mutation",
+        "two-track truthful state",
+        "one next action per track"
+      ],
+      "convergence_owner": "W2-P07-SHARED",
+      "status": "READY_AFTER_DEPENDENCIES",
+      "proof_ceiling": "Not executed by GitHub planning chat"
+    },
+    {
+      "lane_id": "W5-CLOSEOUT",
+      "wave": 5,
+      "mission": "Reconcile sanitized outcomes and next real host authorization to issue #534",
+      "dependencies": [
+        "W4-LIVE-NEXT"
+      ],
+      "execution_environment": "LOCAL_AGENT_RUNTIME",
+      "provider_access": "GitHub only for sanitized PRs/issues; do not expose raw host receipts",
+      "required_capabilities": [
+        "GitHub issue"
+      ],
+      "evidence_inputs": [
+        {
+          "evidence_type": "repository_snapshot",
+          "source_owner": "EndeavorEverlasting/SysAdminSuite",
+          "sanitized_ref": "main@7aef5c5249de18c573c16ea7ee204865a2dbfb5f",
+          "freshness": "2026-10-12 at handoff authoring; recheck",
+          "proof_ceiling": "merged source/CI plus reported read-only Admin Box inventory, not native install"
+        }
+      ],
+      "owned_mutation_surfaces": [
+        "sanitized existing issue #534 comment"
+      ],
+      "forbidden_surfaces": [
+        "fabricate toolchain installation",
+        "close issue without qualification"
+      ],
+      "branch_or_worktree": "One writer per disjoint worktree, shared schema/engine reserved for W2",
+      "selected_adapter": "Coordinator plus approved GitHub issue tool",
+      "adapter_proof": "PENDING_THIS_SPRINT; require actual launch and finished worker receipts",
+      "launch_action": "Local Cursor/OpenCode coordinator calls actual verified adapter for W5-CLOSEOUT after dependencies, retains receipt",
+      "expected_artifact": "CHANGED | PROVED | NEXT and exact typed gap",
+      "validation": [
+        "proof ceiling and accurate adapter parallel status"
+      ],
+      "convergence_owner": "W2-P07-SHARED",
+      "status": "READY_AFTER_DEPENDENCIES",
+      "proof_ceiling": "Not executed by GitHub planning chat"
+    }
+  ]
+}
