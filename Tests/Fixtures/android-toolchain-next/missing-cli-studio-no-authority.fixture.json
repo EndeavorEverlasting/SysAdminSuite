@@ -1,0 +1,48 @@
+{
+  "synthetic": true,
+  "inventory": {
+    "sdk_root": "SYNTHETIC_SDK",
+    "android_cli": null,
+    "studio": null,
+    "java": "SYNTHETIC_JAVA",
+    "javac": "SYNTHETIC_JAVAC",
+    "sdkmanager": null,
+    "packages": [],
+    "free_gib": 100,
+    "scope": "CURRENT_USER",
+    "platform": "windows-native",
+    "android_home": "SYNTHETIC_SDK",
+    "avds": []
+  },
+  "next_projection": {
+    "host_profile_state": "ABSENT",
+    "host_profile_reason": "ADMINBOX_PROFILE_AUTHORITY_REQUIRED",
+    "pin_state": "NEEDS_APPROVAL",
+    "pin_reason": "QUALIFICATION_AUTHORITY_REQUIRED",
+    "pin_catalog_row": {
+      "artifact_id": "android-platform-tools-windows",
+      "version": "37.0.1",
+      "acquisition_url": "https://dl.google.com/android/repository/platform-tools_r37.0.1-win.zip",
+      "promotion_status": "blocked_pending_independent_sha256_pin",
+      "approval_reference": "PENDING-INDEPENDENT-REVIEW-DO-NOT-USE"
+    }
+  },
+  "test_expectation": {
+    "operation": "Next",
+    "node_role": "adminbox_reference",
+    "developer_stack": "NEEDS_INSTALL",
+    "sas_adb": "NEEDS_APPROVAL",
+    "inspection": "COMPLETE",
+    "operational_readiness": "NOT_YET_PROVEN",
+    "first_action_ids": [
+      "PREPARE_HOST_PROFILE_APPROVAL_PACKET",
+      "PREPARE_ARCHIVE_PIN_APPROVAL_PACKET"
+    ],
+    "reasons_subset": [
+      "MISSING_ANDROID_CLI",
+      "MISSING_ANDROID_STUDIO",
+      "ADMINBOX_PROFILE_AUTHORITY_REQUIRED",
+      "QUALIFICATION_AUTHORITY_REQUIRED"
+    ]
+  }
+}

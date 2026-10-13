@@ -6,12 +6,25 @@
  "additionalProperties": false,
  "properties": {
   "schema_version": {"const": "sas-android-toolchain-result/v1"},
-  "operation": {"enum": ["Inventory", "Plan", "Apply", "Verify", "Repair"]},
+  "operation": {"enum": ["Inventory", "Plan", "Apply", "Verify", "Repair", "Bootstrap", "Next"]},
   "node_role": {"type": "string"},
   "result": {"enum": ["SUCCESS", "BLOCK"]},
   "reason_codes": {"type": "array", "items": {"type": "string"}},
   "proof": {"type": "array", "items": {"type": "string"}},
-  "actions": {"type": "array"}, "inventory": {"type": ["object", "null"]},
-  "checks": {"type": "array"}, "source": {"type": ["string", "null"]}
+  "actions": {"type": "array"},
+  "inventory": {"type": ["object", "null"]},
+  "checks": {"type": "array"},
+  "source": {"type": ["string", "null"]},
+  "capability": {
+   "type": ["object", "null"],
+   "additionalProperties": false,
+   "required": ["developer_stack", "sas_adb", "inspection", "operational_readiness"],
+   "properties": {
+    "developer_stack": {"enum": ["VERIFIED", "NEEDS_INSTALL", "VERIFY_REQUIRED", "POLICY_BLOCKED", "UNKNOWN"]},
+    "sas_adb": {"enum": ["QUALIFIED", "NEEDS_APPROVAL", "NEEDS_PREPARE", "VERIFY_REQUIRED", "UNKNOWN"]},
+    "inspection": {"enum": ["COMPLETE", "INCOMPLETE"]},
+    "operational_readiness": {"enum": ["PROVEN", "NOT_YET_PROVEN"]}
+   }
+  }
  }
 }

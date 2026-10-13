@@ -41,7 +41,7 @@ def test_adminbox_profile_is_sanitized_desired_state():
     profile = load(PROFILE)
     assert profile["schema_version"] == "sas-android-toolchain-profile/v1"
     assert profile["node_role"] == "adminbox_reference"
-    assert set(profile["allowed_operations"]) == {"Inventory", "Plan", "Apply", "Verify", "Repair", "Bootstrap"}
+    assert set(profile["allowed_operations"]) == {"Inventory", "Plan", "Apply", "Verify", "Repair", "Bootstrap", "Next"}
     assert profile["sas_adb_qualification"] == "INDEPENDENT_APPROVED_ARCHIVE_SHA256_REQUIRED"
     assert profile["minimum_free_gib"] >= 1 and profile["preferred_java_major"] == 21
     text = PROFILE.read_text(encoding="utf-8")

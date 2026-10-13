@@ -1,0 +1,41 @@
+{
+  "synthetic": true,
+  "inventory": {
+    "sdk_root": "SYNTHETIC_SDK",
+    "android_cli": null,
+    "studio": null,
+    "java": "SYNTHETIC_JAVA",
+    "javac": "SYNTHETIC_JAVAC",
+    "sdkmanager": null,
+    "packages": [],
+    "free_gib": 100,
+    "scope": "CURRENT_USER",
+    "platform": "windows-native",
+    "android_home": "SYNTHETIC_SDK",
+    "avds": []
+  },
+  "reason_codes": ["PROTECTED_NETWORK_DENIED"],
+  "next_projection": {
+    "host_profile_state": "ABSENT",
+    "host_profile_reason": "ADMINBOX_PROFILE_AUTHORITY_REQUIRED",
+    "pin_state": "NEEDS_APPROVAL",
+    "pin_reason": "SOURCE_POLICY_DENIED"
+  },
+  "test_expectation": {
+    "operation": "Next",
+    "node_role": "adminbox_reference",
+    "developer_stack": "POLICY_BLOCKED",
+    "sas_adb": "UNKNOWN",
+    "inspection": "COMPLETE",
+    "operational_readiness": "NOT_YET_PROVEN",
+    "first_action_ids": [
+      "PREPARE_HOST_PROFILE_APPROVAL_PACKET",
+      "PREPARE_ARCHIVE_PIN_APPROVAL_PACKET"
+    ],
+    "reasons_subset": [
+      "PROTECTED_NETWORK_DENIED",
+      "ADMINBOX_PROFILE_AUTHORITY_REQUIRED",
+      "SOURCE_POLICY_DENIED"
+    ]
+  }
+}

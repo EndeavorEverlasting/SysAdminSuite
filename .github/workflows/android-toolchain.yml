@@ -18,6 +18,8 @@ on:
       - 'Tests/survey/test_android_toolchain_contracts.py'
       - 'Tests/survey/test_android_trustbridge_bootstrap_contracts.py'
       - 'Tests/Fixtures/android-trustbridge/**'
+      - 'Tests/survey/test_android_toolchain_next_contracts.py'
+      - 'Tests/Fixtures/android-toolchain-next/**'
       - 'Tests/survey/test_android_adminbox_coldstart_dispatch_contracts.py'
       - 'harness/api/android_platform_tools_pin.py'
       - 'harness/api/android_provider.py'
@@ -53,6 +55,8 @@ on:
       - 'Tests/survey/test_android_toolchain_contracts.py'
       - 'Tests/survey/test_android_trustbridge_bootstrap_contracts.py'
       - 'Tests/Fixtures/android-trustbridge/**'
+      - 'Tests/survey/test_android_toolchain_next_contracts.py'
+      - 'Tests/Fixtures/android-toolchain-next/**'
       - 'Tests/survey/test_android_adminbox_coldstart_dispatch_contracts.py'
       - 'harness/api/android_platform_tools_pin.py'
       - 'harness/api/android_provider.py'
@@ -90,6 +94,9 @@ jobs:
       - name: Validate Platform-Tools trust-bridge pin contracts
         shell: pwsh
         run: python Tests/survey/test_android_trustbridge_bootstrap_contracts.py
+      - name: Validate read-only Next readiness projection contracts
+        shell: pwsh
+        run: python Tests/survey/test_android_toolchain_next_contracts.py
       - name: Validate Admin Box cold-start P04 dependency and authority contract
         shell: pwsh
         run: python Tests/survey/test_android_adminbox_coldstart_dispatch_contracts.py
