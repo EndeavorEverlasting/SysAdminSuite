@@ -1,11 +1,11 @@
 # P07 W1-A — `Manage-AdminBoxAndroidToolchain.cmd Next` interaction contract
 
-Date: 2026-10-12  
-Lane: W1-A interaction-contract (read-only designer)  
-Base inspected: `origin/main` @ `60b7cab23e5b91802fb7b32cf3b1f1393d2fc714`  
-Strategy: `docs/plans/p141-android-deterministic-toolset-interaction-20261012.md`  
-Handoff: `docs/handoff/android-adminbox1-next-action-p04-20261012.md`  
-Audience: P07 integrator (W2) only  
+Date: 2026-10-12
+Lane: W1-A interaction-contract (read-only designer)
+Base inspected: `origin/main` @ `60b7cab23e5b91802fb7b32cf3b1f1393d2fc714`
+Strategy: `docs/plans/p141-android-deterministic-toolset-interaction-20261012.md`
+Handoff: `docs/handoff/android-adminbox1-next-action-p04-20261012.md`
+Audience: P07 integrator (W2) only
 
 **Proof ceiling:** analyzed contract against current engine, pin resolver, pin catalog, CMD front door, and result schema. Not product behavior. Not live Admin Box certification.
 
@@ -431,6 +431,6 @@ Authority packets: BOTH
 | Exact additive schema property names | MEDIUM (W2 may version-bump if `additionalProperties: false` blocks) |
 | Live Admin Box packet channel owners | LOW (W1-B authority lane) |
 
-**CHANGED:** this contract file only.  
-**PROVED:** static alignment to Inventory SUCCESS≠ready, blocked pin 37.0.1, Admin Box host-profile fail-closed codes, Bootstrap/schema drift note.  
+**CHANGED:** this contract file only.
+**PROVED:** static alignment to Inventory SUCCESS≠ready, blocked pin 37.0.1, Admin Box host-profile fail-closed codes, Bootstrap/schema drift note.
 **NEXT:** W2 freeze this contract and implement; W1-C assert samples; W1-B supply private draft channel facts.
