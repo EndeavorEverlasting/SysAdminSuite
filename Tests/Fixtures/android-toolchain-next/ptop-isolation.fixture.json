@@ -1,0 +1,41 @@
+{
+  "synthetic": true,
+  "schema_version": "sas-android-toolchain-next-fixture/v1",
+  "next_inputs": {
+    "requested_node_role": "ptop_lab",
+    "host_authority_status": "RESOLVED",
+    "host_authority_node_role": "ptop_lab",
+    "pin_promotion_status": "blocked_pending_independent_sha256_pin",
+    "network_class": "guest_or_internet",
+    "source_commit_match": true
+  },
+  "inventory": {
+    "sdk_root": "SYNTHETIC_SDK",
+    "android_cli": "SYNTHETIC_ANDROID",
+    "studio": "SYNTHETIC_STUDIO",
+    "java": "SYNTHETIC_JAVA",
+    "javac": "SYNTHETIC_JAVAC",
+    "sdkmanager": "SYNTHETIC_SDKMANAGER",
+    "packages": ["cmdline-tools/latest", "platform-tools"],
+    "free_gib": 100,
+    "scope": "CURRENT_USER",
+    "platform": "windows-native",
+    "android_home": "SYNTHETIC_SDK",
+    "avds": []
+  },
+  "test_expectation": {
+    "operation": "Next",
+    "node_role": "ptop_lab",
+    "reasons": [],
+    "developer_track": "VERIFIED",
+    "sas_adb_track": "NEEDS_APPROVAL",
+    "inspection_status": "INSPECTION_COMPLETE",
+    "operational_ready": false,
+    "action_ids": ["PREPARE_PIN_APPROVAL_PACKET"],
+    "must_preserve_ptop_authority_gate": true,
+    "must_not_use_adminbox_profile": true,
+    "must_not_mutate": true,
+    "classification": "ptop_lab_isolation",
+    "contract_phase": "W2_IMPLEMENTATION_REQUIRED"
+  }
+}

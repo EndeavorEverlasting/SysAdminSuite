@@ -1,0 +1,39 @@
+{
+  "synthetic": true,
+  "schema_version": "sas-android-toolchain-next-fixture/v1",
+  "next_inputs": {
+    "host_authority_status": "ABSENT",
+    "pin_promotion_status": "blocked_pending_independent_sha256_pin",
+    "network_class": "guest_or_internet",
+    "source_commit_match": true,
+    "private_host_facts_present_locally_only": true
+  },
+  "inventory": {
+    "sdk_root": "SYNTHETIC_SDK",
+    "android_cli": null,
+    "studio": null,
+    "java": "SYNTHETIC_JAVA",
+    "javac": "SYNTHETIC_JAVAC",
+    "sdkmanager": "SYNTHETIC_SDKMANAGER",
+    "packages": ["cmdline-tools/latest"],
+    "free_gib": 100,
+    "scope": "CURRENT_USER",
+    "platform": "windows-native",
+    "android_home": "SYNTHETIC_SDK",
+    "avds": []
+  },
+  "test_expectation": {
+    "operation": "Next",
+    "node_role": "adminbox_reference",
+    "reasons": ["MISSING_ANDROID_CLI", "MISSING_ANDROID_STUDIO", "ADMINBOX_PROFILE_AUTHORITY_REQUIRED"],
+    "developer_track": "NEEDS_INSTALL",
+    "sas_adb_track": "NEEDS_APPROVAL",
+    "inspection_status": "INSPECTION_COMPLETE",
+    "operational_ready": false,
+    "action_ids": ["REQUEST_HOST_PROFILE_AUTHORITY", "PREPARE_PIN_APPROVAL_PACKET", "INSTALL_DEVELOPER_STACK"],
+    "receipt_must_not_contain": ["USER_PROFILE_PATH", "LIVE_HOSTNAME", "LIVE_SERIAL", "PRIVATE_LOCALAPPDATA_ROOT"],
+    "must_not_mutate": true,
+    "classification": "private_output_redaction",
+    "contract_phase": "W2_IMPLEMENTATION_REQUIRED"
+  }
+}

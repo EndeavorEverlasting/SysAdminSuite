@@ -1,0 +1,46 @@
+{
+  "synthetic": true,
+  "schema_version": "sas-android-toolchain-next-fixture/v1",
+  "next_inputs": {
+    "host_authority_status": "MALFORMED",
+    "host_authority": {
+      "schema_version": "sas-android-toolchain-host-authority/v1",
+      "status": "UNKNOWN",
+      "node_role": "adminbox_reference",
+      "manufacturer": "SyntheticVendor",
+      "model": "SyntheticLaptop",
+      "allowed_operations": [],
+      "evidence_ref": ""
+    },
+    "pin_promotion_status": "blocked_pending_independent_sha256_pin",
+    "network_class": "guest_or_internet",
+    "source_commit_match": true
+  },
+  "inventory": {
+    "sdk_root": "SYNTHETIC_SDK",
+    "android_cli": "SYNTHETIC_ANDROID",
+    "studio": "SYNTHETIC_STUDIO",
+    "java": "SYNTHETIC_JAVA",
+    "javac": "SYNTHETIC_JAVAC",
+    "sdkmanager": "SYNTHETIC_SDKMANAGER",
+    "packages": ["cmdline-tools/latest", "platform-tools"],
+    "free_gib": 100,
+    "scope": "CURRENT_USER",
+    "platform": "windows-native",
+    "android_home": "SYNTHETIC_SDK",
+    "avds": []
+  },
+  "test_expectation": {
+    "operation": "Next",
+    "node_role": "adminbox_reference",
+    "reasons": ["ADMINBOX_PROFILE_AUTHORITY_INVALID"],
+    "developer_track": "POLICY_BLOCKED",
+    "sas_adb_track": "NEEDS_APPROVAL",
+    "inspection_status": "INSPECTION_COMPLETE",
+    "operational_ready": false,
+    "action_ids": ["REQUEST_HOST_PROFILE_AUTHORITY", "PREPARE_PIN_APPROVAL_PACKET"],
+    "must_not_mutate": true,
+    "classification": "host_authority_malformed",
+    "contract_phase": "W2_IMPLEMENTATION_REQUIRED"
+  }
+}
