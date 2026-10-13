@@ -1,7 +1,7 @@
 <# Windows-native, preservation-first Android development lifecycle. Raw receipts remain private. #>
 [CmdletBinding()]
 param(
- [ValidateSet('Inventory','Plan','Apply','Verify','Repair','Bootstrap')][string]$Operation='Inventory',
+ [ValidateSet('Inventory','Plan','Apply','Verify','Repair','Bootstrap','Next')][string]$Operation='Inventory',
  [string]$NodeRole='ptop_lab', [string]$SdkRoot, [string]$JavaHome,
  [string]$OutputRoot, [string]$FixturePath, [switch]$MutationAuthorized,
  [switch]$LicenseAccepted, [switch]$LaunchStudio, [switch]$BuildSmoke,
@@ -17,7 +17,7 @@ $profilePath=Join-Path $repo 'Config/android-toolchain-profile.json'
 if($NodeRole -eq 'adminbox_reference'){$profilePath=Join-Path $repo 'Config/android-adminbox-toolchain-profile.json'}
 $profile=Get-Content $profilePath -Raw | ConvertFrom-Json
 if(-not $OutputRoot){$OutputRoot=Join-Path $repo 'survey/output/android-toolchain'}
-$result=[ordered]@{schema_version='sas-android-toolchain-result/v1';operation=$Operation;node_role=$NodeRole;result='BLOCK';reason_codes=@();proof=@();actions=@();inventory=$null;checks=@();source=$null}
+$result=[ordered]@{schema_version='sas-android-toolchain-result/v1';operation=$Operation;node_role=$NodeRole;result='BLOCK';reason_codes=@();proof=@();actions=@();inventory=$null;checks=@();source=$null;capability=$null}
 $fixture=$null
 function Assert-PTopProfile($Authority,$Equipment,[string]$RequestedOperation){
  if($Authority.schema_version -ne 'sas-android-toolchain-host-authority/v1' -or $Authority.status -ne 'RESOLVED' -or $Authority.node_role -ne 'ptop_lab' -or -not $Authority.evidence_ref -or $RequestedOperation -notin @($Authority.allowed_operations)){throw 'PTOP_PROFILE_AUTHORITY_INVALID'}
@@ -32,6 +32,116 @@ function Assert-HostProfileForRole([string]$Role,$Authority,$Equipment,[string]$
  $approved=@($DesiredState.allowed_operations)
  if(-not $approved.Count -or $RequestedOperation -notin @($Authority.allowed_operations) -or @(@($Authority.allowed_operations)|Where-Object {$_ -notin $approved}).Count){throw 'ADMINBOX_PROFILE_AUTHORITY_INVALID'}
  if(-not $Authority.manufacturer -or -not $Authority.model -or $Authority.manufacturer -ne $Equipment.Manufacturer -or $Authority.model -ne $Equipment.Model){throw 'ADMINBOX_EQUIPMENT_PROFILE_MISMATCH'}
+}
+function Get-HostProfilePresence([string]$Path,[string]$Role,$DesiredState){
+ # Read-only presence/shape classification for Next; never synthesizes RESOLVED authority.
+ if(-not $Path -or -not (Test-Path -LiteralPath $Path -PathType Leaf)){return [ordered]@{state='ABSENT';reason='ADMINBOX_PROFILE_AUTHORITY_REQUIRED'}}
+ try{
+  $authority=Get-Content -LiteralPath $Path -Raw|ConvertFrom-Json
+  $equipment=if($fixture){[pscustomobject]@{Manufacturer=$authority.manufacturer;Model=$authority.model}}else{Get-CimInstance Win32_ComputerSystem}
+  Assert-HostProfileForRole -Role $Role -Authority $authority -Equipment $equipment -RequestedOperation 'Inventory' -DesiredState $DesiredState
+  return [ordered]@{state='RESOLVED';reason=$null;authority=$authority}
+ }catch{
+  $code=$_.Exception.Message
+  if($code -notmatch '^(ADMINBOX_|PTOP_|NODE_ROLE)'){$code='ADMINBOX_PROFILE_AUTHORITY_INVALID'}
+  return [ordered]@{state='INVALID';reason=$code}
+ }
+}
+function Resolve-PlatformToolsPinStatus([string]$Role,[string]$PythonExe,[string]$RepoRoot,[string]$OutRoot){
+ # Local catalog resolve only; never downloads or auto-promotes digests.
+ $pinScript=@'
+import json,sys
+from pathlib import Path
+sys.path.insert(0, sys.argv[1])
+from harness.api.android_platform_tools_pin import PinResolutionError, resolve
+try:
+    print(json.dumps(resolve(sys.argv[2])))
+except PinResolutionError as exc:
+    print(str(exc), file=sys.stderr)
+    raise SystemExit(3)
+'@
+ $pinStdout=Join-Path $OutRoot ('next-pin-'+[guid]::NewGuid().ToString('N')+'.stdout.log')
+ $pinStderr=Join-Path $OutRoot ('next-pin-'+[guid]::NewGuid().ToString('N')+'.stderr.log')
+ $pinRun=Invoke-SasNativeProcess -FilePath $PythonExe -Arguments @('-c',$pinScript,$RepoRoot,$Role) -TimeoutSeconds 60 -StandardOutputPath $pinStdout -StandardErrorPath $pinStderr -Environment @{PSModulePath=($env:ProgramFiles+'\WindowsPowerShell\Modules;'+$env:SystemRoot+'\System32\WindowsPowerShell\v1.0\Modules')}
+ if($pinRun.exit_code -ne 0){
+  $code=((Get-Content -LiteralPath $pinStderr -Raw -ErrorAction SilentlyContinue)+'').Trim()
+  if($code -notin @('QUALIFICATION_AUTHORITY_REQUIRED','INDEPENDENT_APPROVAL_REQUIRED','SOURCE_POLICY_DENIED')){$code='QUALIFICATION_AUTHORITY_REQUIRED'}
+  return [ordered]@{state='NEEDS_APPROVAL';reason=$code;pin=$null}
+ }
+ $pin=Get-Content -LiteralPath $pinStdout -Raw|ConvertFrom-Json
+ return [ordered]@{state='APPROVED';reason=$null;pin=$pin}
+}
+function Write-NextApprovalPackets([string]$OutRoot,$ProfileGate,$PinGate,$PinCatalogRow,$Equipment){
+ $packetRoot=Join-Path $OutRoot 'approval-packets'
+ New-Item -ItemType Directory -Force -Path $packetRoot|Out-Null
+ $written=@()
+ if($ProfileGate.state -ne 'RESOLVED'){
+  $observedManufacturer=$null;$observedModel=$null
+  if($Equipment){$observedManufacturer=$Equipment.Manufacturer;$observedModel=$Equipment.Model}
+  $packetB=[ordered]@{
+   schema_version='sas-android-host-profile-authorization-request/v1'
+   packet_kind='REQUEST_FOR_APPROVAL'
+   status='DRAFT_UNAPPROVED'
+   requested_node_role=$NodeRole
+   requested_allowed_operations=@($profile.allowed_operations)
+   current_host_profile_state=$ProfileGate.state
+   observed_manufacturer=$observedManufacturer
+   observed_model=$observedModel
+   required_approver='host_equipment_authority'
+   missing_approvals=@('RESOLVED host-profile.json','matching manufacturer/model','evidence_ref','allowed_operations including Apply/Bootstrap')
+   forbidden=@('synthesize_RESOLVED_from_CIM','infer_authority_from_hostname','commit_profile_to_git')
+   why_blocked=$ProfileGate.reason
+  }
+  $pathB=Join-Path $packetRoot 'host-profile-authorization-draft.json'
+  $packetB|ConvertTo-Json -Depth 6|Set-Content -LiteralPath $pathB -Encoding UTF8
+  $written+=@([ordered]@{packet='host_profile';path=$pathB;blocker=$ProfileGate.reason})
+ }
+ if($PinGate.state -ne 'APPROVED'){
+  $artifactId='android-platform-tools-windows';$pinVersion=$null;$pinUrl=$null;$pinPromo=$null;$pinApproval=$null
+  if($PinCatalogRow){
+   $artifactId=$PinCatalogRow.artifact_id;$pinVersion=$PinCatalogRow.version;$pinUrl=$PinCatalogRow.acquisition_url
+   $pinPromo=$PinCatalogRow.promotion_status;$pinApproval=$PinCatalogRow.approval_reference
+  }
+  $packetA=[ordered]@{
+   schema_version='sas-android-pin-approval-review-packet/v1'
+   packet_kind='REQUEST_FOR_APPROVAL'
+   status='DRAFT_UNAPPROVED'
+   artifact_id=$artifactId
+   version=$pinVersion
+   official_immutable_url=$pinUrl
+   catalog_promotion_status=$pinPromo
+   catalog_approval_reference=$pinApproval
+   independently_approved_digest_status='ABSENT'
+   decision_needed='Replace expected_archive_sha256 with independently reviewed organizational digest; set non-PENDING approval_reference; set promotion_status=approved_for_provider_prepare.'
+   required_approver='package_security_authority'
+   forbidden=@('auto_hash_of_download','treat_winget_as_approval','mutable_latest_url')
+   why_blocked=$PinGate.reason
+  }
+  $pathA=Join-Path $packetRoot 'platform-tools-approval-draft.json'
+  $packetA|ConvertTo-Json -Depth 6|Set-Content -LiteralPath $pathA -Encoding UTF8
+  $written+=@([ordered]@{packet='platform_tools_pin';path=$pathA;blocker=$PinGate.reason})
+ }
+ return $written
+}
+function Build-NextActions($DeveloperStack,[string]$DeveloperBlocker,$SasState,[string]$SasBlocker,$ProfileGate,$PinGate){
+ # Deterministic dependency order: authority drafts before gated mutations.
+ $actions=@()
+ if($ProfileGate.state -ne 'RESOLVED'){
+  $actions+=@([ordered]@{action_id='PREPARE_HOST_PROFILE_APPROVAL_PACKET';allowed_now=$true;requires_authority=$false;preconditions=@('read_only_next');proof_ref='approval-packets/host-profile-authorization-draft.json';command_owner='Manage-AdminBoxAndroidToolchain.cmd Next';why_blocked=$null})
+ }
+ if($PinGate.state -ne 'APPROVED'){
+  $actions+=@([ordered]@{action_id='PREPARE_ARCHIVE_PIN_APPROVAL_PACKET';allowed_now=$true;requires_authority=$false;preconditions=@('read_only_next');proof_ref='approval-packets/platform-tools-approval-draft.json';command_owner='Manage-AdminBoxAndroidToolchain.cmd Next';why_blocked=$null})
+ }
+ $applyBlocked=if($ProfileGate.state -ne 'RESOLVED'){$DeveloperBlocker}elseif($DeveloperStack -eq 'VERIFIED'){$null}else{$null}
+ if($DeveloperStack -in @('NEEDS_INSTALL','VERIFY_REQUIRED','UNKNOWN') -or $ProfileGate.state -ne 'RESOLVED'){
+  $why=if($ProfileGate.state -ne 'RESOLVED'){$ProfileGate.reason}elseif($DeveloperStack -eq 'POLICY_BLOCKED'){'POLICY_BLOCKED'}else{'MUTATION_AUTHORIZATION_REQUIRED'}
+  $actions+=@([ordered]@{action_id='APPLY_DEVELOPER_TOOLCHAIN';allowed_now=$false;requires_authority=$true;preconditions=@('RESOLVED host-profile','MutationAuthorized');proof_ref='Manage-AdminBoxAndroidToolchain.cmd Apply -MutationAuthorized';command_owner='Manage-AdminBoxAndroidToolchain.cmd Apply';why_blocked=$why})
+ }
+ if($SasState -in @('NEEDS_APPROVAL','NEEDS_PREPARE','VERIFY_REQUIRED','UNKNOWN') -or $PinGate.state -ne 'APPROVED' -or $ProfileGate.state -ne 'RESOLVED'){
+  $why=if($PinGate.state -ne 'APPROVED'){$PinGate.reason}elseif($ProfileGate.state -ne 'RESOLVED'){$ProfileGate.reason}else{'MUTATION_AUTHORIZATION_REQUIRED'}
+  $actions+=@([ordered]@{action_id='BOOTSTRAP_SAS_PLATFORM_TOOLS';allowed_now=$false;requires_authority=$true;preconditions=@('approved pin','RESOLVED host-profile','MutationAuthorized');proof_ref='Manage-AdminBoxAndroidToolchain.cmd Bootstrap -MutationAuthorized';command_owner='Manage-AdminBoxAndroidToolchain.cmd Bootstrap';why_blocked=$why})
+ }
+ return $actions
 }
 function Find-Tool([string]$Name,[string[]]$Candidates){
  foreach($candidate in $Candidates){if($candidate -and (Test-Path -LiteralPath $candidate -PathType Leaf)){return (Resolve-Path -LiteralPath $candidate).Path}}
@@ -140,6 +250,79 @@ try {
  if($Operation -eq 'Verify' -and $missing.Count){$result.reason_codes+=@('SDK_PACKAGES_MISSING')}
  if($Operation -eq 'Verify' -and -not $inventory.sdkmanager){$result.reason_codes+=@('MISSING_SDK_COMMANDLINE_TOOLS')}
  if($Operation -eq 'Verify' -and $inventory.free_gib -lt $profile.minimum_free_gib){$result.reason_codes+=@('INSUFFICIENT_DISK_SPACE')}
+ if($Operation -eq 'Next'){
+  # Read-only readiness projection. Never calls Apply/Bootstrap or installs packages.
+  $installGaps=@($result.reason_codes|Where-Object {$_ -in @('MISSING_STANDALONE_JDK','MISSING_ANDROID_CLI','MISSING_ANDROID_STUDIO')})
+  if($missing.Count){$installGaps+=@('SDK_PACKAGES_MISSING')}
+  $policyGaps=@($result.reason_codes|Where-Object {$_ -in @('PROTECTED_NETWORK_DENIED','SOURCE_POLICY_DENIED')})
+  if($policyGaps.Count){$developerStack='POLICY_BLOCKED'}
+  elseif($installGaps.Count){$developerStack='NEEDS_INSTALL'}
+  elseif($Operation -eq 'Next' -and $result.reason_codes -contains 'SDK_PACKAGES_MISSING'){$developerStack='VERIFY_REQUIRED'}
+  elseif(-not $inventory.java -or -not $inventory.javac -or -not $inventory.android_cli -or -not $inventory.studio){$developerStack='UNKNOWN'}
+  elseif($missing.Count){$developerStack='VERIFY_REQUIRED'}
+  else{$developerStack='VERIFIED'}
+
+  if(-not $HostProfile){$HostProfile=Join-Path $env:LOCALAPPDATA 'SysAdminSuite/android-toolchain/host-profile.json'}
+  $equipment=$null
+  if($fixture -and $fixture.PSObject.Properties['next_projection']){
+   $proj=$fixture.next_projection
+   $profileGate=[ordered]@{state=[string]$proj.host_profile_state;reason=[string]$proj.host_profile_reason}
+   if(-not $profileGate.reason -and $profileGate.state -ne 'RESOLVED'){$profileGate.reason=if($NodeRole -eq 'adminbox_reference'){'ADMINBOX_PROFILE_AUTHORITY_REQUIRED'}else{'PTOP_PROFILE_AUTHORITY_REQUIRED'}}
+   $pinGate=[ordered]@{state=[string]$proj.pin_state;reason=[string]$proj.pin_reason;pin=$null}
+   if(-not $pinGate.reason -and $pinGate.state -ne 'APPROVED'){$pinGate.reason='QUALIFICATION_AUTHORITY_REQUIRED'}
+   $pinRow=$null
+   if($proj.PSObject.Properties['pin_catalog_row']){$pinRow=$proj.pin_catalog_row}
+  }else{
+   if(-not (Get-Module SasBoundedNative -ErrorAction SilentlyContinue)){
+    $nativeModule=Join-Path $PSScriptRoot 'SasBoundedNative.psm1'
+    if(-not (Test-Path -LiteralPath $nativeModule -PathType Leaf)){throw 'NATIVE_PROCESS_MODULE_REQUIRED'}
+    Import-Module $nativeModule -Force -ErrorAction Stop
+   }
+   $pythonExe=Find-Tool python.exe @();if(-not $pythonExe){throw 'PYTHON_REQUIRED'}
+   $profileGate=Get-HostProfilePresence -Path $HostProfile -Role $NodeRole -DesiredState $profile
+   if($profileGate.state -eq 'ABSENT' -and $NodeRole -eq 'ptop_lab'){$profileGate.reason='PTOP_PROFILE_AUTHORITY_REQUIRED'}
+   $pinGate=Resolve-PlatformToolsPinStatus -Role $NodeRole -PythonExe $pythonExe -RepoRoot $repo -OutRoot $OutputRoot
+   $pinCatalogPath=Join-Path $repo 'configs/android-provider/sas-platform-tools-archive-pins.json'
+   $pinRow=$null
+   if(Test-Path -LiteralPath $pinCatalogPath){$pinRow=@((Get-Content -LiteralPath $pinCatalogPath -Raw|ConvertFrom-Json).pins)|Select-Object -First 1}
+   if(-not $fixture){$equipment=Get-CimInstance Win32_ComputerSystem}
+  }
+
+  if($profileGate.state -ne 'RESOLVED' -and $profileGate.reason){$result.reason_codes+=@($profileGate.reason)}
+  if($pinGate.state -ne 'APPROVED' -and $pinGate.reason){$result.reason_codes+=@($pinGate.reason)}
+
+  if($pinGate.state -eq 'APPROVED'){$sasState='NEEDS_PREPARE'}else{$sasState='NEEDS_APPROVAL'}
+  if($pinGate.state -eq 'APPROVED' -and $result.proof -contains 'VERIFIED'){$sasState='QUALIFIED'}
+  if($developerStack -eq 'POLICY_BLOCKED' -and $pinGate.reason -eq 'SOURCE_POLICY_DENIED'){$sasState='UNKNOWN'}
+
+  $developerBlocker=if($profileGate.state -ne 'RESOLVED'){$profileGate.reason}elseif($developerStack -eq 'POLICY_BLOCKED'){$policyGaps[0]}elseif($installGaps.Count){$installGaps[0]}else{$null}
+  $sasBlocker=if($pinGate.state -ne 'APPROVED'){$pinGate.reason}elseif($profileGate.state -ne 'RESOLVED'){$profileGate.reason}else{$null}
+
+  $packets=Write-NextApprovalPackets -OutRoot $OutputRoot -ProfileGate $profileGate -PinGate $pinGate -PinCatalogRow $pinRow -Equipment $equipment
+  $result.actions=@(Build-NextActions -DeveloperStack $developerStack -DeveloperBlocker $developerBlocker -SasState $sasState -SasBlocker $sasBlocker -ProfileGate $profileGate -PinGate $pinGate)
+  $result.capability=[ordered]@{
+   developer_stack=$developerStack
+   sas_adb=$sasState
+   inspection='COMPLETE'
+   operational_readiness='NOT_YET_PROVEN'
+  }
+  if($developerStack -eq 'VERIFIED' -and $sasState -eq 'QUALIFIED' -and $profileGate.state -eq 'RESOLVED'){
+   $result.capability.operational_readiness='PROVEN'
+  }
+  $result.proof+=@('INSPECTION_COMPLETE')
+  if($packets.Count){$result.proof+=@('APPROVAL_PACKETS_DRAFTED')}
+  # Inventory SUCCESS is not operational readiness; keep tracks independent in terminal form.
+  Write-Host ("Developer toolchain: {0}" -f $developerStack)
+  if($developerBlocker){Write-Host ("Current blocker: {0}" -f $developerBlocker)}
+  $devAction=@($result.actions|Where-Object {$_.action_id -in @('PREPARE_HOST_PROFILE_APPROVAL_PACKET','APPLY_DEVELOPER_TOOLCHAIN')}|Select-Object -First 1)
+  if($devAction){Write-Host ("Safe next action: {0}" -f $devAction.action_id)}
+  Write-Host ("SAS-qualified ADB: {0}" -f $sasState)
+  if($sasBlocker){Write-Host ("Current blocker: {0}" -f $sasBlocker)}
+  $sasAction=@($result.actions|Where-Object {$_.action_id -in @('PREPARE_ARCHIVE_PIN_APPROVAL_PACKET','BOOTSTRAP_SAS_PLATFORM_TOOLS')}|Select-Object -First 1)
+  if($sasAction){Write-Host ("Safe next action: {0}" -f $sasAction.action_id)}
+  Write-Host ("Inspection: {0}" -f $result.capability.inspection)
+  Write-Host ("Operational readiness: {0}" -f $result.capability.operational_readiness)
+ }
  if($Operation -eq 'Bootstrap'){
   if(-not $MutationAuthorized){throw 'MUTATION_AUTHORIZATION_REQUIRED'}
   if(-not $HostProfile){$HostProfile=Join-Path $env:LOCALAPPDATA 'SysAdminSuite/android-toolchain/host-profile.json'}
@@ -306,9 +489,10 @@ except PinResolutionError as exc:
   foreach($op in @('status','doctor','verify')){try{Invoke-Bounded $python @((Join-Path $repo 'harness/api/android_provider_cli.py'),$op,'--role',$NodeRole) 120|Out-Null}catch{$result.reason_codes+=@('SAS_PROVIDER_NOT_READY')}}
  }
  if($fixture){$result.proof=@('FIXTURE_ONLY')}
- if($Operation -in @('Inventory','Plan')){$result.result='SUCCESS'}elseif(-not $result.reason_codes.Count){$result.result='SUCCESS'}
+ if($Operation -in @('Inventory','Plan','Next')){$result.result='SUCCESS'}elseif(-not $result.reason_codes.Count){$result.result='SUCCESS'}
 }catch{$result.reason_codes+=@($_.Exception.Message);$result.result='BLOCK'}
 $result.reason_codes=@($result.reason_codes|Select-Object -Unique)
+if($null -eq $result.capability){$result.capability=$null}
 $receipt=Join-Path $OutputRoot ('receipt-'+[datetime]::UtcNow.ToString('yyyyMMddTHHmmssfffffff')+'.json')
 $result|ConvertTo-Json -Depth 12|Set-Content -LiteralPath $receipt -Encoding UTF8
 Write-Output ($result|ConvertTo-Json -Depth 12)

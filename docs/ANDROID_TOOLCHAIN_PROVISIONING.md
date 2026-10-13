@@ -10,11 +10,17 @@ The developer `platform-tools/adb.exe` produced by SDK bootstrap never qualifies
 
 
 `Manage-AndroidToolchain.cmd` and `Manage-AdminBoxAndroidToolchain.cmd` both delegate to
-`scripts/Invoke-SasAndroidToolchain.ps1` for Inventory, Plan, Apply, Verify and
-Repair under their declared node role. This workflow owns the authorized
+`scripts/Invoke-SasAndroidToolchain.ps1` for Inventory, Plan, Apply, Verify,
+Repair, Bootstrap, and read-only Next under their declared node role. This workflow owns the authorized
 developer toolchain for the preserved PTop role and the Admin Box 1 reference
 role only. It does not change the AndroidProvider role model or provision
 another workstation.
+
+`Manage-AdminBoxAndroidToolchain.cmd Next` is the deterministic readiness
+projection: it reports independent developer-stack and SAS-ADB capability
+states, ranked next actions, and private draft approval packets. Inventory
+SUCCESS means inspection completed, not that the toolchain is installed or
+SAS-qualified. Next never runs Apply or Bootstrap.
 
 Inventory and Plan inspect the existing Studio, Google Android CLI, SDK,
 standalone JDK, native packages and AVDs. Apply and Repair require explicit
