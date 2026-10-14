@@ -101,6 +101,11 @@ def test_launchers_and_registries() -> None:
     assert "ADB interface != authorization" in doc
     assert "authorization != READY" in doc
     assert "USB_OTG_ADB_CAPABILITY absent" in doc
+    assert "Manage-AdminBoxAndroidToolchain.cmd Next" in doc
+    assert "ADMINBOX_PROFILE_AUTHORITY_REQUIRED" in doc
+    assert "QUALIFICATION_AUTHORITY_REQUIRED" in doc
+    assert "Exhausted routes are never offered again" in doc
+    assert "Settings > Software versions" in doc
 
 
 def test_fixture_catalog_and_no_mutation_authorization() -> None:
@@ -127,6 +132,9 @@ def test_fixture_catalog_and_no_mutation_authorization() -> None:
         "18-mutation-refused",
         "19-usb-not-enumerated",
         "20-usb-otg-confirmed-not-enumerated",
+        "21-usb-otg-confirmed-zero-windows-clients",
+        "22-usb-zero-windows-clients-unconfirmed",
+        "23-probe-host-tooling-not-qualified",
     }
     assert required <= seen
     for case in catalog["cases"]:
@@ -147,6 +155,10 @@ def test_fixture_catalog_and_no_mutation_authorization() -> None:
             assert receipt["network_adb_revert_state"] == case["expected_revert"], case["id"]
         if "expected_next_action_contains" in case:
             assert case["expected_next_action_contains"] in (receipt.get("next_action") or ""), case["id"]
+        for forbidden in case.get("expected_next_action_not_contains") or []:
+            assert forbidden not in (receipt.get("next_action") or ""), (
+                f"{case['id']}: forbidden next-action text {forbidden!r}"
+            )
     unauth = evaluate_control_plane(next(c["evidence"] for c in catalog["cases"] if c["id"] == "03-unauthorized"))
     assert unauth["adb_transport_present"] is True
     assert unauth["attended_retry_required"] is True
@@ -205,6 +217,80 @@ def test_p97_successor_no_longer_forbids_authorized_adb_lane() -> None:
     assert "prerequisite for Admin Box" in forbidden or "not a prerequisite" in action.casefold()
 
 
+def test_exhausted_routes_are_never_recommended() -> None:
+    """W2 regression: exhausted routes must never reappear as a suggested next action.
+
+    Exhausted for this estate after operator-corrected evidence: USB attach/reseat
+    loops once micro-USB/OTG seating is confirmed, and generic PAXSTORE account /
+    reseller / app-store registration. PAXSTORE may appear only as an explicit
+    prohibition. Firmware mutation tokens are never offered as next actions.
+    """
+    catalog = load_json(CATALOG)
+    for case in catalog["cases"]:
+        receipt = evaluate_control_plane(case["evidence"])
+        action = (receipt.get("next_action") or "").casefold()
+        for token in (
+            "sign up",
+            "signup",
+            "create an account",
+            "register",
+            "reseller",
+            "app store",
+            "marketplace account",
+        ):
+            assert token not in action, f"{case['id']}: exhausted-route token {token!r} in {action!r}"
+        if "paxstore" in action:
+            assert any(marker in action for marker in ("do not", "never", "exhausted")), (
+                f"{case['id']}: PAXSTORE must be mentioned only as a prohibition: {action!r}"
+            )
+        usb = case["evidence"].get("usb") if isinstance(case["evidence"].get("usb"), dict) else {}
+        if usb.get("operator_otg_client_path_confirmed"):
+            assert "connect the authorized kiosk4 usb cable" not in action, case["id"]
+            assert "not a deployment transport" in action, case["id"]
+        for token in FORBIDDEN_ADB_TOKENS:
+            assert token not in action, f"{case['id']}: mutation token {token!r} offered as next action"
+    # Both USB_DEVICE_NOT_ENUMERATED branches share one exhausted action source.
+    cases = {case["id"]: case for case in catalog["cases"]}
+    seated_zero_clients = evaluate_control_plane(cases["21-usb-otg-confirmed-zero-windows-clients"]["evidence"])
+    seated_unknown_device = evaluate_control_plane(cases["20-usb-otg-confirmed-not-enumerated"]["evidence"])
+    assert seated_zero_clients["next_action"] == seated_unknown_device["next_action"]
+    # Unconfirmed first-seat guidance is preserved as the non-exhausted control.
+    unconfirmed = evaluate_control_plane(cases["22-usb-zero-windows-clients-unconfirmed"]["evidence"])
+    assert "connect the authorized kiosk4 usb cable" in unconfirmed["next_action"].casefold()
+
+
+def test_blocked_host_route_is_deterministic_and_read_only() -> None:
+    """A blocked Admin Box names one executable gate plus the ADB-free read-only route."""
+    catalog = load_json(CATALOG)
+    cases = {case["id"]: case for case in catalog["cases"]}
+    for case_id in ("01-adb-absent", "23-probe-host-tooling-not-qualified"):
+        receipt = evaluate_control_plane(cases[case_id]["evidence"])
+        action = receipt["next_action"]
+        assert "Manage-AdminBoxAndroidToolchain.cmd Next" in action, case_id
+        assert "Run-SasAndroidProvider.cmd prepare" in action, case_id
+        assert "--archive-sha256" in action, case_id
+        assert "Classify-HHCCReaderVersionDomain.cmd" in action, case_id
+        assert "Evaluate-HHCCReaderFirmwareRoundtrip.cmd" in action, case_id
+        assert receipt["mutation_authorized"] is False, case_id
+        assert receipt["state"] == "ADB_HOST_NOT_INSTALLED", case_id
+
+
+def test_labeled_baseline_route_is_preserved_and_no_entitlement_claim() -> None:
+    """Protected controls: labeled-baseline continuation, no firmware mutation, no estate entitlement."""
+    catalog = load_json(CATALOG)
+    cases = {case["id"]: case for case in catalog["cases"]}
+    labeled = evaluate_control_plane(cases["11-firmware-labeled-bind"]["evidence"])
+    assert labeled["firmware_evidence_state"] == "AUTHORITATIVE_LABELED_CANDIDATE"
+    assert labeled["current_firmware_classification"] == "CURRENT_FIRMWARE_BOUND"
+    assert "Classify-HHCCReaderVersionDomain.cmd" in labeled["next_action"]
+    assert "Evaluate-HHCCReaderFirmwareRoundtrip.cmd" in labeled["next_action"]
+    assert labeled["mutation_authorized"] is False
+    for case in catalog["cases"]:
+        payload = json.dumps(evaluate_control_plane(case["evidence"])).casefold()
+        for claim in ("entitle", "proven_access", "estate authority granted"):
+            assert claim not in payload, f"{case['id']}: unsupported claim {claim!r}"
+
+
 def main() -> int:
     tests = [
         test_launchers_and_registries,
@@ -212,6 +298,9 @@ def main() -> int:
         test_readonly_allowlist_and_forbidden_detection,
         test_cli_fixture_emits_receipt,
         test_p97_successor_no_longer_forbids_authorized_adb_lane,
+        test_exhausted_routes_are_never_recommended,
+        test_blocked_host_route_is_deterministic_and_read_only,
+        test_labeled_baseline_route_is_preserved_and_no_entitlement_claim,
     ]
     failed = 0
     for test in tests:

@@ -43,6 +43,36 @@ MUTATION_AUTHORIZED=false
 It records official source, archive SHA256 when downloaded, path precedence, timestamp, and `adb version`.
 It does not silently hide another existing `adb.exe`; PATH/SDK copies are reported.
 
+## Blocked host tooling — deterministic route
+
+When `Probe-HHCCReaderAdb.cmd` (or any dependent command) returns
+`STATE=ADB_HOST_NOT_INSTALLED`, follow this exact order. Each step is read-only
+until an explicit approval exists:
+
+1. `Manage-AdminBoxAndroidToolchain.cmd Next` — reports the current
+   `ADMINBOX_PROFILE_AUTHORITY_REQUIRED` and `QUALIFICATION_AUTHORITY_REQUIRED`
+   gates and drafts the approval packets. This is the only step that runs while
+   approval is outstanding.
+2. Only after the host-profile authorization and an independently reviewed
+   Platform-Tools digest exist: `Manage-AdminBoxAndroidToolchain.cmd Apply
+   -MutationAuthorized` / `Bootstrap -MutationAuthorized`, then
+   `Run-SasAndroidProvider.cmd prepare` with the approved values substituted for
+   `ROLE`, `LOCAL_ZIP`, and `APPROVED_SHA256`. Network acquisition stays disabled.
+3. Then resume the normal chain: `Probe-HHCCReaderAdb.cmd` →
+   `Capture-HHCCReaderAdbInventory.cmd` → `Classify-HHCCReaderVersionDomain.cmd`
+   → `Evaluate-HHCCReaderFirmwareRoundtrip.cmd baseline`.
+
+**ADB-free observation is not blocked by step 1.** While host approval is
+outstanding, capture the reader's `Settings > Software versions` observation into
+the Kiosk4 evidence template and run `Classify-HHCCReaderVersionDomain.cmd` and
+`Evaluate-HHCCReaderFirmwareRoundtrip.cmd baseline` on that private capture.
+
+Exhausted routes are never offered again as next actions: USB attach/reseat loops
+after operator-confirmed micro-USB/OTG seating, and generic PAXSTORE account,
+reseller, or app-store registration for this estate. PAXSTORE appears only as a
+prohibition. `Tests/survey/test_hh_cc_reader_adb_control_plane_contracts.py`
+enforces this over the whole fixture catalog.
+
 ## Identity
 
 An ADB serial is not automatically the payment-terminal serial. Bind with the private expected MAC and vendor properties. Do not copy live serials, MACs, or IPs into Git.

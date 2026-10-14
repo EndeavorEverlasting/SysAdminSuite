@@ -123,6 +123,36 @@ PACKAGE_HINTS = {
 
 SCREEN_VALUES = frozenset({"observed", "unobserved", "not_required"})
 
+# Operator-confirmed micro-USB/OTG seating plus zero Windows Android/ADB/MTP/PTP
+# clients is a closed discriminator for this configuration (capability orchestrator
+# seals usb_otg_adb_current_config as PROVEN_NEGATIVE, reopen only with a new
+# discriminator). Every USB_NOT_ENUMERATED branch must reuse this action so a
+# reseat/retry recommendation can never be re-emitted on the exhausted path.
+USB_OTG_EXHAUSTED_NEXT_ACTION = (
+    "Operator-confirmed micro-USB/OTG attach still produced no Android/ADB/MTP/PTP client on the Admin Box. "
+    "Treat USB_OTG_ADB as not a deployment transport in this configuration; do not reseat or re-litigate the cable. "
+    "Continue the read-only LAN/management route: capture the reader's Settings > Software versions observation into "
+    "the Kiosk4 evidence template, then run Classify-HHCCReaderVersionDomain.cmd and "
+    "Evaluate-HHCCReaderFirmwareRoundtrip.cmd baseline. Do not enable Developer Options. "
+    "A80 datasheets list micro-USB 2.0 OTG, so the receptacle is not decorative; live data-path role remains open "
+    "(power-only cable, device USB functions gated, or vendor/programming accessory path)."
+)
+
+# Emitted only when the Admin Box has no qualified ADB host. Names the read-only
+# approval gate that owns the next decision, the exact qualified-provider command
+# with its placeholder values, and the ADB-free read-only observation route that
+# keeps reader work moving while host-profile and digest approvals are outstanding.
+HOST_TOOLING_NOT_QUALIFIED_NEXT_ACTION = (
+    "Admin Box ADB tooling is not qualified. First run Manage-AdminBoxAndroidToolchain.cmd Next (read-only) to "
+    "report the current host-profile and Platform-Tools digest approval gates and draft the approval packets; "
+    "Apply/Bootstrap stay closed until those approvals exist. When the approved values exist, run "
+    "Run-SasAndroidProvider.cmd prepare --role ROLE --archive LOCAL_ZIP --archive-sha256 APPROVED_SHA256 with the "
+    "approved values substituted; network acquisition is disabled. While host approval is outstanding, keep reader "
+    "observation read-only and ADB-free: capture Settings > Software versions into the Kiosk4 evidence template, "
+    "then run Classify-HHCCReaderVersionDomain.cmd and Evaluate-HHCCReaderFirmwareRoundtrip.cmd baseline. "
+    "Do not retry USB attach loops or PAXSTORE account routes; both are exhausted for this estate."
+)
+
 
 def _now() -> str:
     return datetime.now(timezone.utc).replace(microsecond=0).isoformat().replace("+00:00", "Z")
@@ -275,10 +305,7 @@ def _host_state(host: dict[str, Any]) -> dict[str, Any]:
         next_action = "Run Probe-HHCCReaderAdb.cmd to classify USB and ADB device authorization."
     else:
         state = "ADB_HOST_NOT_INSTALLED"
-        next_action = (
-            "Run Run-SasAndroidProvider.cmd prepare --role ROLE --archive LOCAL_ZIP --archive-sha256 APPROVED_SHA256 "
-            "to qualify the SAS-owned local Platform-Tools bundle before field entry; network acquisition is disabled."
-        )
+        next_action = HOST_TOOLING_NOT_QUALIFIED_NEXT_ACTION
         path = None
         version = None
     return {
@@ -307,20 +334,17 @@ def _usb_state(usb: dict[str, Any], host_ready: bool) -> dict[str, Any]:
     otg_confirmed = _bool(usb.get("operator_otg_client_path_confirmed"))
     if not enumerated:
         state = "USB_DEVICE_NOT_ENUMERATED"
-        nxt = "Connect the authorized Kiosk4 USB cable to the Admin Box, then rerun Probe-HHCCReaderAdb.cmd."
+        if otg_confirmed:
+            nxt = USB_OTG_EXHAUSTED_NEXT_ACTION
+        else:
+            nxt = "Connect the authorized Kiosk4 USB cable to the Admin Box, then rerun Probe-HHCCReaderAdb.cmd."
     elif driver_problem:
         state = "USB_DRIVER_OR_INTERFACE_UNRESOLVED"
         nxt = "Inspect Windows Device Manager for the enumerated Android/PAX USB device, then rerun Probe-HHCCReaderAdb.cmd."
     elif not android and not adb_iface:
         state = "USB_DEVICE_NOT_ENUMERATED"
         if otg_confirmed:
-            nxt = (
-                "Operator-confirmed micro-USB/OTG attach still produced no Android/ADB/MTP/PTP client on the Admin Box. "
-                "Treat USB_OTG_ADB as not a deployment transport in this configuration. Continue LAN/management planes. "
-                "Do not enable Developer Options. A80 datasheets list micro-USB 2.0 OTG, so the receptacle is not "
-                "decorative; live data-path role remains open (power-only cable, device USB functions gated, or "
-                "vendor/programming accessory path)."
-            )
+            nxt = USB_OTG_EXHAUSTED_NEXT_ACTION
         else:
             nxt = (
                 "No Android/PAX USB candidate is enumerated on the Admin Box. Physical cables can still be seated: "
