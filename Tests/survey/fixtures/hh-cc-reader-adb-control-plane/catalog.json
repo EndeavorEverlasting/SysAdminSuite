@@ -5,6 +5,7 @@
       "id": "01-adb-absent",
       "mode": "prepare-host",
       "expected_state": "ADB_HOST_NOT_INSTALLED",
+      "expected_next_action_contains": "Manage-AdminBoxAndroidToolchain.cmd Next",
       "evidence": {
         "mode": "prepare-host",
         "host": {"adb_present": false}
@@ -313,6 +314,7 @@
       "mode": "probe",
       "expected_state": "USB_DEVICE_NOT_ENUMERATED",
       "expected_next_action_contains": "Operator-confirmed micro-USB/OTG",
+      "expected_next_action_not_contains": ["Connect the authorized Kiosk4 USB cable"],
       "evidence": {
         "mode": "probe",
         "host": {"adb_present": true, "adb_path": "OWNED_PATH", "adb_version": "1.0.41", "precedence": "owned"},
@@ -335,6 +337,61 @@
         "host": {"adb_present": true, "adb_path": "OWNED_PATH", "adb_version": "1.0.41", "precedence": "owned"},
         "adb_devices": [{"serial_token": "SERIAL_REF", "state": "device", "transport": "usb"}],
         "attempted_commands": ["adb root", "adb install payment.apk", "fastboot flash boot boot.img"]
+      }
+    },
+    {
+      "id": "21-usb-otg-confirmed-zero-windows-clients",
+      "mode": "probe",
+      "expected_state": "USB_DEVICE_NOT_ENUMERATED",
+      "expected_next_action_contains": "Treat USB_OTG_ADB as not a deployment transport",
+      "expected_next_action_not_contains": [
+        "Connect the authorized Kiosk4 USB cable",
+        "rerun Probe-HHCCReaderAdb.cmd --otg-confirmed"
+      ],
+      "evidence": {
+        "mode": "probe",
+        "host": {"adb_present": true, "adb_path": "OWNED_PATH", "adb_version": "1.0.41", "precedence": "owned"},
+        "usb": {
+          "enumerated": false,
+          "android_composite": false,
+          "adb_interface": false,
+          "pax_or_a80_hint": false,
+          "operator_otg_client_path_confirmed": true
+        },
+        "adb_devices": []
+      }
+    },
+    {
+      "id": "22-usb-zero-windows-clients-unconfirmed",
+      "mode": "probe",
+      "expected_state": "USB_DEVICE_NOT_ENUMERATED",
+      "expected_next_action_contains": "Connect the authorized Kiosk4 USB cable",
+      "evidence": {
+        "mode": "probe",
+        "host": {"adb_present": true, "adb_path": "OWNED_PATH", "adb_version": "1.0.41", "precedence": "owned"},
+        "usb": {
+          "enumerated": false,
+          "android_composite": false,
+          "adb_interface": false,
+          "pax_or_a80_hint": false
+        },
+        "adb_devices": []
+      }
+    },
+    {
+      "id": "23-probe-host-tooling-not-qualified",
+      "mode": "probe",
+      "expected_state": "ADB_HOST_NOT_INSTALLED",
+      "expected_next_action_contains": "Manage-AdminBoxAndroidToolchain.cmd Next",
+      "expected_next_action_not_contains": [
+        "paxstore account",
+        "create a PAXSTORE"
+      ],
+      "evidence": {
+        "mode": "probe",
+        "host": {"adb_present": false},
+        "usb": {"enumerated": false},
+        "adb_devices": []
       }
     }
   ]
