@@ -137,6 +137,12 @@ def invoke(preflight: dict[str, Any], *, extraction_dir: str | None = None,
     binary = shutil.which("rea")
     if not binary:
         return {**preflight, "state": "REA_NOT_INSTALLED_OR_NOT_ON_PATH"}
+    # npm global installations commonly resolve to a Windows .cmd shim. Python
+    # can dispatch those through cmd.exe without robustly quoting artifact paths.
+    # Fail closed until a separately verified Node entrypoint is available.
+    if Path(binary).suffix.lower() in {".cmd", ".bat"}:
+        return {**preflight, "state": "REA_SHELL_SHIM_NOT_QUALIFIED",
+                "next_action": "Resolve and qualify the direct REA Node executable/entrypoint; do not pass private artifact paths through an unvalidated CMD shim."}
     argv[0] = binary
     try:
         proc = subprocess.run(argv, timeout=130, stdout=subprocess.PIPE,
