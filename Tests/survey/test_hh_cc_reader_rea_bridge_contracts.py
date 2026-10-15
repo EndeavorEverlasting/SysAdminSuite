@@ -143,7 +143,7 @@ def test_unqualified_windows_cmd_shim_is_blocked() -> None:
         ready = bridge.assess(fixture(str(path), "APK_OR_SPLIT_APK"),
                               host_os="Windows", host_arch="AMD64")
         with mock.patch.object(bridge.shutil, "which",
-                               return_value=r"C:\\tools\\rea.cmd"), \\
+                               return_value=r"C:\\tools\\rea.cmd"), \
              mock.patch.object(bridge.subprocess, "run") as run:
             result = bridge.invoke(ready)
         assert result["state"] == "REA_SHELL_SHIM_NOT_QUALIFIED"
