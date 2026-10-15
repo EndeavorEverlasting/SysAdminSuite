@@ -137,6 +137,19 @@ def test_extract_requires_fresh_private_destination() -> None:
     with_artifact(check)
 
 
+
+def test_unqualified_windows_cmd_shim_is_blocked() -> None:
+    def check(path: Path) -> None:
+        ready = bridge.assess(fixture(str(path), "APK_OR_SPLIT_APK"),
+                              host_os="Windows", host_arch="AMD64")
+        with mock.patch.object(bridge.shutil, "which",
+                               return_value=r"C:\\tools\\rea.cmd"), \\
+             mock.patch.object(bridge.subprocess, "run") as run:
+            result = bridge.invoke(ready)
+        assert result["state"] == "REA_SHELL_SHIM_NOT_QUALIFIED"
+        run.assert_not_called()
+    with_artifact(check)
+
 if __name__ == "__main__":
     tests = [v for k, v in sorted(globals().items()) if k.startswith("test_") and callable(v)]
     failures = 0
