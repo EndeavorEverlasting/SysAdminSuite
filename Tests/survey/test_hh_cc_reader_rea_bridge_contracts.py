@@ -150,6 +150,73 @@ def test_unqualified_windows_cmd_shim_is_blocked() -> None:
         run.assert_not_called()
     with_artifact(check)
 
+def test_malformed_string_sensitive_state_is_fail_closed() -> None:
+    data = fixture(None)
+    data["artifact"]["included_state"] = "merchant_credentials"
+    state = bridge.assess(data, host_os="Linux", host_arch="x86_64")
+    assert state["state"] == "MALFORMED_PROVENANCE_OR_SENSITIVE_STATE_REJECTED"
+    assert state["deployment_ready"] is False
+    assert "rea_argv" not in state
+
+
+def test_malformed_vendor_signature_bool_is_fail_closed() -> None:
+    data = fixture(None)
+    data["artifact"]["vendor_signed"] = "false"
+    state = bridge.assess(data)
+    assert state["state"] == "MALFORMED_PROVENANCE_OR_SENSITIVE_STATE_REJECTED"
+
+
+def test_changed_source_is_not_analyzed_or_misattributed() -> None:
+    def check(path: Path) -> None:
+        ready = bridge.assess(fixture(str(path)), host_os="Linux", host_arch="x86_64")
+        path.write_bytes(b"source changed after preflight")
+        with mock.patch.object(bridge.shutil, "which", return_value="/usr/bin/rea"), \
+             mock.patch.object(bridge.subprocess, "run") as run:
+            result = bridge.invoke(ready)
+        assert result["state"] == "SOURCE_CHANGED_SINCE_PREFLIGHT"
+        assert result["deployment_ready"] is False
+        run.assert_not_called()
+    with_artifact(check)
+
+
+def test_rea_invoked_against_digest_locked_snapshot_not_source() -> None:
+    def check(path: Path) -> None:
+        ready = bridge.assess(fixture(str(path)), host_os="Linux", host_arch="x86_64")
+        fake = SimpleNamespace(returncode=0, stdout=b"fixture", stderr=b"")
+        with mock.patch.object(bridge.shutil, "which", return_value="/usr/bin/rea"), \
+             mock.patch.object(bridge.subprocess, "run", return_value=fake) as run:
+            result = bridge.invoke(ready)
+        assert result["state"] == "REA_FINISHED_ANALYSIS_UNVERIFIED"
+        snapshot = Path(run.call_args.args[0][2])
+        assert snapshot != path and snapshot.name.endswith(".bin")
+        assert snapshot.parent.name.startswith("sas-rea-snapshot-")
+        assert not snapshot.exists()  # scrubbed after process completes
+    with_artifact(check)
+
+
+def test_existing_receipt_refused_before_invocation() -> None:
+    with tempfile.TemporaryDirectory() as directory:
+        base = Path(directory)
+        file = base / "candidate.bin"
+        file.write_bytes(b"synthetic")
+        manifest = base / "manifest.json"
+        manifest.write_text(json.dumps(fixture(str(file))), encoding="utf-8")
+        output = base / "existing.json"
+        output.write_text('{"keep":"original"}', encoding="utf-8")
+        with mock.patch.object(sys, "argv", [
+            "bridge.py", "--input", str(manifest), "--output", str(output),
+            "--invoke",
+        ]), mock.patch.object(bridge, "invoke") as invoke:
+            try:
+                bridge.main()
+            except FileExistsError:
+                pass
+            else:
+                raise AssertionError("Existing receipt must fail before REA")
+        invoke.assert_not_called()
+        assert json.loads(output.read_text()) == {"keep": "original"}
+
+
 if __name__ == "__main__":
     tests = [v for k, v in sorted(globals().items()) if k.startswith("test_") and callable(v)]
     failures = 0
