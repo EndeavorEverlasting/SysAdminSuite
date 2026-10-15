@@ -50,6 +50,8 @@ The launcher stores a private local receipt under `%LOCALAPPDATA%\SysAdminSuite\
 
 On a qualified Linux x64 analysis environment, use the Python module against a private manifest, e.g. `python3 harness/api/hh_cc_reader_rea_bridge.py --input /private/candidate.json --output /private/receipts/receipt.json --invoke`. For an explicit offline extraction operation (writes local destination only), use `--invoke --extract-output /private/new-absent-output-dir`; REA's output directory must not already exist. Windows CMD offers the equivalent `extract` mode only when all host gates pass; real firmware extraction still routes to Linux x64.
 
+**Integrity and evidence durability:** Before any local REA invocation the launcher reserves a non-overwriting receipt containing `STARTED_UNPROVEN`; a completed receipt replaces it after analysis. The analysis itself operates on a temporary private snapshot whose SHA-256 must equal the preflight artifact SHA-256; if the source was changed before snapshot creation, the run fails as `SOURCE_CHANGED_SINCE_PREFLIGHT` without invoking REA. Malformed payment/security-state metadata or boolean signature flags fail closed. These checks do not authenticate firmware signatures or recover protected reader storage.
+
 **Dependency qualification:** REA's own installation is separate and needs Node.js/npm. For firmware, Binwalk 3.1.x and Unblob 26.6.x and their external extractor dependencies must be supplied and verified on Linux x64, with the required `prlimit`/process facilities. The adapter performs no `npm install`, privilege elevation, USB debugging, ADB install, network activity, source download, upload, partition read, firmware flash or terminal state mutation.
 
 ## Typed result contract
