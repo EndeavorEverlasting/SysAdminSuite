@@ -1,4 +1,6 @@
 # Agent Governance for SysAdminSuite
+## P00/P01/P04 — settled cross-repository product ownership
+AgentSwitchboard is a retired product (donor/verified old callers only). TokenCorridor owns the product control plane. Technical cleanup does not reopen retirement. Never assign new orchestration, policy or website work to AgentSwitchboard.
 `AGENTS.md` is the repository-root governance contract and the single source of truth for how agents operate in SysAdminSuite. Compact routing lives here; detailed procedures remain in task skills under `.claude/skills/`, reusable rules in `.claude/capabilities/`, and machine-readable execution contracts under `harness/`.
 ## Required loading sequence
 1. Read this governance contract.
@@ -7,7 +9,6 @@
 4. Use `harness/api/agent-routing-manifest.json` for exact task signals; unknown or conflicting signals fail closed to the repository-sprint skill.
 5. Load only the selected skill and its declared capability dependencies.
 6. Read deeper product or harness documentation only when the selected route points to it. For operator-authored communication, load `docs/OPERATOR_COMMUNICATION_STYLE.md` and `harness/api/operator-communication-semantics.json` before drafting.
-
 Triggers route work only. They never authorize network activity, target mutation, destructive Git operations, secret handling, or proof claims. Progressive disclosure is a repository requirement; do not preload every skill, capability, plan, or handoff.
 ## Agent operating principles
 - **Evidence before action:** inspect repository, branch, PR, worktree, contracts, and existing evidence before mutation. For an evidence-backed finding in an authorized SAS session, invoke `harness/api/sas_finding_ingest.py` once, retain private data locally, and route only reviewed reusable patterns for public contribution per `docs/SAS_FINDING_CONTINUITY.md` (no automatic Drive/Git publication).
@@ -16,14 +17,12 @@ Triggers route work only. They never authorize network activity, target mutation
 - **One writer per branch:** parallel agents use isolated branches or worktrees and do not make competing writes.
 - **Reuse before replacing:** search for canonical authorities, helpers, scripts, schemas, validators, and naming patterns before inventing.
 - **No completion without proof or convergence:** plans, acknowledgments, summaries, generated text, unexecuted commands, a merely green branch, and an unmerged mergeable PR are not completion when authorized integration into the current default branch remains safe.
-
 ## Instruction precedence
 When instructions conflict, use this order:
 1. Platform, security, legal, and repo-owner instructions.
 2. This governance contract.
 3. Task-specific prompts.
 4. Generic defaults.
-
 At the same level, stop expansion, identify the conflicting authorities, and make the smallest safe correction that restores one source of truth.
 ## Mandatory sprint declaration
 Before every writing sprint, state:
