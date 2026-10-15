@@ -9,6 +9,8 @@ request to download or bypass payment-terminal protections.
 from __future__ import annotations
 
 import argparse
+from datetime import datetime, timezone
+import secrets
 import hashlib
 import json
 import platform
@@ -82,7 +84,7 @@ def assess(manifest: dict[str, Any], *, host_os: str | None = None,
         return _result("ARTIFACT_NOT_ACQUIRED", portability,
                        next_action="Continue #543 provider/TMS source discovery or an already authorized accessible ADB export; no repeated OTG/PAXSTORE signup.")
     path = Path(str(raw_path)).expanduser()
-    if not path.is_absolute() or path.is_symlink():
+    if not path.is_absolute() or path.is_symlink() or path.resolve(strict=False).is_relative_to(ROOT):
         return _result("INVALID_ARTIFACT_PATH", portability)
     if not path.is_file():
         return _result("ARTIFACT_NOT_ACQUIRED", portability,
@@ -117,7 +119,8 @@ def assess(manifest: dict[str, Any], *, host_os: str | None = None,
                    next_action="Optional read-only local analysis. Preserve original digest, REA evidence and extraction gaps; then independently prove version domain, supplier signature, package cohort and restore path.")
 
 
-def invoke(preflight: dict[str, Any], *, extraction_dir: str | None = None) -> dict[str, Any]:
+def invoke(preflight: dict[str, Any], *, extraction_dir: str | None = None,
+           evidence_dir: Path | None = None) -> dict[str, Any]:
     """Execute ONLY an allowlisted REA local-analysis verb. Never run ADB here."""
     if preflight["state"] != "ANALYSIS_READY_NOT_EXECUTED":
         return preflight
@@ -128,7 +131,7 @@ def invoke(preflight: dict[str, Any], *, extraction_dir: str | None = None) -> d
         dest = Path(extraction_dir).expanduser()
         if not dest.is_absolute() or dest.exists() or not dest.parent.is_dir():
             return {**preflight, "state": "INVALID_EXTRACTION_DESTINATION"}
-        if dest.is_relative_to(ROOT):
+        if dest.resolve(strict=False).is_relative_to(ROOT):
             return {**preflight, "state": "PUBLIC_REPOSITORY_OUTPUT_FORBIDDEN"}
         argv = ["rea", "extract-firmware", argv[2], str(dest)]
     binary = shutil.which("rea")
@@ -144,11 +147,23 @@ def invoke(preflight: dict[str, Any], *, extraction_dir: str | None = None) -> d
         return {**preflight, "state": "REA_EXECUTION_UNAVAILABLE"}
     stdout = proc.stdout[: 1024 * 1024]
     stderr = proc.stderr[: 1024 * 1024]
-    return {**preflight,
+    evidence: dict[str, Any] = {}
+    if evidence_dir is not None:
+        if not evidence_dir.is_dir() or evidence_dir.resolve().is_relative_to(ROOT):
+            return {**preflight, "state": "INVALID_PRIVATE_EVIDENCE_DIRECTORY"}
+        stem = f"rea-{datetime.now(timezone.utc):%Y%m%dT%H%M%SZ}-{secrets.token_hex(5)}"
+        stdout_path, stderr_path = evidence_dir / f"{stem}.stdout.bin", evidence_dir / f"{stem}.stderr.bin"
+        # The captured output can contain private vendor/package paths; never publish it.
+        stdout_path.write_bytes(stdout)
+        stderr_path.write_bytes(stderr)
+        evidence = {"rea_stdout_evidence": str(stdout_path), "rea_stderr_evidence": str(stderr_path)}
+    return {**preflight, **evidence,
             "state": "REA_FINISHED_ANALYSIS_UNVERIFIED" if proc.returncode == 0 else "REA_FAILED",
             "rea_exit_code": proc.returncode,
             "rea_stdout_sha256": hashlib.sha256(stdout).hexdigest(),
             "rea_stderr_sha256": hashlib.sha256(stderr).hexdigest(),
+            "rea_stdout_captured_bytes": len(stdout),
+            "rea_stderr_captured_bytes": len(stderr),
             "rea_output_truncated": len(proc.stdout) > len(stdout) or len(proc.stderr) > len(stderr),
             "next_action": "Review retained REA evidence privately, classify the exact version domain and source-signature/cross-device applicability. This is not a firmware deployment approval."}
 
@@ -161,15 +176,18 @@ def main() -> int:
     parser.add_argument("--extract-output", help="Fresh private output directory; requires --invoke")
     args = parser.parse_args()
     dest = Path(args.output).expanduser()
-    if not dest.is_absolute() or dest.is_relative_to(ROOT) or not dest.parent.is_dir():
+    if dest.is_dir():
+        dest = dest / f"rea-{datetime.now(timezone.utc):%Y%m%dT%H%M%SZ}-{secrets.token_hex(5)}.json"
+    if not dest.is_absolute() or dest.resolve(strict=False).is_relative_to(ROOT) or not dest.parent.is_dir():
         parser.error("--output must be an absolute path in an existing private directory outside repository")
     if args.extract_output and not args.invoke:
         parser.error("--extract-output requires --invoke")
     manifest = json.loads(Path(args.input).read_text(encoding="utf-8-sig"))
     receipt = assess(manifest)
     if args.invoke:
-        receipt = invoke(receipt, extraction_dir=args.extract_output)
-    dest.write_text(json.dumps(receipt, indent=2) + "\n", encoding="utf-8")
+        receipt = invoke(receipt, extraction_dir=args.extract_output, evidence_dir=dest.parent)
+    with dest.open("x", encoding="utf-8") as output:
+        output.write(json.dumps(receipt, indent=2) + "\n")
     print(f"STATE={receipt['state']}")
     print(f"RECEIPT={dest}")
     return 0 if receipt["state"] in {"ANALYSIS_READY_NOT_EXECUTED", "REA_FINISHED_ANALYSIS_UNVERIFIED"} else 2
