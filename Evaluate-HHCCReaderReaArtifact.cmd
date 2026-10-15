@@ -33,16 +33,16 @@ if /I "%ACTION%"=="extract" goto extract
 goto usage
 
 :plan
-%PYEXE% "%~dp0harness\api\hh_cc_reader_rea_bridge.py" --input "%~1" --output "%OUTDIR%\last-receipt.json"
+%PYEXE% "%~dp0harness\api\hh_cc_reader_rea_bridge.py" --input "%~1" --output "%OUTDIR%"
 exit /b %ERRORLEVEL%
 
 :inspect
-%PYEXE% "%~dp0harness\api\hh_cc_reader_rea_bridge.py" --input "%~1" --output "%OUTDIR%\last-receipt.json" --invoke
+%PYEXE% "%~dp0harness\api\hh_cc_reader_rea_bridge.py" --input "%~1" --output "%OUTDIR%" --invoke
 exit /b %ERRORLEVEL%
 
 :extract
 if "%~3"=="" goto usage
-%PYEXE% "%~dp0harness\api\hh_cc_reader_rea_bridge.py" --input "%~1" --output "%OUTDIR%\last-receipt.json" --invoke --extract-output "%~3"
+%PYEXE% "%~dp0harness\api\hh_cc_reader_rea_bridge.py" --input "%~1" --output "%OUTDIR%" --invoke --extract-output "%~3"
 exit /b %ERRORLEVEL%
 
 :usage
