@@ -1,4 +1,8 @@
 # Agent Governance for SysAdminSuite
+
+## P00/P01/P04 — settled cross-repository product ownership
+AgentSwitchboard is a retired product (donor/verified old callers only). TokenCorridor owns the product control plane. Technical cleanup does not reopen retirement. Never assign new orchestration, policy or website work to AgentSwitchboard.
+
 `AGENTS.md` is the repository-root governance contract and the single source of truth for how agents operate in SysAdminSuite. Compact routing lives here; detailed procedures remain in task skills under `.claude/skills/`, reusable rules in `.claude/capabilities/`, and machine-readable execution contracts under `harness/`.
 ## Required loading sequence
 1. Read this governance contract.
