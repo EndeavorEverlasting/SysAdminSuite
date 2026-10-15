@@ -13,6 +13,8 @@ from datetime import datetime, timezone
 import secrets
 import hashlib
 import json
+import os
+import tempfile
 import platform
 import re
 import shutil
@@ -64,6 +66,20 @@ def assess(manifest: dict[str, Any], *, host_os: str | None = None,
     if not isinstance(manifest, dict) or not isinstance(manifest.get("artifact"), dict):
         raise ValueError("manifest.artifact must be an object")
     artifact = manifest["artifact"]
+    included = artifact.get("included_state", [])
+    booleans = ("vendor_signed", "full_ota", "incremental", "ab_payload",
+                "raw_partition", "security_or_payment_state", "device_specific_partition")
+    # The portability helper expects a sequence: a single JSON string would
+    # otherwise be coerced to a set of characters, dropping payment exclusions.
+    # Reject malformed declarations *before* consulting the existing classifier.
+    if (not isinstance(included, list)
+            or any(not isinstance(item, str) for item in included)
+            or any(flag in artifact and not isinstance(artifact[flag], bool)
+                   for flag in booleans)):
+        rejected = evaluate_portability({
+            "artifact_class": "SECURITY_OR_PAYMENT_STATE", "included_state": [],
+        })
+        return _result("MALFORMED_PROVENANCE_OR_SENSITIVE_STATE_REJECTED", rejected)
     portability = evaluate_portability(artifact)
     klass = portability["artifact_class"]
     exclusions = portability["device_unique_exclusion"]
@@ -134,6 +150,11 @@ def invoke(preflight: dict[str, Any], *, extraction_dir: str | None = None,
         if dest.resolve(strict=False).is_relative_to(ROOT):
             return {**preflight, "state": "PUBLIC_REPOSITORY_OUTPUT_FORBIDDEN"}
         argv = ["rea", "extract-firmware", argv[2], str(dest)]
+    if evidence_dir is not None and (
+        not evidence_dir.is_dir()
+        or evidence_dir.resolve().is_relative_to(ROOT)
+    ):
+        return {**preflight, "state": "INVALID_PRIVATE_EVIDENCE_DIRECTORY"}
     binary = shutil.which("rea")
     if not binary:
         return {**preflight, "state": "REA_NOT_INSTALLED_OR_NOT_ON_PATH"}
@@ -144,9 +165,29 @@ def invoke(preflight: dict[str, Any], *, extraction_dir: str | None = None,
         return {**preflight, "state": "REA_SHELL_SHIM_NOT_QUALIFIED",
                 "next_action": "Resolve and qualify the direct REA Node executable/entrypoint; do not pass private artifact paths through an unvalidated CMD shim."}
     argv[0] = binary
+    # REA must inspect the *same bytes* whose digest passed preflight.
+    # Use an isolated private copy and digest it before executing the tool;
+    # a changed source is rejected rather than falsely attributed to the
+    # earlier SHA-256. The private snapshot is removed after REA exits.
     try:
-        proc = subprocess.run(argv, timeout=130, stdout=subprocess.PIPE,
-                              stderr=subprocess.PIPE, check=False)
+        with tempfile.TemporaryDirectory(
+            prefix="sas-rea-snapshot-",
+            dir=str(evidence_dir) if evidence_dir is not None else None,
+        ) as snapshot_dir:
+            original = Path(argv[2])
+            snapshot = Path(snapshot_dir) / ("input" + original.suffix.lower())
+            shutil.copyfile(original, snapshot)
+            digest = hashlib.sha256()
+            with snapshot.open("rb") as stream:
+                for chunk in iter(lambda: stream.read(1024 * 1024), b""):
+                    digest.update(chunk)
+            if digest.hexdigest() != preflight["sha256"]:
+                return {**preflight, "state": "SOURCE_CHANGED_SINCE_PREFLIGHT",
+                        "snapshot_sha256": digest.hexdigest(),
+                        "deployment_ready": False}
+            argv[2] = str(snapshot)
+            proc = subprocess.run(argv, timeout=130, stdout=subprocess.PIPE,
+                                  stderr=subprocess.PIPE, check=False)
     except subprocess.TimeoutExpired:
         return {**preflight, "state": "REA_TIMED_OUT"}
     except OSError:
@@ -155,8 +196,6 @@ def invoke(preflight: dict[str, Any], *, extraction_dir: str | None = None,
     stderr = proc.stderr[: 1024 * 1024]
     evidence: dict[str, Any] = {}
     if evidence_dir is not None:
-        if not evidence_dir.is_dir() or evidence_dir.resolve().is_relative_to(ROOT):
-            return {**preflight, "state": "INVALID_PRIVATE_EVIDENCE_DIRECTORY"}
         stem = f"rea-{datetime.now(timezone.utc):%Y%m%dT%H%M%SZ}-{secrets.token_hex(5)}"
         stdout_path, stderr_path = evidence_dir / f"{stem}.stdout.bin", evidence_dir / f"{stem}.stderr.bin"
         # The captured output can contain private vendor/package paths; never publish it.
@@ -188,12 +227,25 @@ def main() -> int:
         parser.error("--output must be an absolute path in an existing private directory outside repository")
     if args.extract_output and not args.invoke:
         parser.error("--extract-output requires --invoke")
+    # Reserve the receipt before any analysis/extraction side effect. A crash
+    # still leaves a typed non-success marker, not an orphaned extraction.
+    with dest.open("x", encoding="utf-8") as output:
+        output.write(json.dumps({
+            "schema": SCHEMA, "state": "STARTED_UNPROVEN",
+            "mutation_authorized": False, "deployment_ready": False,
+        }) + "\n")
+        output.flush()
+        os.fsync(output.fileno())
     manifest = json.loads(Path(args.input).read_text(encoding="utf-8-sig"))
     receipt = assess(manifest)
     if args.invoke:
         receipt = invoke(receipt, extraction_dir=args.extract_output, evidence_dir=dest.parent)
-    with dest.open("x", encoding="utf-8") as output:
+    staged = dest.with_name(dest.name + ".tmp-" + secrets.token_hex(5))
+    with staged.open("x", encoding="utf-8") as output:
         output.write(json.dumps(receipt, indent=2) + "\n")
+        output.flush()
+        os.fsync(output.fileno())
+    os.replace(staged, dest)
     print(f"STATE={receipt['state']}")
     print(f"RECEIPT={dest}")
     return 0 if receipt["state"] in {"ANALYSIS_READY_NOT_EXECUTED", "REA_FINISHED_ANALYSIS_UNVERIFIED"} else 2
