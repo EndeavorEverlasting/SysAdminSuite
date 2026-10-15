@@ -1,0 +1,89 @@
+{
+  "schema_version": "scansnap-installer-process-route/v1",
+  "product_family": "ScanSnap Home",
+  "product_evidence": "Interactive wizard title 'ScanSnap Home Setup' observed during qualified Admin Box package qualification.",
+  "strategy": {
+    "name": "pid_delta_window_route",
+    "description": "Snapshot process IDs before launching the installer, launch once, compute the PID delta, then route UI/automation only to the new process that matches durable metadata. Do not guess among pre-existing chrome/other ScanSnap-titled windows.",
+    "steps": [
+      "capture_before_process_snapshot",
+      "launch_installer_once",
+      "capture_after_process_snapshot",
+      "compute_pid_delta",
+      "filter_delta_by_process_name_and_window_title",
+      "persist_selected_pid_evidence",
+      "drive_or_observe_selected_pid_only"
+    ],
+    "anti_patterns": [
+      "launching additional installer copies while one wizard is already open",
+      "selecting a window solely because the title contains ScanSnap (browser tabs match)",
+      "SendKeys without an exact PID/MainWindowHandle binding"
+    ]
+  },
+  "process_name_candidates": [
+    "SSHDownloadInstaller",
+    "WinSSHomeInstaller",
+    "WinSSHomeInstaller_4_1_0",
+    "WinSSHOfflineInstaller",
+    "WinSSHOfflineInstaller_4_1_0",
+    "SSHomeDownloadInstaller"
+  ],
+  "window_title_pattern": "(?i)^ScanSnap Home Setup$",
+  "path_fragment_candidates": [
+    "SSHomeDownloadInstaller",
+    "WinSSHomeInstaller",
+    "WinSSHOfflineInstaller"
+  ],
+  "exclude_process_names": [
+    "chrome",
+    "msedge",
+    "firefox",
+    "Code",
+    "Cursor"
+  ],
+  "typical_ui_route": {
+    "setup_type_default": "Typical",
+    "actions": [
+      {
+        "when_title_matches": "(?i)^ScanSnap Home Setup$",
+        "screen_hint": [
+          "Setup Type",
+          "Welcome",
+          "Contents review",
+          "Install"
+        ],
+        "preferred_keys": [
+          "%{n}",
+          "{ENTER}"
+        ],
+        "notes": "Typical is the default recommended selection. Prefer Next/Install advancement; do not open Custom."
+      }
+    ],
+    "post_install_scanner_setup": {
+      "policy": "skip_or_close_when_unattended",
+      "notes": "Model-selection / Start setup is not part of unattended software deployment success. Detection gate owns install success."
+    }
+  },
+  "silent_install": {
+    "InstallerFileName": "WinSSHomeInstaller_4_1_0.exe",
+    "ResponseFileName": "WinSSHomeInstaller_4_1_0.iss",
+    "SilentArgs": "-s -f1\".\\WinSSHomeInstaller_4_1_0.iss\"",
+    "OfflineInstallerFileName": "WinSSHOfflineInstaller_4_1_0.exe",
+    "product_name": "ScanSnap Home",
+    "product_version": "4.1.0.5",
+    "iss_dest_dir": "C:\\Program Files (x86)\\PFU\\ScanSnap",
+    "evidence_owner": "Invoke-ScanSnapSilentInstall.ps1",
+    "notes": "SilentArgs measured from vendor InstallShield response file staged beside the EXE. Prefer silent owner over interactive UI driver for unattended qualification and field staging."
+  },
+  "detection_seed": {
+    "DetectType": "file",
+    "DetectValueCandidates": [
+      "C:\\Program Files (x86)\\PFU\\ScanSnap\\Home\\PfuSshMain.exe",
+      "C:\\Program Files (x86)\\PFU\\ScanSnap\\Home\\ScanSnapHome.exe",
+      "C:\\Program Files (x86)\\PFU\\ScanSnap\\ScanSnapHome.exe",
+      "C:\\Program Files\\PFU\\ScanSnap\\Home\\ScanSnapHome.exe",
+      "C:\\Program Files\\Ricoh\\ScanSnap Home\\ScanSnapHome.exe"
+    ],
+    "notes": "Executable-only detection candidates. The measured primary installed artifact is PfuSshMain.exe; directories alone never prove install success."
+  }
+}

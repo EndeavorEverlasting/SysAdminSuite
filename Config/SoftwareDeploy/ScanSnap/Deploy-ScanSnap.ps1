@@ -4,17 +4,20 @@
   Deterministic ScanSnap stage + silent-install orchestrator (Admin Box control plane).
 
 .DESCRIPTION
-  Runs on Admin Box 1 (LPW003ASI173). Treats each listed computer as a remote target.
-  Stages package to \\HOST\C$\SoftwareRepo\ScanSnap\, executes via schtasks as SYSTEM,
-  polls remote result evidence, then evaluates DetectType/DetectValue.
+  Runs on the approved Admin Box control plane. Treats each listed computer as an
+  independently classified remote target. ScanSnap owns package binding, target
+  classification, and result presentation; the canonical SysAdminSuite SMB
+  scheduled-task adapter owns staging, hash proof, SYSTEM execution, validation,
+  result retrieval, and teardown.
 
   /WhatIf validates package + classifies targets without remote mutation.
 
 .NOTES
   Reuses SysAdminSuite contracts:
   - EnvSetup/Deploy-Shortcuts.bat argument style (via Deploy-ScanSnap.cmd)
-  - mapping NoWinRM schtasks/SYSTEM pattern
-  - Config SoftwareRepo staging path convention
+  - scripts/SasNorthwellNetworkAuthority.psm1 for protected-route classification
+  - scripts/SasSoftwareDeploymentAdapter.psm1 for canonical SMB/SYSTEM deployment
+  - exact post-install executable validation; no ScanSnap-specific transport engine
 #>
 [CmdletBinding(SupportsShouldProcess = $true)]
 param(
@@ -47,6 +50,19 @@ if (-not $ManifestPath) {
   $ManifestPath = Join-Path $script:PackageRoot 'package.manifest.json'
 }
 
+# Repo root is two levels above Config/SoftwareDeploy/ScanSnap
+$script:RepoRoot = Split-Path -Parent (Split-Path -Parent (Split-Path -Parent $script:PackageRoot))
+$authorityModule = Join-Path $script:RepoRoot 'scripts\SasNorthwellNetworkAuthority.psm1'
+if (-not (Test-Path -LiteralPath $authorityModule)) {
+  throw "Northwell network authority module not found: $authorityModule"
+}
+Import-Module $authorityModule -Force -ErrorAction Stop
+$deploymentAdapterModule = Join-Path $script:RepoRoot 'scripts\SasSoftwareDeploymentAdapter.psm1'
+if (-not (Test-Path -LiteralPath $deploymentAdapterModule -PathType Leaf)) {
+  throw "Canonical software deployment adapter not found: $deploymentAdapterModule"
+}
+Import-Module $deploymentAdapterModule -Force -ErrorAction Stop
+
 function Write-SsLog {
   param([string]$Message, [string]$Level = 'INFO')
   $line = '[{0}] [{1}] {2}' -f (Get-Date -Format 'yyyy-MM-dd HH:mm:ss'), $Level, $Message
@@ -54,11 +70,35 @@ function Write-SsLog {
   Write-Host $line
 }
 
+function Resolve-SsDeploymentMode {
+  param(
+    [Parameter(Mandatory)]
+    $Authority,
+    [Parameter(Mandatory)]
+    [string]$TargetHost
+  )
+  $route = [string]$Authority.Route
+  if (-not [bool]$Authority.Allowed) {
+    # Denied authority is never allowed to mutate. Preserve PTop only as a no-mutation WhatIf diagnostic.
+    if ($script:SsWhatIf -and $TargetHost -match '(?i)^(CheexMcClappeth)(\.|$)') { return 'LAB_LOCAL' }
+    return 'UNKNOWN_BLOCKED'
+  }
+  switch ($route) {
+    'WAB_WIFI' { return 'NORTHWELL_PROTECTED' }
+    'PROTECTED_NON_WIFI' { return 'NORTHWELL_PROTECTED' }
+    'DOMAIN_AUTHENTICATED_NON_WIFI' { return 'NORTHWELL_VPN' }
+    default { return 'UNKNOWN_BLOCKED' }
+  }
+}
+
 function New-EvidenceRow {
   param(
     [string]$AdminHost,
     [string]$TargetHost,
     [string]$ResolvedName,
+    [string]$NetworkRoute,
+    [string]$DeploymentMode,
+    [bool]$AuthorityAllowed,
     [string]$AccessClass,
     [string]$PackageSha256,
     [string]$StageStatus,
@@ -75,6 +115,9 @@ function New-EvidenceRow {
     AdminHost         = $AdminHost
     TargetHost        = $TargetHost
     ResolvedName      = $ResolvedName
+    NetworkRoute      = $NetworkRoute
+    DeploymentMode    = $DeploymentMode
+    AuthorityAllowed  = [bool]$AuthorityAllowed
     AccessClass       = $AccessClass
     PackageSha256     = $PackageSha256
     StageStatus       = $StageStatus
@@ -136,9 +179,20 @@ function Get-HostList {
 function Resolve-TargetName {
   param([string]$Name, [string]$Suffix)
   if ($Name -match '^\d+\.\d+\.\d+\.\d+$') { return $Name }
-  if ($Name -match '\.') { return $Name }
-  if ([string]::IsNullOrWhiteSpace($Suffix)) { return $Name }
-  return ('{0}.{1}' -f $Name, $Suffix.TrimStart('.'))
+  $candidate = if ($Name -match '\.' -or [string]::IsNullOrWhiteSpace($Suffix)) {
+    $Name
+  } else {
+    ('{0}.{1}' -f $Name, $Suffix.TrimStart('.'))
+  }
+  try {
+    $entry = [System.Net.Dns]::GetHostEntry($candidate)
+    if ($entry -and -not [string]::IsNullOrWhiteSpace([string]$entry.HostName)) {
+      return [string]$entry.HostName
+    }
+  } catch {
+    # Access classification below owns the resolvability result.
+  }
+  return $candidate
 }
 
 function Resolve-SsAccessClassFromText {
@@ -267,6 +321,13 @@ function Test-PackageBinding {
   if ([string]::IsNullOrWhiteSpace([string]$Manifest.DetectType) -or [string]::IsNullOrWhiteSpace([string]$Manifest.DetectValue)) {
     [void]$issues.Add('DetectType/DetectValue incomplete - required before declaring install success')
   }
+  if ([string]$Manifest.SilentArgs -match '(?i)\.iss') {
+    $responseName = [IO.Path]::ChangeExtension([string]$Manifest.InstallerFileName, '.iss')
+    $responsePath = Join-Path $InstallersDir $responseName
+    if (-not (Test-Path -LiteralPath $responsePath -PathType Leaf)) {
+      [void]$issues.Add("Required InstallShield response file missing: $responseName")
+    }
+  }
   if (-not [bool]$Manifest.Bound) {
     [void]$issues.Add('Manifest Bound=false')
   }
@@ -276,199 +337,6 @@ function Test-PackageBinding {
     Issues        = @($issues)
     InstallerPath = $installerPath
     ActualSha256  = $actualSha
-  }
-}
-
-function Invoke-RobocopyStage {
-  param(
-    [string]$SourceDir,
-    [string]$DestDir,
-    [string[]]$Files
-  )
-  if (-not (Test-Path -LiteralPath $DestDir)) {
-    New-Item -ItemType Directory -Path $DestDir -Force | Out-Null
-  }
-  $args = @($SourceDir, $DestDir) + $Files + @('/COPY:DAT', '/R:2', '/W:2', '/NFL', '/NDL', '/NJH', '/NJS', '/NP')
-  $p = Start-Process -FilePath 'robocopy.exe' -ArgumentList $args -NoNewWindow -Wait -PassThru
-  # robocopy 0-7 = success family
-  if ($p.ExitCode -ge 8) {
-    throw "robocopy failed exit=$($p.ExitCode) src=$SourceDir dst=$DestDir"
-  }
-  return $p.ExitCode
-}
-
-function New-RemoteInstallRunner {
-  param(
-    [string]$RemoteRootUnc,
-    [string]$LocalInstallerName,
-    [string]$InstallerType,
-    [string]$SilentArgs,
-    [string]$DetectType,
-    [string]$DetectValue,
-    [string]$StageRelativeUnderC
-  )
-
-  $runnerLocalName = 'install-runner.ps1'
-  $runnerUnc = Join-Path $RemoteRootUnc $runnerLocalName
-  $resultName = 'install-result.json'
-
-  $runner = @"
-`$ErrorActionPreference = 'Stop'
-`$outRoot = 'C:\ProgramData\SysAdminSuite\SoftwareDeploy\ScanSnap'
-New-Item -ItemType Directory -Path `$outRoot -Force | Out-Null
-`$resultPath = Join-Path `$outRoot '$resultName'
-`$installer = Join-Path 'C:\$StageRelativeUnderC' '$LocalInstallerName'
-`$started = Get-Date
-`$obj = [ordered]@{
-  StartedUtc = `$started.ToUniversalTime().ToString('o')
-  Installer = `$installer
-  Type = '$InstallerType'
-  SilentArgs = '$SilentArgs'
-  ExitCode = `$null
-  InstallerCompleted = `$false
-  DetectType = '$DetectType'
-  DetectValue = '$DetectValue'
-  Detected = `$false
-  Error = ''
-  FinishedUtc = `$null
-}
-try {
-  if (-not (Test-Path -LiteralPath `$installer)) { throw "Installer not found: `$installer" }
-  `$argLine = '$SilentArgs'
-  if ('$InstallerType' -ieq 'msi') {
-    `$p = Start-Process -FilePath 'msiexec.exe' -ArgumentList (@('/i', `$installer) + (`$argLine -split '\s+' | Where-Object { `$_ })) -Wait -PassThru -NoNewWindow
-  } else {
-    `$p = Start-Process -FilePath `$installer -ArgumentList `$argLine -Wait -PassThru -NoNewWindow
-  }
-  `$obj.ExitCode = `$p.ExitCode
-  `$obj.InstallerCompleted = `$true
-  `$detected = `$false
-  if ('$DetectType' -ieq 'file') {
-    `$detected = Test-Path -LiteralPath '$DetectValue'
-  } elseif ('$DetectType' -ieq 'regkey') {
-    `$detected = Test-Path -LiteralPath ('Registry::{0}' -f '$DetectValue'.Replace('HKLM\','HKEY_LOCAL_MACHINE\').Replace('HKLM:\\','HKEY_LOCAL_MACHINE\'))
-    if (-not `$detected) { `$detected = Test-Path -LiteralPath '$DetectValue' }
-  }
-  `$obj.Detected = [bool]`$detected
-} catch {
-  `$obj.Error = `$_.Exception.Message
-} finally {
-  `$obj.FinishedUtc = (Get-Date).ToUniversalTime().ToString('o')
-  (`$obj | ConvertTo-Json -Depth 4) | Set-Content -LiteralPath `$resultPath -Encoding UTF8
-}
-"@
-
-  Set-Content -LiteralPath $runnerUnc -Value $runner -Encoding UTF8
-  return @{
-    RunnerUnc   = $runnerUnc
-    RunnerLocal = "C:\ProgramData\SysAdminSuite\SoftwareDeploy\ScanSnap\$runnerLocalName"
-    ResultUnc   = (Join-Path $RemoteRootUnc $resultName)
-    ResultLocal = "C:\ProgramData\SysAdminSuite\SoftwareDeploy\ScanSnap\$resultName"
-  }
-}
-
-function Invoke-RemoteSchtaskInstall {
-  param(
-    [string]$ResolvedName,
-    [string]$TaskName,
-    [string]$RunnerLocalPath,
-    [int]$MaxWaitSeconds,
-    [int]$PollSeconds,
-    [string]$ResultUnc
-  )
-
-  $createStatus = 'NOT_ATTEMPTED'
-  $runStatus = 'NOT_ATTEMPTED'
-  $installerResult = 'NOT_OBSERVED'
-  $detectStatus = 'NOT_OBSERVED'
-  $detail = ''
-
-  if (Test-Path -LiteralPath $ResultUnc) {
-    Remove-Item -LiteralPath $ResultUnc -Force -ErrorAction SilentlyContinue
-  }
-
-  $now = Get-Date
-  $when = if ($now.Second -ge 50) { $now.AddMinutes(2) } else { $now.AddMinutes(1) }
-  $stTime = $when.ToString('HH:mm')
-  $stDate = $when.ToString('yyyy-MM-dd')
-  $tr = "powershell.exe -NoProfile -ExecutionPolicy Bypass -WindowStyle Hidden -File `"$RunnerLocalPath`""
-
-  $create = & schtasks.exe /Create /S $ResolvedName /RU SYSTEM /SC ONCE /SD $stDate /ST $stTime /TN $TaskName /TR $tr /RL HIGHEST /F 2>&1
-  if ($LASTEXITCODE -ne 0) {
-    return @{
-      TaskCreateStatus = 'FAILED'
-      TaskRunStatus    = 'SKIPPED'
-      InstallerResult  = 'NOT_OBSERVED'
-      DetectStatus     = 'NOT_OBSERVED'
-      Detail           = "schtasks /Create failed ($LASTEXITCODE): $create"
-      ResultObject     = $null
-    }
-  }
-  $createStatus = 'CREATED'
-
-  $run = & schtasks.exe /Run /S $ResolvedName /TN $TaskName 2>&1
-  if ($LASTEXITCODE -ne 0) {
-    return @{
-      TaskCreateStatus = $createStatus
-      TaskRunStatus    = 'FAILED'
-      InstallerResult  = 'NOT_OBSERVED'
-      DetectStatus     = 'NOT_OBSERVED'
-      Detail           = "schtasks /Run failed ($LASTEXITCODE): $run"
-      ResultObject     = $null
-    }
-  }
-  $runStatus = 'STARTED'
-
-  $elapsed = 0
-  $resultObj = $null
-  while ($elapsed -lt $MaxWaitSeconds) {
-    if (Test-Path -LiteralPath $ResultUnc) {
-      try {
-        $raw = Get-Content -LiteralPath $ResultUnc -Raw -Encoding UTF8
-        $resultObj = $raw | ConvertFrom-Json
-        if ($resultObj.FinishedUtc) { break }
-      } catch {
-        # partial write; keep polling
-      }
-    }
-    Start-Sleep -Seconds $PollSeconds
-    $elapsed += $PollSeconds
-  }
-
-  if (-not $resultObj -or -not $resultObj.FinishedUtc) {
-    $detail = "Timed out after ${MaxWaitSeconds}s waiting for $ResultUnc"
-    return @{
-      TaskCreateStatus = $createStatus
-      TaskRunStatus    = 'TIMEOUT'
-      InstallerResult  = 'NOT_OBSERVED'
-      DetectStatus     = 'NOT_OBSERVED'
-      Detail           = $detail
-      ResultObject     = $resultObj
-    }
-  }
-
-  $runStatus = 'COMPLETED'
-  if ($resultObj.InstallerCompleted) {
-    $installerResult = "EXIT:$($resultObj.ExitCode)"
-  } elseif ($resultObj.Error) {
-    $installerResult = "ERROR:$($resultObj.Error)"
-  }
-
-  if ($resultObj.Detected) {
-    $detectStatus = 'DETECTED'
-  } else {
-    $detectStatus = 'NOT_DETECTED'
-  }
-
-  & schtasks.exe /Delete /S $ResolvedName /TN $TaskName /F 2>&1 | Out-Null
-
-  return @{
-    TaskCreateStatus = $createStatus
-    TaskRunStatus    = $runStatus
-    InstallerResult  = $installerResult
-    DetectStatus     = $detectStatus
-    Detail           = $detail
-    ResultObject     = $resultObj
   }
 }
 
@@ -492,6 +360,11 @@ foreach ($issue in $binding.Issues) {
   Write-SsLog "PACKAGE_ISSUE: $issue" 'WARN'
 }
 
+# Reuse repository Northwell authority — do not invent a ScanSnap-only network stack.
+$script:NetworkAuthority = Get-SasNorthwellNetworkAuthority
+Write-SsLog ("NetworkAuthority Allowed={0} Route={1} Evidence={2}" -f `
+    $script:NetworkAuthority.Allowed, $script:NetworkAuthority.Route, $script:NetworkAuthority.Evidence)
+
 $targets = Get-HostList
 Write-SsLog ("Targets: {0}" -f ($targets -join ', '))
 
@@ -499,10 +372,8 @@ $results = New-Object System.Collections.Generic.List[object]
 
 foreach ($target in $targets) {
   $resolved = Resolve-TargetName -Name $target -Suffix $DnsSuffix
-  Write-SsLog "Processing target=$target resolved=$resolved"
-
-  $access = Test-TargetAccess -ResolvedName $resolved
-  Write-SsLog ("AccessClass={0} detail={1}" -f $access.AccessClass, $access.Detail)
+  $deploymentMode = Resolve-SsDeploymentMode -Authority $script:NetworkAuthority -TargetHost $target
+  Write-SsLog "Processing target=$target resolved=$resolved mode=$deploymentMode route=$($script:NetworkAuthority.Route)"
 
   $stageStatus = 'NOT_ATTEMPTED'
   $taskCreate = 'NOT_ATTEMPTED'
@@ -510,12 +381,34 @@ foreach ($target in $targets) {
   $installerResult = 'NOT_OBSERVED'
   $detectStatus = 'NOT_OBSERVED'
   $final = 'DESIGNED'
-  $detail = $access.Detail
+  $detail = [string]$script:NetworkAuthority.Evidence
   $evidence = $script:LogCsv
+  $accessClass = 'NOT_PROBED'
+
+  # Field targets require an authorized Northwell/VPN route. Lab PTop may proceed as LAB_LOCAL.
+  if ($deploymentMode -eq 'UNKNOWN_BLOCKED') {
+    $final = 'UNKNOWN_BLOCKED'
+    $detail = ("DeploymentMode=UNKNOWN_BLOCKED Route={0}; {1}" -f $script:NetworkAuthority.Route, $script:NetworkAuthority.Evidence)
+    $results.Add((New-EvidenceRow -AdminHost $adminHost -TargetHost $target -ResolvedName $resolved `
+        -NetworkRoute ([string]$script:NetworkAuthority.Route) -DeploymentMode $deploymentMode `
+        -AuthorityAllowed ([bool]$script:NetworkAuthority.Allowed) `
+        -AccessClass $accessClass -PackageSha256 $binding.ActualSha256 `
+        -StageStatus $stageStatus -TaskCreateStatus $taskCreate -TaskRunStatus $taskRun `
+        -InstallerResult $installerResult -DetectStatus $detectStatus -FinalClass $final `
+        -Detail $detail -EvidencePath $evidence)) | Out-Null
+    continue
+  }
+
+  $access = Test-TargetAccess -ResolvedName $resolved
+  $accessClass = $access.AccessClass
+  $detail = $access.Detail
+  Write-SsLog ("AccessClass={0} detail={1}" -f $access.AccessClass, $access.Detail)
 
   if ($access.AccessClass -ne 'ADMIN_SHARE_READY') {
     $final = $access.AccessClass
     $results.Add((New-EvidenceRow -AdminHost $adminHost -TargetHost $target -ResolvedName $resolved `
+        -NetworkRoute ([string]$script:NetworkAuthority.Route) -DeploymentMode $deploymentMode `
+        -AuthorityAllowed ([bool]$script:NetworkAuthority.Allowed) `
         -AccessClass $access.AccessClass -PackageSha256 $binding.ActualSha256 `
         -StageStatus $stageStatus -TaskCreateStatus $taskCreate -TaskRunStatus $taskRun `
         -InstallerResult $installerResult -DetectStatus $detectStatus -FinalClass $final `
@@ -532,11 +425,16 @@ foreach ($target in $targets) {
     if (-not $binding.IsBound) {
       $final = 'WHATIF_PACKAGE_UNBOUND'
       $detail = ($binding.Issues -join '; ')
+    } elseif ($deploymentMode -in @('NORTHWELL_PROTECTED','NORTHWELL_VPN') -and -not (Test-SasDeploymentFqdn -ComputerName $resolved)) {
+      $final = 'WHATIF_IDENTITY_UNBOUND'
+      $detail = "Protected deployment requires one exact authorized FQDN; resolved='$resolved'."
     } else {
       $final = 'WHATIF_READY'
-      $detail = "Would stage to \\$resolved\C$\$($manifest.RemoteStageRelativePath) and run task $($manifest.TaskName)"
+      $detail = "Canonical adapter ready: exact target=$resolved; package hash and admin-share preflight passed; no target mutation performed."
     }
     $results.Add((New-EvidenceRow -AdminHost $adminHost -TargetHost $target -ResolvedName $resolved `
+        -NetworkRoute ([string]$script:NetworkAuthority.Route) -DeploymentMode $deploymentMode `
+        -AuthorityAllowed ([bool]$script:NetworkAuthority.Allowed) `
         -AccessClass $access.AccessClass -PackageSha256 $binding.ActualSha256 `
         -StageStatus $stageStatus -TaskCreateStatus $taskCreate -TaskRunStatus $taskRun `
         -InstallerResult $installerResult -DetectStatus $detectStatus -FinalClass $final `
@@ -549,6 +447,8 @@ foreach ($target in $targets) {
     $final = 'PACKAGE_UNBOUND'
     $detail = ($binding.Issues -join '; ')
     $results.Add((New-EvidenceRow -AdminHost $adminHost -TargetHost $target -ResolvedName $resolved `
+        -NetworkRoute ([string]$script:NetworkAuthority.Route) -DeploymentMode $deploymentMode `
+        -AuthorityAllowed ([bool]$script:NetworkAuthority.Allowed) `
         -AccessClass $access.AccessClass -PackageSha256 $binding.ActualSha256 `
         -StageStatus $stageStatus -TaskCreateStatus $taskCreate -TaskRunStatus $taskRun `
         -InstallerResult $installerResult -DetectStatus $detectStatus -FinalClass $final `
@@ -557,57 +457,62 @@ foreach ($target in $targets) {
   }
 
   try {
-    $stageUnc = "\\$resolved\C$\$($manifest.RemoteStageRelativePath)"
-    $progUnc = "\\$resolved\C$\$($manifest.RemoteProgramDataRelativePath)"
-    New-Item -ItemType Directory -Path $progUnc -Force | Out-Null
-
-    $stageFiles = @(
-      $manifest.InstallerFileName,
-      'package.manifest.json'
-    )
-    # copy manifest + installer into stage dir
-    Copy-Item -LiteralPath $ManifestPath -Destination (Join-Path $script:PackageRoot 'package.manifest.json') -Force -ErrorAction SilentlyContinue
-    $srcDir = $installersDir
-    # also place manifest beside installer in a staging bundle folder
-    $bundle = Join-Path $env:TEMP ("ScanSnapStage_{0}" -f $stamp)
-    New-Item -ItemType Directory -Path $bundle -Force | Out-Null
-    Copy-Item -LiteralPath $binding.InstallerPath -Destination (Join-Path $bundle $manifest.InstallerFileName) -Force
-    Copy-Item -LiteralPath $ManifestPath -Destination (Join-Path $bundle 'package.manifest.json') -Force
-
-    $rc = Invoke-RobocopyStage -SourceDir $bundle -DestDir $stageUnc -Files @($manifest.InstallerFileName, 'package.manifest.json')
-    $stageStatus = "STAGED:rc=$rc"
-    Write-SsLog "Staged to $stageUnc (rc=$rc)"
-
-    $runnerInfo = New-RemoteInstallRunner -RemoteRootUnc $progUnc `
-      -LocalInstallerName $manifest.InstallerFileName `
-      -InstallerType $manifest.Type `
-      -SilentArgs $manifest.SilentArgs `
-      -DetectType $manifest.DetectType `
-      -DetectValue $manifest.DetectValue `
-      -StageRelativeUnderC ($manifest.RemoteStageRelativePath -replace '/', '\')
-
-    $exec = Invoke-RemoteSchtaskInstall -ResolvedName $resolved -TaskName $manifest.TaskName `
-      -RunnerLocalPath $runnerInfo.RunnerLocal -MaxWaitSeconds $MaxWaitSeconds `
-      -PollSeconds $PollSeconds -ResultUnc $runnerInfo.ResultUnc
-
-    $taskCreate = $exec.TaskCreateStatus
-    $taskRun = $exec.TaskRunStatus
-    $installerResult = $exec.InstallerResult
-    $detectStatus = $exec.DetectStatus
-    $detail = $exec.Detail
-    $evidence = $runnerInfo.ResultUnc
-
-    if ($detectStatus -eq 'DETECTED') {
-      $final = 'INSTALLATION_DETECTED'
-    } elseif ($taskRun -eq 'COMPLETED' -and $detectStatus -eq 'NOT_DETECTED') {
-      $final = 'INSTALLER_DONE_NOT_DETECTED'
-    } elseif ($taskCreate -eq 'FAILED' -or $taskRun -eq 'FAILED') {
-      $final = 'TASK_FAILED'
-    } elseif ($taskRun -eq 'TIMEOUT') {
-      $final = 'TASK_TIMEOUT'
-    } else {
-      $final = 'INCOMPLETE'
+    if ($deploymentMode -in @('NORTHWELL_PROTECTED','NORTHWELL_VPN') -and -not (Test-SasDeploymentFqdn -ComputerName $resolved)) {
+      throw "Protected deployment requires one exact authorized FQDN; resolved='$resolved'."
     }
+
+    $issName = [IO.Path]::ChangeExtension([string]$manifest.InstallerFileName, '.iss')
+    $issSrc = Join-Path $installersDir $issName
+    if (-not (Test-Path -LiteralPath $issSrc -PathType Leaf)) {
+      throw "Required InstallShield response file missing before canonical staging: $issSrc"
+    }
+
+    $installerArguments = @([regex]::Matches([string]$manifest.SilentArgs, '(?:"[^"]*"|\S+)') | ForEach-Object { [string]$_.Value })
+    $validationChecks = @(
+      [pscustomobject][ordered]@{
+        id = 'scansnap-home-executable'
+        type = 'FileExists'
+        required = $true
+        path = [string]$manifest.DetectValue
+      }
+    )
+    $runId = 'software-install-{0}-{1}' -f (Get-Date -Format 'yyyyMMdd-HHmmss'), ([guid]::NewGuid().ToString('N').Substring(0, 8))
+    $safeTarget = ($resolved -replace '[^A-Za-z0-9._-]', '_')
+    $adapterRunRoot = Join-Path $logRoot ("adapter_{0}_{1}" -f $safeTarget, $runId)
+    New-Item -ItemType Directory -Path $adapterRunRoot -Force | Out-Null
+
+    $adapter = Invoke-SasSmbScheduledTaskDeployment `
+      -ComputerName $resolved `
+      -InstallerPath $binding.InstallerPath `
+      -ExpectedSourceSha256 $binding.ActualSha256 `
+      -PackageName ([string]$manifest.ProductName) `
+      -InstallerArguments $installerArguments `
+      -SupportFilePaths @($issSrc) `
+      -ValidationChecks $validationChecks `
+      -RunId $runId `
+      -LocalRunRoot $adapterRunRoot `
+      -ResultTimeoutSeconds $MaxWaitSeconds `
+      -InstallerTimeoutSeconds ([Math]::Max($MaxWaitSeconds, 600))
+
+    $adapterEvidence = Join-Path $adapterRunRoot 'scansnap-adapter-result.json'
+    $adapter | ConvertTo-Json -Depth 24 | Set-Content -LiteralPath $adapterEvidence -Encoding UTF8
+    $evidence = $adapterEvidence
+    $stageStatus = if ([bool]$adapter.hashes_verified) { 'STAGED_HASH_VERIFIED' } elseif ([bool]$adapter.target_mutation_performed) { 'STAGING_ATTEMPTED' } else { 'NOT_STAGED' }
+    $taskCreate = if ([bool]$adapter.task.created) { 'CREATED' } elseif ([bool]$adapter.task.create_attempted) { 'FAILED' } else { 'NOT_ATTEMPTED' }
+    $taskRun = if ([bool]$adapter.result_retrieval.succeeded) { 'COMPLETED' } elseif ([bool]$adapter.task.started) { 'STARTED_NO_RESULT' } elseif ([bool]$adapter.task.run_attempted) { 'FAILED' } else { 'NOT_ATTEMPTED' }
+    $installerResult = if ($null -ne $adapter.execution.installer_exit_code) { "EXIT:$($adapter.execution.installer_exit_code)" } elseif ($adapter.error) { "ERROR:$($adapter.error)" } else { 'NOT_OBSERVED' }
+    $detectStatus = if ([bool]$adapter.validation.before_payload_cleanup_succeeded -and [bool]$adapter.validation.after_payload_cleanup_succeeded) { 'DETECTED' } else { 'NOT_DETECTED' }
+
+    $canonicalFinal = if ([string]$adapter.status -eq 'failed_before_staging') {
+      'FAILED_BEFORE_STAGING'
+    } else {
+      Resolve-SasSmbDeploymentFinalizationStatus -Result $adapter
+    }
+    $final = if ($canonicalFinal -eq 'COMPLETED_VALIDATED_FINALIZED') { 'INSTALLATION_DETECTED' } else { $canonicalFinal }
+    $cleanupVerified = (-not [bool]$adapter.cleanup.task_remaining -and -not [bool]$adapter.cleanup.run_root_remaining)
+    $detail = if ($adapter.error) { [string]$adapter.error } else { "canonical_status=$($adapter.status); finalization=$canonicalFinal; cleanup_verified=$cleanupVerified" }
+    Write-SsLog "Canonical adapter target=$resolved status=$($adapter.status) finalization=$canonicalFinal evidence=$adapterEvidence"
+
   } catch {
     $final = 'ERROR'
     $detail = $_.Exception.Message
@@ -615,6 +520,8 @@ foreach ($target in $targets) {
   }
 
   $results.Add((New-EvidenceRow -AdminHost $adminHost -TargetHost $target -ResolvedName $resolved `
+      -NetworkRoute ([string]$script:NetworkAuthority.Route) -DeploymentMode $deploymentMode `
+      -AuthorityAllowed ([bool]$script:NetworkAuthority.Allowed) `
       -AccessClass $access.AccessClass -PackageSha256 $binding.ActualSha256 `
       -StageStatus $stageStatus -TaskCreateStatus $taskCreate -TaskRunStatus $taskRun `
       -InstallerResult $installerResult -DetectStatus $detectStatus -FinalClass $final `
@@ -625,14 +532,15 @@ $results | Export-Csv -Path $script:LogCsv -NoTypeInformation -Encoding UTF8
 Write-SsLog "Wrote CSV evidence: $script:LogCsv"
 Write-SsLog "Wrote text log: $script:LogTxt"
 
-$results | Format-Table TargetHost, AccessClass, StageStatus, TaskCreateStatus, TaskRunStatus, DetectStatus, FinalClass -AutoSize | Out-String | Write-Host
+$results | Format-Table TargetHost, DeploymentMode, NetworkRoute, AccessClass, StageStatus, TaskCreateStatus, TaskRunStatus, DetectStatus, FinalClass -AutoSize | Out-String | Write-Host
 
 # Exit codes: 0 all good/whatif classified; 2 package unbound blocking live; 3 access failures; 1 hard error mix
 $failedAccess = @($results | Where-Object { $_.AccessClass -in @('RESOLVE_FAILED', 'UNREACHABLE', 'ACCESS_DENIED', 'AUTH_DC_UNAVAILABLE', 'LOGON_FAILURE') })
+$blockedMode = @($results | Where-Object { $_.FinalClass -eq 'UNKNOWN_BLOCKED' })
 $unbound = @($results | Where-Object { $_.FinalClass -in @('PACKAGE_UNBOUND', 'WHATIF_PACKAGE_UNBOUND') })
 $installOk = @($results | Where-Object { $_.FinalClass -eq 'INSTALLATION_DETECTED' -or $_.FinalClass -eq 'WHATIF_READY' })
 
 if (-not $script:SsWhatIf -and $unbound.Count -gt 0) { exit 2 }
-if ($failedAccess.Count -eq $results.Count) { exit 3 }
+if (($failedAccess.Count + $blockedMode.Count) -eq $results.Count -and $results.Count -gt 0) { exit 3 }
 if (($results.Count -gt 0) -and ($installOk.Count -eq 0) -and -not $script:SsWhatIf) { exit 1 }
 exit 0
