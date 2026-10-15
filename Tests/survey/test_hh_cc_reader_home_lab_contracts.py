@@ -66,6 +66,10 @@ def main() -> int:
     ):
         assert marker in checkpoint_cmd + checkpoint_ps, f"checkpoint missing marker: {marker}"
 
+    for mac_script in (checkpoint_ps, discover_ps):
+        assert "-replace '[^0-9A-Fa-f]'" not in mac_script
+        assert "ExpectedMac must use colon-delimited, hyphen-delimited, or compact 12-hex format." in mac_script
+
     for marker in (
         "AUTHORIZED_CONSUMER_LAB",
         "Get-NetRoute",
@@ -75,6 +79,7 @@ def main() -> int:
         "HOME_LAB_SCOPE_TOO_LARGE",
         "same_oui_candidates",
         "Invoke-SasHhCcReaderProbe.ps1",
+        "-NetworkEnvironment CONSUMER_LAB",
         "BOUNDED_LOCAL_DISCOVERY_EXACT_MAC",
         "CONFIRM_CONSUMER_LAB",
         "SEALED_RUNTIME_REQUIRED",

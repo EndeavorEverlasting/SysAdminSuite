@@ -29,12 +29,19 @@ $ErrorActionPreference = 'Stop'
 
 function ConvertTo-SasNormalizedMac {
     param([AllowNull()][string]$Value)
+
     if ([string]::IsNullOrWhiteSpace($Value)) { return $null }
-    $hex = ($Value -replace '[^0-9A-Fa-f]', '').ToUpperInvariant()
-    if ($hex.Length -ne 12) { throw 'ExpectedMac must contain exactly 12 hexadecimal digits.' }
+    $text = $Value.Trim()
+    if ($text -match '^(?:[0-9A-Fa-f]{2}:){5}[0-9A-Fa-f]{2}$' -or
+        $text -match '^(?:[0-9A-Fa-f]{2}-){5}[0-9A-Fa-f]{2}$') {
+        $hex = ($text -replace '[:-]', '').ToUpperInvariant()
+    } elseif ($text -match '^[0-9A-Fa-f]{12}$') {
+        $hex = $text.ToUpperInvariant()
+    } else {
+        throw 'ExpectedMac must use colon-delimited, hyphen-delimited, or compact 12-hex format.'
+    }
     return (($hex -split '(.{2})' | Where-Object { $_ }) -join '-')
 }
-
 function Test-SasPrivateIPv4 {
     param([Parameter(Mandatory=$true)][System.Net.IPAddress]$Address)
     $b = $Address.GetAddressBytes()
@@ -312,7 +319,7 @@ if ($targetIp) {
 
     Write-Host ("READER_IPV4={0}" -f $targetIp)
     Write-Host 'Exact MAC match recovered; invoking the existing canonical reader probe from the sealed runtime.'
-    & powershell.exe -NoLogo -NoProfile -ExecutionPolicy Bypass -File $probe -IPAddress $targetIp -ExpectedMac $normalizedExpectedMac
+    & powershell.exe -NoLogo -NoProfile -ExecutionPolicy Bypass -File $probe -IPAddress $targetIp -ExpectedMac $normalizedExpectedMac -NetworkEnvironment CONSUMER_LAB
     $probeExit = [int]$LASTEXITCODE
     $probeClassification = if ($probeExit -eq 0) { 'READ_ONLY_PROBE_COMPLETE' } else { 'PROBE_BLOCKED_OR_FAILED' }
     $classification = if ($probeExit -eq 0) {
