@@ -1,0 +1,44 @@
+name: HH CC Reader REA Offline Bridge Contracts
+
+permissions:
+  contents: read
+
+on:
+  pull_request:
+    paths:
+      - 'harness/api/hh_cc_reader_rea_bridge.py'
+      - 'harness/api/hh_cc_reader_firmware_source_portability.py'
+      - 'Evaluate-HHCCReaderReaArtifact.cmd'
+      - 'Tests/survey/test_hh_cc_reader_rea_bridge_contracts.py'
+      - 'docs/HH_CC_READER_REA_ARTIFACT_BRIDGE.md'
+      - '.github/workflows/hh-cc-reader-rea-bridge.yml'
+  push:
+    branches: [main, 'feat/**']
+    paths:
+      - 'harness/api/hh_cc_reader_rea_bridge.py'
+      - 'harness/api/hh_cc_reader_firmware_source_portability.py'
+      - 'Evaluate-HHCCReaderReaArtifact.cmd'
+      - 'Tests/survey/test_hh_cc_reader_rea_bridge_contracts.py'
+      - '.github/workflows/hh-cc-reader-rea-bridge.yml'
+  workflow_dispatch:
+
+jobs:
+  offline-contracts:
+    strategy:
+      fail-fast: false
+      matrix:
+        os: [ubuntu-latest, windows-latest]
+    runs-on: ${{ matrix.os }}
+    steps:
+      - uses: actions/checkout@v4
+        with:
+          persist-credentials: false
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+      - name: Compile offline REA bridge
+        run: python -m py_compile harness/api/hh_cc_reader_rea_bridge.py Tests/survey/test_hh_cc_reader_rea_bridge_contracts.py
+      - name: Existing source/portability regressions
+        run: python Tests/survey/test_hh_cc_reader_firmware_source_portability_contracts.py
+      - name: REA bridge positive and negative fixture contracts
+        run: python Tests/survey/test_hh_cc_reader_rea_bridge_contracts.py
