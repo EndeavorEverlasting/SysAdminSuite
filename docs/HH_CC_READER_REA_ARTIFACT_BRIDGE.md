@@ -17,7 +17,7 @@
 - `harness/api/hh_cc_reader_firmware_source_portability.py` supplies artifact class and clone-exclusion assessment. This adapter consumes that established logic, not a new independent trust system.
 - `harness/api/hh_cc_reader_version_domain.py` and `harness/api/hh_cc_reader_firmware_roundtrip.py` still own the subsequent domain/baseline/restore gates. An APK **does not** become firmware because REA can inspect it.
 - Output always states `mutation_authorized=false`, `deployment_ready=false`, and `firmware_extracted_from_reader=false`. Even a successful REA result neither proves a vendor signature nor authorizes deployment.
-- Do not check in private manifests, serials, IP/MAC/TID, artifacts, REA output or receipts. REA and extracted outputs must stay in private local directories.
+- Do not check in private manifests, serials, IP/MAC/TID, artifacts, REA output or receipts. REA and extracted outputs must stay in private local directories. On Windows, an npm-provided `.cmd`/ `.bat` REA shim is not auto-executed by the Python bridge because shell-based private path forwarding has not been qualified; it emits `REA_SHELL_SHIM_NOT_QUALIFIED`. Local Windows APK analysis remains available once an independently verified direct executable/entrypoint is integrated.
 
 ## Operator artifact manifest (private, example)
 
