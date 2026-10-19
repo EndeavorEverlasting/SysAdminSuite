@@ -34,7 +34,9 @@
       "name": "DEFERRED_LOGON_TASK",
       "implementation": "mapping/SessionFallback/Stage-NorthwellPrinterSession.ps1 -Mode Task",
       "status": "implemented_uncertified",
-      "success_requires": "two sequential standard-user login HKCU proofs; installed logon task remains active"
+      "success_requires": "two sequential standard-user login HKCU proofs; installed logon task remains active",
+      "alternate_implementation": "mapping/SessionFallback/Stage-NorthwellPrinterSession.ps1 -Mode TaskShareless",
+      "alternate_proof": "C$-independent Task Scheduler registration only; post-logon per-user HKU observation required"
     },
     {
       "id": "M5",
