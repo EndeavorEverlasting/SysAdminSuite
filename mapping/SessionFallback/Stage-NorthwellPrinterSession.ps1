@@ -198,7 +198,7 @@ if ($Mode -in @('Status','Remove')) {
     } else { $null }
     if ($Mode -eq 'Status') {
         [pscustomobject]@{
-            Result=if ($null -eq $existing) {'NOT_STAGED'} else {'STAGED_NOT_LIVE_CERTIFIED'}
+            Result=if (Test-Path -LiteralPath (Join-Path $remoteRoot 'one-shot-cleanup.v1.json')) {'ONESHOT_CLEANED'} elseif ($null -ne $existing -or $null -ne (Get-SasTaskOrNull -Folder $folder -Name $sharelessTask)) {'STAGED_NOT_LIVE_CERTIFIED'} else {'NOT_STAGED'}
             Computer=$ComputerName
             Mode=if ($null -eq $existing) {$null} else {$existing.StageMode}
             DurableTask=($null -ne (Get-SasTaskOrNull -Folder $folder -Name $normalTask))
@@ -241,16 +241,13 @@ if ($Mode -eq 'TaskShareless') {
 }
 if (-not $Apply) { throw 'Staging requires explicit -Apply after reviewing the above plan.' }
 if (Test-Path -LiteralPath $remoteConfig -PathType Leaf) { throw 'Existing fallback staged; inspect or Remove explicitly instead of overwriting.' }
-if (-not (Test-Path -LiteralPath $remoteRoot -PathType Container)) {
-    New-Item -Path $remoteRoot -ItemType Directory -Force -ErrorAction Stop | Out-Null
-}
 if ($Mode -eq 'Persistent' -and $ApprovalTicket -cnotmatch '^[A-Za-z0-9][A-Za-z0-9._-]{2,79}$') {
     throw 'Persistent fallback requires a client-approved alphanumeric exception ID (3-80 characters).'
 }
-if ($Mode -eq 'Persistent' -and [string]::IsNullOrWhiteSpace($ApprovalTicket)) {
-    throw 'Persistent Common Startup requires a client-approved exception reference (-ApprovalTicket).'
-}
 $startup = if ($Mode -in @('OneShot','Persistent')) { Get-SasKnownCommonStartup } else { $null }
+if (-not (Test-Path -LiteralPath $remoteRoot -PathType Container)) {
+    New-Item -Path $remoteRoot -ItemType Directory -Force -ErrorAction Stop | Out-Null
+}
 $startupTarget = if ($null -eq $startup) { $null } else { Join-Path $startup.TargetPath $startupName }
 $line = '@echo off' + [Environment]::NewLine +
     '"C:\Windows\System32\WindowsPowerShell\v1.0\powershell.exe" -NoLogo -NoProfile -File "' +
