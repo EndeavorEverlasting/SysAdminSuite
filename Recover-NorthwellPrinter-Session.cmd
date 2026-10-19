@@ -66,6 +66,7 @@ echo 2. One-shot Common Startup bridge, emergency only
 echo 3. Inspect staged recovery for a workstation
 echo 4. Retire owned recovery artifacts
 echo 5. Persistent Startup, client-approved exception only
+echo 6. Durable shareless logon task when C$ staging is denied
 echo.
 echo Existing SYSTEM machine registration MUST be proven first.
 echo This workflow never changes printer drivers or domain policies.
@@ -78,6 +79,7 @@ if "%SAS_MODE%"=="2" set "SAS_ACTION=OneShot"
 if "%SAS_MODE%"=="3" set "SAS_ACTION=Status"
 if "%SAS_MODE%"=="4" set "SAS_ACTION=Remove"
 if "%SAS_MODE%"=="5" set "SAS_ACTION=Persistent"
+if "%SAS_MODE%"=="6" set "SAS_ACTION=TaskShareless"
 if not defined SAS_ACTION (
   echo No mode selected; no action taken.
   pause
