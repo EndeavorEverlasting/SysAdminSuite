@@ -96,12 +96,20 @@ if "%SAS_MODE%"=="3" goto status
 if "%SAS_MODE%"=="4" goto remove
 set "SAS_EXTRA="
 if "%SAS_MODE%"=="5" (
-  echo LAST-RESORT MODE: approved client exception is mandatory.
+  echo LAST-RESORT MODE: a client-approved exception is mandatory.
   set "SAS_TICKET="
   set /p "SAS_TICKET=Client approval ticket ID: "
-  "%SAS_PS%" -NoLogo -NoProfile -Command "if ($env:SAS_TICKET -cmatch '^[A-Za-z0-9][A-Za-z0-9._-]{2,79}
-  echo ERROR: Current canonical machine-wide evidence pointer is missing.
-  echo Use the current runtime mapping command first; preserve its evidence.
+  "%SAS_PS%" -NoLogo -NoProfile -Command "if ($env:SAS_TICKET -cmatch '^[A-Za-z0-9][A-Za-z0-9._-]{2,79}$') {exit 0} else {exit 1}"
+  if not "!ERRORLEVEL!"=="0" (
+    echo BLOCKED: absent or invalid approval ID.
+    pause
+    exit /b 2
+  )
+  set "SAS_EXTRA=-ApprovalTicket !SAS_TICKET!"
+)
+if not defined SAS_EVIDENCE (
+  echo BLOCKED: current canonical machine-wide evidence pointer missing.
+  echo Map the workstation using the trusted current runtime first.
   pause
   exit /b 2
 )
@@ -109,17 +117,17 @@ echo.
 echo Read-only preflight for exact target and canonical evidence:
 "%SAS_PS%" -NoLogo -NoProfile -File "%SAS_STAGE%" -Mode %SAS_ACTION% -ComputerName "%SAS_HOST%" -EvidenceRoot "%SAS_EVIDENCE%" !SAS_EXTRA! -Plan
 if not "%ERRORLEVEL%"=="0" (
-  echo BLOCKED: the evidence or target is invalid. No fallback was staged.
+  echo BLOCKED: invalid M0 evidence or target. No fallback staged.
   pause
   exit /b 2
 )
 echo.
-echo Only proceed after observing that the intended STANDARD USER cannot
+echo Only proceed after observing an approved STANDARD USER fail to
 echo see the printer after a real sign-out and sign-in.
 set "SAS_CONFIRM="
 set /p "SAS_CONFIRM=Type APPLY to stage %SAS_ACTION% for %SAS_HOST%: "
 if not "!SAS_CONFIRM!"=="APPLY" (
-  echo CANCELLED.
+  echo CANCELLED. No fallback was staged.
   pause
   exit /b 3
 )
@@ -127,10 +135,10 @@ if not "!SAS_CONFIRM!"=="APPLY" (
 set "SAS_EXIT=!ERRORLEVEL!"
 echo.
 if "!SAS_EXIT!"=="0" (
-  echo STAGED - NOT FIELD CERTIFIED. Log on as an approved standard user
-  echo and verify its HKCU printer connection / local evidence.
+  echo STAGED - NOT LIVE CERTIFIED. Log on as an approved standard user.
+  echo Check HKCU connection and %%LOCALAPPDATA%%\SysAdminSuite\Printer receipt.
 ) else (
-  echo RECOVERY NOT COMPLETE. Preserve the console error and inspect state.
+  echo RECOVERY NOT COMPLETE. Preserve error and inspect Status.
 )
 pause
 exit /b !SAS_EXIT!
@@ -143,65 +151,7 @@ exit /b %SAS_EXIT%
 
 :remove
 set "SAS_CONFIRM="
-set /p "SAS_CONFIRM=Type RETIRE to remove only SysAdminSuite-owned fallback artifacts: "
-if not "%SAS_CONFIRM%"=="RETIRE" exit /b 3
-"%SAS_PS%" -NoLogo -NoProfile -File "%SAS_STAGE%" -Mode Remove -ComputerName "%SAS_HOST%" -Apply
-set "SAS_EXIT=%ERRORLEVEL%"
-pause
-exit /b %SAS_EXIT%
-) {exit 0} else {exit 1}"
-  if not "!ERRORLEVEL!"=="0" (
-    echo BLOCKED: absent/invalid approval ID.
-    pause
-    exit /b 2
-  )
-  set "SAS_EXTRA=-ApprovalTicket !SAS_TICKET!"
-)
-if not defined SAS_EVIDENCE (
-  echo ERROR: Current canonical machine-wide evidence pointer is missing.
-  echo Use the current runtime mapping command first; preserve its evidence.
-  pause
-  exit /b 2
-)
-echo.
-echo Read-only preflight for exact target and canonical evidence:
-"%SAS_PS%" -NoLogo -NoProfile -File "%SAS_STAGE%" -Mode %SAS_ACTION% -ComputerName "%SAS_HOST%" -EvidenceRoot "%SAS_EVIDENCE%" -Plan
-if not "%ERRORLEVEL%"=="0" (
-  echo BLOCKED: the evidence or target is invalid. No fallback was staged.
-  pause
-  exit /b 2
-)
-echo.
-echo Only proceed after observing that the intended STANDARD USER cannot
-echo see the printer after a real sign-out and sign-in.
-set "SAS_CONFIRM="
-set /p "SAS_CONFIRM=Type APPLY to stage %SAS_ACTION% for %SAS_HOST%: "
-if not "!SAS_CONFIRM!"=="APPLY" (
-  echo CANCELLED.
-  pause
-  exit /b 3
-)
-"%SAS_PS%" -NoLogo -NoProfile -File "%SAS_STAGE%" -Mode %SAS_ACTION% -ComputerName "%SAS_HOST%" -EvidenceRoot "%SAS_EVIDENCE%" -Apply
-set "SAS_EXIT=!ERRORLEVEL!"
-echo.
-if "!SAS_EXIT!"=="0" (
-  echo STAGED - NOT FIELD CERTIFIED. Log on as an approved standard user
-  echo and verify its HKCU printer connection / local evidence.
-) else (
-  echo RECOVERY NOT COMPLETE. Preserve the console error and inspect state.
-)
-pause
-exit /b !SAS_EXIT!
-
-:status
-"%SAS_PS%" -NoLogo -NoProfile -File "%SAS_STAGE%" -Mode Status -ComputerName "%SAS_HOST%"
-set "SAS_EXIT=%ERRORLEVEL%"
-pause
-exit /b %SAS_EXIT%
-
-:remove
-set "SAS_CONFIRM="
-set /p "SAS_CONFIRM=Type RETIRE to remove only SysAdminSuite-owned fallback artifacts: "
+set /p "SAS_CONFIRM=Type RETIRE to remove only owned fallback artifacts: "
 if not "%SAS_CONFIRM%"=="RETIRE" exit /b 3
 "%SAS_PS%" -NoLogo -NoProfile -File "%SAS_STAGE%" -Mode Remove -ComputerName "%SAS_HOST%" -Apply
 set "SAS_EXIT=%ERRORLEVEL%"
