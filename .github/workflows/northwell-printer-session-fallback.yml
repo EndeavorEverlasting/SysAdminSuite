@@ -1,0 +1,49 @@
+name: Northwell Printer Session Fallback Contracts
+on:
+  pull_request:
+    paths:
+      - 'mapping/SessionFallback/**'
+      - 'Recover-NorthwellPrinter-Session.cmd'
+      - 'harness/api/northwell-printer-session-fallback-modes.v1.json'
+      - 'Tests/survey/test_northwell_printer_session_fallback_contracts.py'
+      - 'docs/field/NORTHWELL-PRINTER-DOWNLOAD.html'
+      - '.github/workflows/northwell-printer-session-fallback.yml'
+  push:
+    branches: [main]
+    paths:
+      - 'mapping/SessionFallback/**'
+      - 'Recover-NorthwellPrinter-Session.cmd'
+      - 'harness/api/northwell-printer-session-fallback-modes.v1.json'
+      - 'Tests/survey/test_northwell_printer_session_fallback_contracts.py'
+      - 'docs/field/NORTHWELL-PRINTER-DOWNLOAD.html'
+      - '.github/workflows/northwell-printer-session-fallback.yml'
+jobs:
+  offline-windows-contracts:
+    runs-on: windows-latest
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.13'
+      - name: PowerShell 5.1 parser (no endpoint mutation)
+        shell: powershell
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $scripts = @(
+            'mapping/SessionFallback/Invoke-NorthwellPrinterSession.ps1',
+            'mapping/SessionFallback/Stage-NorthwellPrinterSession.ps1'
+          )
+          foreach ($path in $scripts) {
+            $tokens = $null
+            $errors = $null
+            [void][System.Management.Automation.Language.Parser]::ParseFile((Resolve-Path $path), [ref]$tokens, [ref]$errors)
+            if ($errors.Count -gt 0) {
+              $errors | Format-List | Out-String | Write-Host
+              throw "Windows PowerShell 5.1 parse failure: $path"
+            }
+          }
+      - name: Offline session fallback safety contracts
+        shell: pwsh
+        run: python -m unittest discover -s Tests/survey -p test_northwell_printer_session_fallback_contracts.py -v

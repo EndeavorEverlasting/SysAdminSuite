@@ -36,6 +36,14 @@ A machine-wide success with no active logged-on user can finish as `RESULT: READ
 
 If the mapper fails, **do not remap blindly**. Preserve the displayed error and evidence locations for diagnosis.
 
+## Standard-user visibility after technician logout (new recovery tooling)
+
+A successful SYSTEM /ga mapping or `READY NEXT LOGON` is **not** proof that a subsequent standard user can see the queue. Observe the first standard-user login. If the approved queue is absent, open **`Recover-NorthwellPrinter-Session.cmd`** from a current installed field launcher or repository runtime. It performs current-origin bootstrap proof, resolves the latest canonical run evidence, previews the exact host-to-queue assignment and requires `APPLY` before staging. Do not repeat the original mapping blindly.
+
+Recovery modes: **1** Task Scheduler group-logon durable per-user materializer; **2** Common Startup one-shot, followed by SYSTEM cleanup after matching HKU proof; **5** persistent Common Startup only with an explicit client-approved exception ticket; **6** shareless durable group-logon task (no C$ payload) for otherwise eligible protected hosts. **3** inspects, **4** retires owned artifacts. The one-shot is a bridge, not durable coverage of every future user. Current fallback implementation is **not field-certified** until P08 proves an actual approved standard-user login. Endpoint runner writes its current-user proof under `%LOCALAPPDATA%\SysAdminSuite\Printer\latest-printer-session.json`.
+
+For technician download instructions open [the printer field kit page](docs/field/NORTHWELL-PRINTER-DOWNLOAD.html). A browser cannot silently run a downloaded CMD; organizational package controls and UAC remain in force. See [issue #548](https://github.com/EndeavorEverlasting/SysAdminSuite/issues/548).
+
 ## Northwell contract
 
 - **System-wide / per-computer mapping.** These PCs may have multiple users.

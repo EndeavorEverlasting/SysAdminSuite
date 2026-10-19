@@ -1,0 +1,61 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1">
+<title>SysAdminSuite | Northwell Printer Field Kit</title>
+<style>
+:root {color-scheme:dark; font: 16px/1.5 system-ui,"Segoe UI",sans-serif}
+body {background:#0d1220;color:#f3f6fc;margin:0}
+main {max-width:890px;margin:auto;padding:42px 24px}
+h1 {font-size:clamp(2rem,4vw,3rem);letter-spacing:-.04em;line-height:1.08}
+header p {color:#b9c8dd;max-width:680px}
+section {background:#171f32;padding:24px;border:1px solid #344056;border-radius:16px;margin:18px 0}
+h2 {margin:0 0 10px;font-size:1.25rem}
+small,.muted {color:#bbc9da}
+a {color:#b5d5ff}
+a.primary {display:inline-block;padding:13px 18px;background:#b4d9ff;color:#0a203d;text-decoration:none;border-radius:10px;font-weight:700;margin:8px 10px 8px 0}
+code {background:#293850;border-radius:5px;padding:2px 5px;overflow-wrap:anywhere}
+ol li {margin:.7em 0}
+.status {font-weight:700;color:#f8d48c}
+</style>
+</head>
+<body><main>
+<header>
+<p class="muted">SYSADMINSUITE / APPROVED NORTHWELL SHARED-PRINTER WORKFLOW</p>
+<h1>Printer mapping, with a standard-user recovery path.</h1>
+<p>One download. Two technician CMD launchers. No copying terminal commands from an agent.</p>
+<p class="status">Deployment notice: the new standard-user fallback is implemented but not yet field-certified. Do not label a printer READY until the intended user sees the queue after login.</p>
+</header>
+<section>
+<h2>1. Download the current repository package</h2>
+<p>On an approved admin workstation with access to the trusted repository, obtain the current source package. Your organization's approved, checksum-verified field release takes precedence. The moving-main ZIP is source distribution, not a signed/approved enterprise installer.</p>
+<a class="primary" href="https://github.com/EndeavorEverlasting/SysAdminSuite/archive/refs/heads/main.zip">Download SysAdminSuite ZIP</a>
+<a href="https://github.com/EndeavorEverlasting/SysAdminSuite/releases">Release packages &amp; checksums</a>
+<p class="muted">Extract the complete ZIP before opening a CMD. A standalone CMD without sibling dependencies must refuse to run. If Smart App Control or security policy blocks the package, use your organization's approved signed deployment route; do not disable protections.</p>
+</section>
+<section>
+<h2>2. Map approved shared printers</h2>
+<ol>
+<li>Connect to approved Northwell hardwire, WAB or authenticated VPN.</li>
+<li>Open <code>Map-NorthwellPrinter.cmd</code> for one or several targets, or <code>Map-NorthwellPrinters-FromFile.cmd</code> for an approved assignment batch.</li>
+<li>Review the exact host and shared queue plan, then approve it. Preserve the run evidence.</li>
+<li>Log out of the privileged technician account and log into an approved standard-user session to verify actual printer visibility.</li>
+</ol>
+</section>
+<section>
+<h2>3. If the standard user cannot see the queue</h2>
+<ol>
+<li>Open <code>Recover-NorthwellPrinter-Session.cmd</code> from the current trusted runtime/source folder after canonical SYSTEM/HKLM mapping proof exists.</li>
+<li>Select <b>1: durable per-user logon task</b> for future users, or <b>2: one-shot Common Startup</b> as the bounded emergency bridge.</li>
+<li>Enter the approved workstation hostname, inspect the read-only preflight and type <code>APPLY</code> only after observing the failure. No guessed printer/IP mapping is permitted.</li>
+<li>Log in as the standard user and confirm the queue is present. User receipts are written to <code>%LOCALAPPDATA%\SysAdminSuite\Printer\latest-printer-session.json</code>.</li>
+<li>One-shot cleanup is performed by an owned privileged scheduled task only after proof; if it cannot verify/clean, recovery is incomplete. One-shot alone does not guarantee future users.</li>
+</ol>
+</section>
+<section>
+<h2>4. Inspect, repair or retire</h2>
+<p>Use the same recovery CMD's <b>Status</b> or <b>Retire</b> choice. The tool removes only its owned helper/task artifacts after explicit confirmation. Preserve canonical mapping evidence and do not repeat failing mapping blindly.</p>
+<p class="muted">No website can silently execute a downloaded CMD in a browser. Windows/UAC and your organization's policy remain the execution gate. Support and governing source: <a href="https://github.com/EndeavorEverlasting/SysAdminSuite/issues/548">deployment issue #548</a>.</p>
+</section>
+</main></body></html>

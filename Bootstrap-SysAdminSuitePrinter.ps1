@@ -19,7 +19,8 @@ param(
     [string]$CacheRoot,
     [ValidateSet('Quick','File')][string]$Mode = 'Quick',
     [switch]$NoLaunch,
-    [switch]$UseLocalRuntimeOnly
+    [switch]$UseLocalRuntimeOnly,
+    [string]$OutputRuntimePath
 )
 
 Set-StrictMode -Version 2.0
@@ -426,6 +427,13 @@ Write-Host ("State root: {0}" -f $stateRoot)
 Write-Host 'Current directory and dirty operator checkouts are not repository authority.' -ForegroundColor DarkGray
 
 if ($NoLaunch) {
+    if (-not [string]::IsNullOrWhiteSpace($OutputRuntimePath)) {
+        $receiptFile = [IO.Path]::GetFullPath($OutputRuntimePath)
+        $receiptParent = Split-Path -Parent $receiptFile
+        if (-not (Test-Path -LiteralPath $receiptParent -PathType Container)) { throw 'Requested output receipt directory does not exist.' }
+        # Exact runner output, not a guessed latest-runtime pointer from another state root.
+        [IO.File]::WriteAllText($receiptFile, [string]$runtimeRoot, [Text.Encoding]::ASCII)
+    }
     Write-Host 'PASS: printer runtime resolved; launcher not executed (-NoLaunch).' -ForegroundColor Green
     exit 0
 }

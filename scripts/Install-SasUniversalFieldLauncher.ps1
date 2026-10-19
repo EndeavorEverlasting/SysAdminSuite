@@ -15,6 +15,7 @@ $sourceNetworkGuard = Join-Path $repoRoot 'scripts\SasNetworkGuard.psm1'
 $sourceBoundedNative = Join-Path $repoRoot 'scripts\SasBoundedNative.psm1'
 $sourcePrinterBootstrap = Join-Path $repoRoot 'Bootstrap-SysAdminSuitePrinter.ps1'
 $sourcePrinterTechnicianCmd = Join-Path $repoRoot 'Map-NorthwellPrinter.cmd'
+$sourcePrinterRecoveryCmd = Join-Path $repoRoot 'Recover-NorthwellPrinter-Session.cmd'
 $sourceMachineInfoRunner = Join-Path $repoRoot 'scripts\Invoke-SasMachineInfo.ps1'
 $sourceMachineInfoCore = Join-Path $repoRoot 'GetInfo\Get-MachineInfo.ps1'
 $sourceMachineInfoHtmlHelper = Join-Path $repoRoot 'tools\ConvertTo-SuiteHtml.ps1'
@@ -31,6 +32,7 @@ foreach ($required in @(
     [void][System.Management.Automation.Language.Parser]::ParseFile($required,[ref]$tokens,[ref]$errors)
     if (@($errors).Count -gt 0) { throw "PowerShell parse failure: $required :: $($errors[0].Message)" }
 }
+if (-not (Test-Path -LiteralPath $sourcePrinterRecoveryCmd -PathType Leaf)) { throw "Required printer recovery CMD missing: $sourcePrinterRecoveryCmd" }
 if (-not (Test-Path -LiteralPath $sourcePrinterTechnicianCmd -PathType Leaf)) {
     throw "Required technician printer CMD missing: $sourcePrinterTechnicianCmd"
 }
@@ -120,6 +122,7 @@ $platformDestination = Join-Path $installRoot 'SasFieldPlatform.psm1'
 $networkIntentDestination = Join-Path $installRoot 'SasNetworkIntent.psm1'
 $printerBootstrapDestination = Join-Path $installRoot 'Bootstrap-SysAdminSuitePrinter.ps1'
 $printerTechnicianCmdDestination = Join-Path $installRoot 'Map-NorthwellPrinter.cmd'
+$printerRecoveryCmdDestination = Join-Path $installRoot 'Recover-NorthwellPrinter-Session.cmd'
 $machineInfoRunnerDestination = Join-Path $installRoot 'Invoke-SasMachineInfo.ps1'
 $machineInfoCoreDestination = Join-Path $installedGetInfoRoot 'Get-MachineInfo.ps1'
 $machineInfoHtmlHelperDestination = Join-Path $installedToolsRoot 'ConvertTo-SuiteHtml.ps1'
@@ -131,6 +134,7 @@ Copy-Item -LiteralPath $sourcePlatform -Destination $platformDestination -Force
 Copy-Item -LiteralPath $sourceNetworkIntent -Destination $networkIntentDestination -Force
 Copy-Item -LiteralPath $sourcePrinterBootstrap -Destination $printerBootstrapDestination -Force
 Copy-Item -LiteralPath $sourcePrinterTechnicianCmd -Destination $printerTechnicianCmdDestination -Force
+Copy-Item -LiteralPath $sourcePrinterRecoveryCmd -Destination $printerRecoveryCmdDestination -Force
 Copy-Item -LiteralPath $sourceMachineInfoRunner -Destination $machineInfoRunnerDestination -Force
 Copy-Item -LiteralPath $sourceMachineInfoCore -Destination $machineInfoCoreDestination -Force
 Copy-Item -LiteralPath $sourceMachineInfoHtmlHelper -Destination $machineInfoHtmlHelperDestination -Force
@@ -191,6 +195,7 @@ Write-Host "Machine info runner: $machineInfoRunnerDestination"
 Write-Host "Machine info collector: $machineInfoCoreDestination"
 Write-Host "Machine info HTML helper: $machineInfoHtmlHelperDestination"
 Write-Host "Printer technician CMD: $printerTechnicianCmdDestination"
+Write-Host "Printer recovery CMD: $printerRecoveryCmdDestination"
 Write-Host "Printer bootstrap: $printerBootstrapDestination"
 Write-Host 'Execution resolution: trusted installed shim -> network canary/intent -> validated universal field dispatcher.'
 Write-Host 'Protected network authority: hardwire OR NSLIJHS-WAB OR authenticated DomainAuthenticated VPN.'
