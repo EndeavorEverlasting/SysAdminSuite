@@ -1,0 +1,75 @@
+{
+  "schema_version": "sas-northwell-printer-session-fallback-modes/v1",
+  "use_case_id": "northwell.shared-printer.organization-default",
+  "organization": "northwell-health",
+  "mandatory_registration": {
+    "mode": "M0",
+    "mechanism": "SYSTEM PrintUIEntry /ga",
+    "proof": "matching Status.json SYSTEM identity, desired Present and requested HKLM machine queue set"
+  },
+  "modes": [
+    {
+      "id": "M1",
+      "name": "ACTIVE_SESSION_DIRECT",
+      "implementation": "mapping/Confirm-NorthwellPrinterActiveUserMaterializationResilient.ps1",
+      "status": "existing_runtime",
+      "success_requires": "HKU/HKCU active-user proof"
+    },
+    {
+      "id": "M2",
+      "name": "NATIVE_GA_NEXT_LOGON",
+      "implementation": "observed post-logon control",
+      "status": "live_evidence_required",
+      "success_requires": "actual standard-user HKCU connection observed; READY_NEXT_LOGON insufficient"
+    },
+    {
+      "id": "M3",
+      "name": "DRIVER_READINESS_BOOTSTRAP",
+      "implementation": "privileged approved driver readiness",
+      "status": "conditional_diagnosis_only",
+      "success_requires": "no weakening of Point-and-Print policy"
+    },
+    {
+      "id": "M4",
+      "name": "DEFERRED_LOGON_TASK",
+      "implementation": "mapping/SessionFallback/Stage-NorthwellPrinterSession.ps1 -Mode Task",
+      "status": "implemented_uncertified",
+      "success_requires": "two sequential standard-user login HKCU proofs; installed logon task remains active"
+    },
+    {
+      "id": "M5",
+      "name": "COMMON_STARTUP_ONE_SHOT",
+      "implementation": "mapping/SessionFallback/Stage-NorthwellPrinterSession.ps1 -Mode OneShot",
+      "status": "implemented_uncertified",
+      "success_requires": "matching HKU and HKCU, receipt and exact owned Startup cleanup, SYSTEM cleanup task retirement"
+    },
+    {
+      "id": "M6",
+      "name": "COMMON_STARTUP_PERSISTENT",
+      "implementation": null,
+      "status": "not_implemented_policy_gated",
+      "success_requires": "client authorizes last resort; explicit privileged uninstall"
+    }
+  ],
+  "guardrails": [
+    "no direct IP printer mapping",
+    "no password-backed tasks",
+    "no policy weakening",
+    "no fallback before canonical M0",
+    "no cross-organization inheritance",
+    "M5 one-shot not durable across all users",
+    "cleanup failure is incomplete",
+    "no field certification from static CI"
+  ],
+  "result_codes": [
+    "PLAN_ONLY",
+    "STAGED_NOT_LIVE_CERTIFIED",
+    "MACHINE_WIDE_REGISTERED",
+    "USER_SESSION_VERIFIED",
+    "ONESHOT_CLEANED",
+    "NOT_STAGED",
+    "RETIRED",
+    "BLOCKED"
+  ],
+  "fixture_only": true
+}
