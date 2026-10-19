@@ -140,4 +140,11 @@ $proofPath = Join-Path $root 'one-shot-cleanup.v1.json'
 $svc = New-Object -ComObject 'Schedule.Service'
 $svc.Connect()
 $svc.GetFolder('\').DeleteTask('SysAdminSuite_NorthwellPrinterOneShotCleanup',0)
-Write-Host 'ONESHOT_CLEANED: Per-user queue proof observed; owned Startup launcher and cleanup task retired.'
+# The one-shot agent and its private assignment are no longer needed.
+# Retain only the compact SYSTEM cleanup receipt; never erase user proof.
+Remove-Item -LiteralPath $configPath -Force -ErrorAction Stop
+Remove-Item -LiteralPath $PSCommandPath -Force -ErrorAction Stop
+if ((Test-Path -LiteralPath $configPath) -or (Test-Path -LiteralPath $PSCommandPath)) {
+    throw 'One-shot agent/assignment cleanup incomplete.'
+}
+Write-Host 'ONESHOT_CLEANED: user session proven; owned Startup, task, agent and assignment retired.'
