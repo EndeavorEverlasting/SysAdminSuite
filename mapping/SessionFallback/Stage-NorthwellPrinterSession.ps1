@@ -107,25 +107,54 @@ function Assert-SasM0Evidence {
     $summaryPath = Join-Path $root 'Summary.json'
     if (-not (Test-Path -LiteralPath $summaryPath -PathType Leaf)) { throw 'Canonical Summary.json not found.' }
     $summary = Get-Content -LiteralPath $summaryPath -Raw -ErrorAction Stop | ConvertFrom-Json -ErrorAction Stop
-    if (-not [bool]$summary.Success -or [string]$summary.Mode -ne 'MachineWidePerComputer' -or [string]$summary.DesiredState -ne 'Present') {
-        throw 'Expected successful single-target canonical Northwell SYSTEM /ga Present evidence.'
+
+    # A batch is a set of *explicit* assignments, not a Cartesian product.
+    # Use only successful Map groups that actually include this workstation.
+    $groups = New-Object System.Collections.Generic.List[string]
+    if ([string]$summary.Mode -eq 'NorthwellPrinterBatch') {
+        foreach ($entry in @($summary.Results)) {
+            if (-not [bool]$entry.Success -or [string]$entry.Action -ne 'Map') { continue }
+            $hosts = @($entry.Computers | ForEach-Object { ([string]$_).Split('.')[0].ToUpperInvariant() })
+            if ($hosts -contains $shortHost) { $groups.Add([string]$entry.Evidence) }
+        }
     }
-    if (@($summary.Computers).Count -ne 1 -or ([string]@($summary.Computers)[0]).Split('.')[0] -ine $shortHost) {
-        throw 'Target host mismatch with canonical mapping Summary.json.'
+    else {
+        $groups.Add($root)
     }
-    $printers = @($summary.Printers | ForEach-Object { ([string]$_).Trim().ToLowerInvariant() } | Sort-Object -Unique)
-    if ($printers.Count -lt 1) { throw 'Canonical evidence lists no requested printers.' }
-    foreach ($printer in $printers) {
-        if ($printer -notmatch '^\\\\[A-Za-z0-9][A-Za-z0-9._-]*\\[A-Za-z0-9][A-Za-z0-9._$-]*$') { throw 'Approved printer must be a safe Northwell shared UNC queue.' }
+    if ($groups.Count -eq 0) { throw 'No successful canonical Map assignment for requested workstation.' }
+
+    $verifiedQueues = New-Object System.Collections.Generic.List[string]
+    foreach ($groupRoot in @($groups.ToArray())) {
+        $groupSummaryPath = Join-Path $groupRoot 'Summary.json'
+        if (-not (Test-Path -LiteralPath $groupSummaryPath -PathType Leaf)) { throw 'Batch group Summary.json is missing.' }
+        $group = Get-Content -LiteralPath $groupSummaryPath -Raw -ErrorAction Stop | ConvertFrom-Json -ErrorAction Stop
+        if (-not [bool]$group.Success -or [string]$group.Mode -ne 'MachineWidePerComputer' -or [string]$group.DesiredState -ne 'Present') {
+            throw 'Expected canonical Northwell SYSTEM /ga Present proof.'
+        }
+        $groupHosts = @($group.Computers | ForEach-Object { ([string]$_).Split('.')[0].ToUpperInvariant() })
+        if ($groupHosts -notcontains $shortHost) { throw 'Canonical group does not include the requested workstation.' }
+        $printers = @($group.Printers | ForEach-Object { ([string]$_).Trim().ToLowerInvariant() } | Sort-Object -Unique)
+        if ($printers.Count -lt 1) { throw 'Canonical evidence lists no requested printers.' }
+        foreach ($printer in $printers) {
+            if ($printer -notmatch '^\\\\[A-Za-z0-9][A-Za-z0-9._-]*\\[A-Za-z0-9][A-Za-z0-9._$-]*$') {
+                throw 'Approved printer must be a safe Northwell shared UNC queue.'
+            }
+        }
+        $statusItems = @(Get-ChildItem -LiteralPath $groupRoot -Filter 'Status.json' -Recurse -File -ErrorAction Stop)
+        $matched = @($statusItems | Where-Object {
+            try { (([string](Get-Content -LiteralPath $_.FullName -Raw | ConvertFrom-Json).ComputerName).Split('.')[0] -ieq $shortHost) }
+            catch { $false }
+        })
+        if ($matched.Count -ne 1) { throw 'Exactly one canonical Status.json per requested workstation and group is required.' }
+        $status = Get-Content -LiteralPath $matched[0].FullName -Raw -ErrorAction Stop | ConvertFrom-Json -ErrorAction Stop
+        $null = Assert-SasNorthwellPrinterStatusProof -Status $status -RequestedPrinters $printers -DesiredState Present
+        foreach ($printer in $printers) { $verifiedQueues.Add($printer) }
     }
-    $statusItems = @(Get-ChildItem -LiteralPath $root -Filter 'Status.json' -Recurse -File -ErrorAction Stop)
-    $matched = @($statusItems | Where-Object {
-        try { (([string](Get-Content -LiteralPath $_.FullName -Raw | ConvertFrom-Json).ComputerName).Split('.')[0] -ieq $shortHost) } catch { $false }
-    })
-    if ($matched.Count -ne 1) { throw 'Exactly one canonical target Status.json is required.' }
-    $status = Get-Content -LiteralPath $matched[0].FullName -Raw -ErrorAction Stop | ConvertFrom-Json -ErrorAction Stop
-    $null = Assert-SasNorthwellPrinterStatusProof -Status $status -RequestedPrinters $printers -DesiredState Present
-    return [pscustomobject]@{ Root=$root; Printers=$printers }
+    return [pscustomobject]@{
+        Root=$root
+        Printers=@($verifiedQueues.ToArray() | Sort-Object -Unique)
+        Groups=$groups.Count
+    }
 }
 
 $svc = Get-SasRemoteSchedule
