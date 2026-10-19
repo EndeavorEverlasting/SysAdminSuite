@@ -10,9 +10,10 @@
 #>
 [CmdletBinding()]
 param(
-    [Parameter(Mandatory)][ValidateSet('Task','OneShot','Status','Remove')][string]$Mode,
+    [Parameter(Mandatory)][ValidateSet('Task','OneShot','Persistent','Status','Remove')][string]$Mode,
     [Parameter(Mandatory)][ValidatePattern('^[A-Za-z0-9][A-Za-z0-9-]{0,62}(\.[A-Za-z0-9-]+)*$')][string]$ComputerName,
     [string]$EvidenceRoot,
+    [string]$ApprovalTicket,
     [switch]$Plan,
     [switch]$Apply
 )
@@ -145,7 +146,7 @@ if ($Mode -in @('Status','Remove')) {
         return
     }
     if (-not $Apply) { throw 'Remove requires explicit -Apply.' }
-    if ($null -ne $existing -and [string]$existing.StageMode -eq 'OneShot') {
+    if ($null -ne $existing -and [string]$existing.StageMode -in @('OneShot','Persistent')) {
         $startup = Get-SasKnownCommonStartup
         $startupFile = Join-Path $startup.AdminPath $startupName
         if (Test-Path -LiteralPath $startupFile -PathType Leaf) {
@@ -173,7 +174,10 @@ if (Test-Path -LiteralPath $remoteConfig -PathType Leaf) { throw 'Existing fallb
 if (-not (Test-Path -LiteralPath $remoteRoot -PathType Container)) {
     New-Item -Path $remoteRoot -ItemType Directory -Force -ErrorAction Stop | Out-Null
 }
-$startup = if ($Mode -eq 'OneShot') { Get-SasKnownCommonStartup } else { $null }
+if ($Mode -eq 'Persistent' -and [string]::IsNullOrWhiteSpace($ApprovalTicket)) {
+    throw 'Persistent Common Startup requires a client-approved exception reference (-ApprovalTicket).'
+}
+$startup = if ($Mode -in @('OneShot','Persistent')) { Get-SasKnownCommonStartup } else { $null }
 $startupTarget = if ($null -eq $startup) { $null } else { Join-Path $startup.TargetPath $startupName }
 $line = '@echo off' + [Environment]::NewLine +
     '"C:\Windows\System32\WindowsPowerShell\v1.0\powershell.exe" -NoLogo -NoProfile -File "' +
@@ -190,7 +194,8 @@ $config = [ordered]@{
     ReceiptToken=([guid]::NewGuid().ToString('N'))
     OriginEvidence=$proof.Root
     StartupPath=$startupTarget
-    StartupSha256=if ($Mode -eq 'OneShot') {$expectedHash} else {$null}
+    StartupSha256=if ($Mode -ne 'Task') {$expectedHash} else {$null}
+    ApprovalTicket=if ($Mode -eq 'Persistent') {$ApprovalTicket.Trim()} else {$null}
     StageUtc=[datetime]::UtcNow.ToString('o')
 }
 # Administrator-owned target payload, verified by SHA256 after SMB staging.
@@ -203,8 +208,9 @@ if ($Mode -eq 'Task') {
     New-SasLogonTask -Service $svc -Name $normalTask -InvocationMode 'Run'
 }
 else {
-    # Register SYSTEM cleanup before placing the executable in Common Startup.
-    New-SasLogonTask -Service $svc -Name $cleanupTask -InvocationMode 'CleanupOnce' -SystemPrincipal
+    # M5 one-shot uses SYSTEM cleanup. M6 is explicitly persistent and
+    # requires a separate machine-authority retirement operation.
+    if ($Mode -eq 'OneShot') { New-SasLogonTask -Service $svc -Name $cleanupTask -InvocationMode 'CleanupOnce' -SystemPrincipal }
     $startupRemote = Join-Path $startup.AdminPath $startupName
     if (Test-Path -LiteralPath $startupRemote) { throw 'Owned-name Startup entry already exists; manual review before overwriting.' }
     [IO.File]::WriteAllBytes($startupRemote,$startupBytes)
