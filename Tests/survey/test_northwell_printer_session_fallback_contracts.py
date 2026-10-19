@@ -30,7 +30,7 @@ class SessionFallbackContracts(unittest.TestCase):
         self.assertEqual(set(by_id), {f"M{i}" for i in range(1, 7)})
         self.assertEqual(by_id["M4"]["status"], "implemented_uncertified")
         self.assertEqual(by_id["M5"]["status"], "implemented_uncertified")
-        self.assertEqual(by_id["M6"]["status"], "not_implemented_policy_gated")
+        self.assertEqual(by_id["M6"]["status"], "implemented_uncertified_policy_gated")
         self.assertTrue(self.modes["mandatory_registration"]["proof"])
 
     def test_proven_machine_registration_is_first_authority(self):
@@ -64,6 +64,8 @@ class SessionFallbackContracts(unittest.TestCase):
         self.assertIn("StartupSha256", self.stager)
         self.assertIn("RegisterTaskDefinition", self.stager)
         self.assertIn("DeleteTask", self.endpoint)
+        self.assertIn("ApprovalTicket", self.stager)
+        self.assertIn("Persistent fallback requires a client-approved", self.stager)
         self.assertIn("Remove-Item -LiteralPath $startupPath", self.endpoint)
 
     def test_user_must_explicitly_authorize_staging_and_removal(self):
