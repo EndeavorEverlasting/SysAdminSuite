@@ -46,8 +46,8 @@
     {
       "id": "M6",
       "name": "COMMON_STARTUP_PERSISTENT",
-      "implementation": null,
-      "status": "not_implemented_policy_gated",
+      "implementation": "mapping/SessionFallback/Stage-NorthwellPrinterSession.ps1 -Mode Persistent -ApprovalTicket <approved-ID>",
+      "status": "implemented_uncertified_policy_gated",
       "success_requires": "client authorizes last resort; explicit privileged uninstall"
     }
   ],
@@ -59,7 +59,8 @@
     "no cross-organization inheritance",
     "M5 one-shot not durable across all users",
     "cleanup failure is incomplete",
-    "no field certification from static CI"
+    "no field certification from static CI",
+    "M6 must have explicit client-approved exception reference and persist until admin retirement"
   ],
   "result_codes": [
     "PLAN_ONLY",
