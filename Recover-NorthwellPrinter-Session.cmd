@@ -26,27 +26,25 @@ if not exist "%SAS_BOOTSTRAP%" (
   pause
   exit /b 2
 )
-"%SAS_PS%" -NoLogo -NoProfile -File "%SAS_BOOTSTRAP%" -NoLaunch
-if not "!ERRORLEVEL!"=="0" (
+set "SAS_RECEIPT=%TEMP%\SasPrinterRuntime-%RANDOM%-%RANDOM%.txt"
+"%SAS_PS%" -NoLogo -NoProfile -File "%SAS_BOOTSTRAP%" -NoLaunch -OutputRuntimePath "%SAS_RECEIPT%"
+set "SAS_FRESH_RC=!ERRORLEVEL!"
+if not "!SAS_FRESH_RC!"=="0" (
+  if exist "%SAS_RECEIPT%" del /q "%SAS_RECEIPT%" >nul 2>&1
   echo BLOCKED: printer runtime freshness was not proven.
   pause
   exit /b 2
 )
+if not exist "%SAS_RECEIPT%" (
+  echo BLOCKED: bootstrap did not produce an exact runtime receipt.
+  pause
+  exit /b 2
+)
 set "SAS_SELECTED_ROOT="
-if defined SAS_RUNTIME_ROOT if exist "!SAS_RUNTIME_ROOT!\.state\printer-bootstrap\latest-runtime.txt" (
-  set /p "SAS_SELECTED_ROOT="<"!SAS_RUNTIME_ROOT!\.state\printer-bootstrap\latest-runtime.txt"
-)
-if not defined SAS_SELECTED_ROOT if exist "C:\SASAL\.state\printer-bootstrap\latest-runtime.txt" (
-  set /p "SAS_SELECTED_ROOT="<"C:\SASAL\.state\printer-bootstrap\latest-runtime.txt"
-)
-if not defined SAS_SELECTED_ROOT if exist "%ProgramData%\SysAdminSuite\printer-bootstrap\latest-runtime.txt" (
-  set /p "SAS_SELECTED_ROOT="<"%ProgramData%\SysAdminSuite\printer-bootstrap\latest-runtime.txt"
-)
-if not defined SAS_SELECTED_ROOT if exist "%LOCALAPPDATA%\SysAdminSuite\printer-bootstrap\latest-runtime.txt" (
-  set /p "SAS_SELECTED_ROOT="<"%LOCALAPPDATA%\SysAdminSuite\printer-bootstrap\latest-runtime.txt"
-)
+set /p "SAS_SELECTED_ROOT="<"%SAS_RECEIPT%"
+del /q "%SAS_RECEIPT%" >nul 2>&1
 if not defined SAS_SELECTED_ROOT (
-  echo BLOCKED: refreshed printer runtime pointer not found.
+  echo BLOCKED: exact current printer runtime path was blank.
   pause
   exit /b 2
 )
@@ -117,7 +115,7 @@ if not defined SAS_EVIDENCE (
 )
 echo.
 echo Read-only preflight for exact target and canonical evidence:
-"%SAS_PS%" -NoLogo -NoProfile -File "%SAS_STAGE%" -Mode %SAS_ACTION% -ComputerName "%SAS_HOST%" -EvidenceRoot "%SAS_EVIDENCE%" !SAS_EXTRA! -Plan
+"%SAS_PS%" -NoLogo -NoProfile -File "%SAS_STAGE%" -Mode %SAS_ACTION% -ComputerName "!SAS_HOST!" -EvidenceRoot "!SAS_EVIDENCE!" !SAS_EXTRA! -Plan
 if not "%ERRORLEVEL%"=="0" (
   echo BLOCKED: invalid M0 evidence or target. No fallback staged.
   pause
@@ -133,7 +131,7 @@ if not "!SAS_CONFIRM!"=="APPLY" (
   pause
   exit /b 3
 )
-"%SAS_PS%" -NoLogo -NoProfile -File "%SAS_STAGE%" -Mode %SAS_ACTION% -ComputerName "%SAS_HOST%" -EvidenceRoot "%SAS_EVIDENCE%" !SAS_EXTRA! -Apply
+"%SAS_PS%" -NoLogo -NoProfile -File "%SAS_STAGE%" -Mode %SAS_ACTION% -ComputerName "!SAS_HOST!" -EvidenceRoot "!SAS_EVIDENCE!" !SAS_EXTRA! -Apply
 set "SAS_EXIT=!ERRORLEVEL!"
 echo.
 if "!SAS_EXIT!"=="0" (
@@ -146,7 +144,7 @@ pause
 exit /b !SAS_EXIT!
 
 :status
-"%SAS_PS%" -NoLogo -NoProfile -File "%SAS_STAGE%" -Mode Status -ComputerName "%SAS_HOST%"
+"%SAS_PS%" -NoLogo -NoProfile -File "%SAS_STAGE%" -Mode Status -ComputerName "!SAS_HOST!"
 set "SAS_EXIT=%ERRORLEVEL%"
 pause
 exit /b %SAS_EXIT%
@@ -155,7 +153,7 @@ exit /b %SAS_EXIT%
 set "SAS_CONFIRM="
 set /p "SAS_CONFIRM=Type RETIRE to remove only owned fallback artifacts: "
 if not "%SAS_CONFIRM%"=="RETIRE" exit /b 3
-"%SAS_PS%" -NoLogo -NoProfile -File "%SAS_STAGE%" -Mode Remove -ComputerName "%SAS_HOST%" -Apply
+"%SAS_PS%" -NoLogo -NoProfile -File "%SAS_STAGE%" -Mode Remove -ComputerName "!SAS_HOST!" -Apply
 set "SAS_EXIT=%ERRORLEVEL%"
 pause
 exit /b %SAS_EXIT%
