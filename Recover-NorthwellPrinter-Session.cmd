@@ -3,14 +3,39 @@ setlocal EnableExtensions EnableDelayedExpansion
 cd /d "%~dp0"
 title SysAdminSuite - Northwell Printer Session Recovery
 set "SAS_PS=%SystemRoot%\System32\WindowsPowerShell\v1.0\powershell.exe"
-set "SAS_STAGE=%~dp0mapping\SessionFallback\Stage-NorthwellPrinterSession.ps1"
-set "SAS_POINTER=%~dp0mapping\Logs\LATEST-PATH.txt"
-
-if not exist "%SAS_STAGE%" (
-  echo ERROR: Session fallback code is absent. Refresh the trusted SysAdminSuite runtime.
-  pause
-  exit /b 1
+rem Resolve the exact current bootstrap-owned printer runtime rather than trusting
+rem the user current directory, a PATH shim, or a stale repository checkout.
+set "SAS_BOOTSTRAP=%~dp0Bootstrap-SysAdminSuitePrinter.ps1"
+set "SAS_SELECTED_ROOT="
+if exist "%SAS_BOOTSTRAP%" (
+  "%SAS_PS%" -NoLogo -NoProfile -File "%SAS_BOOTSTRAP%" -NoLaunch
+  if not "!ERRORLEVEL!"=="0" (
+    echo BLOCKED: current printer runtime freshness was not proven.
+    pause
+    exit /b 2
+  )
+  if defined SAS_RUNTIME_ROOT if exist "!SAS_RUNTIME_ROOT!\.state\printer-bootstrap\latest-runtime.txt" (
+    set /p "SAS_SELECTED_ROOT="<"!SAS_RUNTIME_ROOT!\.state\printer-bootstrap\latest-runtime.txt"
+  )
+  if not defined SAS_SELECTED_ROOT if exist "C:\SASAL\.state\printer-bootstrap\latest-runtime.txt" (
+    set /p "SAS_SELECTED_ROOT="<"C:\SASAL\.state\printer-bootstrap\latest-runtime.txt"
+  )
+  if not defined SAS_SELECTED_ROOT if exist "%ProgramData%\SysAdminSuite\printer-bootstrap\latest-runtime.txt" (
+    set /p "SAS_SELECTED_ROOT="<"%ProgramData%\SysAdminSuite\printer-bootstrap\latest-runtime.txt"
+  )
+  if not defined SAS_SELECTED_ROOT if exist "%LOCALAPPDATA%\SysAdminSuite\printer-bootstrap\latest-runtime.txt" (
+    set /p "SAS_SELECTED_ROOT="<"%LOCALAPPDATA%\SysAdminSuite\printer-bootstrap\latest-runtime.txt"
+  )
 )
+if not defined SAS_SELECTED_ROOT set "SAS_SELECTED_ROOT=%~dp0"
+set "SAS_STAGE=!SAS_SELECTED_ROOT!\mapping\SessionFallback\Stage-NorthwellPrinterSession.ps1"
+set "SAS_POINTER=!SAS_SELECTED_ROOT!\mapping\Logs\LATEST-PATH.txt"
+if not exist "!SAS_STAGE!" (
+  echo BLOCKED: session fallback is not present in the selected trusted runtime.
+  pause
+  exit /b 2
+)
+
 "%SAS_PS%" -NoLogo -NoProfile -Command "if (([Security.Principal.WindowsPrincipal][Security.Principal.WindowsIdentity]::GetCurrent()).IsInRole([Security.Principal.WindowsBuiltInRole]::Administrator)) {exit 0} else {exit 1}"
 if not "%ERRORLEVEL%"=="0" (
   echo Administrator rights are required for protected target provisioning.
