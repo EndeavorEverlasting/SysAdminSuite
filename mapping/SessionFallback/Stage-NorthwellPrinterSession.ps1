@@ -10,7 +10,7 @@
 #>
 [CmdletBinding()]
 param(
-    [Parameter(Mandatory)][ValidateSet('Task','OneShot','Persistent','Status','Remove')][string]$Mode,
+    [Parameter(Mandatory)][ValidateSet('Task','TaskShareless','OneShot','Persistent','Status','Remove')][string]$Mode,
     [Parameter(Mandatory)][ValidatePattern('^[A-Za-z0-9][A-Za-z0-9-]{0,62}(\.[A-Za-z0-9-]+)*$')][string]$ComputerName,
     [string]$EvidenceRoot,
     [string]$ApprovalTicket,
@@ -39,6 +39,7 @@ $targetRoot = 'C:\ProgramData\SysAdminSuite\PrinterSessionFallback'
 $remoteConfig = Join-Path $remoteRoot 'assignment.v1.json'
 $remoteAgent = Join-Path $remoteRoot 'Invoke-NorthwellPrinterSession.ps1'
 $normalTask = 'SysAdminSuite_NorthwellPrinterSession'
+$sharelessTask = 'SysAdminSuite_NorthwellPrinterSessionShareless'
 $cleanupTask = 'SysAdminSuite_NorthwellPrinterOneShotCleanup'
 $startupName = 'SAS-NorthwellPrinter-OneShot.cmd'
 
@@ -101,6 +102,38 @@ function New-SasLogonTask {
     $null = $folder.RegisterTaskDefinition($Name,$definition,6,$null,$null,$logon,$null)
     if ($null -eq (Get-SasTaskOrNull -Folder $folder -Name $Name)) { throw "Task creation not proven: $Name" }
 }
+function New-SasSharelessLogonTask {
+    param([Parameter(Mandatory)]$Service,[Parameter(Mandatory)][string[]]$Printers)
+    # No SMB, on-target script file, WinRM, password, or policy changes.
+    # Task Scheduler has a fixed upper bound on executable actions.
+    if ($Printers.Count -lt 1 -or $Printers.Count -gt 32) {
+        throw 'Shareless fallback requires 1-32 canonical machine-proven queues.'
+    }
+    $folder = $Service.GetFolder('\')
+    if ($null -ne (Get-SasTaskOrNull -Folder $folder -Name $sharelessTask)) {
+        throw 'A shareless printer task already exists; do not overwrite without a separate retire.'
+    }
+    $definition = $Service.NewTask(0)
+    $definition.RegistrationInfo.Description = 'SysAdminSuite approved Northwell M0 queues; shareless user logon recovery.'
+    $definition.Principal.GroupId = 'S-1-5-32-545'
+    $definition.Principal.LogonType = 4 # TASK_LOGON_GROUP
+    $definition.Principal.RunLevel = 0
+    $definition.Settings.Enabled = $true
+    $definition.Settings.Hidden = $false
+    $definition.Settings.ExecutionTimeLimit = 'PT4M'
+    $definition.Settings.MultipleInstances = 2
+    $trigger = $definition.Triggers.Create(9) # TASK_TRIGGER_LOGON
+    $trigger.Enabled = $true
+    foreach ($queue in $Printers) {
+        if ($queue -match '["\r\n]') { throw 'Unsafe canonical queue passed to shareless action.' }
+        $action = $definition.Actions.Create(0)
+        $action.Path = 'C:\Windows\System32\rundll32.exe'
+        $action.Arguments = 'printui.dll,PrintUIEntry /in /q /n"{0}"' -f $queue
+    }
+    $null = $folder.RegisterTaskDefinition($sharelessTask,$definition,2,$null,$null,4,$null)
+    if ($null -eq (Get-SasTaskOrNull -Folder $folder -Name $sharelessTask)) { throw 'Shareless logon task not proven.' }
+}
+
 function Assert-SasM0Evidence {
     if ([string]::IsNullOrWhiteSpace($EvidenceRoot)) { throw 'EvidenceRoot is required before staging.' }
     $root = [IO.Path]::GetFullPath($EvidenceRoot)
@@ -169,6 +202,7 @@ if ($Mode -in @('Status','Remove')) {
             Computer=$ComputerName
             Mode=if ($null -eq $existing) {$null} else {$existing.StageMode}
             DurableTask=($null -ne (Get-SasTaskOrNull -Folder $folder -Name $normalTask))
+            SharelessTask=($null -ne (Get-SasTaskOrNull -Folder $folder -Name $sharelessTask))
             CleanupTask=($null -ne (Get-SasTaskOrNull -Folder $folder -Name $cleanupTask))
             CleanupReceipt=(Test-Path -LiteralPath (Join-Path $remoteRoot 'one-shot-cleanup.v1.json'))
         }
@@ -185,7 +219,7 @@ if ($Mode -in @('Status','Remove')) {
             Remove-Item -LiteralPath $startupFile -Force -ErrorAction Stop
         }
     }
-    foreach ($taskName in @($normalTask,$cleanupTask)) {
+    foreach ($taskName in @($normalTask,$sharelessTask,$cleanupTask)) {
         if ($null -ne (Get-SasTaskOrNull -Folder $folder -Name $taskName)) { $folder.DeleteTask($taskName,0) }
     }
     if (Test-Path -LiteralPath $remoteConfig) { Remove-Item -LiteralPath $remoteConfig -Force -ErrorAction Stop }
@@ -198,6 +232,13 @@ $proof = Assert-SasM0Evidence
 Write-Host ('PLAN: {0} -> {1} approved queue(s), mode {2}.' -f $ComputerName,$proof.Printers.Count,$Mode)
 Write-Host ('M0 evidence: {0}' -f $proof.Root)
 if ($Plan) { Write-Host 'PLAN_ONLY: no files/tasks were staged.'; return }
+if ($Mode -eq 'TaskShareless') {
+    if (-not $Apply) { throw 'Shareless logon task staging requires explicit -Apply.' }
+    if (Test-Path -LiteralPath $remoteConfig -PathType Leaf) { throw 'Another fallback config exists; retire it before staging shareless task.' }
+    New-SasSharelessLogonTask -Service $svc -Printers $proof.Printers
+    Write-Host 'STAGED_NOT_LIVE_CERTIFIED: shareless group-logon task installed for canonical approved queues. User HKU proof must be observed separately.'
+    return
+}
 if (-not $Apply) { throw 'Staging requires explicit -Apply after reviewing the above plan.' }
 if (Test-Path -LiteralPath $remoteConfig -PathType Leaf) { throw 'Existing fallback staged; inspect or Remove explicitly instead of overwriting.' }
 if (-not (Test-Path -LiteralPath $remoteRoot -PathType Container)) {
