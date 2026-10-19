@@ -3,49 +3,59 @@ setlocal EnableExtensions EnableDelayedExpansion
 cd /d "%~dp0"
 title SysAdminSuite - Northwell Printer Session Recovery
 set "SAS_PS=%SystemRoot%\System32\WindowsPowerShell\v1.0\powershell.exe"
-rem Resolve the exact current bootstrap-owned printer runtime rather than trusting
-rem the user current directory, a PATH shim, or a stale repository checkout.
-set "SAS_BOOTSTRAP=%~dp0Bootstrap-SysAdminSuitePrinter.ps1"
-set "SAS_SELECTED_ROOT="
-if exist "%SAS_BOOTSTRAP%" (
-  "%SAS_PS%" -NoLogo -NoProfile -File "%SAS_BOOTSTRAP%" -NoLaunch
-  if not "!ERRORLEVEL!"=="0" (
-    echo BLOCKED: current printer runtime freshness was not proven.
-    pause
-    exit /b 2
-  )
-  if defined SAS_RUNTIME_ROOT if exist "!SAS_RUNTIME_ROOT!\.state\printer-bootstrap\latest-runtime.txt" (
-    set /p "SAS_SELECTED_ROOT="<"!SAS_RUNTIME_ROOT!\.state\printer-bootstrap\latest-runtime.txt"
-  )
-  if not defined SAS_SELECTED_ROOT if exist "C:\SASAL\.state\printer-bootstrap\latest-runtime.txt" (
-    set /p "SAS_SELECTED_ROOT="<"C:\SASAL\.state\printer-bootstrap\latest-runtime.txt"
-  )
-  if not defined SAS_SELECTED_ROOT if exist "%ProgramData%\SysAdminSuite\printer-bootstrap\latest-runtime.txt" (
-    set /p "SAS_SELECTED_ROOT="<"%ProgramData%\SysAdminSuite\printer-bootstrap\latest-runtime.txt"
-  )
-  if not defined SAS_SELECTED_ROOT if exist "%LOCALAPPDATA%\SysAdminSuite\printer-bootstrap\latest-runtime.txt" (
-    set /p "SAS_SELECTED_ROOT="<"%LOCALAPPDATA%\SysAdminSuite\printer-bootstrap\latest-runtime.txt"
-  )
-)
-if not defined SAS_SELECTED_ROOT set "SAS_SELECTED_ROOT=%~dp0"
-set "SAS_STAGE=!SAS_SELECTED_ROOT!\mapping\SessionFallback\Stage-NorthwellPrinterSession.ps1"
-set "SAS_POINTER=!SAS_SELECTED_ROOT!\mapping\Logs\LATEST-PATH.txt"
-if not exist "!SAS_STAGE!" (
-  echo BLOCKED: session fallback is not present in the selected trusted runtime.
-  pause
-  exit /b 2
-)
-
+rem Elevate before refreshing the trusted runtime so the same machine-local
+rem state authority is used both before and after UAC.
 "%SAS_PS%" -NoLogo -NoProfile -Command "if (([Security.Principal.WindowsPrincipal][Security.Principal.WindowsIdentity]::GetCurrent()).IsInRole([Security.Principal.WindowsBuiltInRole]::Administrator)) {exit 0} else {exit 1}"
 if not "%ERRORLEVEL%"=="0" (
   echo Administrator rights are required for protected target provisioning.
   set "SAS_SELF=%~f0"
-  "%SAS_PS%" -NoLogo -NoProfile -Command "try { $p=Start-Process -FilePath $env:ComSpec -ArgumentList @('/d','/c',('\"\"{0}\"\"' -f $env:SAS_SELF)) -Verb RunAs -Wait -PassThru; exit $p.ExitCode } catch { exit 1 }"
-  if not "%ERRORLEVEL%"=="0" (
-    echo ERROR: UAC was not approved or elevation failed.
+  "%SAS_PS%" -NoLogo -NoProfile -Command "try { $p=Start-Process -FilePath $env:ComSpec -ArgumentList @('/d','/c',('""{0}""' -f $env:SAS_SELF)) -Verb RunAs -Wait -PassThru; exit $p.ExitCode } catch { exit 1 }"
+  set "SAS_ELEVATED_RC=!ERRORLEVEL!"
+  if not "!SAS_ELEVATED_RC!"=="0" (
+    echo ERROR: UAC was not approved or the elevated launcher failed.
     pause
   )
-  exit /b %ERRORLEVEL%
+  exit /b !SAS_ELEVATED_RC!
+)
+
+rem Freshness is mandatory. A fallback launcher cannot run against stale
+rem checkout/ZIP state or trust arbitrary files on PATH.
+set "SAS_BOOTSTRAP=%~dp0Bootstrap-SysAdminSuitePrinter.ps1"
+if not exist "%SAS_BOOTSTRAP%" (
+  echo BLOCKED: trusted printer bootstrap is missing.
+  pause
+  exit /b 2
+)
+"%SAS_PS%" -NoLogo -NoProfile -File "%SAS_BOOTSTRAP%" -NoLaunch
+if not "!ERRORLEVEL!"=="0" (
+  echo BLOCKED: printer runtime freshness was not proven.
+  pause
+  exit /b 2
+)
+set "SAS_SELECTED_ROOT="
+if defined SAS_RUNTIME_ROOT if exist "!SAS_RUNTIME_ROOT!\.state\printer-bootstrap\latest-runtime.txt" (
+  set /p "SAS_SELECTED_ROOT="<"!SAS_RUNTIME_ROOT!\.state\printer-bootstrap\latest-runtime.txt"
+)
+if not defined SAS_SELECTED_ROOT if exist "C:\SASAL\.state\printer-bootstrap\latest-runtime.txt" (
+  set /p "SAS_SELECTED_ROOT="<"C:\SASAL\.state\printer-bootstrap\latest-runtime.txt"
+)
+if not defined SAS_SELECTED_ROOT if exist "%ProgramData%\SysAdminSuite\printer-bootstrap\latest-runtime.txt" (
+  set /p "SAS_SELECTED_ROOT="<"%ProgramData%\SysAdminSuite\printer-bootstrap\latest-runtime.txt"
+)
+if not defined SAS_SELECTED_ROOT if exist "%LOCALAPPDATA%\SysAdminSuite\printer-bootstrap\latest-runtime.txt" (
+  set /p "SAS_SELECTED_ROOT="<"%LOCALAPPDATA%\SysAdminSuite\printer-bootstrap\latest-runtime.txt"
+)
+if not defined SAS_SELECTED_ROOT (
+  echo BLOCKED: refreshed printer runtime pointer not found.
+  pause
+  exit /b 2
+)
+set "SAS_STAGE=!SAS_SELECTED_ROOT!\mapping\SessionFallback\Stage-NorthwellPrinterSession.ps1"
+set "SAS_POINTER=!SAS_SELECTED_ROOT!\mapping\Logs\LATEST-PATH.txt"
+if not exist "!SAS_STAGE!" (
+  echo BLOCKED: session fallback missing from selected refreshed printer runtime.
+  pause
+  exit /b 2
 )
 
 echo ===========================================================
