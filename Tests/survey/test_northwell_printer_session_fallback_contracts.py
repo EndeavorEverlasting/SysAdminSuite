@@ -57,6 +57,9 @@ class SessionFallbackContracts(unittest.TestCase):
 
     def test_deferred_is_group_logon_and_cleanup_is_system_logon(self):
         self.assertIn("S-1-5-32-545", self.stager)
+        self.assertIn("New-SasSharelessLogonTask", self.stager)
+        self.assertIn("NorthwellPrinterBatch", self.stager)
+        self.assertIn("Exactly one canonical Status.json", self.stager)
         self.assertIn("TASK_LOGON_GROUP", self.stager)
         self.assertIn("TASK_LOGON_SERVICE_ACCOUNT", self.stager)
         self.assertIn("TASK_TRIGGER_LOGON", self.stager)
