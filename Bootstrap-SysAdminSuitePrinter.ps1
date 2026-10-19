@@ -432,7 +432,7 @@ if ($NoLaunch) {
         $receiptParent = Split-Path -Parent $receiptFile
         if (-not (Test-Path -LiteralPath $receiptParent -PathType Container)) { throw 'Requested output receipt directory does not exist.' }
         # Exact runner output, not a guessed latest-runtime pointer from another state root.
-        [IO.File]::WriteAllText($receiptFile, [string]$runtimeRoot, [Text.Encoding]::UTF8)
+        [IO.File]::WriteAllText($receiptFile, [string]$runtimeRoot, [Text.Encoding]::ASCII)
     }
     Write-Host 'PASS: printer runtime resolved; launcher not executed (-NoLaunch).' -ForegroundColor Green
     exit 0
