@@ -174,52 +174,7 @@ if (Test-Path -LiteralPath $remoteConfig -PathType Leaf) { throw 'Existing fallb
 if (-not (Test-Path -LiteralPath $remoteRoot -PathType Container)) {
     New-Item -Path $remoteRoot -ItemType Directory -Force -ErrorAction Stop | Out-Null
 }
-if ($Mode -eq 'Persistent' -and $ApprovalTicket -cnotmatch '^[A-Za-z0-9][A-Za-z0-9._-]{2,79}
-    throw 'Persistent Common Startup requires a client-approved exception reference (-ApprovalTicket).'
-}
-$startup = if ($Mode -in @('OneShot','Persistent')) { Get-SasKnownCommonStartup } else { $null }
-$startupTarget = if ($null -eq $startup) { $null } else { Join-Path $startup.TargetPath $startupName }
-$line = '@echo off' + [Environment]::NewLine +
-    '"C:\Windows\System32\WindowsPowerShell\v1.0\powershell.exe" -NoLogo -NoProfile -File "' +
-    $targetRoot + '\Invoke-NorthwellPrinterSession.ps1" -Mode Run' + [Environment]::NewLine
-$startupBytes = [Text.Encoding]::ASCII.GetBytes($line)
-$hasher = [Security.Cryptography.SHA256]::Create()
-try { $expectedHash = ([BitConverter]::ToString($hasher.ComputeHash($startupBytes))).Replace('-','') } finally { $hasher.Dispose() }
-$config = [ordered]@{
-    SchemaVersion='sas-northwell-printer-session-fallback/v1'
-    Organization='northwell-health'
-    ComputerName=$shortHost
-    Printers=$proof.Printers
-    StageMode=$Mode
-    ReceiptToken=([guid]::NewGuid().ToString('N'))
-    OriginEvidence=$proof.Root
-    StartupPath=$startupTarget
-    StartupSha256=if ($Mode -ne 'Task') {$expectedHash} else {$null}
-    ApprovalTicket=if ($Mode -eq 'Persistent') {$ApprovalTicket.Trim()} else {$null}
-    StageUtc=[datetime]::UtcNow.ToString('o')
-}
-# Administrator-owned target payload, verified by SHA256 after SMB staging.
-Copy-Item -LiteralPath $endpointAgent -Destination $remoteAgent -ErrorAction Stop
-if ((Get-FileHash -LiteralPath $endpointAgent -Algorithm SHA256).Hash -ne (Get-FileHash -LiteralPath $remoteAgent -Algorithm SHA256).Hash) {
-    throw 'Remote printer fallback agent integrity check failed.'
-}
-$config | ConvertTo-Json -Depth 6 | Set-Content -LiteralPath $remoteConfig -Encoding UTF8 -ErrorAction Stop
-if ($Mode -eq 'Task') {
-    New-SasLogonTask -Service $svc -Name $normalTask -InvocationMode 'Run'
-}
-else {
-    # M5 one-shot uses SYSTEM cleanup. M6 is explicitly persistent and
-    # requires a separate machine-authority retirement operation.
-    if ($Mode -eq 'OneShot') { New-SasLogonTask -Service $svc -Name $cleanupTask -InvocationMode 'CleanupOnce' -SystemPrincipal }
-    $startupRemote = Join-Path $startup.AdminPath $startupName
-    if (Test-Path -LiteralPath $startupRemote) { throw 'Owned-name Startup entry already exists; manual review before overwriting.' }
-    [IO.File]::WriteAllBytes($startupRemote,$startupBytes)
-    if ((Get-FileHash -LiteralPath $startupRemote -Algorithm SHA256).Hash -ne $expectedHash) {
-        throw 'Common Startup one-shot SHA256 verification failed.'
-    }
-}
-Write-Host ('STAGED_NOT_LIVE_CERTIFIED: {0}. Validate a real standard-user logon and session connection.' -f $Mode)
-) {
+if ($Mode -eq 'Persistent' -and $ApprovalTicket -cnotmatch '^[A-Za-z0-9][A-Za-z0-9._-]{2,79}$') {
     throw 'Persistent fallback requires a client-approved alphanumeric exception ID (3-80 characters).'
 }
 if ($Mode -eq 'Persistent' -and [string]::IsNullOrWhiteSpace($ApprovalTicket)) {
