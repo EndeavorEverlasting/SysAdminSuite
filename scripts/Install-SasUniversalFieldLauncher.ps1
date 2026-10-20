@@ -26,7 +26,7 @@ $sourceNetworkBatchProbe = Join-Path $repoRoot 'survey\sas-network-batch-probe.p
 $sourceNetworkPreflight = Join-Path $repoRoot 'survey\sas-network-preflight.ps1'
 foreach ($required in @(
     $sourceLauncher,$sourceNetworkAwareLauncher,$sourcePlatform,$sourceNetworkIntent,
-    $sourceOperatorSession,$sourceNetworkGuard,$sourceBoundedNative,$sourcePrinterBootstrap,
+    $sourceOperatorSession,$sourceNetworkGuard,$sourceBoundedNative,$sourcePrinterBootstrap,$sourcePrinterIncidentScript,
     $sourceMachineInfoRunner,$sourceMachineInfoCore,$sourceMachineInfoHtmlHelper,$sourceNetworkBatchProbe,$sourceNetworkPreflight
 )) {
     if (-not (Test-Path -LiteralPath $required -PathType Leaf)) { throw "Required universal field file missing: $required" }
@@ -34,6 +34,7 @@ foreach ($required in @(
     [void][System.Management.Automation.Language.Parser]::ParseFile($required,[ref]$tokens,[ref]$errors)
     if (@($errors).Count -gt 0) { throw "PowerShell parse failure: $required :: $($errors[0].Message)" }
 }
+if (-not (Test-Path -LiteralPath $sourcePrinterIncidentCmd -PathType Leaf)) { throw "Required printer incident CMD missing: $sourcePrinterIncidentCmd" }
 if (-not (Test-Path -LiteralPath $sourcePrinterRecoveryCmd -PathType Leaf)) { throw "Required printer recovery CMD missing: $sourcePrinterRecoveryCmd" }
 if (-not (Test-Path -LiteralPath $sourcePrinterTechnicianCmd -PathType Leaf)) {
     throw "Required technician printer CMD missing: $sourcePrinterTechnicianCmd"
@@ -139,9 +140,6 @@ Copy-Item -LiteralPath $sourceNetworkIntent -Destination $networkIntentDestinati
 Copy-Item -LiteralPath $sourcePrinterBootstrap -Destination $printerBootstrapDestination -Force
 Copy-Item -LiteralPath $sourcePrinterTechnicianCmd -Destination $printerTechnicianCmdDestination -Force
 Copy-Item -LiteralPath $sourcePrinterRecoveryCmd -Destination $printerRecoveryCmdDestination -Force
-foreach ($requiredPrinterIncidentSource in @($sourcePrinterIncidentCmd,$sourcePrinterIncidentScript)) {
-    if (-not (Test-Path -LiteralPath $requiredPrinterIncidentSource -PathType Leaf)) { throw "Required printer incident intake source missing: $requiredPrinterIncidentSource" }
-}
 Copy-Item -LiteralPath $sourcePrinterIncidentCmd -Destination $printerIncidentCmdDestination -Force
 Copy-Item -LiteralPath $sourcePrinterIncidentScript -Destination $printerIncidentScriptDestination -Force
 Copy-Item -LiteralPath $sourceMachineInfoRunner -Destination $machineInfoRunnerDestination -Force
