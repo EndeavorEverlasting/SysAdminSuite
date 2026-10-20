@@ -36,6 +36,10 @@ A machine-wide success with no active logged-on user can finish as `RESULT: READ
 
 If the mapper fails, **do not remap blindly**. Preserve the displayed error and evidence locations for diagnosis.
 
+## Having an error? Tell your agent or click the reporter
+
+A technician can say **"SAS printer fallback failed"**, **"standard user can't see printer"**, **"printer launcher failed"** or describe the error naturally. Any agent reading this repository must load `AGENTS.md` and [the field incident runbook](docs/field/PRINTER-INCIDENT-AGENT-RUNBOOK.md), recover current repository/runtime facts, and repair validated generic defects rather than instructing the technician to build code from scratch. Optionally double-click **`Report-NorthwellPrinter-Issue.cmd`** to produce a private read-only incident report and safe text to share with an approved agent. It never uploads logs, remaps printers or applies a workaround. Preserve real host/user/queue details in approved private systems only.
+
 ## Standard-user visibility after technician logout (new recovery tooling)
 
 A successful SYSTEM /ga mapping or `READY NEXT LOGON` is **not** proof that a subsequent standard user can see the queue. Observe the first standard-user login. If the approved queue is absent, open **`Recover-NorthwellPrinter-Session.cmd`** from a current installed field launcher or repository runtime. It performs current-origin bootstrap proof, resolves the latest canonical run evidence, previews the exact host-to-queue assignment and requires `APPLY` before staging. Do not repeat the original mapping blindly.
