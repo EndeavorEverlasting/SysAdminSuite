@@ -1,9 +1,9 @@
 # ScanSnap live-cert status (Admin Box 1)
 
-**Updated:** 2026-10-06 after PR #510 and operator multimodal correction  
-**Control host:** `LPW003ASI173` (Admin Box 1)  
-**Lab target:** `CheexMcClappeth` (PTop)  
-**Priority field targets:** `WRH250STR001`, `WRH250STR002`  
+**Updated:** 2026-10-07 after PID-delta silent install owner + local detect
+**Control host:** `LPW003ASI173` (Admin Box 1)
+**Lab target:** `CheexMcClappeth` (PTop)
+**Priority field targets:** `WRH250STR001`, `WRH250STR002`
 **Durable continuation:** `docs/SCANSNAP_MULTIMODAL_DEPLOYMENT.md`
 
 ## Proven
@@ -12,11 +12,14 @@
 |---|---|---|
 | Package implementation on main | INTEGRATED | PR #507 / `2610c4f4` |
 | Access classifier follow-up on main | INTEGRATED | PR #510 / `1b2b86bd` |
+| Multimodal plan on main | INTEGRATED | PR #511 / `9a0d2756` |
 | WhatIf no mutation | VALIDATED | 20261006_224231 / 224237 CSVs |
-| Home PTop reachability | OBSERVED | hostname/IP responded in prior exact-target probes |
+| Home PTop identity convergence | OBSERVED | `CheexMcClappeth` / `.local` / `192.168.1.79` converge |
 | Precise home access class | VALIDATED | hostname=`AUTH_DC_UNAVAILABLE`; IP=`LOGON_FAILURE` |
-| Installer bound | NOT YET | no authoritative binary was present during prior run |
-| PTop `INSTALLATION_DETECTED` | NOT YET | lab auth/package not cleared |
+| Installer bound | BOUND | ScanSnap Home 4.1.0.5 / `WinSSHomeInstaller_4_1_0.exe` SHA256 `A297B84628334F88BE24559C9D2C164E07BC8D952149FE439A19FB3A53CBDDC8`; source Ricoh offline CDN `w-410` |
+| PID-delta installer route | IMPLEMENTED | `installer-process-route.v1.json` + Resolve/SilentInstall owners; measured launch pid `10288` → selected `31888` (`WinSSHomeInstaller_4_1_0`, not chrome) |
+| Local silent install detect | OBSERVED | `C:\Program Files (x86)\PFU\ScanSnap\Home` + `PfuSshMain.exe` after silent ISS install |
+| PTop `INSTALLATION_DETECTED` | NOT YET | lab auth not cleared |
 | Field deployment | NOT YET | not attempted |
 
 ## Unattended deployment requirement
