@@ -89,7 +89,15 @@
         "printer mapping",
         "add a printer",
         "Northwell printer mapping",
-        "Health & Hospitals printer mapping"
+        "Health & Hospitals printer mapping",
+        "SAS PRINTER INCIDENT",
+        "printer failed after login",
+        "standard user can't see printer",
+        "printer fallback failed",
+        "printer recovery failed",
+        "printer startup cleanup failed",
+        "printer mapping failed in field",
+        "printer launcher failed"
       ],
       "priority": 40,
       "composition_mode": "primary",
@@ -100,7 +108,8 @@
       ],
       "outputs": [
         "field entrypoint or runbook",
-        "selected printer mapping use case or discovery block when printer mapping is requested"
+        "selected printer mapping use case or discovery block when printer mapping is requested",
+        "privacy-safe printer incident triage and repo repair route"
       ],
       "preconditions": [
         "product-owned command exists or a registered discovery prerequisite is named"
@@ -109,7 +118,9 @@
         "never hide mutation",
         "preserve preview and confirmation",
         "resolve printer organization/site use case before selecting a mapping implementation",
-        "never transfer Northwell printer rules across organizations or independent site overrides"
+        "never transfer Northwell printer rules across organizations or independent site overrides",
+        "read-only technician intake is not authorization for production mutation",
+        "resolve printer-field-incident-route.v1.json and preserve private finding boundary"
       ],
       "owner": "Harness Spine",
       "validators": [
