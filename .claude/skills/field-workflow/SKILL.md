@@ -32,6 +32,12 @@ Load only the references that match the selected field lane:
 - Executable fixture proof: [`docs/SOFTWARE_INSTALL_E2E.md`](../../../docs/SOFTWARE_INSTALL_E2E.md)
 - Software-install result presentation: [`docs/SOFTWARE_INSTALL_RESULT_INSPECTION.md`](../../../docs/SOFTWARE_INSTALL_RESULT_INSPECTION.md)
 
+## Northwell printer field incident — repair, not reconstruct
+
+When any technician says that printing, mapping, a standard-user session, the logon task, Startup helper, printer recovery, or the CMD/download flow **failed**, load `docs/field/PRINTER-INCIDENT-AGENT-RUNBOOK.md` and `harness/api/printer-field-incident-route.v1.json` before diagnosing. Text-only queries qualify even without screenshots, incident packets, commit SHA or P-number. For optional private read-only collection, offer `Report-NorthwellPrinter-Issue.cmd` rather than asking technicians to copy PowerShell commands or public logs. The generated `SAS PRINTER INCIDENT` text is sanitized; unreviewed raw evidence remains private.
+
+Route symptom to canonical existing M0–M6 owner; derive earliest unproven gate (SYSTEM HKLM machine state, actual standard-user HKU/HKCU materialization, approved driver condition, Task/TaskShareless, Startup one-shot/cleanup or persistent exception, distribution/version). Recover refreshed repository and installed runtime evidence separately, inspect existing issues/PRs, use P04 and canonical TokenCorridor P08/P82/P07 according to their roles, and execute a bounded code/test repair with regression proof if warranted. Never conflate old `Summary.json`, a task registration ACK, a previous user receipt, or CI with observed field operation. Only a separately authorized P08 can certify target runtime; a technician asking for help is not blanket permission to change a protected hospital workstation or publish operational data. Resume normal Field Workflow after closure; do not fork an alternate printer mapper.
+
 ## H&H CC-reader firmware decision gate
 
 For NYC Health + Hospitals PAX A80 firmware planning, load `harness/api/hh-cc-reader-firmware-policy.json` before proposing, changing, or describing the target firmware. The machine policy is the source of truth for the current `Active Outdated` interpretation, accepted-candidate set, fleet-level default-target selection rule, site/hospital discovery state, open ambiguities, supersession conditions, pre-mutation gates, and PROVEN_PATH acceptance. Resolve organization and site/hospital context before treating any fleet planning candidate as an execution target.

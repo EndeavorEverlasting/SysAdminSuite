@@ -1,0 +1,105 @@
+name: Printer Field Incident Agent Reception
+on:
+  pull_request:
+    paths:
+      - 'Report-NorthwellPrinter-Issue.cmd'
+      - 'scripts/Invoke-SasPrinterFieldIncident.ps1'
+      - 'scripts/Install-SasUniversalFieldLauncher.ps1'
+      - 'docs/field/PRINTER-INCIDENT-AGENT-RUNBOOK.md'
+      - 'harness/api/printer-field-incident-route.v1.json'
+      - 'harness/api/agent-routing-manifest.json'
+      - '.claude/skills/field-workflow/SKILL.md'
+      - 'AGENTS.md'
+      - 'Tests/survey/test_printer_field_incident_contracts.py'
+      - '.github/workflows/printer-field-incident.yml'
+  push:
+    branches: [main]
+    paths:
+      - 'Report-NorthwellPrinter-Issue.cmd'
+      - 'scripts/Invoke-SasPrinterFieldIncident.ps1'
+      - 'scripts/Install-SasUniversalFieldLauncher.ps1'
+      - 'docs/field/PRINTER-INCIDENT-AGENT-RUNBOOK.md'
+      - 'harness/api/printer-field-incident-route.v1.json'
+      - 'harness/api/agent-routing-manifest.json'
+      - '.claude/skills/field-workflow/SKILL.md'
+      - 'AGENTS.md'
+      - 'Tests/survey/test_printer_field_incident_contracts.py'
+      - '.github/workflows/printer-field-incident.yml'
+permissions:
+  contents: read
+jobs:
+  field-agent-routing:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.13'
+      - name: Routing, privacy and repository instruction contracts
+        shell: pwsh
+        run: |
+          python Tests/survey/test_printer_field_incident_contracts.py
+          python Tests/survey/test_agent_routing_manifest_contracts.py
+          python Tests/survey/test_agent_instruction_factoring_contracts.py
+      - name: Windows PowerShell 5.1 parser and fixture execution — no target access
+        shell: powershell
+        run: |
+          $ErrorActionPreference = 'Stop'
+          $script = Join-Path $PWD 'scripts\Invoke-SasPrinterFieldIncident.ps1'
+          $tokens = $null
+          $errors = $null
+          [void][System.Management.Automation.Language.Parser]::ParseFile($script,[ref]$tokens,[ref]$errors)
+          if ($errors.Count -gt 0) {
+            $errors | Format-List | Out-String | Write-Host
+            throw 'Printer field incident PowerShell 5.1 parse failed.'
+          }
+          $root = Join-Path $env:RUNNER_TEMP 'synthetic-printer-incident'
+          $evidence = Join-Path $root 'evidence'
+          $output = Join-Path $root 'private'
+          New-Item -ItemType Directory -Path $evidence,$output -Force | Out-Null
+          # The fixture must remain entirely local to the CI runner.
+          [ordered]@{
+            Success = $true
+            Mode = 'MachineWidePerComputer'
+            Computers = @('WKS-SYNTH-LEAK')
+            Printers = @('\\PRINT-SYNTH-LEAK\SECRET-QUEUE-LEAK')
+          } | ConvertTo-Json -Depth 6 | Set-Content -LiteralPath (Join-Path $evidence 'Summary.json')
+          & $script -Symptom standard-user-missing -EvidenceRoot $evidence -OutputRoot $output
+          if (-not $?) { throw 'Offline printer incident fixture failed.' }
+          $pointer = Get-Content -LiteralPath (Join-Path $output 'latest-handoff.txt') -Raw
+          $handoffPath = $pointer.Trim()
+          $handoff = Get-Content -LiteralPath $handoffPath -Raw
+          $incident = Get-Content -LiteralPath (Join-Path (Split-Path -Parent $handoffPath) 'incident.v1.json') -Raw | ConvertFrom-Json
+          $finding = Get-Content -LiteralPath (Join-Path (Split-Path -Parent $handoffPath) 'finding-input.v1.json') -Raw | ConvertFrom-Json
+          if ($incident.symptom -ne 'standard-user-missing') { throw 'Symptom classification drifted.' }
+          if ($incident.machine_evidence -ne 'LOCAL_SUMMARY_REPORTS_MACHINE_SUCCESS_UNVERIFIED') { throw 'Machine proof was overstated or lost.' }
+          if ($incident.live_proof -ne 'NOT_OBSERVED_BY_INTAKE') { throw 'Intake falsely claimed live proof.' }
+          if ($finding.privacy -ne 'private_operational') { throw 'Privacy default drifted.' }
+          if ($incident.publication -ne 'NO_EXTERNAL_PUSH') { throw 'Unexpected publication state.' }
+          foreach ($marker in @('WKS-SYNTH-LEAK','PRINT-SYNTH-LEAK','SECRET-QUEUE-LEAK')) {
+            if ($handoff.Contains($marker)) { throw 'Sensitive marker leaked into safe handoff.' }
+            if ((Get-Content -LiteralPath (Join-Path (Split-Path -Parent $handoffPath) 'incident.v1.json') -Raw).Contains($marker)) {
+              throw 'Sensitive marker leaked into typed incident.'
+            }
+          }
+          # Missing evidence is reported, not disguised as success.
+          $empty = Join-Path $root 'private-no-evidence'
+          & $script -Symptom mapping-failed -EvidenceRoot (Join-Path $root 'missing') -OutputRoot $empty
+          if (-not $?) { throw 'No-evidence intake should still succeed offline.' }
+          $other = Get-Content -LiteralPath ((Get-Content (Join-Path $empty 'latest-handoff.txt') -Raw).Trim()) -Raw
+          if ($other -notmatch 'NO_LOCAL_MAPPING_EVIDENCE') { throw 'Missing evidence was falsely proven.' }
+          # Explicit UNC paths are never read or probed.
+          $noRemote = Join-Path $root 'private-unc'
+          & $script -Symptom unknown -EvidenceRoot '\\WKS-SYNTH-LEAK\C$\private' -OutputRoot $noRemote
+          if (-not $?) { throw 'UNC rejection fixture should not make a network call.' }
+          $uncState = Get-Content -LiteralPath (Join-Path (Split-Path -Parent (Get-Content (Join-Path $noRemote 'latest-handoff.txt') -Raw).Trim()) 'incident.v1.json') -Raw | ConvertFrom-Json
+          if ($uncState.machine_evidence -ne 'EVIDENCE_NOT_LOCAL') { throw 'UNC path unexpectedly treated as local.' }
+          # No report files may be written to tracked repository scope.
+          $denied = $false
+          try {
+            & $script -Symptom unknown -OutputRoot (Join-Path $PWD 'should-not-write')
+          }
+          catch { $denied = $true }
+          if (-not $denied) { throw 'Repository-local output-root prohibition did not hold.' }
+          Write-Host 'PASS: technician intake fixture, proof ceilings, privacy, UNC blocking and repository isolation.'
+          Write-Host 'NO_EXTERNAL_PUSH: CI touched only disposable runner-local fixture state.'

@@ -16,6 +16,12 @@ Use this map to load only the files needed for a task.
 - `Tests/survey/test_agent_capability_manifest_contracts.py` — machine-readable catalog contract.
 - `Tests/survey/test_agent_routing_manifest_contracts.py` — deterministic routing and package-operation wiring contract.
 
+## Printer field failure -> agent repair
+
+- `Report-NorthwellPrinter-Issue.cmd` -> `scripts/Invoke-SasPrinterFieldIncident.ps1`: offline, non-elevated technician intake; controlled, privacy-safe handoff plus operator-private local finding input.
+- `docs/field/PRINTER-INCIDENT-AGENT-RUNBOOK.md` and `harness/api/printer-field-incident-route.v1.json`: canonical M0–M6 symptom resolution, TokenCorridor P04 + P08/P82/P07, privacy, regression, rollback and live-proof boundaries. `AGENTS.md` and the Field Workflow skill route plain-language technician queries here.
+- `Tests/survey/test_printer_field_incident_contracts.py` and `.github/workflows/printer-field-incident.yml`: static and executable Windows fixture checks; never touch live printers.
+
 ## Operational harness infrastructure
 
 - `harness/workflows/fresh-agent-intake.yaml` — canonical fresh-agent sequence: governance, Git preservation, requested-goal/desired-state resolution, routing, execution, validator selection, artifacts, continuation, and handoff.

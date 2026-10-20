@@ -1,0 +1,76 @@
+{
+  "schema_version": "sas-printer-field-incident-route/v1",
+  "owner": "SysAdminSuite Field Workflow",
+  "incident_header": "SAS PRINTER INCIDENT",
+  "authority": "harness/api/agent-routing-manifest.json#field-workflow-trigger",
+  "plan": "docs/field/PRINTER-INCIDENT-AGENT-RUNBOOK.md",
+  "privacy": "PRIVATE_FIRST_NO_EXTERNAL_PUSH",
+  "intake_entrypoint": "Report-NorthwellPrinter-Issue.cmd",
+  "intake_script": "scripts/Invoke-SasPrinterFieldIncident.ps1",
+  "finding_owner": "harness/api/sas_finding_ingest.py",
+  "proof_ceiling": "TECHNICIAN_OPERATOR_REPORTED_PLUS_READONLY_LOCAL_RECEIPT_CUES",
+  "task_sequence": [
+    "RECOVER_REPO",
+    "RESOLVE_ORGANIZATION_AND_PROFILE",
+    "CLASSIFY_SYMPTOM",
+    "CHECK_EXISTING_PROOF",
+    "REPRODUCE_SAFELY",
+    "FIX_EXISTING_OWNER",
+    "RUN_TARGETED_AND_PROTECTED_REGRESSION",
+    "CONVERGE_TO_MAIN_IF_AUTHORIZED",
+    "P08_APPROVED_LIVE_PROOF",
+    "RELEASE_AND_FIELD_OBSERVATION"
+  ],
+  "symptoms": {
+    "mapping-failed": {
+      "mode": "M0",
+      "owner": "mapping/Invoke-NorthwellPrinterState.ps1",
+      "next": "inspect HKLM+SYSTEM status and protected network"
+    },
+    "standard-user-missing": {
+      "mode": "M2",
+      "owner": "mapping/SessionFallback/Invoke-NorthwellPrinterSession.ps1",
+      "next": "compare target HKU/HKCU in verified standard-user logon after M0"
+    },
+    "fallback-staging": {
+      "mode": "M4",
+      "owner": "mapping/SessionFallback/Stage-NorthwellPrinterSession.ps1",
+      "next": "distinguish C$ denied, TaskShareless, wrong evidence and task registration"
+    },
+    "task-logon": {
+      "mode": "M4",
+      "owner": "mapping/SessionFallback/Stage-NorthwellPrinterSession.ps1",
+      "next": "inspect group logon trigger, user context, HKU and two-logon proof"
+    },
+    "startup-cleanup": {
+      "mode": "M5",
+      "owner": "mapping/SessionFallback/Invoke-NorthwellPrinterSession.ps1",
+      "next": "verify owned SHA and HKU receipt; identify M5 versus M6"
+    },
+    "launcher-download": {
+      "mode": "DISTRIBUTION",
+      "owner": "scripts/Install-SasUniversalFieldLauncher.ps1",
+      "next": "compare current origin and installed CMD; respect Smart App Control"
+    },
+    "unknown": {
+      "mode": "DISCOVERY",
+      "owner": "harness/api/printer-mapping-use-case-registry.json",
+      "next": "establish organization/site and one nonmutating observation"
+    }
+  },
+  "protected_controls": [
+    "SYSTEM /ga with requested HKLM queue proof",
+    "existing M1 active-user materialization",
+    "Northwell site routing does not inherit Agilant HQ local-TCP mode",
+    "undo plans only include observed actual machine-state transitions",
+    "one-shot ownership hash gates cleanup"
+  ],
+  "forbidden": [
+    "remote mutation from incident report",
+    "raw hostnames users queues logs screenshots passwords or SIDs in public Git",
+    "automatic incident publication or agent action without query",
+    "fallback without canonical M0 proof",
+    "false live proof from local logs or CI",
+    "client policy weakening or direct IP substitutions"
+  ]
+}
