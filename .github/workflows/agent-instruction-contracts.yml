@@ -19,6 +19,9 @@ on:
       - 'docs/OPERATOR_COMMUNICATION_STYLE.md'
       - 'docs/HH_KIOSK_DELIVERY_COORDINATION_HANDOFF.md'
       - 'docs/END_TO_END_TESTING_POSTURE.md'
+      - 'docs/prompts.json'
+      - 'docs/prompt-kit.html'
+      - 'Tests/survey/test_prompt_registry_contracts.py'
       - 'harness/api/agent-capability-manifest.json'
       - 'harness/api/agent-routing-manifest.json'
       - 'harness/api/operator-communication-semantics.json'
@@ -65,6 +68,9 @@ on:
       - 'docs/OPERATOR_COMMUNICATION_STYLE.md'
       - 'docs/HH_KIOSK_DELIVERY_COORDINATION_HANDOFF.md'
       - 'docs/END_TO_END_TESTING_POSTURE.md'
+      - 'docs/prompts.json'
+      - 'docs/prompt-kit.html'
+      - 'Tests/survey/test_prompt_registry_contracts.py'
       - 'harness/api/agent-capability-manifest.json'
       - 'harness/api/agent-routing-manifest.json'
       - 'harness/api/operator-communication-semantics.json'
@@ -117,6 +123,7 @@ jobs:
           Tests/survey/test_operator_communication_style_contracts.py
           harness/validators/validate-operator-communication-semantics.py
           Tests/survey/test_agent_instruction_factoring_contracts.py
+          Tests/survey/test_prompt_registry_contracts.py
           Tests/survey/test_agent_capability_manifest_contracts.py
           Tests/survey/test_agent_routing_manifest_contracts.py
           Tests/survey/test_autologon_agent_harness_contracts.py
@@ -128,6 +135,7 @@ jobs:
           python3 harness/validators/validate-operator-communication-semantics.py
           python3 Tests/survey/test_operator_communication_style_contracts.py
           python3 Tests/survey/test_agent_instruction_factoring_contracts.py
+          python3 Tests/survey/test_prompt_registry_contracts.py
           python3 Tests/survey/test_agent_capability_manifest_contracts.py
           python3 Tests/survey/test_agent_routing_manifest_contracts.py
           python3 Tests/survey/test_autologon_agent_harness_contracts.py
