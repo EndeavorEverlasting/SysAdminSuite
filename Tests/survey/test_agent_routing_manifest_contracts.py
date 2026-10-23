@@ -93,6 +93,9 @@ def test_package_and_handoff_routes_are_current() -> None:
     assert "package_analysis.trust" in by_target
     assert "package trust policy" in [s.lower() for s in by_target["package_analysis.trust"]["deterministic_task_signals"]]
     assert set(by_target["package_analysis.trust"]["required_inputs"]) == set(operations["package_analysis.trust"]["inputs"])
+    assert "package_analysis.strong_name" in by_target
+    assert "clr strong-name verification" in [s.lower() for s in by_target["package_analysis.strong_name"]["deterministic_task_signals"]]
+    assert set(by_target["package_analysis.strong_name"]["required_inputs"]) == set(operations["package_analysis.strong_name"]["inputs"])
     assert "package_analysis.vm_qualification_profile_validate" in by_target
     assert "package qualification profile" in [
         s.lower() for s in by_target["package_analysis.vm_qualification_profile_validate"]["deterministic_task_signals"]
@@ -104,6 +107,7 @@ def test_package_and_handoff_routes_are_current() -> None:
         "package_analysis.static",
         "package_analysis.semantic_enrich",
         "package_analysis.trust",
+        "package_analysis.strong_name",
         "package_analysis.vm_qualification_profile_validate",
     ):
         assert operation_id in operations

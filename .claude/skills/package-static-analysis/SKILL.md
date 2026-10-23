@@ -11,6 +11,7 @@ Use this skill when the task is to inspect an EXE, MSI, MST, MSP, ZIP, applicati
 - [Package Static Inspection](../../capabilities/package-static-inspection.md)
 - [Package Semantic Enrichment](../../capabilities/package-semantic-enrichment.md)
 - [Package Offline Trust Verification](../../capabilities/package-offline-trust-verification.md)
+- [Package CLR Strong-Name Verification](../../capabilities/package-clr-strong-name-verification.md)
 - [Package VM Qualification Validation](../../capabilities/package-vm-qualification-validation.md)
 
 ## Canonical references
@@ -18,24 +19,30 @@ Use this skill when the task is to inspect an EXE, MSI, MST, MSP, ZIP, applicati
 - Static operation: [`harness/api/package-static-analysis-skill.json`](../../../harness/api/package-static-analysis-skill.json)
 - Semantic operation: [`harness/api/package-semantic-analysis-skill.json`](../../../harness/api/package-semantic-analysis-skill.json)
 - Trust operation: [`harness/api/package-trust-verification-skill.json`](../../../harness/api/package-trust-verification-skill.json)
+- Strong-name operation: [`harness/api/package-strong-name-verification-skill.json`](../../../harness/api/package-strong-name-verification-skill.json)
 - VM qualification operation: [`harness/api/package-vm-qualification-skill.json`](../../../harness/api/package-vm-qualification-skill.json)
 - Package workflow: [`harness/workflows/package-analysis.yaml`](../../../harness/workflows/package-analysis.yaml)
 - Static result schema: [`schemas/harness/package-static-analysis-result.schema.json`](../../../schemas/harness/package-static-analysis-result.schema.json)
 - Semantic result schema: [`schemas/harness/package-semantic-analysis-result.schema.json`](../../../schemas/harness/package-semantic-analysis-result.schema.json)
 - Trust policy schema: [`schemas/harness/package-trust-policy.schema.json`](../../../schemas/harness/package-trust-policy.schema.json)
 - Trust result schema: [`schemas/harness/package-trust-verification-result.schema.json`](../../../schemas/harness/package-trust-verification-result.schema.json)
+- Strong-name result schema: [`schemas/harness/package-strong-name-verification-result.schema.json`](../../../schemas/harness/package-strong-name-verification-result.schema.json)
 - VM qualification profile schema: [`schemas/harness/package-vm-qualification-profile.schema.json`](../../../schemas/harness/package-vm-qualification-profile.schema.json)
 - Static guide: [`docs/PACKAGE_STATIC_ANALYSIS.md`](../../../docs/PACKAGE_STATIC_ANALYSIS.md)
 - Semantic guide: [`docs/PACKAGE_SEMANTIC_ANALYSIS.md`](../../../docs/PACKAGE_SEMANTIC_ANALYSIS.md)
 - Trust guide: [`docs/PACKAGE_TRUST_VERIFICATION.md`](../../../docs/PACKAGE_TRUST_VERIFICATION.md)
+- Strong-name guide: [`docs/PACKAGE_STRONG_NAME_VERIFICATION.md`](../../../docs/PACKAGE_STRONG_NAME_VERIFICATION.md)
 - VM qualification guide: [`docs/PACKAGE_VM_QUALIFICATION_PROFILES.md`](../../../docs/PACKAGE_VM_QUALIFICATION_PROFILES.md)
 - Static analyzer: [`tools/package-analysis/analyze_package.py`](../../../tools/package-analysis/analyze_package.py)
 - Semantic sidecar: [`tools/package-analysis/enrich_package_semantics.py`](../../../tools/package-analysis/enrich_package_semantics.py)
+- Strong-name producer: [`tools/package-analysis/verify_dotnet_strong_name.py`](../../../tools/package-analysis/verify_dotnet_strong_name.py)
 - Trust interop: [`tools/package-analysis/SasPackageTrustInterop.cs`](../../../tools/package-analysis/SasPackageTrustInterop.cs)
 - VM qualification validator: [`tools/package-analysis/validate_vm_qualification_profile.py`](../../../tools/package-analysis/validate_vm_qualification_profile.py)
 - Windows semantic entrypoint: [`scripts/Invoke-SasPackageSemanticAnalysis.ps1`](../../../scripts/Invoke-SasPackageSemanticAnalysis.ps1)
 - Bash semantic entrypoint: [`scripts/invoke-sas-package-semantic-analysis.sh`](../../../scripts/invoke-sas-package-semantic-analysis.sh)
 - Windows trust entrypoint: [`scripts/Invoke-SasPackageTrust.ps1`](../../../scripts/Invoke-SasPackageTrust.ps1)
+- Windows strong-name entrypoint: [`scripts/Invoke-SasPackageStrongNameVerification.ps1`](../../../scripts/Invoke-SasPackageStrongNameVerification.ps1)
+- Bash strong-name entrypoint: [`scripts/invoke-sas-package-strong-name-verification.sh`](../../../scripts/invoke-sas-package-strong-name-verification.sh)
 
 ## Workflow
 
@@ -52,10 +59,11 @@ Use this skill when the task is to inspect an EXE, MSI, MST, MSP, ZIP, applicati
 11. Require valid signed code to match an exact approved signer subject or thumbprint.
 12. Require unsigned internal code to be pinned by exact SHA-256 and an explicit approval reference.
 13. Keep certificate-table presence, offline Authenticode policy, online revocation, strong-name validation, and runtime behavior as separate evidence levels.
-14. Convert findings into package-specific preflight, logging, acceptance, reboot, rollback, VM, and physical-device requirements.
-15. Create a package-specific disposable-VM qualification profile and validate it with `validate_vm_qualification_profile.py`.
-16. Keep the profile blocked until required trust policy, online revocation, strong-name, SAPIEN/MSI decoding, supported arguments, authorization, application acceptance, and rollback gates are satisfied.
-17. Move into a separate disposable-VM execution lane only after static intake, semantic intake, trust policy, and the qualification profile are complete and explicitly authorized.
+14. When managed code is present, run `package_analysis.strong_name` and retain `package_strong_name_verification.json` under an ignored output root.
+15. Convert findings into package-specific preflight, logging, acceptance, reboot, rollback, VM, and physical-device requirements.
+16. Create a package-specific disposable-VM qualification profile and validate it with `validate_vm_qualification_profile.py`.
+17. Keep the profile blocked until required trust policy, online revocation, strong-name, SAPIEN/MSI decoding, supported arguments, authorization, application acceptance, and rollback gates are satisfied.
+18. Move into a separate disposable-VM execution lane only after static intake, semantic intake, trust policy, strong-name evidence when required, and the qualification profile are complete and explicitly authorized.
 
 ## Required output distinctions
 
@@ -92,4 +100,4 @@ Report separately:
 
 ## Proof ceiling
 
-This skill can prove bounded static inspection, source-hash continuity, semantic inference, harness-requirement generation, a cache-only Windows Authenticode policy result, and fail-closed VM qualification-profile validation. Online revocation, strong-name cryptographic validity, real installation, service behavior, browser policy, driver behavior, reboot handling, application launch, clinical workflow, rollback, physical Cybernet acceptance, AutoLogon, and operator acceptance require separate authorized validation lanes.
+This skill can prove bounded static inspection, source-hash continuity, semantic inference, harness-requirement generation, a cache-only Windows Authenticode policy result, CLR strong-name integrity for managed assemblies, and fail-closed VM qualification-profile validation. Online revocation, real installation, service behavior, browser policy, driver behavior, reboot handling, application launch, clinical workflow, rollback, physical Cybernet acceptance, AutoLogon, and operator acceptance require separate authorized validation lanes.
