@@ -184,7 +184,12 @@ $instructions.Text = @(
 $resultLabel = New-Object System.Windows.Forms.Label
 $resultLabel.Location = '670,412'
 $resultLabel.Size = '270,130'
-$resultLabel.Text = "Scanner workflow:`r`n1. Stand at the Cybernet.`r`n2. Press Shift+F10 at the Windows setup error screen.`r`n3. Scan the CMD QR into Command Prompt.`r`n4. Press Enter if needed.`r`n5. Let the device restart."
+# Preserve the Cybernet-specific legacy wording only for that original manifest.
+if ($manifest.command_id -eq 'cybernet.setup.childcompletion.setup_exe_3') {
+  $resultLabel.Text = "Scanner workflow:`r`n1. Stand at the Cybernet.`r`n2. Press Shift+F10 at the Windows setup error screen.`r`n3. Scan the CMD QR into Command Prompt.`r`n4. Press Enter if needed.`r`n5. Let the device restart."
+} else {
+  $resultLabel.Text = "Scanner workflow:`r`n" + (($manifest.scan_instructions | ForEach-Object { "- $_" }) -join "`r`n")
+}
 
 $manifestPathLabel = New-Object System.Windows.Forms.Label
 $manifestPathLabel.Location = '18,645'
