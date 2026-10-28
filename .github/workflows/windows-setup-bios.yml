@@ -1,0 +1,32 @@
+name: Windows Setup BIOS Access Contract
+on:
+  push:
+    paths:
+      - 'Open-WindowsSetupBios.cmd'
+      - 'configs/hotfix-commands/windows-setup-uefi-bios.json'
+      - 'GUI/Start-FieldHotfixesGui.ps1'
+      - 'START-HERE-WINDOWS-SETUP-BIOS.md'
+      - 'docs/field/WINDOWS-SETUP-UEFI-BIOS.md'
+      - '.claude/skills/field-workflow/SKILL.md'
+      - 'Tests/survey/test_windows_setup_bios_field_contracts.py'
+      - '.github/workflows/windows-setup-bios.yml'
+  pull_request:
+    paths:
+      - 'Open-WindowsSetupBios.cmd'
+      - 'configs/hotfix-commands/windows-setup-uefi-bios.json'
+      - 'GUI/Start-FieldHotfixesGui.ps1'
+      - 'START-HERE-WINDOWS-SETUP-BIOS.md'
+      - 'docs/field/WINDOWS-SETUP-UEFI-BIOS.md'
+      - '.claude/skills/field-workflow/SKILL.md'
+      - 'Tests/survey/test_windows_setup_bios_field_contracts.py'
+      - '.github/workflows/windows-setup-bios.yml'
+jobs:
+  offline-contract:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.11'
+      - run: python -m pip install pytest jsonschema
+      - run: python -m pytest -q Tests/survey/test_windows_setup_bios_field_contracts.py Tests/survey/test_hotfix_command_registry_contracts.py Tests/survey/test_field_guide_cmd_first_contracts.py

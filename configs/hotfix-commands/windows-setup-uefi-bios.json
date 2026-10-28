@@ -1,0 +1,51 @@
+{
+  "schema_version": "1.0.0",
+  "command_id": "windows.setup.uefi_bios_reentry",
+  "title": "Windows Setup - Direct UEFI/BIOS Access",
+  "status": "approved-field-hotfix",
+  "version": "1.0.0",
+  "risk_level": "medium",
+  "requires_operator_confirmation": true,
+  "intended_operator_position": "standing-at-target",
+  "delivery_modes": [
+    "admin-gui-qr-display",
+    "suite-clone-local-qr-generation"
+  ],
+  "applies_to": [
+    "Windows 10/11 Setup or out-of-box experience (OOBE) on a UEFI-equipped PC when Settings and the normal Windows desktop are not accessible; Dell Pro Micro QCM1250 included"
+  ],
+  "preconditions": [
+    "A technician is physically at the intended PC and has permission to restart it",
+    "Windows Setup/OOBE is displayed, and any unsaved setup state has been acknowledged",
+    "Command Prompt can be opened with Shift+F10 (or Shift+Fn+F10 if the keyboard requires Fn)",
+    "The technician confirms the next boot should enter UEFI firmware rather than continue Windows Setup"
+  ],
+  "forbidden_use": [
+    "Do not run this as a Windows installation bypass, password reset, or firmware-setting change",
+    "Do not combine this command with registry setup-completion hotfixes; these are separate failure modes",
+    "Do not execute remotely, without technician confirmation, or against a different host",
+    "Do not assume the firmware redirect is supported in Windows PE/disabled diagnostic-prompt environments"
+  ],
+  "scan_instructions": [
+    "At Windows Setup/OOBE on the target, press Shift+F10; try Shift+Fn+F10 if needed",
+    "Confirm the opened window is Command Prompt on the intended PC",
+    "Scan the CMD payload from the SysAdminSuite helper or type it exactly",
+    "Press Enter if the scanner did not send Enter; the device restarts immediately",
+    "Confirm that UEFI/BIOS Setup appears; if unavailable or command fails, restart and tap F2 at the Dell logo (F12 can offer BIOS Setup on some Dell models)"
+  ],
+  "cmd_payload": "shutdown /r /fw /t 0",
+  "powershell_payload": "shutdown.exe /r /fw /t 0",
+  "qr_payloads": {
+    "cmd_shift_f10": "shutdown /r /fw /t 0",
+    "powershell_console": "shutdown.exe /r /fw /t 0"
+  },
+  "expected_result": "On a supported Windows/UEFI installation, the next restart enters firmware settings. Entering and changing settings remain separate technician decisions. Dell QCM1250 fallback: F2 immediately at startup.",
+  "rollback_note": "No firmware settings are changed by this command. The restart itself is immediate and cannot be undone; if redirect is unsupported, use the F2 hardware method.",
+  "evidence_to_capture": [
+    "device manufacturer and model (no asset/serial identifier in public Git)",
+    "whether Shift+F10 opened CMD",
+    "whether firmware redirect was accepted or returned an error",
+    "BIOS/UEFI menu observed versus hardware-key fallback",
+    "date, technician initials and private ticket closure reference (stored outside Git)"
+  ]
+}

@@ -16,6 +16,13 @@ Use this map to load only the files needed for a task.
 - `Tests/survey/test_agent_capability_manifest_contracts.py` — machine-readable catalog contract.
 - `Tests/survey/test_agent_routing_manifest_contracts.py` — deterministic routing and package-operation wiring contract.
 
+## Windows Setup / OOBE -> BIOS / UEFI field recovery
+
+- `START-HERE-WINDOWS-SETUP-BIOS.md` and `docs/field/WINDOWS-SETUP-UEFI-BIOS.md` — technician-first Shift+F10 CMD, `shutdown /r /fw /t 0`, Dell QCM1250 F2 fallback, evidence states, no desktop dependency or client-specific identity.
+- `Open-WindowsSetupBios.cmd` — machine-neutral support-PC launcher delegating to existing `Run-FieldHotfixesGui.cmd`, never reboots the support PC.
+- `configs/hotfix-commands/windows-setup-uefi-bios.json` — reviewed QR payload; Field Hotfixes GUI uses manifest-driven instructions; existing Cybernet setup registry repair stays a separate command.
+- `Tests/survey/test_windows_setup_bios_field_contracts.py` and `.github/workflows/windows-setup-bios.yml` — offline contracts and CI regression for one-command exactness, safe routing, and proof classification; no live BIOS entry is inferred from CI.
+
 ## Printer field failure -> agent repair
 
 - `Report-NorthwellPrinter-Issue.cmd` -> `scripts/Invoke-SasPrinterFieldIncident.ps1`: offline, non-elevated technician intake; controlled, privacy-safe handoff plus operator-private local finding input.
