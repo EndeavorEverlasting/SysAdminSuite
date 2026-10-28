@@ -26,11 +26,16 @@ Load only the references that match the selected field lane:
 - Copy-safe capsule source policy: [`harness/api/copy-safe-operator-command-policy.json`](../../../harness/api/copy-safe-operator-command-policy.json)
 - H&H CC-reader firmware decision policy: [`harness/api/hh-cc-reader-firmware-policy.json`](../../../harness/api/hh-cc-reader-firmware-policy.json)
 - H&H CC-reader live-execution boundary: [`harness/api/hh-cc-reader-live-execution-boundary.v1.json`](../../../harness/api/hh-cc-reader-live-execution-boundary.v1.json)
+- Windows Setup/OOBE BIOS entry (Dell QCM1250): [`docs/field/WINDOWS-SETUP-UEFI-BIOS.md`](../../../docs/field/WINDOWS-SETUP-UEFI-BIOS.md) with CMD-first [`Open-WindowsSetupBios.cmd`](../../../Open-WindowsSetupBios.cmd) and versioned QR manifest; no Windows desktop required.
 - Dashboard front door and fallback: [`docs/DASHBOARD_ENTRYPOINT.md`](../../../docs/DASHBOARD_ENTRYPOINT.md)
 - Software deployment tutorial: [`docs/tutorials/SOFTWARE_DEPLOYMENT_DRY_RUN_AND_PILOT.md`](../../../docs/tutorials/SOFTWARE_DEPLOYMENT_DRY_RUN_AND_PILOT.md)
 - Software installation safety contract: [`docs/SOFTWARE_INSTALL_HARNESS.md`](../../../docs/SOFTWARE_INSTALL_HARNESS.md)
 - Executable fixture proof: [`docs/SOFTWARE_INSTALL_E2E.md`](../../../docs/SOFTWARE_INSTALL_E2E.md)
 - Software-install result presentation: [`docs/SOFTWARE_INSTALL_RESULT_INSPECTION.md`](../../../docs/SOFTWARE_INSTALL_RESULT_INSPECTION.md)
+
+## Windows Setup/OOBE -> BIOS technician recovery
+
+For requests containing **Dell QCM1250 BIOS**, **Windows Setup BIOS**, **OOBE firmware**, **pre-desktop Command Prompt**, **Shift+F10**, or `shutdown /r /fw /t 0`, route to `docs/field/WINDOWS-SETUP-UEFI-BIOS.md`. This is the general firmware-access runbook, independent of the customer's location. Read its model-specific hardware fallback and proof statuses. The repo-owned `Open-WindowsSetupBios.cmd` on the support workstation uses the existing Field Hotfixes GUI to display the QR; the target uses Shift+F10 to enter its Setup CMD. Do not tell a pre-desktop technician to use Win+X, PowerShell (Admin), or Windows Settings. Do not confuse this task with the separate Cybernet registry completion-flag repair. Reboot and firmware changes remain distinct; the QR must not silently execute on the support workstation.
 
 ## Northwell printer field incident — repair, not reconstruct
 
