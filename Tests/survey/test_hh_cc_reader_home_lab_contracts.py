@@ -48,6 +48,7 @@ def main() -> int:
     alpha_cmd = read("Plan-HHCCReaderAlphaInput.cmd")
     alpha_ps = read("scripts/ConvertTo-SasPaxKeypadPlan.ps1")
     docs = read("docs/HH_CC_READER_HOME_LAB_WORKFLOW.md")
+    firmware_docs = read("docs/HH_CC_READER_FIRMWARE_OBSERVATION_PROGRAM.md")
     registry = json.loads(read("harness/api/harness-command-registry.json"))
     outcomes = json.loads(read("harness/api/harness-outcome-registry.json"))
     artifacts = json.loads(read("harness/api/harness-artifact-registry.json"))
@@ -255,6 +256,17 @@ def main() -> int:
     assert "No firmware mutation." in discover_ps.split("$nextAction = if", 1)[1].split("$parentObjectiveState =", 1)[0]
     assert "plug LAN into the same router" not in docs.lower()
     assert "plug LAN into the same router" not in discover_ps.lower()
+
+    # Primary-manufacturer model/SKU adjudication must survive handoffs without
+    # being confused with installed firmware, application target, or push authority.
+    assert "## Manufacturer SKU adjudication" in firmware_docs
+    assert "A80-0BA-RD6-01AA" in firmware_docs
+    assert "A80 Android 10, PCI 6.x" in firmware_docs
+    assert "EOL-A80-Android-6-and-7.pdf" in firmware_docs
+    assert "not" in firmware_docs.split("## Manufacturer SKU adjudication", 1)[1].split("## Domain vocabulary", 1)[0].lower()
+    assert "VERSION_DOMAIN_UNRESOLVED" in firmware_docs
+    assert "Do not select/install/push an Android 10 image solely from this notice." in firmware_docs
+
 
 
     print("[PASS] H&H network-switch checkpoint is a tracked CMD workflow")
