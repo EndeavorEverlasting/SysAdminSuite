@@ -328,6 +328,25 @@ $adState = 'NOT_AD_VERIFIED'
 $adProbeMode = 'NOT_APPLICABLE_TO_EXACT_MAC_CONSUMER_LAB_REACQUISITION'
 $adInstruction = 'This exact-MAC consumer-lab lane does not query Active Directory. Use the canonical AD probe workflow only when AD registration evidence is separately required.'
 
+# A consumer-LAN miss closes only this local experiment, not the firmware program.
+# The independent source/management and labeled-version gates remain active.
+$continuationLane = if ($classification -eq 'HOME_LAB_EXACT_MAC_NOT_FOUND_AFTER_REACQUISITION') {
+    'AUTHORIZED_MANAGEMENT_SOURCE_AND_LABELED_VERSION'
+} elseif ($classification -eq 'HOME_LAB_EXACT_MAC_AMBIGUOUS') {
+    'RESOLVE_LOCAL_NETWORK_IDENTITY_AMBIGUITY'
+} else {
+    'FIRMWARE_SOURCE_AND_LABELED_BASELINE'
+}
+$nextAction = if ($classification -eq 'HOME_LAB_EXACT_MAC_NOT_FOUND_AFTER_REACQUISITION') {
+    'Local two-pass MAC discovery is exhausted for this network, not for the firmware program. Preserve separately established photo/serial identity. Do not rerun the same scan without a materially changed network or approved live IPv4. Continue authorized management-plane/source investigation and obtain one same-reader, labeled installed-version observation. No firmware mutation.'
+} elseif ($classification -eq 'HOME_LAB_EXACT_MAC_AMBIGUOUS') {
+    'Do not select a LAN candidate on MAC ambiguity. Resolve this local-network ambiguity only if network contact is genuinely required. Continue independent authorized management-plane/source investigation. No firmware mutation.'
+} else {
+    'Retain the exact local probe result as evidence; continue authorized management-plane source, labeled installed-version, package-domain, and restore-path gates. No firmware mutation.'
+}
+$parentObjectiveState = 'ACTIVE_FIRMWARE_SOURCE_AND_BASELINE'
+
+
 $stamp = [DateTimeOffset]::Now.ToString('yyyyMMdd-HHmmss-fff')
 $suffix = [Guid]::NewGuid().ToString('N').Substring(0,8)
 $result = [ordered]@{
@@ -375,6 +394,10 @@ $result = [ordered]@{
     probe_exit_code = $probeExit
     probe_classification = $probeClassification
     classification = $classification
+    workflow_scope = 'HOME_LAB_LOCAL_PRESENCE_ONLY'
+    parent_objective_state = $parentObjectiveState
+    continuation_lane = $continuationLane
+    next_action = $nextAction
     interpretation_ceiling = 'Exact-MAC match can identify one same-L2 candidate for the canonical probe. Same-OUI candidates are advisory only. No result proves firmware-management ownership.'
     mutation = 'NONE'
 }
@@ -383,6 +406,9 @@ $receiptPath = Join-Path $outputRoot ("hh-cc-reader-home-lab-discovery-{0}-{1}.j
 $result | ConvertTo-Json -Depth 10 | Set-Content -LiteralPath $receiptPath -Encoding UTF8
 
 Write-Host ("CLASSIFICATION={0}" -f $classification)
+Write-Host ("PARENT_OBJECTIVE_STATE={0}" -f $parentObjectiveState)
+Write-Host ("CONTINUATION_LANE={0}" -f $continuationLane)
+Write-Host ("NEXT_ACTION={0}" -f $nextAction)
 Write-Host ("NETWORK_AUTHORITY={0} [{1}]" -f $network.classification,$network.label)
 Write-Host ("PREPARED_COMMIT_VERIFIED={0}" -f $currentCommit)
 Write-Host ("NETWORK_CHANGED_FROM_BEFORE={0}" -f $networkChangedFromBefore)

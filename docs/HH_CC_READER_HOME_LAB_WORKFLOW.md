@@ -74,6 +74,21 @@ The discovery workflow first captures `AFTER_SWITCH` automatically, then:
 
 An OUI-only match is never treated as device identity. `HOME_LAB_EXACT_MAC_NOT_FOUND_AFTER_REACQUISITION` means the two-pass bounded window was exhausted; it still does not prove the reader is powered off or absent from the broader network.
 
+## Nonterminal continuation contract — prevent the false boundary
+
+A home-lab exact-MAC miss **terminates only this local presence experiment**. It is neither a loss of separately proven physical device identity nor a firmware-project blocker. Do not assign Ethernet rewiring, another LAN sweep, another MAC lookup, or another photo request as the only next step. Revisit local discovery only with materially new placement evidence, an approved live IPv4, or an explicit network-specific objective.
+
+The command emits additive machine-readable receipt and console fields:
+
+- `workflow_scope=HOME_LAB_LOCAL_PRESENCE_ONLY` (receipt)
+- `parent_objective_state=ACTIVE_FIRMWARE_SOURCE_AND_BASELINE`
+- `continuation_lane=AUTHORIZED_MANAGEMENT_SOURCE_AND_LABELED_VERSION` after `HOME_LAB_EXACT_MAC_NOT_FOUND_AFTER_REACQUISITION`
+- `next_action` with the independent authorized route
+
+**Same-turn successor:** retain the established identity/evidence floor; continue authorized Payment Fusion/IngEstate or other evidenced management-plane/source investigation, model/SKU-specific package/domain disposition, and one labeled same-device installed-version observation through an actually accessible authorized surface. Consult the existing firmware observation program and source-provenance gates; do not select Taurus/Cedar, infer PayDroid from a chassis label, or execute a firmware/payment mutation. If management access requires credentials or physical UI interaction, classify only that specific gate as operator/authority-dependent and advance independent source research, normalization, contract, and read-only evidence work.
+
+This local receipt remains a **network-lane result**, not a field-firmware completion receipt. Preserve its path privately and never publish H&H identity values to tracked source.
+
 ### 3. Manual checkpoint when useful
 
 ```text

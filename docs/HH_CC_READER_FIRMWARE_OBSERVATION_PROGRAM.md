@@ -15,6 +15,16 @@ Mission owner: live Kiosk4 firmware/package deployment (not harness theater)
 6. When the operator owns/administers the PAXSTORE marketplace, missing External System Integration keys are `AUTHORIZED_ACCESS_SETUP_REQUIRED`, not an external `CREDENTIAL_GATE`.
 7. Never source or deploy an unlabeled public/leaked A80 image; marketplace-mediated packages only.
 
+## Manufacturer SKU adjudication (2026-10-29; primary-source evidence)
+
+PAX Technology's official March 28, 2024 A80 Android 6/7 end-of-life notice explicitly lists **`A80-0BA-RD6-01AA`** under the **A80 Android 10, PCI 6.x** part numbers, alongside `A80-0BA-RD6-00AA`. The old A80 Android 6/7 PCI 5.x part-number family is separately listed as `A80-MBA-RD5-...`.
+
+Primary source: https://www.pax.us/wp-content/uploads/2024/04/EOL-A80-Android-6-and-7.pdf (page 1, manufacturer's precise part-number enumeration).
+
+**Decision impact:** for a separately photo-verified device bearing `A80-0BA-RD6-01AA`, treat **Android 10 / PCI 6.x as the manufacturer-declared SKU family**, rather than reopening Taurus 6.0.1 vs Android 10 as equally supported hardware-generation guesses. Do not interpret the chassis marking or generic A80 references as the only support: this exact SKU has primary-source backing. Historical PAXSTORE screenshots of A80 Taurus 6.0.1 firmware belong to other/older A80 product families unless vendor evidence binds them to this exact SKU.
+
+**Proof ceiling:** Manufacturer SKU classification is **not** same-device runtime observation, installed OS/PayDroid build, exact Cedar package version, approved bank/processor application, PAXSTORE tenant entitlement, signed update source, or a firmware/app target-domain decision. The campaign target `2.0.15.260522` remains `VERSION_DOMAIN_UNRESOLVED` until independently labeled and authority-bound. Continue authorized management-plane source research and obtain a same-device labeled installed-version observation. Do not select/install/push an Android 10 image solely from this notice.
+
 ## Domain vocabulary
 
 | Term | Owns |
