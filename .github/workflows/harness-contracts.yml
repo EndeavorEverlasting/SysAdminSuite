@@ -42,6 +42,13 @@ on:
       - 'scripts/SasSoftwareDeploymentTransport.psm1'
       - 'scripts/SasSoftwareDeploymentLowNoise.psm1'
       - 'scripts/SasSoftwareDeploymentKerberosSmbHardBounded.psm1'
+      - 'harness/contracts/protected-network-offline-execution.v1.json'
+      - 'harness/validators/validate-protected-network-offline-execution.py'
+      - 'harness/api/harness-validator-registry.json'
+      - 'harness/workflows/fresh-agent-intake.yaml'
+      - 'Config/SoftwareDeploy/ScanSnap/**'
+      - 'docs/GUEST_SYNC_TO_PROTECTED_DEPLOYMENT.md'
+      - 'docs/handoff/SCANSNAP_RECOVERY_CURSOR_HANDOFF_20261007.md'
       - 'scripts/SasSoftwareDeploymentAdapter.psm1'
       - 'scripts/SasSoftwareDeploymentLiveCert.psm1'
       - 'scripts/SasSoftwareInstallFinalization.psm1'
@@ -100,6 +107,10 @@ jobs:
       - name: Canonical SMB scheduled-task deployment contracts
         shell: bash
         run: python3 Tests/survey/test_canonical_smb_task_deployment_contracts.py
+
+      - name: Protected-network offline execution contract
+        shell: bash
+        run: python3 harness/validators/validate-protected-network-offline-execution.py
 
       - name: Run harness contract suite
         shell: bash
