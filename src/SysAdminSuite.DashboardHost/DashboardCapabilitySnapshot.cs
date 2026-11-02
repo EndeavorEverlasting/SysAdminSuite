@@ -146,8 +146,17 @@ public static class DashboardCapabilitySnapshot
                 var sourceExists = !string.IsNullOrEmpty(source) && !Path.IsPathRooted(source)
                     && !source.Contains("..", StringComparison.Ordinal)
                     && File.Exists(Path.Combine(repoRoot, source.Replace('/', Path.DirectorySeparatorChar)));
-                var receipt = contracts.TryGetValue(id, out var aid) && artifacts.TryGetValue(aid, out var path)
-                    ? ReceiptSummary(repoRoot, path) : (observed: false, observedAt: (string?)null, state: (string?)null);
+                // Many SAS artifacts live in other private stores. They are
+                // outside this safe read-only survey-root projection, not "absent".
+                string? artifactPath = null;
+                if (contracts.TryGetValue(id, out var aid) && artifacts.TryGetValue(aid, out var path))
+                    artifactPath = path;
+                var receiptCoverage = artifactPath is null ? "NO_INDEXED_RECEIPT"
+                    : artifactPath.Replace('\\', '/').StartsWith("survey/output/", StringComparison.Ordinal)
+                      ? "SURVEY_OUTPUT_PATTERN" : "OTHER_PRIVATE_RECEIPT_HOME_NOT_QUERIED";
+                var receipt = receiptCoverage == "SURVEY_OUTPUT_PATTERN"
+                    ? ReceiptSummary(repoRoot, artifactPath!)
+                    : (observed: false, observedAt: (string?)null, state: (string?)null);
                 return new
                 {
                     id,
@@ -160,6 +169,7 @@ public static class DashboardCapabilitySnapshot
                         ? (entryExists ? "FILE_PRESENT" : "FILE_MISSING")
                         : "RUNTIME_DISPATCH_NOT_PROBED",
                     source_present = sourceExists,
+                    receipt_coverage = receiptCoverage,
                     local_receipt_observed = receipt.observed,
                     last_receipt_at = receipt.observedAt,
                     last_allowlisted_state = receipt.state,
@@ -176,6 +186,8 @@ public static class DashboardCapabilitySnapshot
                 registered_count = entries.Length,
                 entrypoint_present_count = entries.Count(x => x.entrypoint_present),
                 local_receipt_count = entries.Count(x => x.local_receipt_observed),
+                unobserved_supported_receipt_count = entries.Count(x => x.receipt_coverage == "SURVEY_OUTPUT_PATTERN" && !x.local_receipt_observed),
+                receipt_home_not_queried_count = entries.Count(x => x.receipt_coverage != "SURVEY_OUTPUT_PATTERN"),
                 capabilities = entries
             };
         }
