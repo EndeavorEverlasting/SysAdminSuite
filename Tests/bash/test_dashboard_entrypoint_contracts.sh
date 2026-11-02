@@ -137,9 +137,13 @@ grep -Fiq 'double-click this file again' "$bat" \
 grep -Fq 'curl' "$bat" \
   || fail "root .bat has no health check (curl) before opening the browser"
 health_line=$(grep -n 'HOST_UP=1' "$bat" | head -1 | cut -d: -f1)
-browser_line=$(grep -n 'start "" "http' "$bat" | head -1 | cut -d: -f1)
+browser_line=$(grep -nE 'start "" "(http|%OPEN_URL%)' "$bat" | head -1 | cut -d: -f1)
 [[ -n "$health_line" && -n "$browser_line" && "$health_line" -lt "$browser_line" ]] \
   || fail "root .bat opens the browser before the host health check"
+grep -Fq 'if /I "%~1"=="--capabilities" set "OPEN_URL=http://127.0.0.1:5000/dashboard/capabilities.html"' "$bat" \
+  || fail "root .bat lost the read-only capability cockpit route"
+grep -Fq 'start "" "%OPEN_URL%"' "$bat" \
+  || fail "root .bat must open the approved selected URL after health check"
 
 # Field-safe build-failure messaging in the root .bat.
 grep -Fq 'The dashboard app could not be prepared on this machine' "$bat" \
