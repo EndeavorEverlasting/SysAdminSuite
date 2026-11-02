@@ -24,7 +24,7 @@
       if (domain && c.domain !== domain) return false;
       if (evidence === 'receipt' && !c.local_receipt_observed) return false;
       if (evidence === 'none' && c.local_receipt_observed) return false;
-      if (evidence === 'missing' && c.entrypoint_present) return false;
+      if (evidence === 'missing' && c.entrypoint_status !== 'FILE_MISSING') return false;
       return [c.id, c.domain, c.command, c.purpose].join(' ').toLowerCase().includes(search);
     });
     list.replaceChildren();
@@ -36,8 +36,12 @@
       titleGroup.append(create('div', 'domain', capability.domain));
       titleGroup.append(create('h3', '', capability.id));
       head.append(titleGroup);
-      head.append(create('span', 'tag ' + (capability.entrypoint_present ? 'ok' : 'warn'),
-        capability.entrypoint_present ? 'Entrypoint present' : 'Entrypoint missing'));
+      const pathStatus = capability.entrypoint_status === 'FILE_PRESENT'
+        ? 'Entrypoint present'
+        : capability.entrypoint_status === 'FILE_MISSING'
+          ? 'Entrypoint missing'
+          : 'Runtime not probed';
+      head.append(create('span', 'tag ' + (capability.entrypoint_present ? 'ok' : 'warn'), pathStatus));
       card.append(head);
       card.append(create('p', 'description', capability.purpose || 'No purpose documented.'));
       const evidenceTag = capability.local_receipt_observed
