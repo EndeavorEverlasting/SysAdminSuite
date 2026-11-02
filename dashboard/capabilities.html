@@ -25,7 +25,7 @@
     .toolbar input,.toolbar select {background:var(--panel);color:var(--text);border:1px solid var(--edge);border-radius:9px;padding:11px 13px;min-height:43px}
     .toolbar input {flex:1 1 280px;min-width:190px}
     .toolbar select {flex:0 1 205px}
-    .cards {display:grid;grid-template-columns:repeat(4,minmax(0,1fr));gap:12px;margin-top:14px}
+    .cards {display:grid;grid-template-columns:repeat(auto-fit,minmax(185px,1fr));gap:12px;margin-top:14px}
     .stat {background:var(--panel);border:1px solid var(--edge);border-radius:13px;padding:16px 18px}
     .stat strong {font-size:29px;display:block;line-height:1.15}
     .stat span {color:var(--muted);font-size:12px}
@@ -67,17 +67,18 @@
       <div class="stat"><strong id="count-registered">—</strong><span>Registered commands</span></div>
       <div class="stat"><strong id="count-entrypoints">—</strong><span>Entrypoints present on this host</span></div>
       <div class="stat"><strong id="count-receipts">—</strong><span>Commands with local receipt files</span></div>
-      <div class="stat"><strong id="count-no-evidence">—</strong><span>No local receipt observed</span></div>
+      <div class="stat"><strong id="count-no-evidence">—</strong><span>Survey receipts not observed</span></div>
+      <div class="stat"><strong id="count-uncovered">—</strong><span>Other receipt homes not queried</span></div>
     </section>
     <div class="toolbar" aria-label="Capability filters">
       <input id="search" type="search" placeholder="Find a capability, command or purpose…" aria-label="Search capabilities">
       <select id="domain" aria-label="Filter by domain"><option value="">All SAS domains</option></select>
-      <select id="evidence" aria-label="Filter by evidence"><option value="">All evidence states</option><option value="receipt">Local receipt observed</option><option value="none">No local receipt</option><option value="missing">Entrypoint missing</option></select>
+      <select id="evidence" aria-label="Filter by evidence"><option value="">All evidence states</option><option value="receipt">Local receipt observed</option><option value="none">No survey receipt observed</option><option value="uncovered">Other private receipt home</option><option value="missing">Entrypoint missing</option></select>
       <button class="button" id="refresh" type="button">Refresh local evidence</button>
     </div>
     <p id="status" class="statusline" role="status" aria-live="polite">Checking local dashboard host…</p>
     <section id="capabilities" aria-label="Registered SAS capabilities" class="grid"></section>
-    <div class="footer">Evidence vocabulary: <strong>registered</strong> = present in the canonical command registry; <strong>entrypoint present</strong> = command file exists; <strong>receipt observed</strong> = a matching private output file exists. No unreviewed receipt proves successful execution or target acceptance. Only an explicit, allowlisted state is displayed; all raw receipts remain private.</div>
+    <div class="footer">Evidence vocabulary: <strong>registered</strong> = present in the canonical command registry; <strong>entrypoint present</strong> = command file exists; <strong>receipt observed</strong> = a matching private output file exists. The first release checks only registered, local survey/output receipt patterns; external/other private receipt stores are explicitly not queried. No unreviewed receipt proves successful execution or target acceptance. Only an explicit, allowlisted state is displayed; all raw receipts remain private.</div>
   </main>
 </body>
 </html>
