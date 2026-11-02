@@ -134,9 +134,15 @@ public static class DashboardCapabilitySnapshot
                 var id = ReadString(command, "id");
                 var entry = ReadString(command, "command").Split(' ', StringSplitOptions.RemoveEmptyEntries).FirstOrDefault() ?? "";
                 var source = ReadString(command, "source_of_truth");
-                var entryExists = entry.EndsWith(".cmd", StringComparison.OrdinalIgnoreCase)
+                // Runtime dispatchers (python/pwsh/bash/dotnet/sas) are neither
+                // "present" nor "missing" without a qualified host check.
+                var directFile = entry.EndsWith(".cmd", StringComparison.OrdinalIgnoreCase)
                     || entry.EndsWith(".bat", StringComparison.OrdinalIgnoreCase)
-                    ? File.Exists(Path.Combine(repoRoot, entry)) : false;
+                    || entry.EndsWith(".ps1", StringComparison.OrdinalIgnoreCase)
+                    || entry.EndsWith(".sh", StringComparison.OrdinalIgnoreCase);
+                var entryExists = directFile && !Path.IsPathRooted(entry)
+                    && !entry.Contains("..", StringComparison.Ordinal)
+                    && File.Exists(Path.Combine(repoRoot, entry));
                 var sourceExists = !string.IsNullOrEmpty(source) && !Path.IsPathRooted(source)
                     && !source.Contains("..", StringComparison.Ordinal)
                     && File.Exists(Path.Combine(repoRoot, source.Replace('/', Path.DirectorySeparatorChar)));
@@ -150,6 +156,9 @@ public static class DashboardCapabilitySnapshot
                     purpose = ReadString(command, "purpose"),
                     mutation_class = ReadString(command, "mutation"),
                     entrypoint_present = entryExists,
+                    entrypoint_status = directFile
+                        ? (entryExists ? "FILE_PRESENT" : "FILE_MISSING")
+                        : "RUNTIME_DISPATCH_NOT_PROBED",
                     source_present = sourceExists,
                     local_receipt_observed = receipt.observed,
                     last_receipt_at = receipt.observedAt,
