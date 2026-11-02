@@ -35,6 +35,42 @@ This creates the `SysAdminSuite` folder; they then open it and double-click `STA
 
 Warn against the common mistake: do **not** create a `SysAdminSuite` folder first and clone inside it, which produces `SysAdminSuite\SysAdminSuite` and hides the launcher one level deep. ZIP download via the GitHub **Code** button is an equivalent no-Git path for developers. Locked-down field PCs where Microsoft downloads or admin installs are blocked should use the dashboard field release package instead ([`DASHBOARD_FIELD_RELEASE.md`](DASHBOARD_FIELD_RELEASE.md)).
 
+## Operator capability cockpit (Admin Box / local Windows host)
+
+A dedicated, read-only browser view exposes the canonical SAS command registry and
+local evidence-file metadata; it never runs a reader probe or changes the target.
+
+- **Entry:** double-click `Open-SasCapabilityCockpit.cmd` on the approved
+  Admin Box checkout. This delegates to the existing
+  `START-HERE-SysAdminSuite-Dashboard.bat --capabilities`, preserving its
+  conservative source/update and host-start behavior.
+- **URL after host startup:** `http://127.0.0.1:5000/dashboard/capabilities.html`.
+  The normal dashboard also links to **Capability Cockpit**.
+- **Source:** 53+ commands are enumerated from the live local copy of
+  `harness/api/harness-command-registry.json`. Command availability is derived
+  from entrypoint/source file presence, not guessed from documentation.
+- **Evidence:** the local tray host reads only allowlisted metadata from ignored
+  `survey/output/` receipt names and files. It returns timestamp and narrowly
+  allowlisted typed states—not raw JSON, live MAC/serial/IP, credentials,
+  client paths, receipt filenames, or screenshots.
+- **Refresh:** rereads local repository and receipt metadata at request time;
+  no background polling, network sweep, tool execution or target contact.
+- **Truth labels:** registered, entrypoint present, receipt-file observed,
+  allowlisted last state, proof ceiling. Receipt existence does not demonstrate
+  successful field execution, accepted firmware, or independent device proof.
+- **Host trust:** all requests to `/dashboard/api/capabilities` require an
+  actual loopback client and a local Host header. The page does not itself certify
+  that the local machine is Admin Box 1. The generic Python/static fallback
+  intentionally cannot supply this host-specific evidence endpoint, and the
+  page reports it as unavailable rather than fabricating a summary.
+- **Release:** this UI lives in the same `dashboard/` tree and .NET host as
+  the established field-release package. No reader agent is installed.
+
+Tests: `managed-tests/SysAdminSuite.DashboardHost.Tests/DashboardCapabilitySnapshotTests.cs`
+plus `.github/workflows/sas-capability-cockpit.yml`. Live Admin Box acceptance
+is separate: actually launch the existing host on the verified machine, observe
+the page and the read-only endpoint, and inspect that no target connection occurs.
+
 ## Launcher matrix
 
 | File | Audience | What it does |
