@@ -23,7 +23,8 @@
     const matching = state.capabilities.filter(c => {
       if (domain && c.domain !== domain) return false;
       if (evidence === 'receipt' && !c.local_receipt_observed) return false;
-      if (evidence === 'none' && c.local_receipt_observed) return false;
+      if (evidence === 'none' && (c.local_receipt_observed || c.receipt_coverage !== 'SURVEY_OUTPUT_PATTERN')) return false;
+      if (evidence === 'uncovered' && c.receipt_coverage === 'SURVEY_OUTPUT_PATTERN') return false;
       if (evidence === 'missing' && c.entrypoint_status !== 'FILE_MISSING') return false;
       return [c.id, c.domain, c.command, c.purpose].join(' ').toLowerCase().includes(search);
     });
@@ -44,9 +45,11 @@
       head.append(create('span', 'tag ' + (capability.entrypoint_present ? 'ok' : 'warn'), pathStatus));
       card.append(head);
       card.append(create('p', 'description', capability.purpose || 'No purpose documented.'));
-      const evidenceTag = capability.local_receipt_observed
-        ? 'Local receipt exists · outcome not certified'
-        : 'No local receipt observed';
+      const evidenceTag = capability.receipt_coverage !== 'SURVEY_OUTPUT_PATTERN'
+        ? 'Other private receipt home · not queried'
+        : capability.local_receipt_observed
+          ? 'Local receipt exists · outcome not certified'
+          : 'No matching survey receipt observed';
       card.append(create('div', 'tag' + (capability.local_receipt_observed ? ' warn' : ''), evidenceTag));
       const detail = create('div', 'detail');
       const dl = create('dl');
@@ -54,6 +57,7 @@
         ['Command', capability.command || 'Unknown'],
         ['Source present', capability.source_present ? 'Yes' : 'No / unverified'],
         ['Mutation class', capability.mutation_class || 'Unspecified'],
+        ['Receipt coverage', capability.receipt_coverage === 'SURVEY_OUTPUT_PATTERN' ? 'Survey output pattern' : 'Other private home / not indexed'],
         ['Last receipt', formatTime(capability.last_receipt_at)],
         ['Typed state', capability.last_allowlisted_state || 'Not safely classified'],
         ['Proof ceiling', capability.proof_ceiling || 'Not established']
@@ -104,14 +108,15 @@
       setText('count-registered', data.registered_count);
       setText('count-entrypoints', data.entrypoint_present_count);
       setText('count-receipts', data.local_receipt_count);
-      setText('count-no-evidence', data.registered_count - data.local_receipt_count);
+      setText('count-no-evidence', data.unobserved_supported_receipt_count);
+      setText('count-uncovered', data.receipt_home_not_queried_count);
       showCapabilities();
     } catch (err) {
       // Do not use stale data as current host truth after an endpoint failure.
       state.capabilities = [];
       state.loaded = false;
       state.generatedAt = null;
-      ['count-registered', 'count-entrypoints', 'count-receipts', 'count-no-evidence']
+      ['count-registered', 'count-entrypoints', 'count-receipts', 'count-no-evidence', 'count-uncovered']
         .forEach(id => setText(id, '—'));
       setText('status', 'Unable to verify local capabilities: ' + (err.message || 'unknown error')
         + '. Start the Windows SysAdminSuite DashboardHost on this Admin Box. '
