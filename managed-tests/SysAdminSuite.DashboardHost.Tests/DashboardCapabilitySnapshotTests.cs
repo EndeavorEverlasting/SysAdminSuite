@@ -97,6 +97,18 @@ public sealed class DashboardCapabilitySnapshotTests : IDisposable
     }
 
     [Fact]
+    public void RuntimeDispatchDoesNotBecomeFalseEntrypointMissingClaim()
+    {
+        File.WriteAllText(Path.Combine(_registry, "harness-command-registry.json"),
+            "{\\"commands\\":[{\\"id\\":\\"harness-validate\\",\\"command\\":\\"python tool.py\\",\\"source_of_truth\\":\\"harness/api/reader.py\\"}]}");
+        using var doc = JsonDocument.Parse(JsonSerializer.Serialize(DashboardCapabilitySnapshot.Build(_dashboard)));
+        var cap = doc.RootElement.GetProperty("capabilities")[0];
+        Assert.Equal("RUNTIME_DISPATCH_NOT_PROBED", cap.GetProperty("entrypoint_status").GetString());
+        Assert.False(cap.GetProperty("entrypoint_present").GetBoolean());
+        Assert.True(cap.GetProperty("source_present").GetBoolean());
+    }
+
+    [Fact]
     public void MissingRegistryFailsClosedInsteadOfPresentingEmptySuccess()
     {
         File.Delete(Path.Combine(_registry, "harness-command-registry.json"));
