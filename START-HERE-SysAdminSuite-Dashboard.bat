@@ -17,6 +17,8 @@ echo.
 set "ROOT=%~dp0"
 cd /d "%ROOT%"
 set "HEALTH_URL=http://127.0.0.1:5000/dashboard/"
+set "OPEN_URL=http://127.0.0.1:5000/dashboard/?tutorial=setup"
+if /I "%~1"=="--capabilities" set "OPEN_URL=http://127.0.0.1:5000/dashboard/capabilities.html"
 set "UPDATE_HELPER=%ROOT%tools\update\Invoke-SysAdminSuiteUpdate.ps1"
 
 if exist "%UPDATE_HELPER%" (
@@ -147,12 +149,12 @@ if not "!HOST_UP!"=="1" (
     exit /b 1
 )
 
-echo Opening dashboard and Repo Setup tutorial in your browser...
-start "" "http://127.0.0.1:5000/dashboard/?tutorial=setup"
+echo Opening the SysAdminSuite local dashboard in your browser...
+start "" "%OPEN_URL%"
 
 echo.
 echo If the page did not open, paste this into your browser:
-echo   http://127.0.0.1:5000/dashboard/?tutorial=setup
+echo   %OPEN_URL%
 echo.
 echo A tray icon should appear. Right-click it for Open Dashboard, Copy URL, or Stop.
 echo.
