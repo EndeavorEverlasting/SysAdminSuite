@@ -116,6 +116,21 @@ if (-not (Test-Path -LiteralPath $dashboardSource)) {
 }
 Copy-Item -Path $dashboardSource -Destination (Join-Path $stagingRoot 'dashboard') -Recurse -Force
 
+# The dashboard source directory can have ignored, operator-private status files
+# on a workstation. Copying the source tree must never ship those live bytes.
+foreach ($relative in @(
+    'dashboard/toolbox-status.json',
+    'dashboard/capability-snapshot.json',
+    'dashboard/private-receipt.json',
+    'dashboard/runtime-status.json'
+)) {
+    $staged = Join-Path $stagingRoot $relative
+    if (Test-Path -LiteralPath $staged -PathType Leaf) {
+        Remove-Item -LiteralPath $staged -Force
+    }
+}
+
+
 Copy-Item -Path (Join-Path $publishOutput '*') -Destination (Join-Path $stagingRoot 'app\bin') -Recurse -Force
 
 $fieldReadme = @"
