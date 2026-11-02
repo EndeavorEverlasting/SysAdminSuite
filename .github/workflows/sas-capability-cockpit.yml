@@ -1,0 +1,47 @@
+name: SAS Admin Box Capability Cockpit
+
+on:
+  pull_request:
+    paths:
+      - 'src/SysAdminSuite.DashboardHost/**'
+      - 'managed-tests/SysAdminSuite.DashboardHost.Tests/**'
+      - 'dashboard/capabilities.html'
+      - 'dashboard/js/capability-cockpit.js'
+      - 'dashboard/index.html'
+      - 'Open-SasCapabilityCockpit.cmd'
+      - 'START-HERE-SysAdminSuite-Dashboard.bat'
+      - '.github/workflows/sas-capability-cockpit.yml'
+  push:
+    branches: [main]
+    paths:
+      - 'src/SysAdminSuite.DashboardHost/**'
+      - 'managed-tests/SysAdminSuite.DashboardHost.Tests/**'
+      - 'dashboard/capabilities.html'
+      - 'dashboard/js/capability-cockpit.js'
+      - 'dashboard/index.html'
+      - 'Open-SasCapabilityCockpit.cmd'
+      - 'START-HERE-SysAdminSuite-Dashboard.bat'
+      - '.github/workflows/sas-capability-cockpit.yml'
+
+jobs:
+  host-and-ui:
+    runs-on: windows-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-dotnet@v4
+        with:
+          dotnet-version: '8.0.x'
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+      - name: Validate cockpit browser script
+        run: node --check dashboard/js/capability-cockpit.js
+      - name: Dashboard host and privacy regression tests
+        run: dotnet test managed-tests/SysAdminSuite.DashboardHost.Tests/SysAdminSuite.DashboardHost.Tests.csproj --configuration Release --verbosity minimal
+      - name: Reject tracked private capability snapshots
+        shell: pwsh
+        run: |
+          $tracked = @(git ls-files dashboard)
+          if ($tracked -match 'dashboard/(capability-snapshot|private-receipt|runtime-status)') {
+            throw 'A private runtime capability export is tracked in the static dashboard'
+          }

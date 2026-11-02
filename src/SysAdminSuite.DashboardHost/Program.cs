@@ -39,6 +39,20 @@ internal static class Program
             return Task.CompletedTask;
         });
 
+        // Local operator observability. Never execute a SAS command or read raw
+        // target receipts through the browser. A non-loopback request fails closed.
+        app.MapGet("/dashboard/api/capabilities", (HttpContext ctx) =>
+        {
+            if (!DashboardCapabilitySnapshot.IsLocalRequest(ctx.Connection.RemoteIpAddress, ctx.Request.Host.Host))
+            {
+                ctx.Response.StatusCode = 403;
+                return Task.CompletedTask;
+            }
+            ctx.Response.Headers["Cache-Control"] = "no-store";
+            ctx.Response.Headers["X-Content-Type-Options"] = "nosniff";
+            return ctx.Response.WriteAsJsonAsync(DashboardCapabilitySnapshot.Build(dashboardRoot!));
+        });
+
         app.Map("/dashboard/{**path}", (HttpContext ctx) => HandleDashboard(ctx, dashboardRoot!));
         app.Map("/dashboard", (HttpContext ctx) => HandleDashboard(ctx, dashboardRoot!));
 

@@ -60,6 +60,7 @@ New-Item -ItemType Directory -Path (Join-Path $stagingRoot 'app\bin') -Force | O
 $rootFiles = @(
     'START-HERE-SysAdminSuite-Dashboard.bat',
     'START-HERE-SysAdminSuite-Dashboard.cmd',
+    'Open-SasCapabilityCockpit.cmd',
     'SysAdminSuite Dashboard.cmd',
     'Launch-SysAdminSuiteDashboard.Host.bat',
     'START-HERE-SysAdminSuite.md',
@@ -73,6 +74,24 @@ foreach ($file in $rootFiles) {
         throw "Required field-release file missing: $source"
     }
     Copy-Item -LiteralPath $source -Destination (Join-Path $stagingRoot $file) -Force
+}
+
+# Capability discovery is registry-driven. Ship the exact three public, sanitized
+# registry definitions; never bundle ignored survey/output or private receipts.
+$capabilityRegistries = @(
+    'harness/api/harness-command-registry.json',
+    'harness/api/harness-outcome-registry.json',
+    'harness/api/harness-artifact-registry.json'
+)
+foreach ($relative in $capabilityRegistries) {
+    $source = Join-Path $repoRoot $relative
+    if (-not (Test-Path -LiteralPath $source -PathType Leaf)) {
+        throw "Required capability registry missing: $relative"
+    }
+    $destination = Join-Path $stagingRoot $relative
+    $parent = Split-Path -Parent $destination
+    New-Item -ItemType Directory -Path $parent -Force | Out-Null
+    Copy-Item -LiteralPath $source -Destination $destination -Force
 }
 
 # Local TCP printer wizard is part of the installed field app, not a repo-only extra.
@@ -96,6 +115,21 @@ if (-not (Test-Path -LiteralPath $dashboardSource)) {
     throw "dashboard/ folder missing at repo root"
 }
 Copy-Item -Path $dashboardSource -Destination (Join-Path $stagingRoot 'dashboard') -Recurse -Force
+
+# The dashboard source directory can have ignored, operator-private status files
+# on a workstation. Copying the source tree must never ship those live bytes.
+foreach ($relative in @(
+    'dashboard/toolbox-status.json',
+    'dashboard/capability-snapshot.json',
+    'dashboard/private-receipt.json',
+    'dashboard/runtime-status.json'
+)) {
+    $staged = Join-Path $stagingRoot $relative
+    if (Test-Path -LiteralPath $staged -PathType Leaf) {
+        Remove-Item -LiteralPath $staged -Force
+    }
+}
+
 
 Copy-Item -Path (Join-Path $publishOutput '*') -Destination (Join-Path $stagingRoot 'app\bin') -Recurse -Force
 
