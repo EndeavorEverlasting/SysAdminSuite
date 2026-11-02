@@ -60,6 +60,7 @@ New-Item -ItemType Directory -Path (Join-Path $stagingRoot 'app\bin') -Force | O
 $rootFiles = @(
     'START-HERE-SysAdminSuite-Dashboard.bat',
     'START-HERE-SysAdminSuite-Dashboard.cmd',
+    'Open-SasCapabilityCockpit.cmd',
     'SysAdminSuite Dashboard.cmd',
     'Launch-SysAdminSuiteDashboard.Host.bat',
     'START-HERE-SysAdminSuite.md',
@@ -73,6 +74,24 @@ foreach ($file in $rootFiles) {
         throw "Required field-release file missing: $source"
     }
     Copy-Item -LiteralPath $source -Destination (Join-Path $stagingRoot $file) -Force
+}
+
+# Capability discovery is registry-driven. Ship the exact three public, sanitized
+# registry definitions; never bundle ignored survey/output or private receipts.
+$capabilityRegistries = @(
+    'harness/api/harness-command-registry.json',
+    'harness/api/harness-outcome-registry.json',
+    'harness/api/harness-artifact-registry.json'
+)
+foreach ($relative in $capabilityRegistries) {
+    $source = Join-Path $repoRoot $relative
+    if (-not (Test-Path -LiteralPath $source -PathType Leaf)) {
+        throw "Required capability registry missing: $relative"
+    }
+    $destination = Join-Path $stagingRoot $relative
+    $parent = Split-Path -Parent $destination
+    New-Item -ItemType Directory -Path $parent -Force | Out-Null
+    Copy-Item -LiteralPath $source -Destination $destination -Force
 }
 
 # Local TCP printer wizard is part of the installed field app, not a repo-only extra.
