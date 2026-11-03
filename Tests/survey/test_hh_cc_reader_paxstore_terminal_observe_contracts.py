@@ -234,10 +234,25 @@ def test_extended_flags_reach_transport_without_network_side_effects() -> None:
         }, transport=offline_transport,
     )
     assert result["access_state"] == "OBSERVED"
-    assert result["network_contacted"] is True  # transport invoked (fixture substitute)
+    assert result["network_contacted"] is False  # injected fixture is NOT live network proof
+    assert result["transport_injected"] is True
     assert len(urls) == 1
     assert "includeInstalledApks=true" in urls[0]
     assert "includeDetailInfoList=true" in urls[0]
+
+
+def test_live_auth_url_requires_tls() -> None:
+    try:
+        build_signed_get(
+            base_url="http://api.whatspos.com/p-market-api",
+            api_key="KEY", api_secret="SECRET", serial_no=SERIAL,
+            timestamp_ms=1_700_000_000_000,
+        )
+    except ValueError as exc:
+        assert "HTTPS" in str(exc)
+    else:
+        raise AssertionError("insecure credential-bearing URL accepted")
+
 
 
 def main() -> int:
@@ -252,6 +267,7 @@ def main() -> int:
         test_expected_mac_missing_from_response_must_not_bind,
         test_extended_readonly_query_is_signed_and_get_only,
         test_extended_flags_reach_transport_without_network_side_effects,
+        test_live_auth_url_requires_tls,
     ]
     failed = 0
     for test in tests:
