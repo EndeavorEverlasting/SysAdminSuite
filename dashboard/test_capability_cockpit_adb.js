@@ -31,7 +31,7 @@ const expectedStages = [
   ['hh-cc-reader-adb-remote-view-certify'],
   ['hh-cc-reader-adb-control-plane-evaluate', 'hh-cc-reader-capability-program-evaluate']
 ];
-assert.deepEqual(stages.map(stage => Array.from(stage.ids)), expectedStages,
+assert.deepEqual(Array.from(stages, stage => Array.from(stage.ids)), expectedStages,
   'each exact registered command must stay in its reviewed operator journey stage');
 function validateStages(rows) {
   const ids = [];
