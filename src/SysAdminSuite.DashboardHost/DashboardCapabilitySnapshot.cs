@@ -165,6 +165,9 @@ public static class DashboardCapabilitySnapshot
                     purpose = ReadString(command, "purpose"),
                     mutation_class = ReadString(command, "mutation"),
                     entrypoint_present = entryExists,
+                    // A file is not a qualified executable or a device result.
+                    executable_availability = "NOT_PROBED",
+                    real_world_outcome = "NOT_VERIFIED",
                     entrypoint_status = directFile
                         ? (entryExists ? "FILE_PRESENT" : "FILE_MISSING")
                         : "RUNTIME_DISPATCH_NOT_PROBED",
