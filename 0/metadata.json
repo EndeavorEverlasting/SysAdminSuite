@@ -1,0 +1,25 @@
+{
+  "cli_version": "0.11.5",
+  "checkpoint_id": "01M6H1C0MNNZXTNVJS7FP97VKR",
+  "session_id": "80fbc1f9-96cf-4091-99f7-0ae59be605f9",
+  "strategy": "manual-commit",
+  "created_at": "2026-11-03T15:45:19.7104538Z",
+  "branch": "feat/hh-a80-readonly-network-metadata-20261103",
+  "checkpoints_count": 1,
+  "save_step_count": 1,
+  "files_touched": [],
+  "agent": "Cursor",
+  "model": "default",
+  "turn_id": "8d8e865dcebf",
+  "compact_transcript_start": 0,
+  "token_usage": {
+    "input_tokens": 232264,
+    "cache_creation_tokens": 0,
+    "cache_read_tokens": 4581760,
+    "output_tokens": 33760,
+    "api_call_count": 1
+  },
+  "session_metrics": {
+    "turn_count": 1
+  }
+}

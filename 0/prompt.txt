@@ -1,0 +1,72 @@
+## P04 — SAS Capability Cockpit continuation
+Resolved: P04 is the TokenCorridor Repo-Aware Sprint + Harness Factoring Distributor.
+The repository currently has 53 registered commands, 53 outcome contracts, and 67 evidence artifacts. PR #555 is already merged into `main` at `da48f0f0b46aa1c83c583317a95e829636b91ac7`.
+The next work is split by execution authority: GitHub-based improvements can proceed now, while actual Admin Box browser acceptance must run on Admin Box 1. Neither repository tests nor historical receipts can substitute for that host observation.
+### Launch order
+Wave 0 — Parallel-ready
+[HOST #556 — Admin Box runtime acceptance](https://github.com/EndeavorEverlasting/SysAdminSuite/issues/556?utm_source=chatgpt.com)[COVERAGE #557 — Private evidence source expansion](https://github.com/EndeavorEverlasting/SysAdminSuite/issues/557?utm_source=chatgpt.com)
+These lanes have independent work: actual Windows/browser verification versus repository-based source classification.
+Wave 1 — Lifecycle integration
+[LIFECYCLE #558 — Active operations versus historical evidence](https://github.com/EndeavorEverlasting/SysAdminSuite/issues/558?utm_source=chatgpt.com)
+Implement the activity view after settling shared evidence-source contracts. Preserve the existing dashboard and run-control system.
+Wave 2 — Convergence
+[Parent #554 — SAS capability cockpit acceptance](https://github.com/EndeavorEverlasting/SysAdminSuite/issues/554?utm_source=chatgpt.com)
+Integrate verified repository work, real Admin Box observations, and expert-facing product acceptance without conflating their evidence.
+### CHANGED | PROVED | NEXT
+CHANGED: Created all three bounded execution issues, linked their launch order into parent #554, and committed an initial evidence-source classifier in [draft PR #559](https://github.com/EndeavorEverlasting/SysAdminSuite/pull/559?utm_source=chatgpt.com).
+PROVED: The draft's .NET tests, cockpit workflow, release packaging, and several other checks passed. The feature is still incomplete: its additional tests and UI changes were blocked before commit. Pester was still running at the last check.
+NEXT: The Admin Box agent must execute #556 in the actual Windows environment. The repository lane must finish and validate #559 before merging. Then #558 can consume its settled evidence contract.
+P04 parallel execution status: DEGRADED. The first wave has two independent lanes, but no autonomous Admin Box agent was launched from this chat. Issue creation is not agent execution. A machine-readable dispatch-file write was also blocked.
+I additionally opened [TokenCorridor #291](https://github.com/EndeavorEverlasting/TokenCorridor/issues/291?utm_source=chatgpt.com) to repair the missing P04 manifest validator and runner identified in the current prompt contract.
+The work now has durable, independently owned execution paths. The principal remaining boundary is actual Admin Box runtime access—not another round of dashboard planning.
+
+/design  /trifecta
+
+---
+
+An A80 with no accessible inbound management service is not necessarily unmanageable. The supported read path may be through the management service the device already communicates with. The agent must test those possibilities
+
+The local agent now has a repository-owned workflow for retrieving firmware and software metadata without repeating the unsuccessful network probes.
+SysAdminSuite PR #561 — Read-only A80 metadata retrieval
+
+Extends the existing signed PAXSTORE terminal GET, with optional hardware, Android and installed-application metadata.
+
+
+Complete local AI agent execution runbook
+
+Exact protocol-selection process, Windows commands, metadata schema, recovery paths and acceptance criteria.
+
+
+H&H PR #227 — Private evidence and BofA handoff
+
+Registered machine-readable execution plan linking the technical observation to the H&H evidence and correspondence owners.
+
+
+
+What the local agent should execute
+After refreshing and verifying its SysAdminSuite checkout, it should use the existing protocol selector with the recovered H&H device evidence. Where the actual H&H PAXSTORE tenant has authorized read access, the extended command is:
+Observe-HHCCReaderPaxstoreTerminal.cmd --serial PRIVATE_APPROVED_SERIAL --expected-mac PRIVATE_EXPECTED_MAC --include-details --include-apps
+
+
+The placeholders are resolved locally from existing private identity receipts. The command issues an authenticated read-only GET. If PAXSTORE entitlement is unavailable, the agent continues through the authorized AxiaMed/Experian management record or provider-assisted readout rather than declaring the reader unreachable.
+
+The receipt must distinguish:
+Metadata	Required interpretation
+installedFirmware.firmwareName	Installed firmware package name, if actually returned
+terminalDetail.pn / osVersion	Hardware part number and Android version
+installedApks	Installed application names and versions, separate from firmware
+Source identity, timestamp, last check-in	Which reader was observed and how fresh the reading is
+PFT version	Separate component until its actual label and relationship are established
+
+The agent then runs the existing version-domain classifier and prepares the observed facts plus remaining questions for Aaron.
+Verification
+SysAdminSuite firmware-policy CI passed, including the PAXSTORE terminal observation contracts and protocol tests.
+
+H&H planning-handoff CI passed, including registry validation and regression tests.
+
+All authored repository files were read back, and both original Google Docs were synchronized and independently read back.
+
+The Google Drive artifacts are here:
+- Kiosk4 firmware baseline and network-observation instructions
+- Original BofA Reply All — draft not sent
+The remaining gate is a live, authorized, same-device firmware observation. Neither the CI results nor the committed adapters are evidence that we have already read Kiosk4's installed firmware. Both PRs remain drafts, not merged or deployed. /trifecta
