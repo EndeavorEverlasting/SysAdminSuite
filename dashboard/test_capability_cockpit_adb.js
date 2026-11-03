@@ -48,10 +48,11 @@ assert.throws(() => validateStages([{ title: 'Invented', description: 'No source
 for (const id of ['adb-suite', 'adb-suite-title', 'adb-journey', 'adb-status', 'capabilities']) {
   assert.ok(html.includes('id="' + id + '"'), 'missing accessible UI anchor: ' + id);
 }
-for (const label of ['Registered', 'Host entry', 'Evidence', 'Field outcome']) {
+for (const label of ['Registered', 'Executable', 'Evidence', 'Field outcome']) {
   assert.ok(script.includes("row('" + label + "'"), 'orthogonal proof dimension missing: ' + label);
 }
 assert.match(script, /execution untested/, 'entrypoint file is not executable proof');
+assert.match(script, /NOT PROBED/, 'runtime qualification must be explicit');
 assert.match(script, /Not verified by this read-only cockpit/, 'historical receipt is not field acceptance');
 assert.match(script, /textContent = String\(value\)/, 'use text nodes, not untrusted HTML');
 assert.match(script, /showAdbJourney\(\);\s*\} catch/, 'successful refresh must render ADB stages');
