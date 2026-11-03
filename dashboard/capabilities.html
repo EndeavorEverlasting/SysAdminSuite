@@ -6,9 +6,14 @@
   <title>Capability Cockpit | SysAdminSuite</title>
   <link rel="icon" href="assets/harold.jpg" type="image/jpeg">
   <style>
-    :root { color-scheme: dark; --bg:#0b111b;--panel:#151f2e;--panel2:#1b293b;--edge:#35465a;--text:#ebf1fb;--muted:#acbdd1;--accent:#79b9fa;--green:#8ed4b5;--gold:#f5d38b; }
+    :root { color-scheme: dark; --bg:#0b111b;--panel:#151f2e;--panel2:#1b293b;--edge:#35465a;--text:#ebf1fb;--muted:#acbdd1;--accent:#79b9fa;--green:#8ed4b5;--gold:#f5d38b;--ledger:#0e1622;--ink:#d7e4f4;
+      --font-ui:"Segoe UI Variable Text","Segoe UI",Candara,Calibri,sans-serif;
+      --font-data:"Cascadia Mono","Cascadia Code",Consolas,"Lucida Console",monospace; }
     * {box-sizing:border-box}
-    body {margin:0;font:14px/1.5 system-ui,"Segoe UI",sans-serif;color:var(--text);background:radial-gradient(circle at 95% 0%,#192c43,var(--bg) 45%) fixed}
+    body {margin:0;font:14px/1.5 var(--font-ui);color:var(--text);background:
+      linear-gradient(180deg,rgba(14,24,38,.92),rgba(11,17,27,.96)),
+      repeating-linear-gradient(0deg,transparent,transparent 23px,rgba(57,78,102,.11) 24px),
+      radial-gradient(circle at 95% 0%,#192c43,var(--bg) 45%) fixed}
     button,input,select {font:inherit} button {cursor:pointer}
     a {color:var(--accent)}
     .shell {max-width:1400px;padding:30px 24px 75px;margin:auto}
@@ -27,9 +32,24 @@
     .toolbar select {flex:0 1 205px}
     .cards {display:grid;grid-template-columns:repeat(auto-fit,minmax(185px,1fr));gap:12px;margin-top:14px}
     .stat {background:var(--panel);border:1px solid var(--edge);border-radius:13px;padding:16px 18px}
-    .stat strong {font-size:29px;display:block;line-height:1.15}
+    .stat strong {font-size:29px;display:block;line-height:1.15;font-family:var(--font-data);font-weight:650}
     .stat span {color:var(--muted);font-size:12px}
+    .origin-ledger {margin:22px 0 8px;border:1px solid var(--edge);background:var(--ledger);border-radius:10px;overflow:hidden}
+    .origin-ledger header {display:flex;justify-content:space-between;gap:12px;flex-wrap:wrap;align-items:end;padding:14px 16px;border-bottom:1px solid var(--edge)}
+    .origin-ledger h2 {margin:0;font-size:17px;letter-spacing:-.01em}
+    .origin-ledger p {margin:4px 0 0;color:var(--muted);font-size:12px;max-width:62ch}
+    .origin-rows {display:grid;gap:0}
+    .origin-row {display:grid;grid-template-columns:72px minmax(0,1.2fr) minmax(0,1.6fr) 110px;gap:10px;align-items:center;padding:11px 16px;border-top:1px solid #243446;color:var(--ink)}
+    .origin-row:first-child {border-top:0}
+    .origin-count {font:650 22px/1 var(--font-data);color:var(--accent)}
+    .origin-code {font:450 12px/1.35 var(--font-data);color:#9ec3e8;overflow-wrap:anywhere}
+    .origin-meaning {font-size:12px;color:var(--muted)}
+    .origin-gate {font:650 11px/1.2 var(--font-data);letter-spacing:.04em;color:var(--gold);justify-self:end}
+    .origin-gate.queried {color:var(--green)}
+    .origin-gate.gap {color:#f0a8a0}
     .notice {border-left:3px solid var(--accent);background:#18283a;padding:13px 16px;color:#d4e4f6;border-radius:0 9px 9px 0;margin:20px 0}
+    @media (prefers-reduced-motion:reduce){*{scroll-behavior:auto !important;animation:none !important;transition:none !important}}
+    @media(max-width:760px){.origin-row{grid-template-columns:56px 1fr;grid-template-areas:"count code" "meaning meaning" "gate gate"}.origin-count{grid-area:count}.origin-code{grid-area:code}.origin-meaning{grid-area:meaning}.origin-gate{grid-area:gate;justify-self:start}}
     .statusline {color:var(--muted);font-size:12px;margin-top:13px}
     .grid {display:grid;grid-template-columns:repeat(auto-fill,minmax(310px,1fr));gap:13px}
     .cap {border:1px solid var(--edge);border-radius:12px;background:var(--panel);padding:17px;min-width:0;display:flex;flex-direction:column;gap:8px}
@@ -104,16 +124,28 @@
       <div class="stat"><strong id="count-receipts">—</strong><span>Commands with local receipt files</span></div>
       <div class="stat"><strong id="count-no-evidence">—</strong><span>Survey receipts not observed</span></div>
       <div class="stat"><strong id="count-uncovered">—</strong><span>Other receipt homes not queried</span></div>
+      <div class="stat"><strong id="count-unmapped">—</strong><span>No indexed receipt mapping</span></div>
+    </section>
+    <section class="origin-ledger" aria-labelledby="origin-ledger-title">
+      <header>
+        <div>
+          <h2 id="origin-ledger-title">Evidence origin ledger</h2>
+          <p>Source families are registry labels only. Only the survey/output pattern is read on this host; every other home stays classified and unqueried.</p>
+        </div>
+        <span class="pill">Historical ≠ live · Unmapped ≠ absent</span>
+      </header>
+      <div id="origin-rows" class="origin-rows" role="table" aria-label="Receipt source-family counts"></div>
     </section>
     <div class="toolbar" aria-label="Capability filters">
       <input id="search" type="search" placeholder="Find a capability, command or purpose…" aria-label="Search capabilities">
       <select id="domain" aria-label="Filter by domain"><option value="">All SAS domains</option></select>
-      <select id="evidence" aria-label="Filter by evidence"><option value="">All evidence states</option><option value="receipt">Local receipt observed</option><option value="none">No survey receipt observed</option><option value="uncovered">Other private receipt home</option><option value="missing">Entrypoint missing</option></select>
+      <select id="evidence" aria-label="Filter by evidence"><option value="">All evidence states</option><option value="receipt">Local receipt observed</option><option value="none">No survey receipt observed</option><option value="uncovered">Other private receipt home</option><option value="unmapped">No indexed receipt mapping</option><option value="missing">Entrypoint missing</option></select>
+      <select id="source-class" aria-label="Filter by evidence origin"><option value="">All origin classes</option></select>
       <button class="button" id="refresh" type="button">Refresh local evidence</button>
     </div>
     <p id="status" class="statusline" role="status" aria-live="polite">Checking local dashboard host…</p>
     <section id="capabilities" aria-label="Registered SAS capabilities" class="grid"></section>
-    <div class="footer">Evidence vocabulary: <strong>registered</strong> = present in the canonical command registry; <strong>entrypoint present</strong> = command file exists; <strong>receipt observed</strong> = a matching private output file exists. The first release checks only registered, local survey/output receipt patterns; external/other private receipt stores are explicitly not queried. No unreviewed receipt proves successful execution or target acceptance. Only an explicit, allowlisted state is displayed; all raw receipts remain private.</div>
+    <div class="footer">Evidence vocabulary: <strong>registered</strong> = present in the canonical command registry; <strong>entrypoint present</strong> = command file exists; <strong>receipt observed</strong> = a matching private survey/output file exists; <strong>origin class</strong> = which evidence home the outcome contract names. Unmapped means no indexed artifact path, not that evidence was searched and missing. Other private homes are classified and left unread. No unreviewed receipt proves successful execution or target acceptance. Only an explicit, allowlisted state is displayed; all raw receipts remain private.</div>
   </main>
 </body>
 </html>

@@ -49,7 +49,7 @@ const boundIds = validateStages(stages);
 assert.equal(boundIds.length, 11, 'the reviewed ADB journey must cover all 11 distinct commands');
 assert.throws(() => validateStages([{ title: 'Invented', description: 'No source', ids: ['phantom-command'] }]),
   /unregistered command/, 'a phantom command must fail the contract');
-for (const id of ['adb-suite', 'adb-suite-title', 'adb-journey', 'adb-status', 'capabilities']) {
+for (const id of ['adb-suite', 'adb-suite-title', 'adb-journey', 'adb-status', 'capabilities', 'origin-ledger-title', 'origin-rows', 'count-unmapped', 'source-class']) {
   assert.ok(html.includes('id="' + id + '"'), 'missing accessible UI anchor: ' + id);
 }
 for (const label of ['Registered', 'Executable', 'Evidence', 'Field outcome']) {
@@ -59,6 +59,16 @@ assert.match(script, /execution untested/, 'entrypoint file is not executable pr
 assert.match(script, /NOT PROBED/, 'runtime qualification must be explicit');
 assert.match(script, /receipt_coverage === 'NO_INDEXED_RECEIPT'/,
   'unmapped evidence must not be treated as an unqueried private home');
+assert.match(script, /receipt_coverage !== 'NO_INDEXED_RECEIPT'/,
+  'capability cards must keep unmapped coverage distinct from other homes');
+assert.match(script, /evidence === 'unmapped'/,
+  'operators need an explicit unmapped evidence filter');
+assert.match(script, /receipt_source_class_counts/,
+  'origin ledger must consume typed source-family counts');
+assert.match(script, /showOriginLedger\(\)/,
+  'origin ledger must render on refresh success and failure paths');
+assert.match(script, /NO_INDEXED_RECEIPT/,
+  'unmapped origin class must remain visible in the ledger vocabulary');
 assert.match(script, /entrypoint_status === 'FILE_MISSING'/,
   'missing entrypoint files need a visible count');
 assert.match(script, /target\.focus\(/,
@@ -70,5 +80,7 @@ assert.match(script, /showAdbJourney\(\);\s*\} finally/, 'failed refresh must cl
 assert.ok(!script.includes('innerHTML'), 'no arbitrary markup from receipt/registry data');
 assert.ok(!script.includes('adb connect') && !script.includes('adb shell'),
   'the browser must not execute or teach target mutation');
+assert.ok(!html.includes('%LOCALAPPDATA%') && !html.includes('survey/output/'),
+  'static UI must not embed private receipt path templates');
 console.log('ADB journey contract PASS: ' + stages.length + ' stages / ' + boundIds.length
   + ' unique canonical commands / four separate proof dimensions');

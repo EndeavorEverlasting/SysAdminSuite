@@ -204,6 +204,11 @@ public static class DashboardCapabilitySnapshot
                     proof_ceiling = receipt.observed ? "LOCAL_RECEIPT_PRESENT_NOT_LIVE_CERTIFIED" : "REPOSITORY_ONLY"
                 };
             }).ToArray();
+            var sourceClassCounts = entries
+                .GroupBy(x => x.receipt_source_class)
+                .OrderByDescending(g => g.Count())
+                .ThenBy(g => g.Key, StringComparer.Ordinal)
+                .ToDictionary(g => g.Key, g => g.Count());
             return new
             {
                 schema = "sas-capability-cockpit/v1",
@@ -217,6 +222,7 @@ public static class DashboardCapabilitySnapshot
                 unobserved_supported_receipt_count = entries.Count(x => x.receipt_coverage == "SURVEY_OUTPUT_PATTERN" && !x.local_receipt_observed),
                 receipt_home_not_queried_count = entries.Count(x => x.receipt_coverage == "OTHER_PRIVATE_RECEIPT_HOME_NOT_QUERIED"),
                 no_indexed_receipt_count = entries.Count(x => x.receipt_coverage == "NO_INDEXED_RECEIPT"),
+                receipt_source_class_counts = sourceClassCounts,
                 capabilities = entries
             };
         }
