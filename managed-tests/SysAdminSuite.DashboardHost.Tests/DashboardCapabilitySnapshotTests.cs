@@ -60,6 +60,8 @@ public sealed class DashboardCapabilitySnapshotTests : IDisposable
         var entry = root.GetProperty("capabilities")[0];
         Assert.Equal("CC readers", entry.GetProperty("domain").GetString());
         Assert.Equal("REPOSITORY_ONLY", entry.GetProperty("proof_ceiling").GetString());
+        Assert.Equal("NOT_PROBED", entry.GetProperty("executable_availability").GetString());
+        Assert.Equal("NOT_VERIFIED", entry.GetProperty("real_world_outcome").GetString());
         Assert.False(entry.GetProperty("local_receipt_observed").GetBoolean());
     }
 
@@ -76,6 +78,8 @@ public sealed class DashboardCapabilitySnapshotTests : IDisposable
         Assert.Equal(1, doc.RootElement.GetProperty("local_receipt_count").GetInt32());
         Assert.Equal("ADB_DEVICE_READY", cap.GetProperty("last_allowlisted_state").GetString());
         Assert.Equal("LOCAL_RECEIPT_PRESENT_NOT_LIVE_CERTIFIED", cap.GetProperty("proof_ceiling").GetString());
+        Assert.Equal("NOT_PROBED", cap.GetProperty("executable_availability").GetString());
+        Assert.Equal("NOT_VERIFIED", cap.GetProperty("real_world_outcome").GetString());
         Assert.DoesNotContain("PRIVATE-SERIAL-123", json);
         Assert.DoesNotContain("SECRET-TOKEN", json);
         Assert.DoesNotContain("10.1.2.3", json);
