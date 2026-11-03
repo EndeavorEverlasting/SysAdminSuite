@@ -116,6 +116,29 @@ public static class DashboardCapabilitySnapshot
         catch (Exception) { return (false, null, null); }
     }
 
+    /// <summary>
+    /// Source-class label only. Never resolve, enumerate or return registry paths
+    /// outside the independently allowlisted survey/output/ reader.
+    /// </summary>
+    public static string ClassifyReceiptSource(string? registryPath)
+    {
+        if (string.IsNullOrWhiteSpace(registryPath)) return "NO_INDEXED_RECEIPT";
+        var p = registryPath.Replace('\\', '/');
+        if (p.StartsWith("survey/output/", StringComparison.Ordinal))
+            return "SURVEY_OUTPUT_PATTERN";
+        if (p.StartsWith("%LOCALAPPDATA%/SysAdminSuite/", StringComparison.OrdinalIgnoreCase))
+            return "KNOWN_LOCALAPPDATA_NOT_QUERIED";
+        if (p.StartsWith("%TEMP%/", StringComparison.OrdinalIgnoreCase))
+            return "TEMP_NOT_QUERIED";
+        if (p.StartsWith("console output or CI", StringComparison.OrdinalIgnoreCase))
+            return "CONSOLE_OR_CI_NOT_QUERIED";
+        if (p.StartsWith("tools/publish/", StringComparison.OrdinalIgnoreCase))
+            return "BUILD_OUTPUT_NOT_PROBED";
+        if (p.StartsWith("<approved-runtime-evidence-directory>/", StringComparison.Ordinal))
+            return "APPROVED_RUNTIME_HOME_NOT_QUERIED";
+        return "OTHER_SOURCE_NOT_QUERIED";
+    }
+
     public static object Build(string dashboardRoot)
     {
         var generated = DateTimeOffset.UtcNow.ToString("O");
@@ -151,9 +174,10 @@ public static class DashboardCapabilitySnapshot
                 string? artifactPath = null;
                 if (contracts.TryGetValue(id, out var aid) && artifacts.TryGetValue(aid, out var path))
                     artifactPath = path;
-                var receiptCoverage = artifactPath is null ? "NO_INDEXED_RECEIPT"
-                    : artifactPath.Replace('\\', '/').StartsWith("survey/output/", StringComparison.Ordinal)
-                      ? "SURVEY_OUTPUT_PATTERN" : "OTHER_PRIVATE_RECEIPT_HOME_NOT_QUERIED";
+                var sourceClass = ClassifyReceiptSource(artifactPath);
+                var receiptCoverage = sourceClass == "NO_INDEXED_RECEIPT" ? "NO_INDEXED_RECEIPT"
+                    : sourceClass == "SURVEY_OUTPUT_PATTERN" ? "SURVEY_OUTPUT_PATTERN"
+                    : "OTHER_PRIVATE_RECEIPT_HOME_NOT_QUERIED";
                 var receipt = receiptCoverage == "SURVEY_OUTPUT_PATTERN"
                     ? ReceiptSummary(repoRoot, artifactPath!)
                     : (observed: false, observedAt: (string?)null, state: (string?)null);
@@ -173,6 +197,7 @@ public static class DashboardCapabilitySnapshot
                         : "RUNTIME_DISPATCH_NOT_PROBED",
                     source_present = sourceExists,
                     receipt_coverage = receiptCoverage,
+                    receipt_source_class = sourceClass,
                     local_receipt_observed = receipt.observed,
                     last_receipt_at = receipt.observedAt,
                     last_allowlisted_state = receipt.state,
@@ -190,7 +215,8 @@ public static class DashboardCapabilitySnapshot
                 entrypoint_present_count = entries.Count(x => x.entrypoint_present),
                 local_receipt_count = entries.Count(x => x.local_receipt_observed),
                 unobserved_supported_receipt_count = entries.Count(x => x.receipt_coverage == "SURVEY_OUTPUT_PATTERN" && !x.local_receipt_observed),
-                receipt_home_not_queried_count = entries.Count(x => x.receipt_coverage != "SURVEY_OUTPUT_PATTERN"),
+                receipt_home_not_queried_count = entries.Count(x => x.receipt_coverage == "OTHER_PRIVATE_RECEIPT_HOME_NOT_QUERIED"),
+                no_indexed_receipt_count = entries.Count(x => x.receipt_coverage == "NO_INDEXED_RECEIPT"),
                 capabilities = entries
             };
         }
