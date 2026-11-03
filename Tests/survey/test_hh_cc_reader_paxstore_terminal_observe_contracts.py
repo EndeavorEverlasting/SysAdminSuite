@@ -132,6 +132,114 @@ def test_transport_injection_no_network_secret_leak() -> None:
     assert seen["signature"]
 
 
+
+def test_extended_readonly_metadata_domains() -> None:
+    """Same serial+MAC: firmware, PFT-like app, Android and PN remain distinct."""
+    payload = {
+        "businessCode": 0,
+        "data": {
+            "serialNo": SERIAL,
+            "modelName": "A80",
+            "installedFirmware": {
+                "firmwareName": "PayDroid_10.0_Cedar_SYNTHETIC_BUILD",
+                "installTime": "2099-01-01T00:00:00Z",
+            },
+            "terminalDetail": {
+                "pn": "SYNTHETIC_A80_PN",
+                "osVersion": "10.0",
+                "macAddress": MAC,
+                "ip": "192.0.2.15",
+            },
+            "installedApks": [{
+                "appName": "SYNTHETIC_PFT_APP",
+                "packageName": "com.example.synthetic",
+                "versionName": "2.0.15.260522",
+                "versionCode": 123,
+                "installTime": "2099-01-01T00:00:00Z",
+                "source": "T",
+                "paymentCardData": "MUST_NEVER_COPY",
+            }],
+        },
+    }
+    result = observe_terminal_by_sn(
+        serial_no=SERIAL, expected_mac=MAC,
+        fixture_payload=payload, include_installed_apks=True,
+        include_detail_info_list=True,
+    )
+    assert result["access_state"] == "OBSERVED"
+    assert result["identity_bound"] is True
+    assert result["part_number"] == "SYNTHETIC_A80_PN"
+    assert result["os_version"] == "10.0"
+    assert result["current_firmware_value"] == "PayDroid_10.0_Cedar_SYNTHETIC_BUILD"
+    assert result["installed_apks"][0]["version_name"] == "2.0.15.260522"
+    assert result["current_firmware_value"] != result["installed_apks"][0]["version_name"]
+    assert result["metadata_field_presence"] == {
+        "installedFirmware": True, "installedApks": True, "terminalDetail": True,
+    }
+    assert result["mutation_performed"] is False
+    assert "MUST_NEVER_COPY" not in json.dumps(result)
+    assert "paymentCardData" not in json.dumps(result)
+
+
+def test_expected_mac_missing_from_response_must_not_bind() -> None:
+    """A serial match alone does not meet a caller's explicit MAC bind."""
+    payload = {
+        "businessCode": 0,
+        "data": {
+            "serialNo": SERIAL,
+            "installedFirmware": {"firmwareName": "SYNTHETIC_FW"},
+        },
+    }
+    result = observe_terminal_by_sn(
+        serial_no=SERIAL, expected_mac=MAC, fixture_payload=payload,
+        live_ipv4="192.0.2.15", freeze=True,
+    )
+    assert result["access_state"] == "IDENTITY_INCOMPLETE"
+    assert result["identity_bound"] is False
+    assert "response_missing_mac" in result["identity_rejection_reasons"]
+    assert "baseline" not in result
+    assert result["current_firmware_value"] == "SYNTHETIC_FW"
+    assert result["mutation_performed"] is False
+
+
+def test_extended_readonly_query_is_signed_and_get_only() -> None:
+    url, headers, query = build_signed_get(
+        base_url="https://api.whatspos.com/p-market-api",
+        api_key="KEY", api_secret="SECRET", serial_no=SERIAL,
+        timestamp_ms=1_700_000_000_000,
+        include_installed_apks=True, include_detail_info_list=True,
+    )
+    params = dict(parse_qsl(urlparse(url).query, keep_blank_values=True))
+    assert params["includeDetailInfoList"] == "true"
+    assert params["includeInstalledApks"] == "true"
+    assert params["includeInstalledFirmware"] == "true"
+    assert headers["signature"] == hmac.new(
+        b"SECRET", query.encode("utf-8"), hashlib.sha256
+    ).hexdigest().upper()
+    assert url.endswith("?" + query)
+    assert "/v1/3rdsys/terminal?" in url
+
+
+def test_extended_flags_reach_transport_without_network_side_effects() -> None:
+    urls = []
+    def offline_transport(url: str, headers: dict[str, str]) -> dict:
+        urls.append(url)
+        return load("success-installed-firmware.json")
+    result = observe_terminal_by_sn(
+        serial_no=SERIAL, expected_mac=MAC,
+        include_installed_apks=True, include_detail_info_list=True,
+        environ={
+            "SAS_PAXSTORE_API_KEY": "KEY",
+            "SAS_PAXSTORE_API_SECRET": "SECRET",
+        }, transport=offline_transport,
+    )
+    assert result["access_state"] == "OBSERVED"
+    assert result["network_contacted"] is True  # transport invoked (fixture substitute)
+    assert len(urls) == 1
+    assert "includeInstalledApks=true" in urls[0]
+    assert "includeDetailInfoList=true" in urls[0]
+
+
 def main() -> int:
     tests = [
         test_credential_gate_without_env,
@@ -140,6 +248,10 @@ def main() -> int:
         test_missing_firmware_field,
         test_signed_query_matches_hmac_header,
         test_transport_injection_no_network_secret_leak,
+        test_extended_readonly_metadata_domains,
+        test_expected_mac_missing_from_response_must_not_bind,
+        test_extended_readonly_query_is_signed_and_get_only,
+        test_extended_flags_reach_transport_without_network_side_effects,
     ]
     failed = 0
     for test in tests:
