@@ -43,7 +43,10 @@ exit /b %ERRORLEVEL%
 echo Usage:
 echo   Observe-HHCCReaderPaxstoreTerminal.cmd --serial SERIAL [--expected-mac MAC]
 echo       [--include-details] [--include-apps] [--live-ipv4 IPv4]
-echo       [--live-ipv4 IPv4] [--freeze] [--fixture JSON] [--output OUT]
+echo       [--freeze] [--fixture JSON] [--output OUT]
+echo.
+echo LAN probe/discovery receipts may supply expected-mac only. PAXSTORE GET
+echo still requires the approved serial from the private H^&H identity record.
 echo.
 echo Without API credentials the seam fails closed:
 echo   CREDENTIAL_GATE when estate rights are external/unowned
