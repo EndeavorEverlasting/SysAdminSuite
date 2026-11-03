@@ -16,6 +16,9 @@ echo ================================================================
 echo  SYSADMINSUITE H^&H CC READER PAXSTORE TERMINAL OBSERVE
 echo ================================================================
 echo  Read-only getTerminalBySn + includeInstalledFirmware.
+echo  Optional --include-details / --include-apps request hardware and app metadata.
+echo  They do not change terminal state or invoke Push Firmware/App.
+echo  Firmware and payment-app/PFT remain separate version domains.
 echo  Credentials: SAS_PAXSTORE_API_KEY / SAS_PAXSTORE_API_SECRET
 echo  Optional: SAS_PAXSTORE_BASE_URL
 echo  Never pushes firmware. Never invents firmware values.
@@ -39,7 +42,11 @@ exit /b %ERRORLEVEL%
 :usage
 echo Usage:
 echo   Observe-HHCCReaderPaxstoreTerminal.cmd --serial SERIAL [--expected-mac MAC]
-echo       [--live-ipv4 IPv4] [--freeze] [--fixture JSON] [--output OUT]
+echo       [--include-details] [--include-apps] [--live-ipv4 IPv4]
+echo       [--freeze] [--fixture JSON] [--output OUT]
+echo.
+echo LAN probe/discovery receipts may supply expected-mac only. PAXSTORE GET
+echo still requires the approved serial from the private H^&H identity record.
 echo.
 echo Without API credentials the seam fails closed:
 echo   CREDENTIAL_GATE when estate rights are external/unowned

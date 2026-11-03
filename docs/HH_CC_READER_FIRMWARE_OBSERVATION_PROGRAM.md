@@ -5,6 +5,21 @@ Date: 2026-10-05
 Floor: P95 multi-protocol portfolio + local-access field guide + PAXSTORE observe/UI fallback seams + version-domain classifier
 Mission owner: live Kiosk4 firmware/package deployment (not harness theater)
 
+## 2026-11-03 — network-first metadata retrieval (read-only; no rollback scope)
+
+The local AI agent now has an explicit successor runbook:
+[`HH_CC_READER_NETWORK_METADATA_AGENT_RUNBOOK.md`](HH_CC_READER_NETWORK_METADATA_AGENT_RUNBOOK.md).
+It is the active entry for **obtain installed version and metadata shapes** on a previously identified A80 without repeating exhausted inbound/TCP/ADB/menu probes.
+
+- Existing evidence: device Connectivity Test exposed `PAX Store Push Service Primary (443)`; Netstat surfaced outbound Internet connections. Neither proves a listener on the reader's TCP/443, nor which tenant owns the endpoint.
+- Prefer same-device authenticated **Control Center / IngEstate** or another evidenced provider management inventory. Existing PAXSTORE `Observe-HHCCReaderPaxstoreTerminal.cmd` now supports `--include-details` and `--include-apps` in its feature branch to include read-only nested `terminalDetail` PN/OS and separate application versions, alongside `installedFirmware.firmwareName`. No firmware push or device change.
+- Direct one-target `Probe-HHCCReader.cmd` only when new placement evidence requires it. A failed probe terminates that local observation **only**; it is never evidence that cloud management or firmware readout is impossible.
+- **This mission does not seek rollback.** Firmware rollback was reported unavailable; that is a constraint for separately authorized future mutation, not an obstacle to reading versions. The old rollout-target and restore-first gates in adjacent sections remain historical deployment planning, not prerequisites for a read-only metadata observation.
+- Preserve vendor 2.0.15.260522 as a **PFT example of unresolved domain**, not a latest, approved or installed firmware assertion. One version result never licenses a firmware change.
+- Do not infer Kiosk4's SKU from a photo-verified *different* A80; bind hardware PN and installed version to the exact same private identity.
+- Real authenticated H&H tenant access and current firmware capture remain **unverified by this commit**. Receipt states must distinguish `FIRMWARE_OBSERVED`, `PARTIAL_METADATA`, `PROVIDER_ACCESS_REQUIRED`, and `LOCAL_LAN_ONLY`; none of the latter three closes the parent mission.
+
+
 ## User outcomes / invariants
 
 1. Bind the already-proved Kiosk4 identity to an **authoritative** installed value with its **version domain**.
