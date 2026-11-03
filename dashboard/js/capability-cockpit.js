@@ -61,13 +61,17 @@
       row('Registered', matches.length + ' / ' + stage.ids.length + ' mapped commands');
       const present = matches.filter(c => c.entrypoint_status === 'FILE_PRESENT').length;
       const unprobed = matches.filter(c => c.entrypoint_status === 'RUNTIME_DISPATCH_NOT_PROBED').length;
+      const missing = matches.filter(c => c.entrypoint_status === 'FILE_MISSING').length;
       row('Executable', 'NOT PROBED · ' + present + ' entrypoint file(s) present'
+        + (missing ? ' · ' + missing + ' entrypoint file(s) missing' : '')
         + (unprobed ? ' · ' + unprobed + ' runtime dispatcher(s) not probed' : '')
         + ' · execution untested');
       const receipts = matches.filter(c => c.local_receipt_observed).length;
-      const otherHomes = matches.filter(c => c.receipt_coverage !== 'SURVEY_OUTPUT_PATTERN').length;
+      const otherHomes = matches.filter(c => c.receipt_coverage === 'OTHER_PRIVATE_RECEIPT_HOME_NOT_QUERIED').length;
+      const unindexed = matches.filter(c => c.receipt_coverage === 'NO_INDEXED_RECEIPT').length;
       row('Evidence', receipts + ' local receipt(s)'
         + (otherHomes ? ' · ' + otherHomes + ' private home(s) not queried' : '')
+        + (unindexed ? ' · ' + unindexed + ' without indexed receipt mapping' : '')
         + ' · not live proof');
       row('Field outcome', 'Not verified by this read-only cockpit');
       item.append(statuses);
@@ -85,7 +89,13 @@
             byId('domain').value = '';
             byId('evidence').value = '';
             showCapabilities();
-            byId('capabilities').scrollIntoView({ behavior: 'auto', block: 'start' });
+            const target = [...byId('capabilities').querySelectorAll('.cap h3')]
+              .find(heading => heading.textContent === id);
+            if (target) {
+              target.tabIndex = -1;
+              target.focus({ preventScroll: true });
+              target.scrollIntoView({ behavior: 'auto', block: 'start' });
+            }
           });
           li.append(inspect);
         }
