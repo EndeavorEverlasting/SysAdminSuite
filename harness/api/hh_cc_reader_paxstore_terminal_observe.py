@@ -118,6 +118,13 @@ def build_signed_get(
         .hexdigest()
         .upper()
     )
+    # Prevent accidental credential-bearing GETs to non-TLS or userinfo URLs.
+    # Approved regional endpoints may vary; caller configures the correct
+    # HTTPS PAXSTORE URL through the existing authorized environment.
+    parsed = urllib.parse.urlsplit(base_url)
+    if (parsed.scheme.lower() != "https" or not parsed.hostname
+            or parsed.username or parsed.password or parsed.query or parsed.fragment):
+        raise ValueError("PAXSTORE_BASE_URL_MUST_BE_HTTPS_WITHOUT_USERINFO_OR_QUERY")
     base = base_url.rstrip("/")
     url = f"{base}{TERMINAL_BY_SN_PATH}?{query}"
     headers = {
@@ -373,7 +380,9 @@ def observe_terminal_by_sn(
         payload = runner(url, headers)
         mapped = map_terminal_payload(payload, expected_serial=serial, expected_mac=expected_mac)
         mapped["credential_state"] = "ENV_PRESENT"
-        mapped["network_contacted"] = True
+        # Test transports can simulate a PAX response without an actual network call.
+        mapped["network_contacted"] = transport is None
+        mapped["transport_injected"] = transport is not None
         mapped["base_url_host"] = urllib.parse.urlparse(str(creds["base_url"])).netloc
 
     if freeze and mapped.get("identity_bound") and mapped.get("current_firmware_value"):
