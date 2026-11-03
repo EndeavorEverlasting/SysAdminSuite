@@ -15,6 +15,91 @@
     return new Date(value).toLocaleString();
   };
 
+
+  // Operator journey annotations. IDs must resolve against the live canonical
+  // registry; these descriptions are NOT alternate command/proof authorities.
+  const adbStages = [
+    { title: 'Prepare the Admin Box', description: 'Qualify approved host tooling before any device interaction.', ids: ['android-toolchain-adminbox', 'hh-cc-reader-adb-host-prepare'] },
+    { title: 'Inspect the transport', description: 'Separate provider readiness, USB enumeration and reader authorization.', ids: ['android-provider', 'hh-cc-reader-adb-probe'] },
+    { title: 'Capture read-only inventory', description: 'Collect Android properties only after exact-device authorization.', ids: ['hh-cc-reader-adb-inventory-capture'] },
+    { title: 'Resolve the version domain', description: 'Classify labeled version evidence; do not substitute campaign targets.', ids: ['hh-cc-reader-version-domain-classify'] },
+    { title: 'Evaluate baseline and recovery', description: 'Keep baseline, restoration eligibility and mutation authority separate.', ids: ['hh-cc-reader-firmware-roundtrip-evaluate'] },
+    { title: 'Certify network ADB and revert', description: 'Exact target only, with mandatory USB restoration and listener cleanup.', ids: ['hh-cc-reader-adb-tcpip-certify'] },
+    { title: 'Certify view-only display', description: 'Observe the reader display without input injection or remote control.', ids: ['hh-cc-reader-adb-remote-view-certify'] },
+    { title: 'Evaluate the capability program', description: 'Orchestrate proven prerequisites while preserving attended and blocked gates.', ids: ['hh-cc-reader-adb-control-plane-evaluate', 'hh-cc-reader-capability-program-evaluate'] }
+  ];
+
+  function showAdbJourney() {
+    const list = byId('adb-journey');
+    if (!list) return;
+    list.replaceChildren();
+    if (!state.loaded) {
+      setText('adb-status', 'ADB journey unavailable until the local host registry is verified.');
+      return;
+    }
+    const indexed = new Map(state.capabilities.map(c => [c.id, c]));
+    let registered = 0;
+    let total = 0;
+    const fragment = document.createDocumentFragment();
+    for (const [index, stage] of adbStages.entries()) {
+      const matches = stage.ids.map(id => indexed.get(id)).filter(Boolean);
+      registered += matches.length;
+      total += stage.ids.length;
+      const item = create('li', 'adb-stage');
+      const heading = create('div', 'adb-stage-heading');
+      heading.append(create('span', 'adb-number', String(index + 1).padStart(2, '0')));
+      const copy = create('div');
+      copy.append(create('h3', '', stage.title), create('p', 'description', stage.description));
+      heading.append(copy);
+      item.append(heading);
+      const statuses = create('dl', 'adb-proof');
+      const row = (key, value) => {
+        const pair = create('div', 'adb-proof-pair');
+        pair.append(create('dt', '', key), create('dd', '', value));
+        statuses.append(pair);
+      };
+      row('Registered', matches.length + ' / ' + stage.ids.length + ' mapped commands');
+      const present = matches.filter(c => c.entrypoint_status === 'FILE_PRESENT').length;
+      const unprobed = matches.filter(c => c.entrypoint_status === 'RUNTIME_DISPATCH_NOT_PROBED').length;
+      row('Host entry', present + ' file(s) present'
+        + (unprobed ? ' · ' + unprobed + ' runtime dispatcher(s) not probed' : '')
+        + ' · execution untested');
+      const receipts = matches.filter(c => c.local_receipt_observed).length;
+      const otherHomes = matches.filter(c => c.receipt_coverage !== 'SURVEY_OUTPUT_PATTERN').length;
+      row('Evidence', receipts + ' local receipt(s)'
+        + (otherHomes ? ' · ' + otherHomes + ' private home(s) not queried' : '')
+        + ' · not live proof');
+      row('Field outcome', 'Not verified by this read-only cockpit');
+      item.append(statuses);
+      const commands = create('ul', 'adb-command-list');
+      for (const id of stage.ids) {
+        const cap = indexed.get(id);
+        const li = create('li', 'adb-command');
+        li.append(create('span', '', cap ? id : id + ' · NOT REGISTERED'));
+        if (cap) {
+          const inspect = create('button', 'adb-inspect', 'Inspect');
+          inspect.type = 'button';
+          inspect.setAttribute('aria-label', 'Inspect registered command ' + id);
+          inspect.addEventListener('click', () => {
+            byId('search').value = id;
+            byId('domain').value = '';
+            byId('evidence').value = '';
+            showCapabilities();
+            byId('capabilities').scrollIntoView({ behavior: 'auto', block: 'start' });
+          });
+          li.append(inspect);
+        }
+        commands.append(li);
+      }
+      item.append(commands);
+      fragment.append(item);
+    }
+    list.append(fragment);
+    setText('adb-status', registered + ' of ' + total
+      + ' mapped command references registered locally. Journey stages describe capabilities, not a mandatory run order. '
+      + 'No executable, target operation or outcome is certified by this projection.');
+  }
+
   function showCapabilities() {
     const list = byId('capabilities');
     const search = byId('search').value.trim().toLowerCase();
@@ -111,6 +196,7 @@
       setText('count-no-evidence', data.unobserved_supported_receipt_count);
       setText('count-uncovered', data.receipt_home_not_queried_count);
       showCapabilities();
+      showAdbJourney();
     } catch (err) {
       // Do not use stale data as current host truth after an endpoint failure.
       state.capabilities = [];
@@ -122,6 +208,7 @@
         + '. Start the Windows SysAdminSuite DashboardHost on this Admin Box. '
         + 'The generic Python/static fallback does not certify local evidence.');
       showCapabilities();
+      showAdbJourney();
     } finally {
       button.disabled = false;
     }
