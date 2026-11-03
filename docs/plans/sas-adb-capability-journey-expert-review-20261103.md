@@ -41,7 +41,7 @@ Review against these independently measurable gates:
 
 ## Trifecta convergence
 - **P07 — repository execution:** deliver the bounded UI and automated contract, inspect PR/checks, integrate only after required gates.
-- **P82 — prototype/measure/refine:** compare before/after operator discovery: previous cockpit required searching the 53-command list; new journey exposes 8 annotated stages mapped to 10 current canonical references. Measure 0 unknown-command IDs, preserved filter path and fail-closed feedback. Continue critique against mobile and keyboard interaction without adopting unlicensed assets.
+- **P82 — prototype/measure/refine:** compare before/after operator discovery: previous cockpit required searching the 53-command list; new journey exposes 8 annotated stages mapped to 11 current canonical references. Measure 0 unknown-command IDs, preserved filter path and fail-closed feedback. Continue critique against mobile and keyboard interaction without adopting unlicensed assets.
 - **P08 — actual runtime proof:** on independently verified Admin Box 1, launch `Open-SasCapabilityCockpit.cmd`; record actual browser route, API count, navigation through Inspect, keyboard/focus, responsive behavior, error-state behavior and protected old dashboard navigation. Preserve the private observation on host only. No live success claimed before these steps run.
 
 ## Review request (not a claim of completed review)
