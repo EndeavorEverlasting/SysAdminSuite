@@ -61,6 +61,8 @@ const {
   _resetRunControlForTests,
   createRun,
   emitRunEvent,
+  getActiveRun,
+  getLatestRun,
   getRunEvents,
   getRunState,
   initRunControl,
@@ -213,6 +215,8 @@ emitRunEvent(run.runId, 'RunCompleted', {
   summary: 'External command evidence loaded',
 });
 assert(getRunState(run.runId).state === 'completed', 'command-gen-completed', 'evidence load should complete command-gen run');
+assert(getActiveRun() === null, 'terminal-not-active', 'completed runs must not remain active');
+assert(getLatestRun() && getLatestRun().state === 'completed', 'latest-terminal', 'getLatestRun must expose terminal history without implying activity');
 
 _resetRunControlForTests();
 
