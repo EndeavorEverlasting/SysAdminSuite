@@ -1,5 +1,6 @@
 using System;
 using System.IO;
+using System.Linq;
 using System.Net;
 using System.Text.Json;
 using SysAdminSuite.DashboardHost;
@@ -118,5 +119,64 @@ public sealed class DashboardCapabilitySnapshotTests : IDisposable
         File.Delete(Path.Combine(_registry, "harness-command-registry.json"));
         using var doc = JsonDocument.Parse(JsonSerializer.Serialize(DashboardCapabilitySnapshot.Build(_dashboard)));
         Assert.False(doc.RootElement.GetProperty("registry_loaded").GetBoolean());
+    }
+
+    [Theory]
+    [InlineData(null, "NO_INDEXED_RECEIPT")]
+    [InlineData("", "NO_INDEXED_RECEIPT")]
+    [InlineData("survey/output/hh-cc-reader/reader-<timestamp>.json", "SURVEY_OUTPUT_PATTERN")]
+    [InlineData("%LOCALAPPDATA%/SysAdminSuite/operator-session.json", "KNOWN_LOCALAPPDATA_NOT_QUERIED")]
+    [InlineData("%TEMP%/hh-cc-p5-packet-fill.json", "TEMP_NOT_QUERIED")]
+    [InlineData("console output or CI log from harness/validators/validate-harness-registries.py", "CONSOLE_OR_CI_NOT_QUERIED")]
+    [InlineData("tools/publish/SysAdminSuite.DashboardHost/", "BUILD_OUTPUT_NOT_PROBED")]
+    [InlineData("<approved-runtime-evidence-directory>/runtime-proof.json", "APPROVED_RUNTIME_HOME_NOT_QUERIED")]
+    [InlineData("docs/HARNESS_STATUS.md", "OTHER_SOURCE_NOT_QUERIED")]
+    public void ClassifyReceiptSourceSeparatesFamiliesWithoutResolvingHomes(string? path, string expected)
+    {
+        Assert.Equal(expected, DashboardCapabilitySnapshot.ClassifyReceiptSource(path));
+    }
+
+    [Fact]
+    public void BuildExposesSourceClassesAndSeparatesUnmappedFromUnqueriedHomes()
+    {
+        File.WriteAllText(Path.Combine(_registry, "harness-command-registry.json"),
+            "{\"commands\":["
+            + "{\"id\":\"hh-cc-reader-probe\",\"command\":\"Inspect-Reader.cmd TEST\",\"purpose\":\"Survey\",\"mutation\":\"none\",\"source_of_truth\":\"harness/api/reader.py\"},"
+            + "{\"id\":\"operator-session\",\"command\":\"sas context\",\"purpose\":\"Session\",\"mutation\":\"none\",\"source_of_truth\":\"harness/api/reader.py\"},"
+            + "{\"id\":\"harness-validate\",\"command\":\"python tool.py\",\"purpose\":\"CI\",\"mutation\":\"none\",\"source_of_truth\":\"harness/api/reader.py\"},"
+            + "{\"id\":\"unmapped-command\",\"command\":\"Inspect-Reader.cmd X\",\"purpose\":\"Gap\",\"mutation\":\"none\",\"source_of_truth\":\"harness/api/reader.py\"}"
+            + "]}");
+        File.WriteAllText(Path.Combine(_registry, "harness-outcome-registry.json"),
+            "{\"contracts\":["
+            + "{\"command_id\":\"hh-cc-reader-probe\",\"success_artifact_id\":\"hh-cc-reader-probe-result\"},"
+            + "{\"command_id\":\"operator-session\",\"success_artifact_id\":\"operator-session-state\"},"
+            + "{\"command_id\":\"harness-validate\",\"success_artifact_id\":\"harness-completeness-result\"}"
+            + "]}");
+        File.WriteAllText(Path.Combine(_registry, "harness-artifact-registry.json"),
+            "{\"artifacts\":["
+            + "{\"id\":\"hh-cc-reader-probe-result\",\"path\":\"survey/output/hh-cc-reader/reader-<timestamp>.json\"},"
+            + "{\"id\":\"operator-session-state\",\"path\":\"%LOCALAPPDATA%/SysAdminSuite/operator-session.json\"},"
+            + "{\"id\":\"harness-completeness-result\",\"path\":\"console output or CI log from Tests/survey/test_operational_harness_completeness_contracts.py\"}"
+            + "]}");
+
+        using var doc = JsonDocument.Parse(JsonSerializer.Serialize(DashboardCapabilitySnapshot.Build(_dashboard)));
+        var root = doc.RootElement;
+        Assert.Equal(4, root.GetProperty("registered_count").GetInt32());
+        Assert.Equal(2, root.GetProperty("receipt_home_not_queried_count").GetInt32());
+        Assert.Equal(1, root.GetProperty("no_indexed_receipt_count").GetInt32());
+        Assert.Equal(1, root.GetProperty("receipt_source_class_counts").GetProperty("SURVEY_OUTPUT_PATTERN").GetInt32());
+        Assert.Equal(1, root.GetProperty("receipt_source_class_counts").GetProperty("KNOWN_LOCALAPPDATA_NOT_QUERIED").GetInt32());
+        Assert.Equal(1, root.GetProperty("receipt_source_class_counts").GetProperty("CONSOLE_OR_CI_NOT_QUERIED").GetInt32());
+        Assert.Equal(1, root.GetProperty("receipt_source_class_counts").GetProperty("NO_INDEXED_RECEIPT").GetInt32());
+
+        var byId = root.GetProperty("capabilities").EnumerateArray()
+            .ToDictionary(x => x.GetProperty("id").GetString()!, x => x);
+        Assert.Equal("SURVEY_OUTPUT_PATTERN", byId["hh-cc-reader-probe"].GetProperty("receipt_source_class").GetString());
+        Assert.Equal("KNOWN_LOCALAPPDATA_NOT_QUERIED", byId["operator-session"].GetProperty("receipt_source_class").GetString());
+        Assert.Equal("OTHER_PRIVATE_RECEIPT_HOME_NOT_QUERIED", byId["operator-session"].GetProperty("receipt_coverage").GetString());
+        Assert.Equal("NO_INDEXED_RECEIPT", byId["unmapped-command"].GetProperty("receipt_coverage").GetString());
+        Assert.Equal("NO_INDEXED_RECEIPT", byId["unmapped-command"].GetProperty("receipt_source_class").GetString());
+        Assert.DoesNotContain("%LOCALAPPDATA%", JsonSerializer.Serialize(root));
+        Assert.DoesNotContain("operator-session.json", JsonSerializer.Serialize(root));
     }
 }

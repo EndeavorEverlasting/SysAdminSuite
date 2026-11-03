@@ -1,7 +1,7 @@
 /* SAS Capability Cockpit: read-only local projection; never invokes tool execution. */
 (() => {
   'use strict';
-  const state = { capabilities: [], loaded: false, generatedAt: null };
+  const state = { capabilities: [], loaded: false, generatedAt: null, sourceClassCounts: {} };
   const byId = id => document.getElementById(id);
   const create = (tag, className, value) => {
     const node = document.createElement(tag);
@@ -13,6 +13,16 @@
   const formatTime = value => {
     if (!value || Number.isNaN(Date.parse(value))) return 'Not available';
     return new Date(value).toLocaleString();
+  };
+  const sourceClassMeta = {
+    SURVEY_OUTPUT_PATTERN: { meaning: 'Allowlisted survey/output pattern; may be read as sanitized metadata.', gate: 'QUERIED', gateClass: 'queried' },
+    KNOWN_LOCALAPPDATA_NOT_QUERIED: { meaning: 'Known local AppData home named by the registry; not traversed.', gate: 'NOT QUERIED', gateClass: '' },
+    TEMP_NOT_QUERIED: { meaning: 'Temporary workspace artifact; classified only.', gate: 'NOT QUERIED', gateClass: '' },
+    CONSOLE_OR_CI_NOT_QUERIED: { meaning: 'Console or CI log outcome; not a local private receipt home.', gate: 'NOT QUERIED', gateClass: '' },
+    BUILD_OUTPUT_NOT_PROBED: { meaning: 'Build/publish output directory; presence not probed here.', gate: 'NOT PROBED', gateClass: '' },
+    APPROVED_RUNTIME_HOME_NOT_QUERIED: { meaning: 'Approved runtime evidence placeholder; not expanded.', gate: 'NOT QUERIED', gateClass: '' },
+    OTHER_SOURCE_NOT_QUERIED: { meaning: 'Recognized path shape outside the survey reader; left unread.', gate: 'NOT QUERIED', gateClass: '' },
+    NO_INDEXED_RECEIPT: { meaning: 'No indexed success-artifact path for this command.', gate: 'UNMAPPED', gateClass: 'gap' }
   };
 
 
@@ -110,18 +120,74 @@
       + 'No executable, target operation or outcome is certified by this projection.');
   }
 
+  function coverageLabel(capability) {
+    if (capability.receipt_coverage === 'NO_INDEXED_RECEIPT') return 'No indexed receipt mapping';
+    if (capability.receipt_coverage !== 'SURVEY_OUTPUT_PATTERN') {
+      return 'Private origin · not queried · ' + (capability.receipt_source_class || 'OTHER_SOURCE_NOT_QUERIED');
+    }
+    return capability.local_receipt_observed
+      ? 'Local survey receipt exists · outcome not certified'
+      : 'No matching survey receipt observed';
+  }
+
+  function showOriginLedger() {
+    const host = byId('origin-rows');
+    if (!host) return;
+    host.replaceChildren();
+    if (!state.loaded) {
+      const empty = create('div', 'origin-row');
+      empty.append(create('div', 'origin-meaning', 'Origin ledger unavailable until the local host registry is verified.'));
+      host.append(empty);
+      return;
+    }
+    const counts = state.sourceClassCounts || {};
+    const keys = Object.keys(counts).sort((a, b) => (counts[b] - counts[a]) || a.localeCompare(b));
+    const fragment = document.createDocumentFragment();
+    for (const key of keys) {
+      const meta = sourceClassMeta[key] || sourceClassMeta.OTHER_SOURCE_NOT_QUERIED;
+      const row = create('div', 'origin-row');
+      row.setAttribute('role', 'row');
+      row.append(
+        create('div', 'origin-count', counts[key]),
+        create('div', 'origin-code', key),
+        create('div', 'origin-meaning', meta.meaning),
+        create('div', 'origin-gate' + (meta.gateClass ? ' ' + meta.gateClass : ''), meta.gate)
+      );
+      fragment.append(row);
+    }
+    if (!keys.length) fragment.append(create('div', 'origin-meaning', 'No source-family counts were returned.'));
+    host.append(fragment);
+  }
+
+  function setSourceClasses() {
+    const select = byId('source-class');
+    if (!select) return;
+    const previous = select.value;
+    select.querySelectorAll('option:not(:first-child)').forEach(option => option.remove());
+    const classes = [...new Set(state.capabilities.map(c => c.receipt_source_class).filter(Boolean))].sort();
+    for (const name of classes) {
+      const option = create('option', '', name);
+      option.value = name;
+      select.append(option);
+    }
+    if (classes.includes(previous)) select.value = previous;
+  }
+
   function showCapabilities() {
     const list = byId('capabilities');
     const search = byId('search').value.trim().toLowerCase();
     const domain = byId('domain').value;
     const evidence = byId('evidence').value;
+    const sourceClass = byId('source-class') ? byId('source-class').value : '';
     const matching = state.capabilities.filter(c => {
       if (domain && c.domain !== domain) return false;
+      if (sourceClass && c.receipt_source_class !== sourceClass) return false;
       if (evidence === 'receipt' && !c.local_receipt_observed) return false;
       if (evidence === 'none' && (c.local_receipt_observed || c.receipt_coverage !== 'SURVEY_OUTPUT_PATTERN')) return false;
-      if (evidence === 'uncovered' && c.receipt_coverage === 'SURVEY_OUTPUT_PATTERN') return false;
+      if (evidence === 'uncovered' && c.receipt_coverage !== 'OTHER_PRIVATE_RECEIPT_HOME_NOT_QUERIED') return false;
+      if (evidence === 'unmapped' && c.receipt_coverage !== 'NO_INDEXED_RECEIPT') return false;
       if (evidence === 'missing' && c.entrypoint_status !== 'FILE_MISSING') return false;
-      return [c.id, c.domain, c.command, c.purpose].join(' ').toLowerCase().includes(search);
+      return [c.id, c.domain, c.command, c.purpose, c.receipt_source_class].join(' ').toLowerCase().includes(search);
     });
     list.replaceChildren();
     const fragment = document.createDocumentFragment();
@@ -140,21 +206,22 @@
       head.append(create('span', 'tag ' + (capability.entrypoint_present ? 'ok' : 'warn'), pathStatus));
       card.append(head);
       card.append(create('p', 'description', capability.purpose || 'No purpose documented.'));
-      const evidenceTag = capability.receipt_coverage !== 'SURVEY_OUTPUT_PATTERN'
-        ? 'Other private receipt home · not queried'
-        : capability.local_receipt_observed
-          ? 'Local receipt exists · outcome not certified'
-          : 'No matching survey receipt observed';
-      card.append(create('div', 'tag' + (capability.local_receipt_observed ? ' warn' : ''), evidenceTag));
+      card.append(create('div', 'tag' + (capability.local_receipt_observed ? ' warn' : ''), coverageLabel(capability)));
       const detail = create('div', 'detail');
       const dl = create('dl');
+      const coverageText = capability.receipt_coverage === 'SURVEY_OUTPUT_PATTERN'
+        ? 'Survey output pattern'
+        : capability.receipt_coverage === 'NO_INDEXED_RECEIPT'
+          ? 'No indexed receipt mapping'
+          : 'Other private home · not queried';
       const rows = [
         ['Command', capability.command || 'Unknown'],
         ['Source present', capability.source_present ? 'Yes' : 'No / unverified'],
         ['Executable', capability.executable_availability || 'NOT_PROBED'],
         ['Field outcome', capability.real_world_outcome || 'NOT_VERIFIED'],
         ['Mutation class', capability.mutation_class || 'Unspecified'],
-        ['Receipt coverage', capability.receipt_coverage === 'SURVEY_OUTPUT_PATTERN' ? 'Survey output pattern' : 'Other private home / not indexed'],
+        ['Receipt coverage', coverageText],
+        ['Origin class', capability.receipt_source_class || 'Unknown'],
         ['Last receipt', formatTime(capability.last_receipt_at)],
         ['Typed state', capability.last_allowlisted_state || 'Not safely classified'],
         ['Proof ceiling', capability.proof_ceiling || 'Not established']
@@ -200,13 +267,17 @@
         throw new Error('Local registry unavailable or unqualified response');
       state.capabilities = data.capabilities;
       state.generatedAt = data.generated_at;
+      state.sourceClassCounts = data.receipt_source_class_counts || {};
       state.loaded = true;
       setDomains();
+      setSourceClasses();
       setText('count-registered', data.registered_count);
       setText('count-entrypoints', data.entrypoint_present_count);
       setText('count-receipts', data.local_receipt_count);
       setText('count-no-evidence', data.unobserved_supported_receipt_count);
       setText('count-uncovered', data.receipt_home_not_queried_count);
+      setText('count-unmapped', data.no_indexed_receipt_count);
+      showOriginLedger();
       showCapabilities();
       showAdbJourney();
     } catch (err) {
@@ -214,11 +285,13 @@
       state.capabilities = [];
       state.loaded = false;
       state.generatedAt = null;
-      ['count-registered', 'count-entrypoints', 'count-receipts', 'count-no-evidence', 'count-uncovered']
+      state.sourceClassCounts = {};
+      ['count-registered', 'count-entrypoints', 'count-receipts', 'count-no-evidence', 'count-uncovered', 'count-unmapped']
         .forEach(id => setText(id, '—'));
       setText('status', 'Unable to verify local capabilities: ' + (err.message || 'unknown error')
         + '. Start the Windows SysAdminSuite DashboardHost on this Admin Box. '
         + 'The generic Python/static fallback does not certify local evidence.');
+      showOriginLedger();
       showCapabilities();
       showAdbJourney();
     } finally {
@@ -229,6 +302,8 @@
     byId('search').addEventListener('input', showCapabilities);
     byId('domain').addEventListener('change', showCapabilities);
     byId('evidence').addEventListener('change', showCapabilities);
+    const sourceClass = byId('source-class');
+    if (sourceClass) sourceClass.addEventListener('change', showCapabilities);
     byId('refresh').addEventListener('click', refresh);
     refresh();
   });
