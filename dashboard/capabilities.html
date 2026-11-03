@@ -34,6 +34,14 @@
     .stat {background:var(--panel);border:1px solid var(--edge);border-radius:13px;padding:16px 18px}
     .stat strong {font-size:29px;display:block;line-height:1.15;font-family:var(--font-data);font-weight:650}
     .stat span {color:var(--muted);font-size:12px}
+    .activity-panel {margin:22px 0 0;border:1px solid var(--edge);background:#101925;border-radius:10px;padding:14px 16px;display:grid;gap:8px}
+    .activity-panel[data-class="ACTIVE"] {border-color:#3f7ea8}
+    .activity-panel[data-class="HISTORICAL_TERMINAL"],.activity-panel[data-class="DISCONNECTED"] {border-color:#6b5b3a}
+    .activity-panel[data-class="NOT_CONNECTED"],.activity-panel[data-class="UNKNOWN"] {border-color:#3a4a5c}
+    .activity-kicker {font:650 11px/1.2 var(--font-data);letter-spacing:.05em;color:#95b3d0}
+    .activity-headline {margin:0;font-size:18px;letter-spacing:-.015em}
+    .activity-detail {margin:0;color:var(--muted);font-size:12px;max-width:72ch}
+    .activity-meta {font:450 11px/1.4 var(--font-data);color:#8eaccb}
     .origin-ledger {margin:22px 0 8px;border:1px solid var(--edge);background:var(--ledger);border-radius:10px;overflow:hidden}
     .origin-ledger header {display:flex;justify-content:space-between;gap:12px;flex-wrap:wrap;align-items:end;padding:14px 16px;border-bottom:1px solid var(--edge)}
     .origin-ledger h2 {margin:0;font-size:17px;letter-spacing:-.01em}
@@ -116,6 +124,14 @@
       </div>
       <p id="adb-status" class="statusline" role="status" aria-live="polite">Checking the local host registry before presenting the ADB map…</p>
       <ol id="adb-journey" class="adb-journey" aria-label="ADB capability and evidence stages"></ol>
+    </section>
+
+    <section id="activity-panel" class="activity-panel" data-class="NOT_CONNECTED" aria-labelledby="activity-headline">
+      <div class="activity-kicker">Dashboard run-control · live activity</div>
+      <p id="activity-class" class="activity-meta">NOT_CONNECTED</p>
+      <h2 id="activity-headline" class="activity-headline">Checking for a connected run feed…</h2>
+      <p id="activity-detail" class="activity-detail">Active operations come only from dashboard run-control. Historical receipts are listed separately and never mean a run is active.</p>
+      <p id="activity-meta" class="activity-meta"></p>
     </section>
 
     <section aria-label="Evidence overview" class="cards">

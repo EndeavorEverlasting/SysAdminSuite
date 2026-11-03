@@ -238,6 +238,12 @@ export function getActiveRun() {
   return active ? getRunState(active.runId) : null;
 }
 
+/** Latest run by update time, including terminal history. Not proof of live success. */
+export function getLatestRun() {
+  const latest = _latestRun();
+  return latest ? getRunState(latest.runId) : null;
+}
+
 export function setRunStopHandler(runId, handler) {
   if (!runId) return;
   if (typeof handler === 'function') _stopHandlers.set(runId, handler);

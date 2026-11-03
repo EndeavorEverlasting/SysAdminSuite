@@ -1,7 +1,15 @@
 /* SAS Capability Cockpit: read-only local projection; never invokes tool execution. */
 (() => {
   'use strict';
-  const state = { capabilities: [], loaded: false, generatedAt: null, sourceClassCounts: {} };
+  const state = {
+    capabilities: [],
+    loaded: false,
+    generatedAt: null,
+    sourceClassCounts: {},
+    activity: null,
+    runFeedStatus: 'NOT_CONNECTED',
+    unsubscribeRuns: null
+  };
   const byId = id => document.getElementById(id);
   const create = (tag, className, value) => {
     const node = document.createElement(tag);
@@ -118,6 +126,64 @@
     setText('adb-status', registered + ' of ' + total
       + ' mapped command references registered locally. Journey stages describe capabilities, not a mandatory run order. '
       + 'No executable, target operation or outcome is certified by this projection.');
+  }
+
+  function renderActivity(projection) {
+    state.activity = projection;
+    const panel = byId('activity-panel');
+    if (!panel || !projection) return;
+    panel.dataset.class = projection.activity_class || 'UNKNOWN';
+    setText('activity-class', (projection.feed_status || 'UNKNOWN') + ' · ' + (projection.activity_class || 'UNKNOWN')
+      + ' · ' + (projection.conflation_guard || 'RECEIPT_HISTORY_IS_NOT_LIVE_ACTIVITY'));
+    setText('activity-headline', projection.headline || 'Activity unavailable');
+    setText('activity-detail', projection.detail || '');
+    const active = projection.active_run;
+    const terminal = projection.latest_terminal_run;
+    const meta = active
+      ? ('Active: ' + active.kind + ' / ' + active.state + (active.updatedAt ? ' · ' + formatTime(active.updatedAt) : ''))
+      : terminal
+        ? ('Terminal history: ' + terminal.kind + ' / ' + terminal.state + (terminal.endedAt ? ' · ' + formatTime(terminal.endedAt) : '')
+          + ' · not running')
+        : 'No run-control operation attached on this page';
+    setText('activity-meta', meta);
+  }
+
+  async function refreshActivityFeed() {
+    let projectCockpitActivity = null;
+    try {
+      const activityMod = await import('./capability-activity.js');
+      projectCockpitActivity = activityMod.projectCockpitActivity;
+      const runMod = await import('./run-control.js');
+      const paint = () => {
+        renderActivity(projectCockpitActivity({
+          feedStatus: 'CONNECTED',
+          activeRun: runMod.getActiveRun(),
+          latestRun: runMod.getLatestRun()
+        }));
+      };
+      state.runFeedStatus = 'CONNECTED';
+      if (typeof runMod.subscribeRunEvents === 'function') {
+        if (state.unsubscribeRuns) state.unsubscribeRuns();
+        state.unsubscribeRuns = runMod.subscribeRunEvents(paint);
+      }
+      if (typeof runMod.initRunControl === 'function') runMod.initRunControl();
+      paint();
+    } catch (err) {
+      state.runFeedStatus = 'NOT_CONNECTED';
+      if (projectCockpitActivity) {
+        renderActivity(projectCockpitActivity({ feedStatus: 'NOT_CONNECTED' }));
+      } else {
+        renderActivity({
+          feed_status: 'NOT_CONNECTED',
+          activity_class: 'NOT_CONNECTED',
+          headline: 'Run feed not connected on this page',
+          detail: 'Active operations cannot be certified here. Historical receipts below are not live activity or field outcomes.',
+          active_run: null,
+          latest_terminal_run: null,
+          conflation_guard: 'RECEIPT_HISTORY_IS_NOT_LIVE_ACTIVITY'
+        });
+      }
+    }
   }
 
   function coverageLabel(capability) {
@@ -305,6 +371,7 @@
     const sourceClass = byId('source-class');
     if (sourceClass) sourceClass.addEventListener('change', showCapabilities);
     byId('refresh').addEventListener('click', refresh);
+    refreshActivityFeed();
     refresh();
   });
 })();
