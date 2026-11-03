@@ -61,7 +61,7 @@
       row('Registered', matches.length + ' / ' + stage.ids.length + ' mapped commands');
       const present = matches.filter(c => c.entrypoint_status === 'FILE_PRESENT').length;
       const unprobed = matches.filter(c => c.entrypoint_status === 'RUNTIME_DISPATCH_NOT_PROBED').length;
-      row('Host entry', present + ' file(s) present'
+      row('Executable', 'NOT PROBED · ' + present + ' entrypoint file(s) present'
         + (unprobed ? ' · ' + unprobed + ' runtime dispatcher(s) not probed' : '')
         + ' · execution untested');
       const receipts = matches.filter(c => c.local_receipt_observed).length;
@@ -141,6 +141,8 @@
       const rows = [
         ['Command', capability.command || 'Unknown'],
         ['Source present', capability.source_present ? 'Yes' : 'No / unverified'],
+        ['Executable', capability.executable_availability || 'NOT_PROBED'],
+        ['Field outcome', capability.real_world_outcome || 'NOT_VERIFIED'],
         ['Mutation class', capability.mutation_class || 'Unspecified'],
         ['Receipt coverage', capability.receipt_coverage === 'SURVEY_OUTPUT_PATTERN' ? 'Survey output pattern' : 'Other private home / not indexed'],
         ['Last receipt', formatTime(capability.last_receipt_at)],
