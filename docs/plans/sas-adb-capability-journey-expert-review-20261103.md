@@ -11,7 +11,7 @@ The selected candidate is an eight-stage operator journey in the existing capabi
 
 ## Four independent states
 1. **Registered:** exact command ID exists in current host-loaded canonical registry; never assume the map's annotation itself is registration.
-2. **Host entry:** exact entrypoint file can be observed on the local host, or runtime dispatcher is not probed; file presence is **not** executable readiness.
+2. **Executable availability:** the host API explicitly reports `NOT_PROBED`; the file presence and runtime-dispatcher states are supporting details only. A file is **not** proof of executable readiness.
 3. **Local evidence:** safe metadata on a recognized private local receipt; “not queried” and “no matching survey receipt” remain different. Timestamp and typed state are historical artifacts, not active-process confirmation.
 4. **Field outcome:** NOT VERIFIED in the current endpoint; require independently bound target/session/real-world acceptance from an authorized proof owner. A typed `ADB_DEVICE_READY` receipt is not permission to mutate, deployment proof or field acceptance.
 
@@ -31,7 +31,7 @@ Source roles:
 The candidate stays in the dashboard's established dark surface rather than introducing arbitrary branding. Each stage has a scannable numeral, short job-to-be-done, four independently named facts and drill-through to the canonical command. The view uses text-node rendering, keyboard-operable Inspect buttons, an ARIA-labeled ordered list, a live status explanation, responsive two-column metrics and a single-column small-screen fallback.
 
 Review against these independently measurable gates:
-- **Comprehension:** a reviewer can distinguish command registration, local file presence, local receipt and actual field outcome without a verbal explanation.
+- **Comprehension:** a reviewer can distinguish command registration, unprobed executable availability versus file presence, local receipt and actual field outcome without a verbal explanation.
 - **Findability:** a reviewer can locate `hh-cc-reader-adb-probe` and navigate to its raw registered command detail in one Inspect action, without losing the capability map.
 - **Error honesty:** if host API/registry fails, the ADB map must clear rather than display old or demo data.
 - **Safety:** zero device requests, zero browser-side command dispatch, zero remote management, zero private host/reader identifiers in page text or bundled static assets.
