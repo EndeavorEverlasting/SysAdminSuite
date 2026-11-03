@@ -1,6 +1,8 @@
 """Thin PAXSTORE serial-bound terminal observation seam (read-only).
 
 Call stack (success):
+  Optional --include-details / --include-apps: read-only hardware and app metadata;
+  firmwareName, Android version and application versions remain separate domains.
   CLI / CMD
     -> observe_terminal_by_sn(...)
     -> credential gate / injectable transport
@@ -95,13 +97,15 @@ def build_signed_get(
     serial_no: str,
     timestamp_ms: int | None = None,
     include_installed_firmware: bool = True,
+    include_installed_apks: bool = False,
+    include_detail_info_list: bool = False,
 ) -> tuple[str, dict[str, str], str]:
     """Return (url, headers, query) matching PAXSTORE ThirdPartySysApiClient signing."""
     ts = str(timestamp_ms if timestamp_ms is not None else int(time.time() * 1000))
     # Fixed order so the signed query equals the URL query (unlike JVM HashMap).
     params = [
-        ("includeDetailInfoList", "false"),
-        ("includeInstalledApks", "false"),
+        ("includeDetailInfoList", "true" if include_detail_info_list else "false"),
+        ("includeInstalledApks", "true" if include_installed_apks else "false"),
         ("includeInstalledFirmware", "true" if include_installed_firmware else "false"),
         ("includeMasterTerminal", "false"),
         ("serialNo", serial_no.strip()),
@@ -175,7 +179,31 @@ def map_terminal_payload(
         }
 
     returned_serial = _norm_text(data.get("serialNo"))
-    returned_mac = _norm_mac(data.get("macAddress") or data.get("mac"))
+    # PAXSTORE getTerminalBySn can place hardware fields inside terminalDetail
+    # when includeDetailInfoList=true. Prefer the exact serial from top-level.
+    detail = data.get("terminalDetail") if isinstance(data.get("terminalDetail"), dict) else {}
+    returned_mac = _norm_mac(
+        data.get("macAddress") or data.get("mac") or detail.get("macAddress")
+    )
+    installed_apks_raw = data.get("installedApks")
+    installed_apks = []
+    if isinstance(installed_apks_raw, list):
+        for apk in installed_apks_raw:
+            if not isinstance(apk, dict):
+                continue
+            # Whitelist metadata only; never copy arbitrary vendor/API payloads
+            # (including parameters, credentials or payment/customer data).
+            installed_apks.append({
+                "app_name": _norm_text(apk.get("appName")),
+                "package_name": _norm_text(apk.get("packageName")),
+                "version_name": _norm_text(apk.get("versionName")),
+                "version_code": apk.get("versionCode")
+                    if isinstance(apk.get("versionCode"), int)
+                    and not isinstance(apk.get("versionCode"), bool) else None,
+                "install_time": _norm_text(apk.get("installTime")),
+                "source": _norm_text(apk.get("source")),
+            })
+    installed_apks = installed_apks[:100]
     expected_serial_n = _norm_text(expected_serial)
     expected_mac_n = _norm_mac(expected_mac)
 
@@ -184,7 +212,9 @@ def map_terminal_payload(
         reasons.append("response_missing_serialNo")
     elif expected_serial_n and returned_serial != expected_serial_n:
         reasons.append("serial_mismatch")
-    if expected_mac_n and returned_mac and returned_mac != expected_mac_n:
+    if expected_mac_n and not returned_mac:
+        reasons.append("response_missing_mac")
+    elif expected_mac_n and returned_mac != expected_mac_n:
         reasons.append("mac_mismatch")
 
     firmware_obj = data.get("installedFirmware") if isinstance(data.get("installedFirmware"), dict) else {}
@@ -193,7 +223,9 @@ def map_terminal_payload(
 
     identity_bound = not reasons and bool(returned_serial)
     access_state = "OBSERVED" if identity_bound and firmware_name else (
-        "IDENTITY_MISMATCH" if reasons else "FIRMWARE_FIELD_ABSENT"
+        "IDENTITY_INCOMPLETE" if reasons == ["response_missing_mac"] else (
+            "IDENTITY_MISMATCH" if reasons else "FIRMWARE_FIELD_ABSENT"
+        )
     )
 
     return {
@@ -208,8 +240,20 @@ def map_terminal_payload(
         "returned_mac": returned_mac,
         "expected_mac": expected_mac_n,
         "model_name": _norm_text(data.get("modelName") or data.get("model")),
-        "os_version": _norm_text(data.get("osVersion")),
-        "ip": _norm_text(data.get("ip")),
+        "part_number": _norm_text(data.get("pn") or detail.get("pn")),
+        "os_version": _norm_text(data.get("osVersion") or detail.get("osVersion")),
+        "ip": _norm_text(data.get("ip") or detail.get("ip")),
+        "installed_apks": installed_apks,
+        "metadata_field_presence": {
+            "installedFirmware": isinstance(data.get("installedFirmware"), dict),
+            "installedApks": isinstance(installed_apks_raw, list),
+            "terminalDetail": bool(detail),
+        },
+        "metadata_shape": {
+            "firmwareName": "paxstore_installed_firmware_name",
+            "installedApks": "application_metadata_not_base_firmware",
+            "terminalDetail": "hardware_and_android_metadata",
+        },
         "current_firmware_value": firmware_name,
         "firmware_install_time": install_time,
         "version_domain": VERSION_DOMAIN,
@@ -258,6 +302,8 @@ def observe_terminal_by_sn(
     transport: Transport | None = None,
     fixture_payload: dict[str, Any] | None = None,
     freeze: bool = False,
+    include_installed_apks: bool = False,
+    include_detail_info_list: bool = False,
 ) -> dict[str, Any]:
     """Observe installed firmware for one serial via PAXSTORE OpenAPI or a fixture."""
     serial = _norm_text(serial_no)
@@ -320,6 +366,8 @@ def observe_terminal_by_sn(
             api_key=str(creds["api_key"]),
             api_secret=str(creds["api_secret"]),
             serial_no=serial,
+            include_installed_apks=include_installed_apks,
+            include_detail_info_list=include_detail_info_list,
         )
         runner = transport or default_http_transport
         payload = runner(url, headers)
@@ -367,6 +415,10 @@ def main(argv: list[str] | None = None) -> int:
     parser.add_argument("--serial", required=True, help="Terminal serial number")
     parser.add_argument("--expected-mac", default=None, help="Optional MAC bind")
     parser.add_argument("--live-ipv4", default=None, help="Optional live IPv4 for baseline freeze")
+    parser.add_argument("--include-apps", action="store_true",
+                        help="Read installed app metadata (separate from PayDroid firmware)")
+    parser.add_argument("--include-details", action="store_true",
+                        help="Read nested terminalDetail hardware, PN and Android metadata")
     parser.add_argument(
         "--fixture",
         default=None,
@@ -390,6 +442,8 @@ def main(argv: list[str] | None = None) -> int:
         live_ipv4=args.live_ipv4,
         fixture_payload=fixture_payload,
         freeze=args.freeze,
+        include_installed_apks=args.include_apps,
+        include_detail_info_list=args.include_details,
     )
     path = _write_receipt(result, Path(args.output) if args.output else None)
     print(json.dumps(result, indent=2))
