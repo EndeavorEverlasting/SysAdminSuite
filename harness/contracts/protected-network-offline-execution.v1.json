@@ -1,0 +1,88 @@
+{
+  "schema_version": "sas-protected-offline-execution/v1",
+  "authority": {
+    "governance_owner": "AGENTS.md",
+    "human_runbook": "docs/GUEST_SYNC_TO_PROTECTED_DEPLOYMENT.md",
+    "runtime_preparer": "scripts/Prepare-SasAutoLogonShortRuntime.ps1",
+    "runtime_seal_validator": "scripts/Test-SasAutoLogonRuntimeSeal.ps1",
+    "sealed_runtime_root": "C:\\SASAL",
+    "scansnap_front_door": "Config/SoftwareDeploy/ScanSnap/Deploy-ScanSnap.cmd",
+    "scansnap_engine": "Config/SoftwareDeploy/ScanSnap/Deploy-ScanSnap.ps1",
+    "canonical_deployment_adapter": "scripts/SasSoftwareDeploymentAdapter.psm1"
+  },
+  "prompt_provenance": {
+    "P00": {
+      "name": "Governance Doctrine Installer",
+      "canonical_repository": "EndeavorEverlasting/TokenCorridor",
+      "canonical_registry_path": "src/tokencorridor/interface/promptkit/registry/base/prompts.json"
+    },
+    "P01": {
+      "name": "Harness Infrastructure Builder",
+      "canonical_repository": "EndeavorEverlasting/TokenCorridor",
+      "canonical_registry_path": "src/tokencorridor/interface/promptkit/registry/base/prompts.json"
+    }
+  },
+  "phases": {
+    "internet_preparation": {
+      "network_intent": "InternetSync",
+      "agent_runtime_may_be_required": true,
+      "public_internet_may_be_required": true,
+      "target_contact_allowed": false,
+      "required_outputs": [
+        "selected_repository_commit",
+        "sealed_runtime",
+        "tracked_file_sha256_seal",
+        "required_package_payloads",
+        "required_package_companion_files",
+        "required_package_metadata",
+        "operator_front_door",
+        "offline_failure_continuation_logic"
+      ]
+    },
+    "protected_execution": {
+      "network_intent": "ProtectedNorthwell",
+      "agent_runtime_may_be_required": false,
+      "public_internet_may_be_required": false,
+      "git_network_io_allowed": false,
+      "public_web_lookup_allowed": false,
+      "cloud_agent_provider_required": false,
+      "target_contact_allowed": true,
+      "execution_must_be_self_contained": true,
+      "required_runtime_transport": "LOCAL_FILESYSTEM_ONLY",
+      "required_properties": [
+        "prepared_commit_proven",
+        "tracked_file_sha256_seal_proven",
+        "runtime_remotes_removed",
+        "package_payload_available_locally",
+        "package_companion_files_available_locally",
+        "target_resolution_available_offline",
+        "deployment_engine_available_offline",
+        "failure_classification_available_offline",
+        "same_transaction_continuation_available_offline",
+        "independent_target_progress_preserved",
+        "evidence_written_locally",
+        "operator_recovery_available_offline"
+      ]
+    }
+  },
+  "scansnap": {
+    "package_identity": "ScanSnap Home 4.1.0",
+    "required_companion_kind": "InstallShield response file",
+    "success_detection": "C:\\Program Files (x86)\\PFU\\ScanSnap\\Home\\PfuSshMain.exe",
+    "live_transport_owner": "scripts/SasSoftwareDeploymentAdapter.psm1",
+    "exact_fqdn_required_on_protected_routes": true,
+    "whatif_must_not_mutate_target": true,
+    "success_requires_validation_and_teardown": true
+  },
+  "doctrine": {
+    "agent_prepares_but_does_not_own_protected_runtime": true,
+    "network_switch_is_a_runtime_boundary": true,
+    "protected_network_must_assume_public_services_unavailable": true,
+    "protected_execution_cannot_depend_on_chat_continuity": true,
+    "protected_execution_cannot_depend_on_provider_reachability": true,
+    "operator_must_not_reconstruct_inner_commands": true,
+    "tracked_cmd_or_registered_front_door_required": true,
+    "failure_is_a_local_continuation_state_not_a_chat_handoff": true,
+    "independent_target_progress_must_be_preserved": true
+  }
+}
