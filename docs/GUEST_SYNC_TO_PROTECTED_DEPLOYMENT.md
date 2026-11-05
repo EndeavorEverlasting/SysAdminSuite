@@ -25,6 +25,16 @@ SysAdminSuite may automatically move between **previously proven saved WLAN prof
 
 Authenticated VPN is valid protected authority when already connected, but VPN connect/disconnect is **not** automated yet. The repository has no proven Citrix/other VPN-client lifecycle adapter or credential contract, so `sas refresh` launched while VPN is active tells the operator to disconnect VPN while keeping ordinary Internet connected. Protected commands launched with no protected path tell the operator to connect hardwire, WAB, or authenticated VPN. SysAdminSuite does not guess at VPN commands or disable network adapters.
 
+## Agent availability boundary
+
+Treat Guest/Internet -> protected Northwell as a runtime boundary.
+
+On protected Northwell, assume the agent and public Internet are unavailable. Do not switch to protected Northwell until the sealed runtime contains every package, script, validator, continuation path, and operator front door required to finish the intended transaction.
+
+Before the switch, preserve locally all package metadata, hashes, validation rules, target inputs, and failure-routing logic needed later. After the switch, use only the sealed local runtime and local payloads, perform no Git or public-web activity, classify failures locally, continue the same transaction when a local recovery exists, and write durable local evidence for recovery.
+
+The machine-readable authority is `harness/contracts/protected-network-offline-execution.v1.json`.
+
 ## Runtime layers
 
 SysAdminSuite deliberately keeps three repository/runtime roles separate:

@@ -52,6 +52,8 @@ on:
       - 'bash/apps/sas-install-apps.sh'
       - 'schemas/harness/**'
       - 'harness/api/sas-harness-api.json'
+      - 'harness/contracts/protected-network-offline-execution.v1.json'
+      - 'harness/validators/validate-protected-network-offline-execution.py'
       - 'harness/workflows/software-deployment-transport.yaml'
       - 'docs/SOFTWARE_DEPLOYMENT_TRANSPORT_CONTRACT.md'
       - 'docs/SOFTWARE_DEPLOYMENT_LOW_NOISE.md'
@@ -100,6 +102,10 @@ jobs:
       - name: Canonical SMB scheduled-task deployment contracts
         shell: bash
         run: python3 Tests/survey/test_canonical_smb_task_deployment_contracts.py
+
+      - name: Protected offline execution contract
+        shell: bash
+        run: python3 harness/validators/validate-protected-network-offline-execution.py
 
       - name: Run harness contract suite
         shell: bash

@@ -22,6 +22,17 @@ This continuation is factored under:
 
 P04 owns factoring, durable repository context, collision avoidance, and execution placement. P82 owns each empirical network/package experiment as **HYPOTHESIS -> BUILD -> MEASURE -> CRITIQUE -> DECIDE**.
 
+## Proven deployment factory successor
+
+The implementation successor for this multimodal plan is:
+
+- `docs/SCANSNAP_PROVEN_DEPLOYMENT_FACTORY_PLAN.md`
+- `docs/handoff/SCANSNAP_ONE_PASS_CURSOR_HANDOFF.md`
+
+The decisive factoring rule is now settled: ScanSnap owns web package acquisition/binding and mode-aware target resolution, while remote staging, hash verification, SYSTEM Task Scheduler execution, package validation, result retrieval, and teardown converge on the existing canonical SysAdminSuite software-deployment factory in `scripts/SasSoftwareDeploymentAdapter.psm1`.
+
+Do not maintain the bespoke ScanSnap remote-install lifecycle as a parallel production engine after the canonical delegation is proven.
+
 ## User outcome
 
 Deploy the requested ScanSnap application to the two field hosts. Home-network PTop testing is useful but is **not a release gate** and must not consume the critical path if it cannot be made useful quickly.

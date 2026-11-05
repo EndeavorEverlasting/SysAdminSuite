@@ -65,6 +65,7 @@ stages:
       - read harness/api/harness-outcome-registry.json before treating any validator, dry run, plan, build, deploy, or runtime command as terminal
       - read harness/api/operator-execution-route-registry.json before converting a selected command into operator instructions or repo-relative execution
       - read harness/api/terminal-evidence-survival-registry.json before executing or recovering a registered terminal-sensitive field command
+      - read harness/contracts/protected-network-offline-execution.v1.json before any workflow that prepares on InternetSync and executes later on ProtectedNorthwell
       - for any printer-mapping request, read harness/api/printer-mapping-use-case-registry.json before selecting a launcher, engine, mapping mechanism, or proof policy
       - when AutoLogon, Cybernet, live cert, deployment, or runtime proof is involved, read harness/api/deployment-state-registry.json before selecting the command chain
 
@@ -130,6 +131,7 @@ stages:
       - python Tests/survey/test_operator_command_handoff_contracts.py
       - python harness/validators/validate-outcome-contracts.py
       - python harness/validators/validate-deployment-state-contracts.py
+      - python harness/validators/validate-protected-network-offline-execution.py
       - python harness/validators/validate-operator-execution-route.py when command-to-operator routing, repo-relative front doors, execution-location handling, network-intent handoff, or AutoLogon crash-safe routing changes
       - python harness/validators/validate-printer-mapping-use-cases.py when printer-mapping routing, use cases, field skill, or organization/site contracts change
       - python harness/validators/validate-terminal-evidence-survival.py when terminal-evidence routing, artifacts, hooks, runner contracts, or front doors change
@@ -194,6 +196,8 @@ outputs:
     - harness/reports/OPERATOR_EXECUTION_ROUTE_STATUS.md
     - harness/api/deployment-state-registry.json
     - harness/api/terminal-evidence-survival-registry.json
+    - harness/contracts/protected-network-offline-execution.v1.json
+    - harness/validators/validate-protected-network-offline-execution.py
     - harness/api/printer-mapping-use-case-registry.json
     - harness/workflows/printer-mapping-use-case-routing.yaml
     - harness/skills/printer-mapping-use-case-routing/SKILL.md
