@@ -15,7 +15,7 @@ The protected H&H field probe remains strict and target-only. This document does
 Use the existing canonical front door:
 
 ```text
-Probe-HHCCReader.cmd IPV4 [EXPECTED-MAC]
+Probe-HHCCReader.cmd IPV4 [EXPECTED-MAC] [NETWORK-ENVIRONMENT]
 ```
 
 No subnet/range discovery is authorized by that command.
@@ -49,7 +49,7 @@ It does not change the reader, choose the next network, or configure Windows net
 
 ### 2. After switching networks
 
-**Known approved IPv4:** do not throw it away and start subnet discovery. Use the canonical `Probe-HHCCReader.cmd TARGET_IPV4 [EXPECTED_MAC]` route so the explicit IPv4 is immediately re-correlated with the expected MAC and the read-only probe.
+**Known approved IPv4:** do not throw it away and start subnet discovery. Use the canonical `Probe-HHCCReader.cmd TARGET_IPV4 EXPECTED_MAC CONSUMER_LAB` route so the explicit IPv4 is immediately re-correlated with the expected MAC and the read-only probe.
 
 **IPv4 genuinely unknown:** run the bounded discovery front door:
 

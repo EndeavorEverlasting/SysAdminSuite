@@ -74,6 +74,32 @@ BATCH_REQUIRED_COLUMNS = (
 
 BATCH_ACTIONS = frozenset({"PLAN", "UPDATE", "RESTORE"})
 
+IDENTITY_RECOVERY_PROBLEMS = frozenset(
+    {
+        "missing_source_serial",
+        "missing_expected_mac",
+        "invalid_expected_mac",
+        "duplicate_source_serial",
+        "duplicate_expected_mac",
+        "readerunk_mac_rejected",
+    }
+)
+
+IDENTITY_TRANCHE_SERIAL_AND_MAC = "SERIAL_AND_MAC"
+IDENTITY_TRANCHE_SERIAL_ONLY = "SERIAL_ONLY"
+IDENTITY_TRANCHE_MAC_ONLY = "MAC_ONLY"
+IDENTITY_TRANCHE_INSUFFICIENT = "IDENTITY_INSUFFICIENT"
+IDENTITY_TRANCHE_INVALID = "IDENTITY_INVALID"
+
+NETWORK_ENVIRONMENTS = frozenset(
+    {
+        "HOSPITAL_GUEST_SHARED",
+        "CONSUMER_LAB",
+        "PROTECTED_ENTERPRISE",
+        "OTHER_SHARED",
+    }
+)
+
 # Approved MAC forms only (colon, hyphen, or compact). No arbitrary stripping.
 _MAC_COLON = re.compile(r"^(?:[0-9A-Fa-f]{2}:){5}[0-9A-Fa-f]{2}$")
 _MAC_HYPHEN = re.compile(r"^(?:[0-9A-Fa-f]{2}-){5}[0-9A-Fa-f]{2}$")
@@ -119,6 +145,45 @@ def _norm_ipv4(value: Any) -> str | None:
 
 def _identity_key(serial: Any, mac: Any) -> tuple[str | None, str | None]:
     return _norm_text(serial), _norm_mac(mac)
+
+
+def classify_identity_tranche(candidate: dict[str, Any]) -> dict[str, Any]:
+    """Classify inventory identity completeness without weakening mutation gates.
+
+    The tranche is planning/recovery metadata only. It never authorizes subnet
+    discovery or mutation. SERIAL_AND_MAC means the inventory inputs are ready
+    for an exact one-target MAC-gated probe; live correlation is still required.
+    """
+    serial = _norm_text(candidate.get("source_serial"))
+    raw_mac = candidate.get("expected_mac")
+    mac = _norm_mac(raw_mac)
+    malformed_mac = raw_mac not in (None, "") and mac is None
+
+    if malformed_mac:
+        tranche = IDENTITY_TRANCHE_INVALID
+        next_gate = "CORRECT_MALFORMED_MAC"
+    elif serial and mac:
+        tranche = IDENTITY_TRANCHE_SERIAL_AND_MAC
+        next_gate = "MAC_GATED_ONE_TARGET_PROBE"
+    elif serial:
+        tranche = IDENTITY_TRANCHE_SERIAL_ONLY
+        next_gate = "RECOVER_MAC_FROM_PHYSICAL_OR_AUTHORIZED_MANAGEMENT_EVIDENCE"
+    elif mac:
+        tranche = IDENTITY_TRANCHE_MAC_ONLY
+        next_gate = "RECOVER_SERIAL_FROM_TRACKER_PHYSICAL_OR_AUTHORIZED_MANAGEMENT_EVIDENCE"
+    else:
+        tranche = IDENTITY_TRANCHE_INSUFFICIENT
+        next_gate = "RECONCILE_READER_IDENTITY_BEFORE_NETWORK_PROBE"
+
+    return {
+        "tranche": tranche,
+        "source_serial": serial,
+        "expected_mac": mac,
+        "inventory_inputs_complete": tranche == IDENTITY_TRANCHE_SERIAL_AND_MAC,
+        "next_gate": next_gate,
+        "broad_discovery_authorized": False,
+        "mutation_authorized": False,
+    }
 
 
 def _field_value(blob: dict[str, Any], field: str) -> Any:
@@ -207,8 +272,11 @@ def resolve_target_identity(candidate: dict[str, Any]) -> dict[str, Any]:
     else:
         live_ipv4 = None
     probe_mac_match = candidate.get("probe_mac_match")
+    raw_network_environment = _norm_text(candidate.get("network_environment"))
+    network_environment = raw_network_environment.upper() if raw_network_environment else None
     conflicts = list(candidate.get("identity_conflicts") or [])
     reasons: list[str] = []
+    tranche = classify_identity_tranche(candidate)
 
     if not source_serial:
         reasons.append("missing_source_serial")
@@ -218,6 +286,10 @@ def resolve_target_identity(candidate: dict[str, Any]) -> dict[str, Any]:
         reasons.append("missing_or_invalid_expected_mac")
     if candidate.get("live_mac") not in (None, "") and live_mac is None:
         reasons.append("malformed_live_mac")
+    if network_environment is not None and network_environment not in NETWORK_ENVIRONMENTS:
+        reasons.append("network_environment_invalid")
+    elif expected_mac and network_environment is None:
+        reasons.append("network_environment_unclassified")
 
     if live_ipv4 == FORBIDDEN_READERUNK_IPV4:
         reasons.append("readerunk_ipv4_leakage_rejected")
@@ -256,6 +328,8 @@ def resolve_target_identity(candidate: dict[str, Any]) -> dict[str, Any]:
             "malformed_live_mac",
             "probe_mac_match_not_proved",
             "live_ipv4_missing",
+            "network_environment_unclassified",
+            "network_environment_invalid",
         }
         for reason in reasons
     ):
@@ -268,10 +342,15 @@ def resolve_target_identity(candidate: dict[str, Any]) -> dict[str, Any]:
         "unique_target": unique,
         "source_serial": source_serial,
         "source_name": source_name,
+        "identity_tranche": tranche["tranche"],
+        "identity_next_gate": tranche["next_gate"],
+        "broad_discovery_authorized": False,
         "expected_mac": expected_mac,
         "live_mac": live_mac,
         "live_ipv4": live_ipv4,
         "probe_mac_match": probe_mac_match,
+        "network_environment": network_environment,
+        "network_environment_classified": network_environment in NETWORK_ENVIRONMENTS,
         "rejection_reasons": reasons,
         "identity_conflicts": conflicts,
         "mutation_authorized": False,
@@ -630,9 +709,17 @@ def normalize_batch_rows(rows: list[dict[str, Any]], *, execute_serial: str | No
             "schema": BATCH_SCHEMA,
             "artifact": "batch-plan",
             "state": "BATCH_EMPTY",
+            "row_count": 0,
+            "executable_count": 0,
+            "blocked_count": 0,
+            "identity_tranche_counts": {},
+            "identity_ready_count": 0,
+            "identity_recovery_count": 0,
+            "identity_recovery_rows": [],
             "rows": [],
             "executable_rows": [],
             "blocked_rows": [],
+            "execute_serial_scope": None if execute_serial is None else _norm_text(execute_serial),
             "mutation_authorized": False,
         }
 
@@ -652,6 +739,7 @@ def normalize_batch_rows(rows: list[dict[str, Any]], *, execute_serial: str | No
                 problems.append(f"missing_{col}")
         serial = _norm_text(row.get("source_serial"))
         mac = _norm_mac(row.get("expected_mac"))
+        tranche = classify_identity_tranche(row)
         action = (_norm_text(row.get("action")) or "").upper()
         if action and action not in BATCH_ACTIONS:
             problems.append("invalid_action")
@@ -664,10 +752,29 @@ def normalize_batch_rows(rows: list[dict[str, Any]], *, execute_serial: str | No
         if mac == FORBIDDEN_READERUNK_MAC:
             problems.append("readerunk_mac_rejected")
 
+        identity_recovery_required = (
+            tranche["tranche"] != IDENTITY_TRANCHE_SERIAL_AND_MAC
+            or any(problem in IDENTITY_RECOVERY_PROBLEMS for problem in problems)
+        )
+        identity_admission_state = (
+            "RECOVERY_REQUIRED" if identity_recovery_required else "READY_FOR_IDENTITY_PROBE"
+        )
+        identity_next_gate = tranche["next_gate"]
+        if (
+            identity_recovery_required
+            and tranche["tranche"] == IDENTITY_TRANCHE_SERIAL_AND_MAC
+        ):
+            identity_next_gate = "RECONCILE_IDENTITY_CONFLICTS_BEFORE_NETWORK_PROBE"
+
         entry = {
             "row_index": index,
             "source_serial": serial,
             "source_name": _norm_text(row.get("source_name")),
+            "identity_tranche": tranche["tranche"],
+            "identity_next_gate": identity_next_gate,
+            "identity_admission_state": identity_admission_state,
+            "identity_recovery_required": identity_recovery_required,
+            "broad_discovery_authorized": False,
             "expected_mac": mac,
             "observed_firmware": _norm_text(row.get("observed_firmware")),
             "active_outdated": _norm_text(row.get("active_outdated")),
@@ -728,6 +835,12 @@ def normalize_batch_rows(rows: list[dict[str, Any]], *, execute_serial: str | No
         blocked.extend(executable)
         executable = []
 
+    tranche_counts = dict(Counter(row["identity_tranche"] for row in normalized))
+    recovery_rows = [row for row in normalized if row["identity_recovery_required"]]
+    ready_identity_rows = [
+        row for row in normalized if row["identity_admission_state"] == "READY_FOR_IDENTITY_PROBE"
+    ]
+
     return {
         "schema": BATCH_SCHEMA,
         "artifact": "batch-plan",
@@ -735,6 +848,10 @@ def normalize_batch_rows(rows: list[dict[str, Any]], *, execute_serial: str | No
         "row_count": len(normalized),
         "executable_count": len(executable),
         "blocked_count": len(blocked),
+        "identity_tranche_counts": tranche_counts,
+        "identity_ready_count": len(ready_identity_rows),
+        "identity_recovery_count": len(recovery_rows),
+        "identity_recovery_rows": recovery_rows,
         "rows": normalized,
         "executable_rows": executable,
         "blocked_rows": blocked,
