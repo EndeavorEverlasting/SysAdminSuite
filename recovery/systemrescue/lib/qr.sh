@@ -1,5 +1,5 @@
 #!/usr/bin/env bash
-# QR-safe pointer-command catalog.
+# QR-safe pointer-command catalogs.
 
 emit_qr() {
   local index=$1 command=$2 max=$3
@@ -50,4 +50,27 @@ cmd_qr_catalog() {
   emit_qr 8 'bash "$R" mount-ntfs --mapper /dev/mapper/sas_image_bitlk --mount /mnt/recovery-image' "$max"
   emit_qr 9 'bash "$R" audit-user-data --source-root /mnt/recovery-image/Users --destination-partition "$DST" --destination-mount "$M" --report "$W/user-audit.txt"' "$max"
   emit_qr 10 'bash "$R" copy-user-data --source-root /mnt/recovery-image/Users --destination-partition "$DST" --destination-mount "$M" --destination-root "$W/RECOVERED_USER_DATA" --log "$W/user-copy.log"' "$max"
+}
+
+cmd_forensics_qr_catalog() {
+  local repo_mount='' source='' expect_model='' expect_serial='' workdir='' max=$QR_LIMIT_DEFAULT
+  while [ $# -gt 0 ]; do
+    case "$1" in
+      --repo-mount) repo_mount=${2:-}; shift 2;;
+      --source) source=${2:-}; shift 2;;
+      --expect-model) expect_model=${2:-}; shift 2;;
+      --expect-serial) expect_serial=${2:-}; shift 2;;
+      --workdir) workdir=${2:-}; shift 2;;
+      --max-chars) max=${2:-}; shift 2;;
+      *) die "unknown forensics-qr-catalog argument: $1";;
+    esac
+  done
+  [ -n "$repo_mount" ] && [ -n "$source" ] && [ -n "$expect_model" ] && [ -n "$expect_serial" ] && [ -n "$workdir" ] || die "forensics-qr-catalog requires repo mount, confirmed source model/serial, and workdir"
+  [[ "$max" =~ ^[0-9]+$ ]] || die "--max-chars must be numeric"
+  local runner="$repo_mount/recovery/systemrescue/sas-recovery.sh"
+  local state
+  state="export R=$(shell_quote "$runner") S=$(shell_quote "$source") M=$(shell_quote "$expect_model") N=$(shell_quote "$expect_serial") W=$(shell_quote "$workdir")"
+  emit_qr F1 "$state" "$max"
+  emit_qr F2 'bash "$R" nvme-baseline --source "$S" --expect-model "$M" --expect-serial "$N" --workdir "$W/baseline"' "$max"
+  emit_qr F3 'bash "$R" nvme-read-repro --source "$S" --expect-model "$M" --expect-serial "$N" --workdir "$W/repro"' "$max"
 }
