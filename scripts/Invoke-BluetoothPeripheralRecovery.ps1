@@ -89,3 +89,4 @@ finally {
 }
 Get-Content -LiteralPath (Join-Path $run 'result.json')
 if($failure){exit 1}
+exit 0

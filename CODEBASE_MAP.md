@@ -8,6 +8,7 @@
 - `SasBluetooth.cmd` -> `scripts/SasBluetooth.ps1`: local API CLI for capability discovery, paired/connected mappings, exact-name/ID pairing, service recovery and adapter escalation.
 - `scripts/SasBluetoothRuntime.psm1`, `scripts/SasBluetoothPairing.cs`, `scripts/Prepare-BluetoothPeripheralBundle.ps1`: coordinator-prepared, hash-verified portable runtime; target SDK unnecessary; no UAC/ACL/template policy changes.
 - `docs/field/BLUETOOTH-PERIPHERAL-RECOVERY.md`: privileges, intended interactive-user session, deployment bounds, regression and physical-acceptance gates. `Tests/survey/test_bluetooth_peripheral_recovery.py` owns synthetic Windows service/preference regressions.
+- `docs/plans/bluetooth-desktop-closeout-20261110.plan.md`: canonical P02/P12 successor map for SAS #562, BI #160 parent and separately owned BI #161 Cursor guard; preserves exact proof and dependency boundaries.
 
 Use this map to load only the files needed for a task.
 
