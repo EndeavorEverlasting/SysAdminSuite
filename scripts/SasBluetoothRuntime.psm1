@@ -59,14 +59,14 @@ function Test-SasBluetoothBundle([string]$Root) {
     if(@($names | Group-Object | Where-Object {$_.Count -gt 1}).Count) {
         throw 'BUNDLE_DUPLICATE_ENTRY'
     }
-    $prefix=[IO.Path]::GetFullPath($Root).TrimEnd('\\','/')+'\\'
+    $prefix=[IO.Path]::GetFullPath($Root).TrimEnd([char]92,[char]47)+[IO.Path]::DirectorySeparatorChar
     $declared=@($names)+@('bluetooth-bundle.json')
     foreach($item in @(Get-ChildItem -LiteralPath $Root -Recurse -Force -ErrorAction Stop)) {
         if(($item.Attributes -band [IO.FileAttributes]::ReparsePoint) -ne 0) {
             throw 'BUNDLE_REPARSE_POINT'
         }
         if(-not $item.PSIsContainer) {
-            $relative=$item.FullName.Substring($prefix.Length).Replace('\\','/')
+            $relative=$item.FullName.Substring($prefix.Length).Replace([char]92,[char]47)
             if($declared -cnotcontains $relative) {
                 throw ('BUNDLE_UNLISTED_FILE: '+$relative)
             }
