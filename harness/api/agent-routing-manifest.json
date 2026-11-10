@@ -5,48 +5,6 @@
   "harness_api_path": "harness/api/sas-harness-api.json",
   "triggers": [
     {
-      "id": "bluetooth-peripheral-incident-trigger",
-      "summary": "Route Bluetooth mouse discovery, pairing PIN, stopped service and driver incidents to the existing field recovery tools before unrelated repair paths.",
-      "deterministic_task_signals": [
-        "SAS BLUETOOTH INCIDENT",
-        "Bluetooth mouse not discoverable",
-        "Bluetooth discovery fails",
-        "Bluetooth pairing PIN",
-        "Bluetooth service stopped",
-        "BluetoothUserService",
-        "Bluetooth peripheral recovery",
-        "wireless mouse driver broke"
-      ],
-      "priority": 70,
-      "composition_mode": "primary",
-      "target_type": "skill",
-      "target": "field-workflow",
-      "required_inputs": [
-        "observed Bluetooth symptom"
-      ],
-      "outputs": [
-        "canonical CMD entrypoint",
-        "private RCA receipt",
-        "physical peripheral acceptance or exact escalation"
-      ],
-      "preconditions": [
-        "incident target is local or diagnostics are read-only"
-      ],
-      "guardrails": [
-        "diagnose service health before adapter or driver mutation",
-        "stopped Manual user service is not proof of fault",
-        "never change service startup policy, UAC or pairing keys to force discovery",
-        "preserve other Bluetooth devices and screenshot preferences",
-        "do not deploy a release without source provenance and hash checks"
-      ],
-      "owner": "Field Workflow",
-      "validators": [
-        "Tests/survey/test_bluetooth_incident_route.py",
-        "Tests/survey/test_agent_routing_manifest_contracts.py"
-      ],
-      "proof_ceiling": "Deterministic routing and fixture proof only; host repair and physical acceptance require live evidence."
-    },
-    {
       "id": "repository-sprint-trigger",
       "summary": "Route repository intake, bounded sprint execution, Git recovery, and PR lifecycle work.",
       "deterministic_task_signals": [
@@ -117,7 +75,7 @@
     },
     {
       "id": "field-workflow-trigger",
-      "summary": "Route technician launchers, printer mapping use-case selection, dashboard help, runbooks, and bounded command capsules.",
+      "summary": "Route technician launchers, printer mapping use-case selection, dashboard help, runbooks, and bounded command capsules. Includes direct Bluetooth discovery/service/PIN incident routing.",
       "deterministic_task_signals": [
         "technician launcher",
         "field runbook",
@@ -139,7 +97,15 @@
         "printer recovery failed",
         "printer startup cleanup failed",
         "printer mapping failed in field",
-        "printer launcher failed"
+        "printer launcher failed",
+        "SAS BLUETOOTH INCIDENT",
+        "Bluetooth mouse not discoverable",
+        "Bluetooth discovery fails",
+        "Bluetooth pairing PIN",
+        "Bluetooth service stopped",
+        "BluetoothUserService",
+        "Bluetooth peripheral recovery",
+        "wireless mouse driver broke"
       ],
       "priority": 40,
       "composition_mode": "primary",
@@ -162,7 +128,12 @@
         "resolve printer organization/site use case before selecting a mapping implementation",
         "never transfer Northwell printer rules across organizations or independent site overrides",
         "read-only technician intake is not authorization for production mutation",
-        "resolve printer-field-incident-route.v1.json and preserve private finding boundary"
+        "resolve printer-field-incident-route.v1.json and preserve private finding boundary",
+        "diagnose service health before adapter or driver mutation",
+        "stopped Manual user service is not proof of fault",
+        "never change service startup policy, UAC or pairing keys to force discovery",
+        "preserve other Bluetooth devices and screenshot preferences",
+        "do not deploy a release without source provenance and hash checks"
       ],
       "owner": "Harness Spine",
       "validators": [
@@ -170,7 +141,8 @@
         "Tests/survey/test_agent_instruction_factoring_contracts.py",
         "Tests/survey/test_printer_mapping_use_case_contracts.py",
         "Tests/survey/test_field_guide_cmd_first_contracts.py",
-        "Tests/survey/test_machine_info_cmd_contracts.py"
+        "Tests/survey/test_machine_info_cmd_contracts.py",
+        "Tests/survey/test_bluetooth_incident_route.py"
       ],
       "proof_ceiling": "Launcher, documentation, use-case routing, and fixture proof only."
     },
