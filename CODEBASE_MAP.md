@@ -1,5 +1,11 @@
 # SysAdminSuite Codebase Map
 
+## Bluetooth peripherals and user-session services
+
+- `SasBluetooth.cmd` -> `scripts/SasBluetooth.ps1`: local API CLI for capability discovery, paired/connected mappings, exact-name/ID pairing, service recovery and adapter escalation.
+- `scripts/SasBluetoothRuntime.psm1`, `scripts/SasBluetoothPairing.cs`, `scripts/Prepare-BluetoothPeripheralBundle.ps1`: coordinator-prepared, hash-verified portable runtime; target SDK unnecessary; no UAC/ACL/template policy changes.
+- `docs/field/BLUETOOTH-PERIPHERAL-RECOVERY.md`: privileges, intended interactive-user session, deployment bounds, regression and physical-acceptance gates. `Tests/survey/test_bluetooth_peripheral_recovery.py` owns synthetic Windows service/preference regressions.
+
 Use this map to load only the files needed for a task.
 
 ## Agent instruction architecture

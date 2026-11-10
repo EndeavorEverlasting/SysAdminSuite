@@ -6,6 +6,7 @@ $ErrorActionPreference='Stop'
 $run=Join-Path $env:LOCALAPPDATA ('SysAdminSuite\Evidence\Bluetooth\pair-'+[guid]::NewGuid().ToString('N'))
 New-Item -ItemType Directory -Path $run -Force | Out-Null
 try {
+    if([Diagnostics.Process]::GetCurrentProcess().SessionId -eq 0){throw 'INTERACTIVE_USER_SESSION_REQUIRED: dispatch pairing to the intended signed-in user, not a Session 0 service.'}
     Import-Module (Join-Path $PSScriptRoot 'SasBluetoothRuntime.psm1') -Force
     Import-SasBluetoothHelper $run
     $result=[SasBluetoothPairing]::RunExact($ExactName,$DeviceId).GetAwaiter().GetResult()

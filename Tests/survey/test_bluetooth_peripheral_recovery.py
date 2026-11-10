@@ -11,15 +11,22 @@ ROOT = Path(__file__).resolve().parents[2]
 
 @unittest.skipUnless(os.name == 'nt', 'Windows PowerShell fixture')
 class BluetoothRecoveryTests(unittest.TestCase):
-    def run_fixture(self, preference, drift=False):
+    def run_fixture(self, preference, drift=False, action='Inspect', service_mode='Stopped', service_count=1, service_name=''):
         with tempfile.TemporaryDirectory() as folder:
             temp = Path(folder)
             wrapper = temp / 'fixture.ps1'
             wrapper.write_text(r'''
-param($Source,$OutputRoot,$Preference,[int]$Drift)
+param($Source,$OutputRoot,$Preference,[int]$Drift,$Action,$ServiceMode,[int]$ServiceCount,$ServiceName)
 $global:reads=0
 $global:fixtureDrift=$Drift
 $global:fixturePreference=$Preference
+$global:starts=0
+$global:serviceMode=$ServiceMode
+$global:fixtureServices=@(for($n=1;$n -le $ServiceCount;$n++) {
+    $service=[pscustomobject]@{Name=('BluetoothUserService_0'+$n);Status=if($ServiceMode -eq 'Running'){'Running'}else{'Stopped'};StartType=if($ServiceMode -eq 'Disabled'){'Disabled'}else{'Manual'}}
+    $service|Add-Member ScriptMethod WaitForStatus {param($state,$timeout) $this.Status=[string]$state}
+    $service
+})
 function Get-Item {
     param($LiteralPath)
     if($LiteralPath -ne 'HKCU:\Control Panel\Keyboard'){throw 'Unexpected registry read'}
@@ -36,22 +43,32 @@ function Get-PnpDevice {
 }
 function Get-Service {
     param($Name)
-    [pscustomobject]@{Name='BluetoothUserService_fixture';Status='Stopped';StartType='Manual'}
+    if($Name -eq 'bthserv'){[pscustomobject]@{Name='bthserv';Status='Running';StartType='Manual'}}
+    else {$global:fixtureServices}
 }
-function Start-Service {throw 'Inspect must not start services'}
+function Start-Service {
+    param($Name)
+    if($global:serviceMode -eq 'Denied'){throw [UnauthorizedAccessException]::new('Synthetic delegated-rights denial')}
+    $global:starts++
+    ($global:fixtureServices|Where-Object {$_.Name -eq $Name}).Status='Running'
+}
 function Set-ItemProperty {throw 'Recovery must not rewrite screenshot preferences'}
 function Remove-ItemProperty {throw 'Recovery must not delete screenshot preferences'}
-& $Source -OutputRoot $OutputRoot
-exit $LASTEXITCODE
+& $Source -OutputRoot $OutputRoot -Action $Action -ServiceName $ServiceName
+$code=$LASTEXITCODE
+$global:starts | Set-Content (Join-Path $OutputRoot 'fixture-starts.txt')
+exit $code
 ''', encoding='utf-8')
             result = subprocess.run(
                 ['powershell.exe', '-NoProfile', '-ExecutionPolicy', 'Bypass', '-File', str(wrapper),
                  '-Source', str(ROOT / 'scripts/Invoke-BluetoothPeripheralRecovery.ps1'),
                  '-OutputRoot', str(temp / 'evidence'), '-Preference', preference,
-                 '-Drift', str(int(drift))], capture_output=True, text=True, timeout=25)
+                 '-Drift', str(int(drift)), '-Action', action, '-ServiceMode', service_mode,
+                 '-ServiceCount', str(service_count), '-ServiceName', service_name], capture_output=True, text=True, timeout=25)
             receipts = list((temp / 'evidence').glob('*/result.json'))
             self.assertEqual(len(receipts), 1, result.stdout + result.stderr)
             receipt = json.loads(receipts[0].read_text(encoding='utf-8-sig'))
+            receipt['_starts'] = int((temp / 'evidence/fixture-starts.txt').read_text(encoding='utf-8-sig'))
             return result, receipt
 
     def test_inspect_preserves_absence_and_both_preference_values(self):
@@ -61,12 +78,41 @@ exit $LASTEXITCODE
                 self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
                 self.assertFalse(receipt['MouseVerified'])
                 self.assertIsNone(receipt['Error'])
+                self.assertEqual(receipt['_starts'], 0)
 
     def test_preference_drift_fails_without_rewriting_it(self):
         result, receipt = self.run_fixture('0', drift=True)
         self.assertNotEqual(result.returncode, 0)
         self.assertEqual(receipt['Status'], 'FAILED')
         self.assertIn('REGRESSION', receipt['Error'])
+
+    def test_service_start_uses_existing_rights_and_is_idempotent(self):
+        result, receipt = self.run_fixture('absent', action='StartUserService')
+        self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+        self.assertEqual(receipt['_starts'], 1)
+        result, receipt = self.run_fixture('absent', action='StartUserService', service_mode='Running')
+        self.assertEqual(result.returncode, 0)
+        self.assertEqual(receipt['_starts'], 0)
+
+    def test_denied_start_reports_elevation_without_changing_policy(self):
+        result, receipt = self.run_fixture('absent', action='StartUserService', service_mode='Denied')
+        self.assertNotEqual(result.returncode, 0)
+        self.assertEqual(receipt['Status'], 'REQUIRES_ELEVATION')
+        self.assertEqual(receipt['_starts'], 0)
+
+    def test_multiple_sessions_require_exact_selection(self):
+        result, receipt = self.run_fixture('0', action='StartUserService', service_count=2)
+        self.assertNotEqual(result.returncode, 0)
+        self.assertEqual(receipt['_starts'], 0)
+        result, receipt = self.run_fixture('0', action='StartUserService', service_count=2,
+                                           service_name='BluetoothUserService_02')
+        self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+        self.assertEqual(receipt['_starts'], 1)
+
+    def test_disabled_service_does_not_get_reconfigured(self):
+        result, receipt = self.run_fixture('0', action='StartUserService', service_mode='Disabled')
+        self.assertNotEqual(result.returncode, 0)
+        self.assertEqual(receipt['_starts'], 0)
 
 
 if __name__ == '__main__':

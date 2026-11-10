@@ -1,5 +1,12 @@
 $ErrorActionPreference='Stop'
 
+function Get-SasBluetoothHash([string]$Path) {
+    $stream=[IO.File]::OpenRead($Path)
+    $algorithm=[Security.Cryptography.SHA256]::Create()
+    try { return [BitConverter]::ToString($algorithm.ComputeHash($stream)).Replace('-','') }
+    finally { $algorithm.Dispose(); $stream.Dispose() }
+}
+
 function Get-SasBluetoothCapabilities {
     $admin=$false
     if($ExecutionContext.SessionState.LanguageMode -eq 'FullLanguage') {
@@ -16,11 +23,11 @@ function Get-SasBluetoothCapabilities {
         PreparedRuntimePresent=(Test-Path -LiteralPath (Join-Path $PSScriptRoot '..\runtime\SasBluetoothPairing.dll'))
         PairingContext='INTENDED_INTERACTIVE_USER_SESSION'
         AdminRepairs='REQUIRE_EXISTING_ADMIN_OR_DELEGATED_SERVICE_RIGHTS'
-        SecurityPolicy='NO_UAC_OR_EXECUTION_CONTROL_CHANGES'
+        SecurityPolicy='NO_UAC_OR_MACHINE_POLICY_CHANGES'
     }
 }
 
-function Build-SasBluetoothHelper([string]$Destination) {
+function New-SasBluetoothHelper([string]$Destination) {
     if($ExecutionContext.SessionState.LanguageMode -ne 'FullLanguage'){throw 'CONSTRAINED_LANGUAGE: native helper requires approved host policy.'}
     $winmd=@(Get-ChildItem -Path "${env:ProgramFiles(x86)}\Windows Kits\10\UnionMetadata\*\Windows.winmd" -ErrorAction SilentlyContinue | Where-Object {$_.Directory.Name -match '^\d+\.\d+\.\d+\.\d+$'} | Sort-Object @{e={[version]$_.Directory.Name}} -Descending | Select-Object -First 1)
     if($winmd.Count -ne 1){throw 'PREPARED_RUNTIME_REQUIRED: compile a portable bundle on a Windows SDK preparation host.'}
@@ -31,7 +38,7 @@ function Build-SasBluetoothHelper([string]$Destination) {
     $args=@('/nologo','/target:library',('/out:'+$Destination))+@($refs|ForEach-Object {'/r:'+$_})+@(Join-Path $PSScriptRoot 'SasBluetoothPairing.cs')
     $output=& (Join-Path $framework 'csc.exe') @args 2>&1
     if($LASTEXITCODE -ne 0){throw ('NATIVE_HELPER_BUILD_FAILED: '+($output -join [Environment]::NewLine))}
-    Get-FileHash -LiteralPath $Destination -Algorithm SHA256
+    Get-SasBluetoothHash $Destination
 }
 
 function Test-SasBluetoothBundle([string]$Root) {
@@ -44,7 +51,7 @@ function Test-SasBluetoothBundle([string]$Root) {
     foreach($entry in $manifest.Files) {
         if([IO.Path]::IsPathRooted($entry.Path) -or $entry.Path -match '(^|[\\/])\.\.([\\/]|$)'){throw 'UNSAFE_BUNDLE_PATH'}
         $path=Join-Path $Root $entry.Path
-        if((Get-FileHash -LiteralPath $path -Algorithm SHA256).Hash -ne $entry.SHA256){throw ('BUNDLE_HASH_MISMATCH: '+$entry.Path)}
+        if((Get-SasBluetoothHash $path) -ne $entry.SHA256){throw ('BUNDLE_HASH_MISMATCH: '+$entry.Path)}
     }
     return $true
 }
@@ -57,10 +64,10 @@ function Import-SasBluetoothHelper([string]$BuildRoot) {
         $dll=Join-Path $root 'runtime\SasBluetoothPairing.dll'
     } else {
         $dll=Join-Path $BuildRoot 'SasBluetoothPairing.dll'
-        $null=Build-SasBluetoothHelper $dll
+        $null=New-SasBluetoothHelper $dll
     }
     Add-Type -AssemblyName System.Runtime.WindowsRuntime
     if(-not ('SasBluetoothPairing' -as [type])){Add-Type -Path $dll}
 }
 
-Export-ModuleMember -Function Get-SasBluetoothCapabilities,Build-SasBluetoothHelper,Test-SasBluetoothBundle,Import-SasBluetoothHelper
+Export-ModuleMember -Function Get-SasBluetoothHash,Get-SasBluetoothCapabilities,New-SasBluetoothHelper,Test-SasBluetoothBundle,Import-SasBluetoothHelper

@@ -1,6 +1,6 @@
 [CmdletBinding()]
 param(
-    [ValidateSet('Inspect','StartUserService','RestartAdapter','ReenumerateAdapter')][string]$Action='Inspect',
+    [ValidateSet('Inspect','StartUserService','EnsureServices','RestartAdapter','ReenumerateAdapter')][string]$Action='Inspect',
     [string]$InstanceId,
     [ValidatePattern('^$|^BluetoothUserService_[a-zA-Z0-9]+$')][string]$ServiceName,
     [string]$OutputRoot = (Join-Path $env:LOCALAPPDATA 'SysAdminSuite\Evidence\Bluetooth')
@@ -36,17 +36,19 @@ try {
         $admin=([Security.Principal.WindowsPrincipal][Security.Principal.WindowsIdentity]::GetCurrent()).IsInRole([Security.Principal.WindowsBuiltInRole]::Administrator)
         if(-not $admin){$requiresElevation=$true;throw 'REQUIRES_ELEVATION: adapter repair requires an administrator. No UAC setting is changed.'}
     }
-    if($Action -eq 'StartUserService') {
+    if($Action -in 'StartUserService','EnsureServices') {
         $services=@(Get-Service BluetoothUserService_* -ErrorAction Stop)
         if($ServiceName){$services=@($services|Where-Object {$_.Name -eq $ServiceName})}
         if($services.Count -ne 1){throw 'Expected one per-user Bluetooth service. Multiple sessions require explicit diagnosis.'}
-        if($services[0].StartType -eq 'Disabled'){throw 'Service is disabled. Establish policy ownership before changing startup configuration.'}
-        if($services[0].Status -ne 'Running') {
+        if($Action -eq 'EnsureServices'){$services=@(Get-Service -Name bthserv -ErrorAction Stop)+$services}
+        if(@($services|Where-Object {$_.StartType -eq 'Disabled'}).Count){throw 'Service is disabled. Establish policy ownership before changing startup configuration.'}
+        foreach($service in $services) {
+        if($service.Status -ne 'Running') {
             # Attempt the service operation with existing rights. Delegated users
             # need not elevate; access denial is reported rather than bypassed.
             try {
-                Start-Service -Name $services[0].Name -ErrorAction Stop
-                $services[0].WaitForStatus('Running',[timespan]::FromSeconds(15))
+                Start-Service -Name $service.Name -ErrorAction Stop
+                $service.WaitForStatus('Running',[timespan]::FromSeconds(15))
             } catch {
                 $exception=$_.Exception
                 while($exception) {
@@ -56,6 +58,7 @@ try {
                 if($_.CategoryInfo.Category -eq 'PermissionDenied'){$requiresElevation=$true}
                 throw
             }
+        }
         }
     }
     if($Action -in 'RestartAdapter','ReenumerateAdapter') {
