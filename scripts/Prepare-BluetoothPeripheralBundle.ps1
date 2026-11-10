@@ -14,7 +14,7 @@ if(Test-Path -LiteralPath $Destination){throw 'Destination must be new; existing
 $destinationPath=[IO.Path]::GetFullPath($Destination)
 New-Item -ItemType Directory -Path $destinationPath -ErrorAction Stop | Out-Null
 New-Item -ItemType Directory -Path (Join-Path $destinationPath 'scripts'),(Join-Path $destinationPath 'runtime') | Out-Null
-$files=@('SasBluetooth.cmd','Add-BluetoothMouse.cmd','Recover-BluetoothPeripheral.cmd','scripts/SasBluetooth.ps1','scripts/Add-BluetoothMouse.ps1','scripts/Invoke-BluetoothPeripheralRecovery.ps1','scripts/SasBluetoothRuntime.psm1','scripts/SasBluetoothPairing.cs','scripts/Prepare-BluetoothPeripheralBundle.ps1')
+$files=@('SasBluetooth.cmd','Add-BluetoothMouse.cmd','Recover-BluetoothPeripheral.cmd','Install-BluetoothPeripheralRelease.cmd','scripts/SasBluetooth.ps1','scripts/Add-BluetoothMouse.ps1','scripts/Invoke-BluetoothPeripheralRecovery.ps1','scripts/SasBluetoothRuntime.psm1','scripts/SasBluetoothPairing.cs','scripts/Install-BluetoothPeripheralRelease.ps1','scripts/Prepare-BluetoothPeripheralBundle.ps1')
 foreach($file in $files){Copy-Item -LiteralPath (Join-Path $root $file) -Destination (Join-Path $destinationPath $file)}
 $null=New-SasBluetoothHelper (Join-Path $destinationPath 'runtime\SasBluetoothPairing.dll')
 $files+='runtime/SasBluetoothPairing.dll'
