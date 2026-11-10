@@ -51,6 +51,13 @@ class PortableBluetoothCliTests(unittest.TestCase):
         self.assertNotEqual(result.returncode, 0)
         self.assertIn('BUNDLE_HASH_MISMATCH', json.loads(result.stdout)['Error'])
 
+    def test_prepared_runtime_cannot_claim_new_source_provenance(self):
+        destination = self.folder / 'unproven rebuild'
+        result = self.invoke(self.bundle / 'SasBluetooth.cmd', 'prepare', '-Destination', str(destination))
+        self.assertNotEqual(result.returncode, 0)
+        self.assertIn('PREPARATION_REQUIRES_TRACKED_SOURCE_CHECKOUT', result.stdout + result.stderr)
+        self.assertFalse(destination.exists())
+
 
 if __name__ == '__main__':
     unittest.main()

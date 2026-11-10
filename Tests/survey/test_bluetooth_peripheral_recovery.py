@@ -5,6 +5,7 @@ from pathlib import Path
 import subprocess
 import tempfile
 import unittest
+import shutil
 
 ROOT = Path(__file__).resolve().parents[2]
 
@@ -15,6 +16,16 @@ class BluetoothRecoveryTests(unittest.TestCase):
         with tempfile.TemporaryDirectory() as folder:
             temp = Path(folder)
             wrapper = temp / 'fixture.ps1'
+            source = ROOT / 'scripts/Invoke-BluetoothPeripheralRecovery.ps1'
+            if action == 'PairFlow':
+                scripts = temp / 'scripts'
+                scripts.mkdir()
+                for name in ('SasBluetooth.ps1', 'Invoke-BluetoothPeripheralRecovery.ps1'):
+                    shutil.copyfile(ROOT / 'scripts' / name, scripts / name)
+                (scripts / 'SasBluetoothRuntime.psm1').write_text('# Synthetic dispatcher fixture\n')
+                (scripts / 'Add-BluetoothMouse.ps1').write_text(
+                    "param($ExactName,$DeviceId)\nSet-Content (Join-Path $PSScriptRoot '..\\pair-called.txt') $ExactName\nexit 0\n")
+                source = scripts / 'SasBluetooth.ps1'
             wrapper.write_text(r'''
 param($Source,$OutputRoot,$Preference,[int]$Drift,$Action,$ServiceMode,[int]$ServiceCount,$ServiceName)
 $global:reads=0
@@ -43,7 +54,8 @@ function Get-PnpDevice {
 }
 function Get-Service {
     param($Name)
-    if($Name -eq 'bthserv'){[pscustomobject]@{Name='bthserv';Status='Running';StartType='Manual'}}
+    if(@($Name).Count -gt 1){[pscustomobject]@{Name='bthserv';Status='Running';StartType='Manual'}; $global:fixtureServices}
+    elseif($Name -eq 'bthserv'){[pscustomobject]@{Name='bthserv';Status='Running';StartType='Manual'}}
     else {$global:fixtureServices}
 }
 function Start-Service {
@@ -54,21 +66,26 @@ function Start-Service {
 }
 function Set-ItemProperty {throw 'Recovery must not rewrite screenshot preferences'}
 function Remove-ItemProperty {throw 'Recovery must not delete screenshot preferences'}
-& $Source -OutputRoot $OutputRoot -Action $Action -ServiceName $ServiceName
+if($Action -eq 'PairFlow') {
+    $env:LOCALAPPDATA=Split-Path $OutputRoot -Parent
+    & $Source pair -ExactName 'Synthetic Mouse'
+} else { & $Source -OutputRoot $OutputRoot -Action $Action -ServiceName $ServiceName }
 $code=$LASTEXITCODE
+New-Item -ItemType Directory -Path $OutputRoot -Force | Out-Null
 $global:starts | Set-Content (Join-Path $OutputRoot 'fixture-starts.txt')
 exit $code
 ''', encoding='utf-8')
             result = subprocess.run(
                 ['powershell.exe', '-NoProfile', '-ExecutionPolicy', 'Bypass', '-File', str(wrapper),
-                 '-Source', str(ROOT / 'scripts/Invoke-BluetoothPeripheralRecovery.ps1'),
+                 '-Source', str(source),
                  '-OutputRoot', str(temp / 'evidence'), '-Preference', preference,
                  '-Drift', str(int(drift)), '-Action', action, '-ServiceMode', service_mode,
                  '-ServiceCount', str(service_count), '-ServiceName', service_name], capture_output=True, text=True, timeout=25)
-            receipts = list((temp / 'evidence').glob('*/result.json'))
+            receipts = list(temp.rglob('result.json'))
             self.assertEqual(len(receipts), 1, result.stdout + result.stderr)
             receipt = json.loads(receipts[0].read_text(encoding='utf-8-sig'))
             receipt['_starts'] = int((temp / 'evidence/fixture-starts.txt').read_text(encoding='utf-8-sig'))
+            receipt['_pair_called'] = (temp / 'pair-called.txt').exists()
             return result, receipt
 
     def test_inspect_preserves_absence_and_both_preference_values(self):
@@ -113,6 +130,12 @@ exit $code
         result, receipt = self.run_fixture('0', action='StartUserService', service_mode='Disabled')
         self.assertNotEqual(result.returncode, 0)
         self.assertEqual(receipt['_starts'], 0)
+
+    def test_fresh_dispatcher_pairs_after_successful_service_recovery(self):
+        result, receipt = self.run_fixture('absent', action='PairFlow')
+        self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+        self.assertTrue(receipt['_pair_called'])
+        self.assertEqual(receipt['_starts'], 1)
 
 
 if __name__ == '__main__':

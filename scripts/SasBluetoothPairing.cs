@@ -6,6 +6,18 @@ using Windows.Devices.Enumeration;
 
 public static class SasBluetoothPairing
 {
+    public sealed class StableMatchWindow
+    {
+        private string lastId;
+        private int samples;
+        public bool Observe(string[] ids)
+        {
+            if (ids.Length != 1) { lastId = null; samples = 0; return false; }
+            samples = ids[0] == lastId ? samples + 1 : 1;
+            lastId = ids[0];
+            return samples >= 12;
+        }
+    }
     public sealed class Mapping
     {
         public string Name { get; set; }
@@ -84,6 +96,7 @@ public static class SasBluetoothPairing
         watcher.Start();
         try
         {
+            var stability = new StableMatchWindow();
             for (int attempt = 0; attempt < 80; attempt++)
             {
                 DeviceInformation[] matches;
@@ -93,8 +106,8 @@ public static class SasBluetoothPairing
                         && (String.IsNullOrEmpty(exactId) || d.Id == exactId)).ToArray();
                 }
                 if (matches.Length > 1) return "AMBIGUOUS_NAME_USE_WINDOWS_UI";
-                // Allow initial discovery callbacks to settle before choosing a target.
-                if (matches.Length == 1 && attempt >= 4)
+                // The same ID must remain the sole match for about three seconds.
+                if (stability.Observe(matches.Select(d => d.Id).ToArray()))
                 {
                     var found = matches[0];
                     Console.WriteLine("TARGET_FOUND=" + found.Name);

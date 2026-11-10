@@ -3,18 +3,19 @@ param([Parameter(Mandatory=$true)][ValidateNotNullOrEmpty()][string]$Destination
 $ErrorActionPreference='Stop'
 Import-Module (Join-Path $PSScriptRoot 'SasBluetoothRuntime.psm1') -Force
 $root=Split-Path $PSScriptRoot -Parent
+$files=@('SasBluetooth.cmd','Add-BluetoothMouse.cmd','Recover-BluetoothPeripheral.cmd','scripts/SasBluetooth.ps1','scripts/Add-BluetoothMouse.ps1','scripts/Invoke-BluetoothPeripheralRecovery.ps1','scripts/SasBluetoothRuntime.psm1','scripts/SasBluetoothPairing.cs','scripts/Prepare-BluetoothPeripheralBundle.ps1')
 $sourceCommit=$null
-if(Test-Path -LiteralPath (Join-Path $root '.git')) {
-    $sourceCommit=& git -C $root rev-parse HEAD
+if(-not (Test-Path -LiteralPath (Join-Path $root '.git'))){throw 'PREPARATION_REQUIRES_TRACKED_SOURCE_CHECKOUT'}
+$sourceCommit=& git -C $root rev-parse HEAD
     if($LASTEXITCODE -ne 0){throw 'PREPARATION_SOURCE_UNPROVEN'}
     $dirty=& git -C $root status --porcelain --untracked-files=no
     if($LASTEXITCODE -ne 0 -or $dirty){throw 'COMMIT_PREPARATION_SOURCE_FIRST'}
-}
+    $null=& git -C $root ls-files --error-unmatch -- @files 2>&1
+    if($LASTEXITCODE -ne 0){throw 'ALL_BUNDLE_SOURCES_MUST_BE_TRACKED'}
 if(Test-Path -LiteralPath $Destination){throw 'Destination must be new; existing deployments are never overwritten.'}
 $destinationPath=[IO.Path]::GetFullPath($Destination)
 New-Item -ItemType Directory -Path $destinationPath -ErrorAction Stop | Out-Null
 New-Item -ItemType Directory -Path (Join-Path $destinationPath 'scripts'),(Join-Path $destinationPath 'runtime') | Out-Null
-$files=@('SasBluetooth.cmd','Add-BluetoothMouse.cmd','Recover-BluetoothPeripheral.cmd','scripts/SasBluetooth.ps1','scripts/Add-BluetoothMouse.ps1','scripts/Invoke-BluetoothPeripheralRecovery.ps1','scripts/SasBluetoothRuntime.psm1','scripts/SasBluetoothPairing.cs','scripts/Prepare-BluetoothPeripheralBundle.ps1')
 foreach($file in $files){Copy-Item -LiteralPath (Join-Path $root $file) -Destination (Join-Path $destinationPath $file)}
 $null=New-SasBluetoothHelper (Join-Path $destinationPath 'runtime\SasBluetoothPairing.dll')
 $files+='runtime/SasBluetoothPairing.dll'
