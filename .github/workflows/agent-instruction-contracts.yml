@@ -21,6 +21,11 @@ on:
       - 'docs/END_TO_END_TESTING_POSTURE.md'
       - 'harness/api/agent-capability-manifest.json'
       - 'harness/api/agent-routing-manifest.json'
+      - 'harness/api/bluetooth-peripheral-incident-route.v1.json'
+      - 'Tests/survey/test_bluetooth_incident_route.py'
+      - 'scripts/Install-BluetoothPeripheralRelease.ps1'
+      - 'scripts/SasBluetoothRuntime.psm1'
+      - 'scripts/Prepare-BluetoothPeripheralBundle.ps1'
       - 'harness/api/operator-communication-semantics.json'
       - 'harness/validators/validate-operator-communication-semantics.py'
       - 'harness/api/sas-harness-api.json'
@@ -67,6 +72,11 @@ on:
       - 'docs/END_TO_END_TESTING_POSTURE.md'
       - 'harness/api/agent-capability-manifest.json'
       - 'harness/api/agent-routing-manifest.json'
+      - 'harness/api/bluetooth-peripheral-incident-route.v1.json'
+      - 'Tests/survey/test_bluetooth_incident_route.py'
+      - 'scripts/Install-BluetoothPeripheralRelease.ps1'
+      - 'scripts/SasBluetoothRuntime.psm1'
+      - 'scripts/Prepare-BluetoothPeripheralBundle.ps1'
       - 'harness/api/operator-communication-semantics.json'
       - 'harness/validators/validate-operator-communication-semantics.py'
       - 'harness/api/sas-harness-api.json'
@@ -130,6 +140,7 @@ jobs:
           python3 Tests/survey/test_agent_instruction_factoring_contracts.py
           python3 Tests/survey/test_agent_capability_manifest_contracts.py
           python3 Tests/survey/test_agent_routing_manifest_contracts.py
+          python3 Tests/survey/test_bluetooth_incident_route.py
           python3 Tests/survey/test_autologon_agent_harness_contracts.py
           python3 Tests/survey/test_agent_sprint_capsule_contracts.py
           python3 Tests/survey/test_developer_workstation_agent_harness_contracts.py
