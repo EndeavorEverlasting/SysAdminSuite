@@ -2,6 +2,9 @@
 
 ## Bluetooth peripherals and user-session services
 
+- Technician/agent incident intake: `harness/api/bluetooth-peripheral-incident-route.v1.json` and `harness/api/agent-routing-manifest.json` route discovery/PIN/service symptoms directly to Field Workflow. `Tests/survey/test_bluetooth_incident_route.py` guards discoverability, rollout and non-destructive boundaries.
+- Same-day sealed hotfix rollout: prepare once on approved SDK host, then `Install-BluetoothPeripheralRelease.cmd -ApprovedCommit <verified 40-hex commit>` from the **prepared** bundle installs side-by-side under user-local SysAdminSuite releases. No overwrite, auto-activation, service reset or target SDK; choose the approved release explicitly.
+
 - `SasBluetooth.cmd` -> `scripts/SasBluetooth.ps1`: local API CLI for capability discovery, paired/connected mappings, exact-name/ID pairing, service recovery and adapter escalation.
 - `scripts/SasBluetoothRuntime.psm1`, `scripts/SasBluetoothPairing.cs`, `scripts/Prepare-BluetoothPeripheralBundle.ps1`: coordinator-prepared, hash-verified portable runtime; target SDK unnecessary; no UAC/ACL/template policy changes.
 - `docs/field/BLUETOOTH-PERIPHERAL-RECOVERY.md`: privileges, intended interactive-user session, deployment bounds, regression and physical-acceptance gates. `Tests/survey/test_bluetooth_peripheral_recovery.py` owns synthetic Windows service/preference regressions.

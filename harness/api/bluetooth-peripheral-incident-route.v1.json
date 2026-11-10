@@ -1,0 +1,93 @@
+{
+  "schema": "sas-bluetooth-peripheral-incident/v1",
+  "owner": "SysAdminSuite",
+  "entrypoint": "Recover-BluetoothPeripheral.cmd",
+  "api_entrypoint": "SasBluetooth.cmd",
+  "procedure": "docs/field/BLUETOOTH-PERIPHERAL-RECOVERY.md",
+  "companion": "EndeavorEverlasting/BetterInstincts#160",
+  "signals": [
+    "SAS BLUETOOTH INCIDENT",
+    "Bluetooth discovery fails",
+    "Bluetooth service stopped",
+    "Bluetooth mouse not discoverable",
+    "Bluetooth pairing PIN",
+    "Bluetooth peripheral recovery",
+    "wireless mouse driver broke",
+    "BluetoothUserService"
+  ],
+  "evidence_policy": {
+    "private_root": "%LOCALAPPDATA%\\SysAdminSuite\\Evidence\\Bluetooth",
+    "public_evidence": "REVIEWED_SYNTHETIC_ONLY",
+    "physical_acceptance_required": true,
+    "paired_disconnected_is_not_failure": true
+  },
+  "ordered_gates": [
+    {
+      "id": "INSPECT",
+      "command": "Recover-BluetoothPeripheral.cmd -Action Inspect",
+      "effect": "LOCAL_READ_ONLY",
+      "proof": "ADAPTER_SERVICE_PREFERENCE_SNAPSHOT",
+      "requires_approval": false
+    },
+    {
+      "id": "SERVICE_ONLY",
+      "command": "SasBluetooth.cmd ensure-service",
+      "effect": "START_STOPPED_SELECTED_SERVICE_ONLY",
+      "proof": "SERVICE_STATE_AND_PHYSICAL_DISCOVERY",
+      "requires_approval": true,
+      "forbidden": [
+        "STOP_RUNNING_SERVICE",
+        "CHANGE_START_TYPE",
+        "CHANGE_SERVICE_ACL",
+        "MODIFY_UAC"
+      ]
+    },
+    {
+      "id": "PAIR_EXACT",
+      "command": "SasBluetooth.cmd pair -ExactName <OBSERVED_NAME>",
+      "effect": "INTERACTIVE_PAIRING",
+      "proof": "CONNECTED_HID_AND_PHYSICAL_INPUT",
+      "requires_approval": true,
+      "forbidden": [
+        "GUESS_PIN",
+        "PAIR_UNOBSERVED_TARGET"
+      ]
+    },
+    {
+      "id": "ADAPTER_RESTART",
+      "command": "Recover-BluetoothPeripheral.cmd -Action RestartAdapter -InstanceId <INSPECTED_USB_RADIO_ID>",
+      "effect": "TEMPORARY_DEVICE_DISCONNECT",
+      "proof": "REOBSERVE_SERVICE_DISCOVERY_AND_INPUT",
+      "requires_approval": true,
+      "requires_elevation": true
+    },
+    {
+      "id": "DRIVER_REENUMERATE",
+      "command": "Recover-BluetoothPeripheral.cmd -Action ReenumerateAdapter -InstanceId <INSPECTED_USB_RADIO_ID>",
+      "effect": "EXPLICIT_ESCALATION_WITH_DRIVER_BACKUP",
+      "proof": "RADIO_RETURN_AND_PHYSICAL_ACCEPTANCE",
+      "requires_approval": true,
+      "requires_elevation": true
+    }
+  ],
+  "causal_rule": "SERVICE_REPAIR_AND_ADAPTER_RESTART_IN_SAME_WINDOW_DO_NOT_PROVE_SERVICE_ONLY_ROOT_CAUSE",
+  "release": {
+    "preparation": "SasBluetooth.cmd prepare -Destination <NEW_APPROVED_BUNDLE>",
+    "adoption": "Install-BluetoothPeripheralRelease.cmd -ApprovedCommit <VERIFIED_SHA>",
+    "verification": "BUNDLE_SHA256_VALID_AND_EXACT_APPROVED_SOURCE_COMMIT",
+    "promotion": "SIDE_BY_SIDE_NEW_RELEASE_NO_OVERWRITE_NO_AUTOSWITCH",
+    "rollback": "LAUNCH_PREVIOUS_VERIFIED_RELEASE",
+    "network_posture": "LOCAL_ONLY_NO_AUTO_FETCH",
+    "provenance": "Approved source commit must be independently verified with refreshed GitHub/repository evidence before release"
+  },
+  "forbidden": [
+    "AUTOMATIC_BACKGROUND_DRIVER_RESETS",
+    "SCHEDULED_BLUETOOTH_RESTART",
+    "DELETE_PAIRING_RECORDS",
+    "DISABLE_OTHER_INPUT",
+    "CHANGE_SCREENSHOT_PREFERENCES",
+    "INSTALL_UNVERIFIED_DRIVER",
+    "EXPOSE_RAW_DEVICE_IDS",
+    "CLAIM_FUNCTIONAL_PROOF_WITHOUT_MOVEMENT_AND_CLICKS"
+  ]
+}

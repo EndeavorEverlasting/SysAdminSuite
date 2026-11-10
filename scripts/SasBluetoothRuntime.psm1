@@ -45,13 +45,32 @@ function Test-SasBluetoothBundle([string]$Root) {
     $manifestPath=Join-Path $Root 'bluetooth-bundle.json'
     $manifest=Get-Content -LiteralPath $manifestPath -Raw | ConvertFrom-Json
     if($manifest.Schema -ne 'sas-bluetooth-bundle/v1'){throw 'INVALID_BUNDLE_SCHEMA'}
-    $required=@('scripts/SasBluetoothRuntime.psm1','scripts/Add-BluetoothMouse.ps1','scripts/SasBluetooth.ps1','scripts/SasBluetoothPairing.cs','scripts/Invoke-BluetoothPeripheralRecovery.ps1','runtime/SasBluetoothPairing.dll')
+    $required=@('scripts/SasBluetoothRuntime.psm1','scripts/Add-BluetoothMouse.ps1','scripts/SasBluetooth.ps1','scripts/SasBluetoothPairing.cs','scripts/Invoke-BluetoothPeripheralRecovery.ps1','scripts/Install-BluetoothPeripheralRelease.ps1','Install-BluetoothPeripheralRelease.cmd','runtime/SasBluetoothPairing.dll')
     $names=@($manifest.Files|ForEach-Object {$_.Path})
     foreach($name in $required){if($names -notcontains $name){throw "BUNDLE_ENTRY_MISSING: $name"}}
     foreach($entry in $manifest.Files) {
         if([IO.Path]::IsPathRooted($entry.Path) -or $entry.Path -match '(^|[\\/])\.\.([\\/]|$)'){throw 'UNSAFE_BUNDLE_PATH'}
         $path=Join-Path $Root $entry.Path
         if((Get-SasBluetoothHash $path) -ne $entry.SHA256){throw ('BUNDLE_HASH_MISMATCH: '+$entry.Path)}
+    }
+
+    # Fail if a prepared bundle contains extra executables, duplicate manifest
+    # entries or directory links. Hashes must cover the entire executable set.
+    if(@($names | Group-Object | Where-Object {$_.Count -gt 1}).Count) {
+        throw 'BUNDLE_DUPLICATE_ENTRY'
+    }
+    $prefix=[IO.Path]::GetFullPath($Root).TrimEnd([char]92,[char]47)+[IO.Path]::DirectorySeparatorChar
+    $declared=@($names)+@('bluetooth-bundle.json')
+    foreach($item in @(Get-ChildItem -LiteralPath $Root -Recurse -Force -ErrorAction Stop)) {
+        if(($item.Attributes -band [IO.FileAttributes]::ReparsePoint) -ne 0) {
+            throw 'BUNDLE_REPARSE_POINT'
+        }
+        if(-not $item.PSIsContainer) {
+            $relative=$item.FullName.Substring($prefix.Length).Replace([char]92,[char]47)
+            if($declared -cnotcontains $relative) {
+                throw ('BUNDLE_UNLISTED_FILE: '+$relative)
+            }
+        }
     }
     return $true
 }

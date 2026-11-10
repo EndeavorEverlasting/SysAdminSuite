@@ -76,6 +76,7 @@ python3 Tests/survey/test_hh_cc_reader_endpoint_probe_contracts.py
 python3 Tests/survey/test_machine_info_cmd_contracts.py
 python3 Tests/survey/test_agent_capability_manifest_contracts.py
 python3 Tests/survey/test_agent_routing_manifest_contracts.py
+python3 Tests/survey/test_bluetooth_incident_route.py
 python3 Tests/survey/test_autologon_agent_harness_contracts.py
 python3 Tests/survey/test_agent_sprint_capsule_contracts.py
 python3 Tests/survey/test_developer_workstation_agent_harness_contracts.py
