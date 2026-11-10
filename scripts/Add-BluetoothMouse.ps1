@@ -6,7 +6,7 @@ $ErrorActionPreference='Stop'
 $run=Join-Path $env:LOCALAPPDATA ('SysAdminSuite\Evidence\Bluetooth\pair-'+[guid]::NewGuid().ToString('N'))
 New-Item -ItemType Directory -Path $run -Force | Out-Null
 try {
-    $winmd=@(Get-ChildItem -Path "${env:ProgramFiles(x86)}\Windows Kits\10\UnionMetadata\*\Windows.winmd" -ErrorAction SilentlyContinue | Sort-Object FullName -Descending | Select-Object -First 1)
+    $winmd=@(Get-ChildItem -Path "${env:ProgramFiles(x86)}\Windows Kits\10\UnionMetadata\*\Windows.winmd" -ErrorAction SilentlyContinue | Where-Object {$_.Directory.Name -match '^\d+\.\d+\.\d+\.\d+$'} | Sort-Object @{e={[version]$_.Directory.Name}} -Descending | Select-Object -First 1)
     if($winmd.Count -ne 1){throw 'Installed Windows SDK Windows.winmd required for native pairing. Use Windows Add a device if unavailable.'}
     $framework=Join-Path $env:SystemRoot 'Microsoft.NET\Framework64\v4.0.30319'
     $gac=Join-Path $env:SystemRoot 'Microsoft.NET\assembly\GAC_MSIL'
