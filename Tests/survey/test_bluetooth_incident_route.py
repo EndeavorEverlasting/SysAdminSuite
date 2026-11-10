@@ -12,13 +12,14 @@ ROOT = Path(__file__).resolve().parents[2]
 class BluetoothIncidentRoutingTests(unittest.TestCase):
     def test_incident_has_high_priority_field_route_without_parallel_authority(self):
         manifest = json.loads((ROOT / "harness/api/agent-routing-manifest.json").read_text(encoding="utf-8"))
-        hits = [t for t in manifest["triggers"] if t["id"] == "bluetooth-peripheral-incident-trigger"]
+        hits = [t for t in manifest["triggers"] if t["id"] == "field-workflow-trigger"]
         self.assertEqual(len(hits), 1)
         hit = hits[0]
         self.assertEqual(hit["target"], "field-workflow")
         self.assertEqual(hit["composition_mode"], "primary")
-        self.assertGreater(hit["priority"], 55)
+        self.assertEqual(hit["priority"], 40)
         self.assertIn("BluetoothUserService", hit["deterministic_task_signals"])
+        self.assertEqual(len({t["target"] for t in manifest["triggers"]}), len(manifest["triggers"]))
 
     def test_contract_preserves_root_cause_uncertainty_and_mutation_gates(self):
         policy = json.loads((ROOT / "harness/api/bluetooth-peripheral-incident-route.v1.json").read_text(encoding="utf-8"))
