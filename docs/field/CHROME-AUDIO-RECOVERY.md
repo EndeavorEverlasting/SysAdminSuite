@@ -45,3 +45,10 @@ Host live test: (1) inspect when Chrome is running but a player is muted or inac
 Chrome multi-process/shared sessions can expose a creator PID not named chrome.exe. In that case the result remains inconclusive; no global reset is justified. Session enumeration is a point-in-time observation and can race with playback. A nondefault endpoint is reported, never automatically rerouted.
 
 Rollback: no service, scheduled job, or background agent is installed. Re-adjust only Chrome's app mute/volume in Volume Mixer if needed. Preserve user-created evidence until the operator chooses to remove it.
+
+
+## Premerge P08 candidate live-certification entrypoint
+
+The main launcher deliberately refuses feature branches. Before mainline merge, use the separate Certify-ChromeAudioCandidate.cmd APPROVED_40_HEX_SHA [Inspect|Repair] entrypoint from an **isolated linked Git worktree** under %LOCALAPPDATA%\SysAdminSuite\worktrees. The expected branch is feat/chrome-audio-session-recovery-20261113. The candidate launcher checks that it is a clean, linked worktree from the official SysAdminSuite remote, on the expected feature branch, and that HEAD is **exactly** the provider-reviewed SHA supplied by the operator. It does not fetch, switch branches, modify network settings or fast-forward any source tree. Candidate Repair remains explicit.
+
+The normal canonical Desktop\Dev\SysAdminSuite checkout owns refresh, branch preparation and source review under the existing operator-command-handoff skill. Fetch the feature ref only on an authorized InternetSync network, then prepare a linked worktree at the approved commit using the existing Git worktree workflow. Do not use a second mutable clone, manually overwrite a dirty worktree, or treat an unreviewed moving feature branch as a proven tested artifact. A candidate host acceptance receipt can be attached to the PR only after private host identity/evidence has been sanitized; never auto-publish LOCALAPPDATA receipts.
