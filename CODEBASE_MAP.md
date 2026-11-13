@@ -1,5 +1,13 @@
 # SysAdminSuite Codebase Map
 
+
+## Chrome audio session / Windows Volume Mixer recovery
+
+- Windows-only read-only/explicit-repair bridge: Recover-ChromeAudio.cmd -> scripts/Confirm-SasChromeAudioCheckout.ps1 -> scripts/Invoke-SasChromeAudioRecovery.ps1 -> scripts/SasChromeAudioCore.cs. Canonical development checkout freshness and local network preservation guard must run before target audio operations; unknown/dirty/protected context fails closed.
+- Portable, read-only diagnostic classifier: tools/chrome-audio-policy/policy.py, Dockerfile; synthetic contract tests: Tests/survey/test_chrome_audio_policy.py. Linux container cannot reach Windows user-session Core Audio, so it does not own host mutation.
+- Field owner and acceptance: docs/field/CHROME-AUDIO-RECOVERY.md. Absence of an audio session while a website/player is muted or inactive is inconclusive, not automatic evidence of a Windows defect. Repair only existing active Chrome session mute/zero-volume with explicit operator choice. Local-only JSON evidence; no global reset and no claim of user hearing proof without a Windows host test.
+
+
 ## Bluetooth peripherals and user-session services
 
 - Technician/agent incident intake: `harness/api/bluetooth-peripheral-incident-route.v1.json` and `harness/api/agent-routing-manifest.json` route discovery/PIN/service symptoms directly to Field Workflow. `Tests/survey/test_bluetooth_incident_route.py` guards discoverability, rollout and non-destructive boundaries.
