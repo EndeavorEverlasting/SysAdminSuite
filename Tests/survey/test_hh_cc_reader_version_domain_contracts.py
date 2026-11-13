@@ -103,6 +103,74 @@ def test_numeric_similarity_alone_never_binds_campaign() -> None:
     assert evaluation["primary_observation"] is None
 
 
+def test_paxspmanager_printer_firmware_is_recorded_not_main_os() -> None:
+    observation = {
+        "source_surface": "pax_sp_manager_readonly",
+        "section": "PaxSPManager > SP Terminal Info > PosPrnInfo",
+        "field_heading": "PRT_FIRM",
+        "value": "SYNTH-PRINTER-REV-1",
+        "device_model": "A80",
+        "observed_at": "2099-01-01T00:00:00Z",
+    }
+    label = classify_labeled_observation(observation)
+    assert label["version_domain"] == "printer_controller_firmware"
+    assert label["confidence"] == "LABELED_BIND"
+    current = classify_current_firmware_observation(observation)
+    assert current["classification"] == "REJECT"
+    assert "printer_controller_version_not_main_firmware" in current["reasons"]
+    assert evaluate_baseline_transition_eligibility(current, observation)["baseline_transition"] == "REJECT"
+
+
+def test_android_about_paydroid_build_is_recorded_but_not_firmware_baseline() -> None:
+    observation = {
+        "source_surface": "android_about_device_readonly",
+        "section": "Settings > About device",
+        "field_heading": "Build number",
+        "value": "PX7A_A80_PayDroid_6.0.1_Taurus_V05.1.30_20240523",
+        "device_model": "A80",
+        "observed_at": "2099-01-01T00:00:00Z",
+    }
+    assert classify_labeled_observation(observation)["version_domain"] == DOMAIN_PAYDROID
+    current = classify_current_firmware_observation(observation)
+    assert current["classification"] == "REJECT"
+    assert current["current_firmware_semantic"] == "related_os_build_only"
+    assert evaluate_baseline_transition_eligibility(current, observation)["baseline_transition"] == "REJECT"
+
+
+def test_unlabeled_build_and_unverified_android_build_stay_unresolved() -> None:
+    for observation in (
+        {"value": "PX7A_A80_PayDroid_6.0.1_Taurus_V05.1.30_20240523"},
+        {"section": "Settings > About device", "field_heading": "Build number",
+         "value": "SYNTH-UNRELATED-APP-1"},
+    ):
+        assert classify_labeled_observation(observation)["confidence"] != "LABELED_BIND"
+
+
+def test_prt_firm_wrong_path_never_masquerades_as_printer_firmware() -> None:
+    observation = {"section": "Installed Apps", "field_heading": "PRT_FIRM",
+                   "value": "SYNTH-UNVERIFIED-1"}
+    assert classify_labeled_observation(observation)["version_domain"] != "printer_controller_firmware"
+    assert classify_current_firmware_observation({
+        **observation, "source_surface": "pax_sp_manager_readonly",
+        "device_model": "A80",
+    })["classification"] != "CURRENT_FIRMWARE_BOUND"
+
+
+def test_payment_application_about_version_not_inferred_as_main_os() -> None:
+    observation = {
+        "source_surface": "payment_app_about_readonly",
+        "section": "System > About",
+        "field_heading": "Version",
+        "value": "2.0.15.260522",
+        "device_model": "A80",
+        "observed_at": "2099-01-01T00:00:00Z",
+    }
+    result = classify_current_firmware_observation(observation)
+    assert result["classification"] == "AMBIGUOUS"
+    assert result["version_domain"] == DOMAIN_UNRESOLVED
+    assert evaluate_baseline_transition_eligibility(result, observation)["baseline_transition"] == "REJECT"
+
+
 def _load_fixtures() -> list[dict]:
     fixtures: list[dict] = []
     for name in FIXTURE_ORDER:
@@ -183,6 +251,11 @@ if __name__ == "__main__":
         test_installed_apps_campaign_value_binds_experian_hypothesis_domain,
         test_push_app_target_binds_campaign_domain,
         test_numeric_similarity_alone_never_binds_campaign,
+        test_paxspmanager_printer_firmware_is_recorded_not_main_os,
+        test_android_about_paydroid_build_is_recorded_but_not_firmware_baseline,
+        test_unlabeled_build_and_unverified_android_build_stay_unresolved,
+        test_prt_firm_wrong_path_never_masquerades_as_printer_firmware,
+        test_payment_application_about_version_not_inferred_as_main_os,
         test_synthetic_fixture_sensitivity_matrix,
         test_p1_baseline_eligibility_without_live_mutation,
     ]
