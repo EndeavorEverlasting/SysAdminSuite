@@ -197,6 +197,17 @@ def test_app_version_without_verified_app_source_is_not_bound() -> None:
     assert classify_labeled_observation(observation)["version_domain"] == DOMAIN_UNRESOLVED
 
 
+def test_printer_firmware_cannot_bind_campaign_domain_even_if_same_text() -> None:
+    result = evaluate_version_domains([{
+        "source_surface": "pax_sp_manager_readonly",
+        "section": "PaxSPManager > SP Terminal Info > PosPrnInfo",
+        "field_heading": "PRT_FIRM",
+        "value": CAMPAIGN_TARGET,
+    }])
+    assert result["campaign_target_domain_state"] == "VERSION_DOMAIN_UNRESOLVED"
+    assert result["deploy_eligible_on_domain_alone"] is False
+
+
 def _load_fixtures() -> list[dict]:
     fixtures: list[dict] = []
     for name in FIXTURE_ORDER:
@@ -284,6 +295,7 @@ if __name__ == "__main__":
         test_payment_application_about_version_not_inferred_as_main_os,
         test_verified_payment_app_about_label_binds_app_not_main_os,
         test_app_version_without_verified_app_source_is_not_bound,
+        test_printer_firmware_cannot_bind_campaign_domain_even_if_same_text,
         test_synthetic_fixture_sensitivity_matrix,
         test_p1_baseline_eligibility_without_live_mutation,
     ]
