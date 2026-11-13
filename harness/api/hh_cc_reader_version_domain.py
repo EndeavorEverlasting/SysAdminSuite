@@ -44,6 +44,7 @@ DOMAIN_EXPERIAN_CC = "experian_control_center_payment_package"
 DOMAIN_PAYMENT_APP = "payment_application"
 DOMAIN_PAXSTORE_FW_NAME = "paxstore_installed_firmware_name"
 DOMAIN_PACKAGE_CATALOG = "package_catalog_version"
+DOMAIN_PRINTER_CONTROLLER = "printer_controller_firmware"
 DOMAIN_SYNTHETIC_DEVICE_FIRMWARE = "synthetic_device_firmware"
 DOMAIN_UNRESOLVED = "VERSION_DOMAIN_UNRESOLVED"
 
@@ -55,6 +56,7 @@ KNOWN_DOMAINS = frozenset(
         DOMAIN_PAYMENT_APP,
         DOMAIN_PAXSTORE_FW_NAME,
         DOMAIN_PACKAGE_CATALOG,
+        DOMAIN_PRINTER_CONTROLLER,
         DOMAIN_SYNTHETIC_DEVICE_FIRMWARE,
         DOMAIN_UNRESOLVED,
     }
@@ -71,6 +73,9 @@ RECOGNIZED_SOURCE_SURFACES = frozenset(
         "experian_control_center",
         "provider_tms_ntms",
         "authorized_adb_readonly",
+        "pax_sp_manager_readonly",
+        "android_about_device_readonly",
+        "payment_app_about_readonly",
     }
 )
 
@@ -182,6 +187,27 @@ def _is_device_information_current_firmware(section_cf: str | None, heading_cf: 
     return "device information" in section_cf and _is_current_firmware_heading(heading_cf)
 
 
+def _is_pax_printer_firmware_label(
+    section_cf: str | None, heading_cf: str | None,
+) -> bool:
+    """PAXSPManager's PRT_FIRM is a printer controller, not the PayDroid OS."""
+    return bool(
+        section_cf and heading_cf == "prt_firm"
+        and "posprninfo" in section_cf
+        and ("sp terminal info" in section_cf or "paxspmanager" in section_cf)
+    )
+
+
+def _is_android_about_build_label(
+    section_cf: str | None, heading_cf: str | None,
+) -> bool:
+    """A named Android About screen can show a PayDroid build, not app firmware."""
+    return bool(
+        section_cf and heading_cf in {"build number", "build id"}
+        and any(label in section_cf for label in ("about device", "about phone", "about tablet"))
+    )
+
+
 def pattern_hint_domain(value: str | None) -> str | None:
     """Non-authoritative pattern hint only. Never equals a labeled bind."""
     if not value:
@@ -226,7 +252,13 @@ def classify_labeled_observation(observation: dict[str, Any]) -> dict[str, Any]:
     confidence = "UNRESOLVED"
 
     if not reasons:
-        if _is_device_information_current_firmware(section_cf, heading_cf):
+        if _is_pax_printer_firmware_label(section_cf, heading_cf):
+            domain = DOMAIN_PRINTER_CONTROLLER
+            confidence = "LABELED_BIND"
+        elif _is_android_about_build_label(section_cf, heading_cf) and hint == DOMAIN_PAYDROID:
+            domain = DOMAIN_PAYDROID
+            confidence = "LABELED_BIND"
+        elif _is_device_information_current_firmware(section_cf, heading_cf):
             domain = DOMAIN_SYNTHETIC_DEVICE_FIRMWARE if hint == DOMAIN_SYNTHETIC_DEVICE_FIRMWARE else (
                 DOMAIN_PAYDROID if hint == DOMAIN_PAYDROID else DOMAIN_PAXSTORE_FW_NAME
             )
@@ -332,6 +364,14 @@ def classify_current_firmware_observation(observation: dict[str, Any]) -> dict[s
             reasons.append("label_required")
         classification = "REJECT"
         current_semantic = "rejected_unlabeled"
+    elif domain_result.get("version_domain") == DOMAIN_PRINTER_CONTROLLER:
+        reasons.append("printer_controller_version_not_main_firmware")
+        classification = "REJECT"
+        current_semantic = "related_peripheral_firmware_only"
+    elif _is_android_about_build_label(section_cf, heading_cf):
+        reasons.append("paydroid_build_is_not_full_main_firmware_baseline")
+        classification = "REJECT"
+        current_semantic = "related_os_build_only"
     elif heading_cf == "version":
         reasons.append("ambiguous_version_heading")
         classification = "AMBIGUOUS"
