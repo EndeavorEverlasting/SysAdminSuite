@@ -496,7 +496,7 @@ def evaluate_version_domains(
         for item in classified
         if item.get("matches_campaign_target_value")
         and item.get("confidence") == "LABELED_BIND"
-        and item.get("version_domain") != DOMAIN_UNRESOLVED
+        and item.get("version_domain") not in {DOMAIN_UNRESOLVED, DOMAIN_PRINTER_CONTROLLER}
     ]
     if bound_campaign:
         campaign_state = "BOUND"
