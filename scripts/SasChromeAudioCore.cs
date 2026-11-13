@@ -53,12 +53,27 @@ namespace SasChromeAudio
         void UnregisterDuckNotification(IntPtr client);
     }
 
+    [ComImport, Guid("F4B1A599-7266-4319-A8CA-E70ACB11E8CD"),
+     InterfaceType(ComInterfaceType.InterfaceIsIUnknown)]
+    internal interface IAudioSessionControl
+    {
+        void GetState(out int state);
+        void GetDisplayName([MarshalAs(UnmanagedType.LPWStr)] out string name);
+        void SetDisplayName([MarshalAs(UnmanagedType.LPWStr)] string name, ref Guid context);
+        void GetIconPath([MarshalAs(UnmanagedType.LPWStr)] out string path);
+        void SetIconPath([MarshalAs(UnmanagedType.LPWStr)] string path, ref Guid context);
+        void GetGroupingParam(out Guid grouping);
+        void SetGroupingParam(ref Guid grouping, ref Guid context);
+        void RegisterAudioSessionNotification(IntPtr client);
+        void UnregisterAudioSessionNotification(IntPtr client);
+    }
+
     [ComImport, Guid("E2F5BB11-0570-40CA-ACDD-3AA01277DEE8"),
      InterfaceType(ComInterfaceType.InterfaceIsIUnknown)]
     internal interface IAudioSessionEnumerator
     {
         void GetCount(out int count);
-        void GetSession(int index, out IAudioSessionControl2 control);
+        void GetSession(int index, out IAudioSessionControl control);
     }
 
     // Flattened inherited IAudioSessionControl methods preserve COM vtable order.
@@ -145,8 +160,9 @@ namespace SasChromeAudio
 
                 for (int i = 0; i < sessionCount; i++)
                 {
-                    IAudioSessionControl2 session;
-                    sessions.GetSession(i, out session);
+                    IAudioSessionControl control;
+                    sessions.GetSession(i, out control);
+                    var session = (IAudioSessionControl2)control; // COM QueryInterface
                     uint processId;
                     session.GetProcessId(out processId);
                     if (processId == 0 || processId > Int32.MaxValue) continue;
