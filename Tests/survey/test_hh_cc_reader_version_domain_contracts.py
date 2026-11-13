@@ -171,6 +171,32 @@ def test_payment_application_about_version_not_inferred_as_main_os() -> None:
     assert evaluate_baseline_transition_eligibility(result, observation)["baseline_transition"] == "REJECT"
 
 
+def test_verified_payment_app_about_label_binds_app_not_main_os() -> None:
+    observation = {
+        "source_surface": "payment_app_about_readonly",
+        "section": "System > About",
+        "field_heading": "App version",
+        "value": "2.0.15.260522",
+        "device_model": "A80",
+        "observed_at": "2099-01-01T00:00:00Z",
+    }
+    classified = classify_labeled_observation(observation)
+    assert classified["version_domain"] == "payment_application"
+    assert classified["confidence"] == "LABELED_BIND"
+    current = classify_current_firmware_observation(observation)
+    assert current["classification"] == "REJECT"
+    assert evaluate_baseline_transition_eligibility(current, observation)["baseline_transition"] == "REJECT"
+
+
+def test_app_version_without_verified_app_source_is_not_bound() -> None:
+    observation = {
+        "section": "System > About",
+        "field_heading": "App version",
+        "value": "2.0.15.260522",
+    }
+    assert classify_labeled_observation(observation)["version_domain"] == DOMAIN_UNRESOLVED
+
+
 def _load_fixtures() -> list[dict]:
     fixtures: list[dict] = []
     for name in FIXTURE_ORDER:
@@ -256,6 +282,8 @@ if __name__ == "__main__":
         test_unlabeled_build_and_unverified_android_build_stay_unresolved,
         test_prt_firm_wrong_path_never_masquerades_as_printer_firmware,
         test_payment_application_about_version_not_inferred_as_main_os,
+        test_verified_payment_app_about_label_binds_app_not_main_os,
+        test_app_version_without_verified_app_source_is_not_bound,
         test_synthetic_fixture_sensitivity_matrix,
         test_p1_baseline_eligibility_without_live_mutation,
     ]
