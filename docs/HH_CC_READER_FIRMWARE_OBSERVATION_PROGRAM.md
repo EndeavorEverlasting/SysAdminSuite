@@ -5,6 +5,11 @@ Date: 2026-10-05
 Floor: P95 multi-protocol portfolio + local-access field guide + PAXSTORE observe/UI fallback seams + version-domain classifier
 Mission owner: live Kiosk4 firmware/package deployment (not harness theater)
 
+## 2026-11-13 — source-backed read-only version surfaces
+
+See [PAX A80 read-only version discovery](HH_CC_READER_A80_READONLY_VERSION_DISCOVERY.md).
+PAX officially documents `PaxSPManager > SP Terminal Info > PosPrnInfo > PRT_FIRM` (printer firmware only); Android About device can expose a PayDroid build number; other payment processors' app Info pages may display separate app/package versions. These are **conditional candidate screens**, not proven accessible on this provisioned H&H Kiosk4. Existing numeric Settings and USB OTG non-enumeration negatives remain preserved. The canonical version-domain classifier records labeled component readings without promoting printer or OS-build-only evidence to the distinct main installed-firmware baseline. Existing management-plane PR #561 remains independently owned; no duplicate ADB/PAXSTORE implementation is created.
+
 ## User outcomes / invariants
 
 1. Bind the already-proved Kiosk4 identity to an **authoritative** installed value with its **version domain**.
