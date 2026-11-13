@@ -208,6 +208,18 @@ def _is_android_about_build_label(
     )
 
 
+def _is_payment_application_about_version(
+    section_cf: str | None, heading_cf: str | None, source_surface: str | None,
+) -> bool:
+    """Require a proven payment-app About/Info surface; a bare Version is ambiguous."""
+    return bool(
+        source_surface == "payment_app_about_readonly"
+        and section_cf
+        and ("about" in section_cf or "info" in section_cf)
+        and heading_cf in {"app version", "application version"}
+    )
+
+
 def pattern_hint_domain(value: str | None) -> str | None:
     """Non-authoritative pattern hint only. Never equals a labeled bind."""
     if not value:
@@ -238,6 +250,7 @@ def classify_labeled_observation(observation: dict[str, Any]) -> dict[str, Any]:
     )
     package_name = _norm_text(observation.get("package_name") or observation.get("application_name"))
     package_id = _norm_text(observation.get("package_id"))
+    source_surface = _norm_text(observation.get("source_surface"))
     section_cf = _norm_section(section)
     heading_cf = _norm_section(field_heading)
 
@@ -257,6 +270,9 @@ def classify_labeled_observation(observation: dict[str, Any]) -> dict[str, Any]:
             confidence = "LABELED_BIND"
         elif _is_android_about_build_label(section_cf, heading_cf) and hint == DOMAIN_PAYDROID:
             domain = DOMAIN_PAYDROID
+            confidence = "LABELED_BIND"
+        elif _is_payment_application_about_version(section_cf, heading_cf, source_surface):
+            domain = DOMAIN_PAYMENT_APP
             confidence = "LABELED_BIND"
         elif _is_device_information_current_firmware(section_cf, heading_cf):
             domain = DOMAIN_SYNTHETIC_DEVICE_FIRMWARE if hint == DOMAIN_SYNTHETIC_DEVICE_FIRMWARE else (
