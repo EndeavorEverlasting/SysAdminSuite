@@ -19,10 +19,64 @@ param(
   [ValidateSet('Any','IP','MAC','Serial','HostName','DeviceName')]
   [string]$LookupBy = 'Any',
 
+  [Parameter(ParameterSetName='Batch', Mandatory)][string]$RequestPath,
+  [Parameter(ParameterSetName='Batch')][string]$ClockInventoryPath,
+  [Parameter(ParameterSetName='Batch')][string]$LeasePath,
+  [Parameter(ParameterSetName='Batch')][string]$ScopePath,
+  [Parameter(ParameterSetName='Batch')][string]$ReservationPath,
+  [Parameter(ParameterSetName='Batch')][string]$BatchOutputDirectory,
+  [Parameter(ParameterSetName='Batch')][switch]$Live,
+  [Parameter(ParameterSetName='Batch')][string]$DnsDomain,
+  [Parameter(ParameterSetName='Batch')][switch]$OpenReport,
+
+  [Parameter(ParameterSetName='Lookup')]
+  [Parameter(ParameterSetName='Probe')]
   [string]$OutHtml,
 
+  [Parameter(ParameterSetName='Probe')]
   [string[]]$Communities = @('public','private','northwell','netadmin')
 )
+
+if ($PSCmdlet.ParameterSetName -eq 'Batch') {
+  $ErrorActionPreference = 'Stop'
+  $repoRoot = Split-Path -Parent $PSScriptRoot
+  if ($Live) {
+    if (-not $ScopePath) { throw 'Live matching requires the approved site DHCP scope CSV.' }
+    Import-Module (Join-Path $repoRoot 'scripts/SasNetworkIntent.psm1')
+    $null = Enter-SasNetworkIntent -Intent ProtectedNorthwell -RepoRoot $repoRoot
+  }
+  Import-Module (Join-Path $PSScriptRoot 'KronosClockBatch.psm1')
+  . (Join-Path $repoRoot 'tools/ConvertTo-SuiteHtml.ps1')
+  $rows = @(Get-KronosBatchReport -RequestPath $RequestPath -InventoryPath $ClockInventoryPath `
+    -LeasePath $LeasePath -ScopePath $ScopePath -ReservationPath $ReservationPath -Live:$Live -DnsDomain $DnsDomain)
+
+  if (-not $BatchOutputDirectory) {
+    if (-not $env:LOCALAPPDATA) { throw 'Provide -BatchOutputDirectory when LOCALAPPDATA is unavailable.' }
+    $BatchOutputDirectory = Join-Path $env:LOCALAPPDATA 'SysAdminSuite/Evidence/KronosClock'
+  }
+  $runId = '{0}-{1}' -f [DateTime]::UtcNow.ToString('yyyyMMddTHHmmssZ'), [Guid]::NewGuid().ToString('N').Substring(0, 8)
+  $run = New-Item -ItemType Directory -Path (Join-Path $BatchOutputDirectory $runId) -Force
+  $csv = Join-Path $run.FullName 'KronosClockBatch.csv'
+  $report = Join-Path $run.FullName 'KronosClockBatch.html'
+  $rows | ForEach-Object {
+    $safe = [ordered]@{}
+    foreach ($property in $_.PSObject.Properties) {
+      $value = $property.Value
+      if ($value -is [string] -and $value -match '^\s*[=+@-]') { $value = "'$value" }
+      $safe[$property.Name] = $value
+    }
+    [pscustomobject]$safe
+  } | Export-Csv -LiteralPath $csv -NoTypeInformation -Encoding UTF8
+  $summary = @($rows | Group-Object Status | Sort-Object Name | ForEach-Object { "$($_.Count) $($_.Name)" })
+  $head = '<p>Each row corresponds to one assignment. Reachability is an ICMP result for the matched IPv4 address. DHCP reservations and scope settings reflect the supplied exports.</p><div style="overflow-x:auto">'
+  $table = $rows | Select-Object Row, Status, IPAddress, HostName, MACAddress, SerialNumber, DeviceID, DeviceName, Model,
+    SubnetMask, ScopeId, DefaultGateway, DHCPState, Reservation, Reachability, Missing, Notes, Sources | ConvertTo-Html -Fragment
+  ConvertTo-SuiteHtml -Title 'Kronos Clock Batch' -Subtitle "$($rows.Count) assignments" `
+    -SummaryChips $summary -BodyFragment (@($head) + $table + '</div>') -OutputPath $report -Open:$OpenReport
+  Write-Host "Saved HTML: $report"
+  Write-Host "Saved CSV:  $csv"
+  return $rows
+}
 
 $ErrorActionPreference = 'SilentlyContinue'
 function Get-ExternalCommandPath {

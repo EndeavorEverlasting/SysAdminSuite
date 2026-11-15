@@ -74,6 +74,7 @@ python3 Tests/survey/test_field_guide_cmd_first_contracts.py
 python3 Tests/survey/test_hh_cc_reader_field_probe_contracts.py
 python3 Tests/survey/test_hh_cc_reader_endpoint_probe_contracts.py
 python3 Tests/survey/test_machine_info_cmd_contracts.py
+python3 Tests/survey/test_kronos_clock_batch.py
 python3 Tests/survey/test_agent_capability_manifest_contracts.py
 python3 Tests/survey/test_agent_routing_manifest_contracts.py
 python3 Tests/survey/test_bluetooth_incident_route.py

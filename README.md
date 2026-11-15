@@ -421,6 +421,9 @@ The **Lenovo ThinkPad Hybrid USB-C with USB-A Dock** (DisplayLink `VID_17E9&PID_
 > **Practical impact:** If your dock is holding a phantom Display 1 from a previously-connected TV, run `Reset-DisplayDeviceCache` in an elevated session to force re-enumeration. Then `Get-MonitorInfo` will show only what is physically present.
 
 ### Kronos Clock Identity Inventory + Lookup
+
+For technician assignments, use the [Kronos clock batch report field workflow](docs/field/KRONOS-CLOCK-BATCH.md). It accepts one identifier or a partial assignment CSV and reports clock identity, DHCP evidence, and optional live reachability.
+
 ```powershell
 # Probe one or more clocks and export a reusable inventory CSV
 powershell.exe -File .\GetInfo\Get-KronosClockInfo.ps1 `

@@ -13,6 +13,11 @@
 
 Use this map to load only the files needed for a task.
 
+## Kronos clock field inventory
+
+- `Report-KronosClocks.cmd` → `GetInfo/Open-KronosClockBatch.ps1` (checkout and network admission) → `GetInfo/Start-KronosClockBatch.ps1` → `GetInfo/Get-KronosClockInfo.ps1` is the technician batch path. `GetInfo/KronosClockBatch.psm1` owns exact evidence reconciliation and bounded read-only network checks.
+- [Kronos clock batch field guide](docs/field/KRONOS-CLOCK-BATCH.md) defines inputs, report states and private output locations. The collector also supports the existing probe and saved-inventory modes.
+
 ## Agent instruction architecture
 
 - `AGENTS.md` — compact universal invariants and task-to-skill router; keep detailed procedures out of this file.
