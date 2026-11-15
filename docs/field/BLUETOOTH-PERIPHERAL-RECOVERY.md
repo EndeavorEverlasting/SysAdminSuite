@@ -8,6 +8,10 @@
 | --- | --- | --- |
 | `SasBluetooth.cmd capabilities` | Report runtime, language mode, prepared helper, services and elevation | Read-only; use this first on a new host |
 | `SasBluetooth.cmd list` | List paired Bluetooth mappings, stable DeviceId, connected/disconnected/unknown state | Intended user; four-second observation; powered-off paired devices are retained |
+| `SasBluetooth.cmd profile-save` | Merge observed paired devices into this Windows user's profile. Supply `-DeviceId` to save one. | Intended interactive user |
+| `SasBluetooth.cmd profile-list` | Show saved endpoint IDs and names, including devices absent today | Read-only, local user |
+| `SasBluetooth.cmd restore -DeviceId "<SAVED_ID>"` | Run one recovery attempt for the saved endpoint and record Windows connection evidence | Intended interactive user |
+| `SasBluetooth.cmd watch -DeviceId "<SAVED_ID>"` | Recheck one saved endpoint and try to reconnect it when Windows sees it in range | Foreground, intended interactive user |
 | `SasBluetooth.cmd pair -ExactName "ProtoArc EM11 NL"` | Ensure selected services if stopped, then pair exact target; optional `-DeviceId` disambiguates | Intended interactive user; existing/delegated service rights or explicit administrator repair if denied |
 | `SasBluetooth.cmd ensure-service` | Idempotently start bthserv and one selected per-user instance; never stop/restart a running service | Existing or delegated rights; `-ServiceName` required if ambiguous |
 | `SasBluetooth.cmd restart -InstanceId "EXACT_INSPECTED_RADIO_ID"` | Targeted adapter restart | Administrator; briefly interrupts Bluetooth devices |
@@ -23,6 +27,16 @@ Windows normally creates per-user services from templates at sign-in, and Blueto
 Current operator acceptance: ProtoArc connected and working; second mouse paired for future use and intentionally powered off. A disconnected paired spare is not a regression.
 
 Critical recurring desktop incident: a ProtoArc EM11 NL stopped being discoverable between the previous night and the operator's report. Other laptops could discover it. A separate M343 mouse must not inherit this diagnosis.
+
+## Save and recover a personal Bluetooth device
+
+After verifying the current launcher or approved portable release, run `profile-save` while Windows knows the devices you want to retain. Capture can be repeated and merges records by Windows association endpoint ID. Old records are retained when a device is absent. The profile is per Windows user at `%LOCALAPPDATA%\SysAdminSuite\Bluetooth\device-profile.json`. It contains names and Windows IDs only. Use `profile-list` to find the ID, or select with a unique `-ExactName` from the saved profile.
+
+`restore` leaves an already connected endpoint alone. For a retained pairing, it requests targeted service discovery through Windows (GATT for LE, RFCOMM for Classic). Windows and the peripheral control whether that request brings the link back. If Windows finds the exact saved endpoint unpaired, present and pairable, `restore` attempts ConfirmOnly pairing. PIN or other consent must be handled in Windows. If Windows changed the endpoint ID, pair the intended device through Windows and capture its new ID.
+
+`watch` is opt-in for one saved endpoint at a time, defaults to a 30-second delay between checks, and stops on Ctrl+C. It attempts retained-pairing recovery only when Windows reports the endpoint present and disconnected or connection unknown. It leaves sleeping or absent devices alone and requires a one-shot restore for re-pairing. Stop the watch before deliberately disconnecting the selected device. It never starts background tasks or resets drivers, adapters or services. Use the incident path below when Windows reports a service or radio fault.
+
+The receipt records the exact device, the action, the native response, and observations before and after the attempt under `%LOCALAPPDATA%\SysAdminSuite\Evidence\Bluetooth`. A one-shot restore exits 0 for `ALREADY_CONNECTED` or `CONNECTED_OBSERVED`, 2 when connection could not be verified, and 1 for a profile/launch failure. `PAIRED_CONNECTION_NOT_OBSERVED` keeps successful pairing separate from an observed link. Verify actual pointer movement and clicks or audio playback for physical acceptance.
 
 ## Responsible owners
 

@@ -44,9 +44,10 @@ function New-SasBluetoothHelper([string]$Destination) {
 function Test-SasBluetoothBundle([string]$Root) {
     $manifestPath=Join-Path $Root 'bluetooth-bundle.json'
     $manifest=Get-Content -LiteralPath $manifestPath -Raw | ConvertFrom-Json
-    if($manifest.Schema -ne 'sas-bluetooth-bundle/v1'){throw 'INVALID_BUNDLE_SCHEMA'}
+    if($manifest.Schema -cnotin 'sas-bluetooth-bundle/v1','sas-bluetooth-bundle/v2'){throw 'INVALID_BUNDLE_SCHEMA'}
     $required=@('scripts/SasBluetoothRuntime.psm1','scripts/Add-BluetoothMouse.ps1','scripts/SasBluetooth.ps1','scripts/SasBluetoothPairing.cs','scripts/Invoke-BluetoothPeripheralRecovery.ps1','scripts/Install-BluetoothPeripheralRelease.ps1','Install-BluetoothPeripheralRelease.cmd','runtime/SasBluetoothPairing.dll')
     $names=@($manifest.Files|ForEach-Object {$_.Path})
+    if($manifest.Schema -ceq 'sas-bluetooth-bundle/v2'){$required+='scripts/SasBluetoothProfile.psm1'}
     foreach($name in $required){if($names -notcontains $name){throw "BUNDLE_ENTRY_MISSING: $name"}}
     foreach($entry in $manifest.Files) {
         if([IO.Path]::IsPathRooted($entry.Path) -or $entry.Path -match '(^|[\\/])\.\.([\\/]|$)'){throw 'UNSAFE_BUNDLE_PATH'}
