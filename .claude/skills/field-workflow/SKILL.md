@@ -6,6 +6,10 @@ Use this skill for technician commands, launchers, menus, QR command capsules, o
 
 For `SAS BLUETOOTH INCIDENT`, Bluetooth mouse invisibility, pairing PIN failures, stopped `BluetoothUserService_*`, adapter stalls, or driver-recovery requests, load `harness/api/bluetooth-peripheral-incident-route.v1.json` and `docs/field/BLUETOOTH-PERIPHERAL-RECOVERY.md` **before** suggesting repair. This selects the existing `Recover-BluetoothPeripheral.cmd` (Inspect default) and `SasBluetooth.cmd` (capabilities/list/ensure-service/exact pairing), not a newly invented mouse-reset or broad driver script. A stopped Manual per-user service is a clue, not proof of sole causality. Start only stopped uniquely selected services with authorization; physical mouse acceptance before adapter escalation. Repair never changes Print Screen preferences, UAC, service start types, service ACLs or pairing keys. Keep raw device evidence private. For rollout, only promote an independently approved prepared bundle with `Install-BluetoothPeripheralRelease.cmd` side-by-side; do not auto-fetch or overwrite a running release. The installer reports installation, not a verified live repair.
 
+## Kronos clock batch documentation
+
+For Kronos or Cronus clock inventory, read [the field workflow](../../../docs/field/KRONOS-CLOCK-BATCH.md). The CMD front door uses the existing Kronos collector to reconcile sparse assignments with site-approved inventory and DHCP exports, and optionally checks exact matched addresses on a protected Northwell connection.
+
 ## Capability dependencies
 
 - [Field Command Design](../../capabilities/field-command-design.md)
