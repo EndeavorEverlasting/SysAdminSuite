@@ -2,6 +2,7 @@
 import json
 import os
 from pathlib import Path
+import shutil
 import subprocess
 import tempfile
 import unittest
@@ -56,6 +57,21 @@ class BluetoothIncidentRoutingTests(unittest.TestCase):
             self.assertNotIn(unsafe, source)
 
 
+POWERSHELL = shutil.which("powershell.exe") if os.name == "nt" else shutil.which("pwsh")
+
+
+@unittest.skipUnless(POWERSHELL, "PowerShell fixture runtime required")
+class BluetoothProfileTests(unittest.TestCase):
+    def test_profile_and_exact_reconciliation_fixtures(self):
+        result = subprocess.run(
+            [POWERSHELL, "-NoProfile", "-ExecutionPolicy", "Bypass", "-File",
+             str(ROOT / "Tests/survey/bluetooth-profile-fixture.ps1")],
+            capture_output=True, text=True, timeout=30,
+        )
+        self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+        self.assertIn("PASS: saved-device profile and recovery fixtures", result.stdout)
+
+
 @unittest.skipUnless(os.name == "nt" and (Path(os.environ.get("ProgramFiles(x86)", "missing")) /
                                           "Windows Kits/10/UnionMetadata").exists(),
                      "Windows SDK preparation host needed")
@@ -69,6 +85,8 @@ class BluetoothReleaseWindowsTests(unittest.TestCase):
                                   capture_output=True, text=True, timeout=90)
             self.assertEqual(prep.returncode, 0, prep.stdout + prep.stderr)
             manifest = json.loads((bundle / "bluetooth-bundle.json").read_text(encoding="utf-8-sig"))
+            self.assertEqual(manifest["Schema"], "sas-bluetooth-bundle/v2")
+            self.assertIn("scripts/SasBluetoothProfile.psm1", {entry["Path"] for entry in manifest["Files"]})
             approved = manifest["SourceCommit"]
             self.assertRegex(approved, r"^[0-9a-f]{40}$")
             releases = root / "releases"
@@ -81,6 +99,21 @@ class BluetoothReleaseWindowsTests(unittest.TestCase):
             self.assertEqual(first.returncode, 0, first.stdout + first.stderr)
             target = releases / ("release-" + approved)
             self.assertTrue((target / "SasBluetooth.cmd").is_file())
+            listing = subprocess.run(
+                ["cmd.exe", "/d", "/c", "call", str(target / "SasBluetooth.cmd"), "profile-list"],
+                capture_output=True, text=True, timeout=35,
+            )
+            self.assertEqual(listing.returncode, 0, listing.stdout + listing.stderr)
+            self.assertIsInstance(json.loads(listing.stdout), list)
+            helper = bundle / "scripts/SasBluetoothProfile.psm1"
+            contents = helper.read_bytes()
+            helper.unlink()
+            unsealed = subprocess.run(
+                ["cmd.exe", "/d", "/c", "call", str(bundle / "SasBluetooth.cmd"), "profile-list"],
+                capture_output=True, text=True, timeout=35,
+            )
+            self.assertNotEqual(unsealed.returncode, 0, "Missing sealed profile module must reject launch")
+            helper.write_bytes(contents)
             self.assertNotEqual(install().returncode, 0, "No overwrite of prior approved release")
             (bundle / "unlisted.cmd").write_text("@echo off\n", encoding="utf-8")
             self.assertNotEqual(install().returncode, 0, "Extra executable must invalidate seal")
