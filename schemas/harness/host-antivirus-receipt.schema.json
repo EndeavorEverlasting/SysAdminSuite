@@ -1,0 +1,237 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "title": "SysAdminSuite host antivirus evidence",
+  "oneOf": [
+    {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "schema_version",
+        "platform",
+        "provider",
+        "recorded_at_utc",
+        "status",
+        "next_action"
+      ],
+      "properties": {
+        "schema_version": {
+          "const": "sas-antivirus-receipt/v1"
+        },
+        "platform": {
+          "enum": [
+            "windows",
+            "linux",
+            "wsl",
+            "unsupported"
+          ]
+        },
+        "provider": {
+          "enum": [
+            "none",
+            "defender",
+            "eset",
+            "clamav"
+          ]
+        },
+        "recorded_at_utc": {
+          "type": "string",
+          "format": "date-time"
+        },
+        "status": {
+          "enum": [
+            "RUNNING",
+            "SCAN_COMPLETED",
+            "NO_DETECTIONS_REPORTED",
+            "NO_PROVIDER",
+            "DISCOVERY_FAILED",
+            "UNSUPPORTED_PROVIDER",
+            "VENDOR_SCHEDULER_REQUIRED",
+            "UNSUPPORTED_HOST",
+            "SCAN_INTERRUPTED",
+            "SCAN_FAILED",
+            "SCAN_TIMEOUT",
+            "SCAN_UNCONFIRMED",
+            "SCAN_INCOMPLETE",
+            "DETECTION_REPORTED"
+          ]
+        },
+        "next_action": {
+          "enum": [
+            "NONE",
+            "REVIEW_PROVIDER_AVAILABILITY",
+            "DIAGNOSE_PROVIDER_DISCOVERY",
+            "ADD_DOCUMENTED_PROVIDER_ADAPTER",
+            "CONFIGURE_VENDOR_SCHEDULER",
+            "USE_NATIVE_SUPPORTED_HOST",
+            "REVIEW_INTERRUPTED_SCAN",
+            "DIAGNOSE_PROVIDER_EXECUTION",
+            "REVIEW_SCAN_TIMEOUT",
+            "VERIFY_PROVIDER_COMPLETION",
+            "REVIEW_SCAN_COVERAGE",
+            "REVIEW_DETECTIONS_WITH_LOCAL_SCANNER"
+          ]
+        },
+        "repository_sync": {
+          "enum": [
+            "NO_ACTIONABLE_GAPS",
+            "SYNCED_LOCAL",
+            "SYNC_FAILED",
+            "SYNC_UNSAFE",
+            "SYNC_UNAVAILABLE"
+          ]
+        },
+        "sync_next_action": {
+          "const": "RETRY_LOCAL_QUEUE_SYNC"
+        }
+      }
+    },
+    {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "schema_version",
+        "gap_code",
+        "next_action",
+        "publication_state"
+      ],
+      "properties": {
+        "schema_version": {
+          "const": "sas-antivirus-development-candidate/v1"
+        },
+        "gap_code": {
+          "enum": [
+            "NO_PROVIDER",
+            "DISCOVERY_FAILED",
+            "UNSUPPORTED_PROVIDER",
+            "VENDOR_SCHEDULER_REQUIRED",
+            "UNSUPPORTED_HOST",
+            "SCAN_INTERRUPTED",
+            "SCAN_FAILED",
+            "SCAN_TIMEOUT",
+            "SCAN_UNCONFIRMED",
+            "SCAN_INCOMPLETE"
+          ]
+        },
+        "next_action": {
+          "enum": [
+            "REVIEW_PROVIDER_AVAILABILITY",
+            "DIAGNOSE_PROVIDER_DISCOVERY",
+            "ADD_DOCUMENTED_PROVIDER_ADAPTER",
+            "CONFIGURE_VENDOR_SCHEDULER",
+            "USE_NATIVE_SUPPORTED_HOST",
+            "REVIEW_INTERRUPTED_SCAN",
+            "DIAGNOSE_PROVIDER_EXECUTION",
+            "REVIEW_SCAN_TIMEOUT",
+            "VERIFY_PROVIDER_COMPLETION",
+            "REVIEW_SCAN_COVERAGE"
+          ]
+        },
+        "publication_state": {
+          "const": "LOCAL_REVIEW_REQUIRED"
+        }
+      },
+      "oneOf": [
+        {
+          "properties": {
+            "gap_code": {
+              "const": "NO_PROVIDER"
+            },
+            "next_action": {
+              "const": "REVIEW_PROVIDER_AVAILABILITY"
+            }
+          }
+        },
+        {
+          "properties": {
+            "gap_code": {
+              "const": "DISCOVERY_FAILED"
+            },
+            "next_action": {
+              "const": "DIAGNOSE_PROVIDER_DISCOVERY"
+            }
+          }
+        },
+        {
+          "properties": {
+            "gap_code": {
+              "const": "UNSUPPORTED_PROVIDER"
+            },
+            "next_action": {
+              "const": "ADD_DOCUMENTED_PROVIDER_ADAPTER"
+            }
+          }
+        },
+        {
+          "properties": {
+            "gap_code": {
+              "const": "VENDOR_SCHEDULER_REQUIRED"
+            },
+            "next_action": {
+              "const": "CONFIGURE_VENDOR_SCHEDULER"
+            }
+          }
+        },
+        {
+          "properties": {
+            "gap_code": {
+              "const": "UNSUPPORTED_HOST"
+            },
+            "next_action": {
+              "const": "USE_NATIVE_SUPPORTED_HOST"
+            }
+          }
+        },
+        {
+          "properties": {
+            "gap_code": {
+              "const": "SCAN_INTERRUPTED"
+            },
+            "next_action": {
+              "const": "REVIEW_INTERRUPTED_SCAN"
+            }
+          }
+        },
+        {
+          "properties": {
+            "gap_code": {
+              "const": "SCAN_FAILED"
+            },
+            "next_action": {
+              "const": "DIAGNOSE_PROVIDER_EXECUTION"
+            }
+          }
+        },
+        {
+          "properties": {
+            "gap_code": {
+              "const": "SCAN_TIMEOUT"
+            },
+            "next_action": {
+              "const": "REVIEW_SCAN_TIMEOUT"
+            }
+          }
+        },
+        {
+          "properties": {
+            "gap_code": {
+              "const": "SCAN_UNCONFIRMED"
+            },
+            "next_action": {
+              "const": "VERIFY_PROVIDER_COMPLETION"
+            }
+          }
+        },
+        {
+          "properties": {
+            "gap_code": {
+              "const": "SCAN_INCOMPLETE"
+            },
+            "next_action": {
+              "const": "REVIEW_SCAN_COVERAGE"
+            }
+          }
+        }
+      ]
+    }
+  ]
+}

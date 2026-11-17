@@ -90,6 +90,12 @@ Use this map to load only the files needed for a task.
 - `Tests/survey/test_package_*_contracts.py` and `Tests/survey/Test-PackageTrustVerificationContracts.ps1` — focused package contracts.
 - `.github/workflows/package-static-analysis.yml` — Ubuntu/Windows package-analysis CI gate.
 
+## Host antivirus
+
+- `Manage-HostAntivirus.cmd` and `scripts/sas_antivirus.py` — current-account provider discovery, explicit scan, and silent Windows Task Scheduler or native Linux cron registration.
+- `docs/HOST_ANTIVIRUS.md` — host setup, receipt meanings, privacy boundary, and rollback.
+- `schemas/harness/host-antivirus-receipt.schema.json` — private run receipt and ignored development candidate formats.
+
 ## Developer workstation provisioning
 
 - `Manage-AndroidToolchain.cmd`, `Manage-AdminBoxAndroidToolchain.cmd`, `scripts/Invoke-SasAndroidToolchain.ps1`, `Config/android-toolchain-profile.json`, `Config/android-adminbox-toolchain-profile.json`, and `docs/ANDROID_TOOLCHAIN_PROVISIONING.md` — role-factored Android Inventory/Plan/Apply/Verify/Repair on one shared engine: preserved `ptop_lab` front door plus the Admin Box 1 `adminbox_reference` front door; official acquisition and independent installation, CLI, GUI, build, emulator and SAS qualification proof.
