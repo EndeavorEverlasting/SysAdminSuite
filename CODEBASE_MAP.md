@@ -93,6 +93,7 @@ Use this map to load only the files needed for a task.
 ## Host antivirus
 
 - `Manage-HostAntivirus.cmd` and `scripts/sas_antivirus.py` — current-account provider discovery, explicit scan, and silent Windows Task Scheduler or native Linux cron registration.
+- `scripts/sas_av_sha256.py` — opt-in SysAdminSuite-owned exact signature matching behind the same schedule and receipt boundary.
 - `docs/HOST_ANTIVIRUS.md` — host setup, receipt meanings, privacy boundary, and rollback.
 - `schemas/harness/host-antivirus-receipt.schema.json` — private run receipt and ignored development candidate formats.
 

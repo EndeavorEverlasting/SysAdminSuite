@@ -30,7 +30,8 @@
             "none",
             "defender",
             "eset",
-            "clamav"
+            "clamav",
+            "sysadminsuite_sha256"
           ]
         },
         "recorded_at_utc": {
@@ -52,7 +53,9 @@
             "SCAN_TIMEOUT",
             "SCAN_UNCONFIRMED",
             "SCAN_INCOMPLETE",
-            "DETECTION_REPORTED"
+            "DETECTION_REPORTED",
+            "DETECTION_REPORTED_INCOMPLETE",
+            "OWNED_POLICY_REJECTED"
           ]
         },
         "next_action": {
@@ -68,7 +71,9 @@
             "REVIEW_SCAN_TIMEOUT",
             "VERIFY_PROVIDER_COMPLETION",
             "REVIEW_SCAN_COVERAGE",
-            "REVIEW_DETECTIONS_WITH_LOCAL_SCANNER"
+            "REVIEW_DETECTIONS_WITH_LOCAL_SCANNER",
+            "REVIEW_DETECTIONS_AND_INCOMPLETE_COVERAGE_LOCALLY",
+            "REVIEW_PINNED_SIGNATURE_POLICY"
           ]
         },
         "repository_sync": {
@@ -109,7 +114,8 @@
             "SCAN_FAILED",
             "SCAN_TIMEOUT",
             "SCAN_UNCONFIRMED",
-            "SCAN_INCOMPLETE"
+            "SCAN_INCOMPLETE",
+            "OWNED_POLICY_REJECTED"
           ]
         },
         "next_action": {
@@ -123,7 +129,8 @@
             "DIAGNOSE_PROVIDER_EXECUTION",
             "REVIEW_SCAN_TIMEOUT",
             "VERIFY_PROVIDER_COMPLETION",
-            "REVIEW_SCAN_COVERAGE"
+            "REVIEW_SCAN_COVERAGE",
+            "REVIEW_PINNED_SIGNATURE_POLICY"
           ]
         },
         "publication_state": {
@@ -228,6 +235,16 @@
             },
             "next_action": {
               "const": "REVIEW_SCAN_COVERAGE"
+            }
+          }
+        },
+        {
+          "properties": {
+            "gap_code": {
+              "const": "OWNED_POLICY_REJECTED"
+            },
+            "next_action": {
+              "const": "REVIEW_PINNED_SIGNATURE_POLICY"
             }
           }
         }

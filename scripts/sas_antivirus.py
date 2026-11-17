@@ -4,11 +4,13 @@ from __future__ import annotations
 
 import argparse
 import base64
+import hashlib
 import json
 import os
 import re
 import shlex
 import shutil
+import stat
 import subprocess
 import sys
 import tempfile
@@ -34,6 +36,8 @@ ACTIONS = {
     "SCAN_UNCONFIRMED": "VERIFY_PROVIDER_COMPLETION",
     "SCAN_INCOMPLETE": "REVIEW_SCAN_COVERAGE",
     "DETECTION_REPORTED": "REVIEW_DETECTIONS_WITH_LOCAL_SCANNER",
+    "DETECTION_REPORTED_INCOMPLETE": "REVIEW_DETECTIONS_AND_INCOMPLETE_COVERAGE_LOCALLY",
+    "OWNED_POLICY_REJECTED": "REVIEW_PINNED_SIGNATURE_POLICY",
 }
 
 
@@ -43,6 +47,7 @@ class Scanner:
     command: tuple[str, ...]
     results: dict[int, str]
     working_directory: Path | None = None
+    input_text: str | None = None
 
 
 def choose_scanner(os_name: str, windows_probe: str, has_file: Callable[[Path], bool], program_files: list[Path],
@@ -80,7 +85,7 @@ def choose_scanner(os_name: str, windows_probe: str, has_file: Callable[[Path], 
 
 def development_candidate(status: str) -> dict[str, str] | None:
     """Reconstruct from constants. The source receipt is never copied."""
-    if status not in ACTIONS or status == "DETECTION_REPORTED":
+    if status not in ACTIONS or status.startswith("DETECTION_REPORTED"):
         return None
     return {
         "schema_version": "sas-antivirus-development-candidate/v1",
@@ -93,6 +98,7 @@ def development_candidate(status: str) -> dict[str, str] | None:
 HISTORY_LIMIT = 32
 HISTORY_FILE = re.compile(r"run-\d{8}T\d{12}Z-[0-9a-f]{32}\.json")
 SCAN_TIMEOUT_SECONDS = 7200
+OWNED_TIMEOUT_SECONDS = 90
 TASK_SOURCE = "SysAdminSuite Host Antivirus"
 CRON_MARKER = " # SysAdminSuite:host-antivirus/v1"
 DAYS = ("Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday")
@@ -193,12 +199,49 @@ def discover(host: str) -> tuple[Scanner | None, str]:
 def scan(scanner: Scanner) -> str:
     command = powershell(DEFENDER_SCAN) if scanner.provider == "defender" else scanner.command
     try:
-        result = execute(command, timeout=SCAN_TIMEOUT_SECONDS, cwd=scanner.working_directory)
+        if scanner.input_text is None:
+            result = execute(command, timeout=SCAN_TIMEOUT_SECONDS, cwd=scanner.working_directory)
+        else:
+            result = execute(command, timeout=OWNED_TIMEOUT_SECONDS, input_text=scanner.input_text)
     except subprocess.TimeoutExpired:
         return "SCAN_TIMEOUT"
     except OSError:
         return "SCAN_FAILED"
     return scanner.results.get(result.returncode, "SCAN_FAILED")
+
+
+OWNED_PROFILE_BYTES = 64 * 1024
+OWNED_PROFILE_PIN = re.compile(r"[a-f0-9]{64}")
+
+
+def owned_scanner(request: str, *, validate_only: bool = False) -> Scanner:
+    action = (str(Path(sys.executable).absolute()), "-I",
+              str(Path(__file__).resolve().with_name("sas_av_sha256.py")))
+    if validate_only:
+        action += ("--validate-only",)
+    return Scanner("sysadminsuite_sha256", action, {
+        0: "NO_DETECTIONS_REPORTED", 1: "DETECTION_REPORTED", 10: "SCAN_INCOMPLETE",
+        11: "DETECTION_REPORTED_INCOMPLETE", 12: "OWNED_POLICY_REJECTED",
+    }, input_text=request)
+
+
+def owned_profile_path(state: Path, pin: str) -> Path:
+    if not OWNED_PROFILE_PIN.fullmatch(pin):
+        raise ValueError("Invalid local scanner profile fingerprint")
+    return state / f"owned-scan-{pin}.json"
+
+
+def load_owned_profile(state: Path, pin: str) -> str:
+    path = owned_profile_path(state, pin)
+    info = path.lstat()
+    if (not stat.S_ISREG(info.st_mode) or
+            getattr(info, "st_file_attributes", 0) & stat.FILE_ATTRIBUTE_REPARSE_POINT):
+        raise ValueError("Unsafe local scanner profile")
+    with path.open("rb") as stream:
+        raw = stream.read(OWNED_PROFILE_BYTES + 1)
+    if len(raw) > OWNED_PROFILE_BYTES or hashlib.sha256(raw).hexdigest() != pin:
+        raise ValueError("Local scanner profile changed")
+    return raw.decode("utf-8")
 
 
 def write_json(path: Path, payload: dict[str, str]) -> None:
@@ -302,7 +345,8 @@ def sync_candidates(state: Path, repo: Path = ROOT) -> str:
     return "SYNCED_LOCAL"
 
 
-def run_once(state: Path) -> tuple[dict[str, str], int]:
+def run_once(state: Path, request: str | None = None,
+             profile_pin: str | None = None) -> tuple[dict[str, str], int]:
     with state_lock(state) as acquired:
         if not acquired:
             return {"status": "ALREADY_RUNNING"}, 0
@@ -318,10 +362,19 @@ def run_once(state: Path) -> tuple[dict[str, str], int]:
 
         persist(state, new_receipt(host, "none", "RUNNING"), retain=False)
         provider = "none"
-        try:
-            scanner, status = discover(host)
-        except (OSError, KeyError, subprocess.SubprocessError):
-            scanner, status = None, "DISCOVERY_FAILED"
+        if profile_pin is not None or request is not None:
+            provider = "sysadminsuite_sha256"
+            try:
+                if profile_pin is not None:
+                    request = load_owned_profile(state, profile_pin)
+                scanner, status = owned_scanner(request), ""
+            except (OSError, ValueError):
+                scanner, status = None, "OWNED_POLICY_REJECTED"
+        else:
+            try:
+                scanner, status = discover(host)
+            except (OSError, KeyError, subprocess.SubprocessError):
+                scanner, status = None, "DISCOVERY_FAILED"
         if scanner:
             provider = scanner.provider
             persist(state, new_receipt(host, provider, "RUNNING"), retain=False)
@@ -339,9 +392,10 @@ def run_once(state: Path) -> tuple[dict[str, str], int]:
         return receipt, int(status in ACTIONS or failed_sync)
 
 
-def callback(state: Path) -> tuple[str, ...]:
+def callback(state: Path, profile_pin: str | None = None) -> tuple[str, ...]:
+    profile = ("--owned-profile", profile_pin) if profile_pin is not None else ()
     return (str(Path(sys.executable).absolute()), "-I", str(Path(__file__).resolve()),
-            "--state-dir", str(state), "run", "--quiet")
+            "--state-dir", str(state), *profile, "run", "--quiet")
 
 
 def cron_line(command: tuple[str, ...], day: str, at: str) -> str:
@@ -423,7 +477,7 @@ if ($existing -and $existing.Description -ne 'SysAdminSuite Host Antivirus') {
 }
 $xml = [Text.Encoding]::UTF8.GetString([Convert]::FromBase64String('PAYLOAD'))
 if ($xml) {
-    $xml = $xml.Replace('REPLACED_BY_CURRENT_SID', $sid)
+    $xml = $xml.Replace('<UserId>REPLACED_BY_CURRENT_SID</UserId>', ('<UserId>' + $sid + '</UserId>'))
     Register-ScheduledTask -TaskName $name -TaskPath '\' -Xml $xml -Force | Out-Null
     'INSTALLED'
 } elseif ($existing) {
@@ -435,16 +489,25 @@ if ($xml) {
     return result.stdout.strip() if result.returncode == 0 else "SCHEDULER_WRITE_FAILED"
 
 
-def manage_schedule(args: argparse.Namespace, state: Path) -> tuple[dict[str, str], int]:
+def manage_schedule(args: argparse.Namespace, state: Path,
+                    request: str | None = None) -> tuple[dict[str, str], int]:
     host = platform_name() if args.operation != "plan" else args.platform or platform_name()
     if host not in ("linux", "windows"):
         return {"status": "UNSUPPORTED_HOST"}, 1
-    command = callback(state)
+    profile_pin = None
+    if request is not None and args.operation != "remove":
+        validation = scan(owned_scanner(request, validate_only=True))
+        if validation != "NO_DETECTIONS_REPORTED":
+            return {"status": validation}, 1
+        profile_pin = hashlib.sha256(request.encode("utf-8")).hexdigest()
+    command = callback(state, profile_pin)
     plan = cron_line(command, args.day, args.at) if host == "linux" else scheduled_task_xml(
         command, args.day, args.at
     )
     if args.operation == "plan":
         return {"status": "PLAN_ONLY", "scheduler": host, "plan": plan}, 0
+    if profile_pin is not None:
+        write_json(owned_profile_path(state, profile_pin), json.loads(request))
     if host == "linux":
         status = apply_cron(plan if args.operation == "install" else None)
     else:
@@ -468,10 +531,27 @@ def private_state_path(state: Path) -> Path:
     return state
 
 
+def owned_request(args: argparse.Namespace) -> str | None:
+    values = (args.scan_directory, args.signatures, args.signature_sha256)
+    if not any(value is not None for value in values):
+        return None
+    if any(value is None for value in values):
+        raise ValueError("Owned scanning requires scope, signatures and a SHA-256 pin")
+    return json.dumps({
+        "scan_directory": str(args.scan_directory.expanduser().absolute()),
+        "signatures": str(args.signatures.expanduser().absolute()),
+        "signature_sha256": args.signature_sha256,
+    }, sort_keys=True) + "\n"
+
+
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--state-dir", type=Path, default=local_state(),
                         help="private directory outside the checkout")
+    parser.add_argument("--scan-directory", type=Path, help="directory for opt-in SHA-256 scanning")
+    parser.add_argument("--signatures", type=Path, help="operator-approved SHA-256 digest list")
+    parser.add_argument("--signature-sha256", help="approved SHA-256 of the exact digest-list file")
+    parser.add_argument("--owned-profile", help=argparse.SUPPRESS)
     actions = parser.add_subparsers(dest="action", required=True)
     actions.add_parser("inspect", help="detect a provider without scanning")
     actions.add_parser("sync", help="retry ignored checkout queue sync")
@@ -484,15 +564,24 @@ def main() -> int:
     args = parser.parse_args()
     try:
         state = private_state_path(args.state_dir)
+        request = owned_request(args)
+        if args.owned_profile is not None and (args.action != "run" or request is not None):
+            raise ValueError("Scheduled profile conflicts with the requested operation")
         if args.action == "run":
-            result, status = run_once(state)
+            result, status = run_once(state, request, args.owned_profile)
         elif args.action == "sync":
             result = {"status": sync_candidates(state)}
             status = int(result["status"] not in ("SYNCED_LOCAL", "NO_ACTIONABLE_GAPS"))
         elif args.action == "schedule":
             if args.platform and args.operation != "plan":
                 raise ValueError("Platform override is for preview only")
-            result, status = manage_schedule(args, state)
+            result, status = manage_schedule(args, state, request)
+        elif request is not None:
+            result = {"platform": platform_name(), "provider": "sysadminsuite_sha256",
+                      "status": scan(owned_scanner(request, validate_only=True))}
+            if result["status"] == "NO_DETECTIONS_REPORTED":
+                result["status"] = "READY"
+            status = int(result["status"] != "READY")
         else:
             host = platform_name()
             scanner, reason = discover(host)

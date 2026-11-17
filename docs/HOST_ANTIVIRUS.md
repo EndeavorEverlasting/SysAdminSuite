@@ -1,6 +1,6 @@
 # Host antivirus
 
-SysAdminSuite can run one installed, supported scanner on the local machine.
+SysAdminSuite can run one installed scanner or its own optional SHA-256 matcher on the local machine.
 The weekly job is opt-in and uses Windows Task Scheduler on Windows or the
 current user's crontab on native Linux. Use the Windows entrypoint for a
 Windows host that happens to run WSL.
@@ -66,6 +66,49 @@ repository's existing review process.
 
 Schema: `schemas/harness/host-antivirus-receipt.schema.json`. Acceptance:
 `python Tests/survey/test_sas_antivirus.py`.
+
+## SysAdminSuite SHA-256 matcher
+
+The optional first-party matcher checks exact contents against a list of approved
+file fingerprints. Supply three global arguments on the existing launcher
+before `inspect`, `run`, `schedule plan` or `schedule install`.
+
+| Argument | Value |
+| --- | --- |
+| `--scan-directory` | An explicit local folder. The matcher reads immediate regular files and skips links, reparse points and nested directories. |
+| `--signatures` | An approved local JSON file with `schema_version` equal to `sas-antivirus-sha256-signatures/v1` and a nonempty `sha256` array of unique lowercase 64-character hexadecimal digests. |
+| `--signature-sha256` | The approved SHA-256 of the entire JSON file as lowercase hexadecimal. Base trust on your reviewed source for the list. |
+
+`inspect` validates the configuration. `schedule plan` previews what will be
+registered, and `schedule install` reuses the existing quiet job. The runner
+manages one job per account. Install with the matcher options to select this
+mode, or install with the standard options to select vendor discovery. The
+job references a profile in private local state by fingerprint. The worker
+receives the scan directory, signature file and signature pin through stdin.
+The callback checks both fingerprints at every run. A changed list produces
+`OWNED_POLICY_REJECTED` until you approve the exact replacement bytes and
+update the job. Use `schedule remove` to remove the existing task.
+
+The matcher applies per-run limits of 10,000 directory entries, 64 MiB per
+file, 512 MiB of attempted file reads, and a 60-second processing budget.
+An inaccessible file, hard link, directory change, or exhausted budget can
+produce `SCAN_INCOMPLETE`. A confirmed match with incomplete coverage produces
+`DETECTION_REPORTED_INCOMPLETE`. A no-match result applies to covered files
+and the approved digests. A one-byte change creates a different fingerprint.
+
+The matcher reads files in place and uses the existing private receipts for
+normalized results. Scan paths, file contents, file names, and the approved
+policy pin are omitted from the result. Matching outcomes stay off the
+checkout queue. A rejected policy may create a fixed-code
+`REVIEW_PINNED_SIGNATURE_POLICY` candidate. Configure scope and signatures
+locally. Keep reviewed lists and sensitive evidence in local storage.
+
+This first-party engine is a base for later reviewed signature sources and
+broader detectors. Existing antivirus provides real-time and behavioral
+protection. The matcher uses the same quiet cadence and leaves remediation
+decisions with the operator.
+
+Focused inclusion and privacy check: `python Tests/survey/test_sas_av_sha256.py`.
 
 ## Sources for provider interfaces
 
