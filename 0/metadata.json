@@ -1,0 +1,37 @@
+{
+  "cli_version": "0.11.5",
+  "checkpoint_id": "01M7M18J5TJSDBM0193DSXW4PP",
+  "session_id": "c6bec8e0-2404-4657-8931-90243d8ac8bf",
+  "strategy": "manual-commit",
+  "created_at": "2026-11-17T05:56:46.9820167Z",
+  "branch": "feat/chrome-ghost-session-close",
+  "checkpoints_count": 9,
+  "save_step_count": 9,
+  "files_touched": [
+    "Close-ChromeGhostSession.cmd",
+    "Tests/survey/test_chrome_ghost_session_contracts.py",
+    "Tests/survey/test_clipboard_reset_contracts.py",
+    "Tests/survey/test_network_intent_canary_contracts.py",
+    "Tests/survey/test_universal_field_platform_contracts.py",
+    "docs/UNIVERSAL_FIELD_PLATFORM.md",
+    "scripts/Close-SasChromeGhostSession.ps1",
+    "scripts/Invoke-SasNetworkAwareField.ps1",
+    "scripts/Invoke-SasUniversalField.ps1"
+  ],
+  "agent": "Cursor",
+  "model": "default",
+  "turn_id": "1cca161b34e8",
+  "compact_transcript_start": 0,
+  "token_usage": {
+    "input_tokens": 232143,
+    "cache_creation_tokens": 0,
+    "cache_read_tokens": 13641984,
+    "output_tokens": 74032,
+    "api_call_count": 9
+  },
+  "session_metrics": {
+    "turn_count": 9,
+    "context_tokens": 232288,
+    "context_window_size": 256000
+  }
+}
