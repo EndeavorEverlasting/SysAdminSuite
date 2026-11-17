@@ -106,6 +106,7 @@ if ([string]::IsNullOrWhiteSpace($normalized) -or $normalized -eq 'platform') {
         Write-Host 'Printer file/batch mapping: sas printer file' -ForegroundColor Green
         Write-Host 'Printer mapping when GitHub is intentionally unavailable: sas printer offline' -ForegroundColor DarkGray
         Write-Host 'Clipboard recovery is available as: sas clipboard' -ForegroundColor Green
+        Write-Host 'Chrome ghost-session recovery is available as: sas chrome ghost' -ForegroundColor Green
         Write-Host 'Batch network probing is available as: sas network probe HOST01 HOST02 ...' -ForegroundColor Green
     }
     exit 0
@@ -231,6 +232,41 @@ switch ($normalized) {
             throw "Canonical clipboard reset script is missing: $clipboardReset"
         }
         & powershell.exe -NoLogo -NoProfile -ExecutionPolicy Bypass -File $clipboardReset
+        exit $LASTEXITCODE
+    }
+
+    'chrome' {
+        if ($actualArgs.Count -lt 1 -or $actualArgs.Count -gt 2) {
+            Write-Host 'Usage: sas chrome ghost [close|apply]' -ForegroundColor Red
+            exit 2
+        }
+        $chromeAction = ([string]$actualArgs[0]).Trim().ToLowerInvariant()
+        if ($chromeAction -ne 'ghost') {
+            Write-Host 'Usage: sas chrome ghost [close|apply]' -ForegroundColor Red
+            exit 2
+        }
+        $applyGhost = $false
+        if ($actualArgs.Count -eq 2) {
+            $chromeMode = ([string]$actualArgs[1]).Trim().ToLowerInvariant()
+            if ($chromeMode -notin @('close', 'apply')) {
+                Write-Host 'Usage: sas chrome ghost [close|apply]' -ForegroundColor Red
+                exit 2
+            }
+            $applyGhost = $true
+        }
+        $chromeGhost = Join-Path $runtimeRoot 'scripts\Close-SasChromeGhostSession.ps1'
+        if (-not (Test-Path -LiteralPath $chromeGhost -PathType Leaf)) {
+            $chromeGhost = Join-Path $controllerRoot 'scripts\Close-SasChromeGhostSession.ps1'
+        }
+        if (-not (Test-Path -LiteralPath $chromeGhost -PathType Leaf)) {
+            throw "Canonical Chrome ghost-session script is missing: $chromeGhost"
+        }
+        if ($applyGhost) {
+            & powershell.exe -NoLogo -NoProfile -ExecutionPolicy Bypass -File $chromeGhost -Apply
+        }
+        else {
+            & powershell.exe -NoLogo -NoProfile -ExecutionPolicy Bypass -File $chromeGhost
+        }
         exit $LASTEXITCODE
     }
 

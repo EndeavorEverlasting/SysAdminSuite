@@ -38,7 +38,7 @@ def main() -> None:
     assert "'clipboard'" in launcher
     assert 'Usage: sas clipboard [reset]' in launcher
     assert 'Reset-SasClipboard.ps1' in launcher
-    clipboard_block = launcher.split("    'clipboard' {", 1)[1].split("\n    'autologon' {", 1)[0]
+    clipboard_block = launcher.split("    'clipboard' {", 1)[1].split("\n    'chrome' {", 1)[0]
     assert 'Assert-SasProtectedForAction' not in clipboard_block
 
     for marker in (
