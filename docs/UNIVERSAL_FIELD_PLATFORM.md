@@ -10,7 +10,7 @@ The installed `sas` front door now names the network requirement **before** it r
 | --- | --- | --- |
 | `sas refresh` | **GUEST / INTERNET** | If the workstation is on a proven saved WAB profile and an exact Guest/Internet return bookmark exists, SysAdminSuite may switch to that saved WLAN profile for repository sync and then restore WAB. |
 | `sas printer`, target network probes, protected AutoLogon/Cybernet actions | **PROTECTED NORTHWELL** | Existing hardwire, WAB, or authenticated `DomainAuthenticated` VPN authority is accepted. A previously paired Guest/WAB WLAN pair may be switched and restored automatically. |
-| `sas clipboard`, `sas platform`, local status | **LOCAL / ANY** | The network is left unchanged. |
+| `sas clipboard`, `sas chrome ghost`, `sas platform`, local status | **LOCAL / ANY** | The network is left unchanged. |
 | legacy/delegated commands without a universal network contract | **COMMAND-SPECIFIC / UNCHANGED** | The wrapper does not guess; the delegated workflow owns any additional gate. |
 
 Automatic switching is intentionally bounded to **saved WLAN profiles** that Windows already knows. The transition layer stores no Wi-Fi key material, does not inspect passwords, proves the exact destination profile, and records enough state to restore the starting WLAN after the command. Saved-profile existence is checked by asking Windows for that exact profile and using the native success/failure result; SysAdminSuite does not parse English `netsh` labels, so automatic profile proof is not tied to the display language of Windows. If an automatic transition fails, it makes a best-effort return to the starting saved WLAN and fails rather than continuing on an unproven network. A failed post-command restore also converts an otherwise successful wrapper result to failure so the operator is not told the workflow is fully complete while the workstation is stranded on the wrong network.
@@ -93,6 +93,18 @@ SysAdminSuite keeps that exact mechanism behind two easier entry points:
 
 The wrapper is local-only. It restarts only the current Windows Clipboard User Service instance(s) matching `cbdhsvc_*`, verifies they return to `Running`, and reports the instance names. It does not require Northwell protected-network authority and does not touch printers, AutoLogon, target hosts, or the Windows spooler.
 
+## Local Chrome ghost-session recovery
+
+Chrome can leave a crash-recovery browser root running with `--restart`, no visible `Chrome_WidgetWin_1` UI, and an `audio.mojom.AudioService` child that keeps playing sound after every window looks closed. SysAdminSuite classifies that pattern as `CHROME_GHOST_SESSION`.
+
+Entry points:
+
+- `sas chrome ghost` — discover/dry-run only;
+- `sas chrome ghost close` (or `apply`) — terminate only classified ghost browser roots with `taskkill /PID <root> /T /F`;
+- `Close-ChromeGhostSession.cmd` / `Close-ChromeGhostSession.cmd apply` — visible double-click fallback.
+
+The wrapper is local-only. It never uses `Stop-Process -Name chrome`, never closes a session that still owns a visible titled Chrome window, and does not require Northwell protected-network authority. Remediation is close-only: `taskkill /T /F` on the classified ghost root. Muting or clamping volume is forbidden — that is a band-aid that pretends the ghost is fixed while the process can keep running.
+
 ## Do not distribute SysAdminSuite among targets
 
 The SysAdminSuite runtime is **controller-local**. `Test-SasLocalControllerPath` rejects UNC paths and mapped network drives as runtime authority. The universal launcher records `LOCAL_MACHINE_ONLY` as the runtime scope.
@@ -108,6 +120,7 @@ The universal front door owns machine/runtime discovery and protected-path admis
 - `sas network`
 - `sas printer` / `Map-NorthwellPrinter.cmd` — canonical system-wide Northwell printer mapping after the same protected-path authority gate;
 - `sas clipboard` — local Windows Clipboard User Service recovery;
+- `sas chrome ghost` — local Chrome crash-recovery ghost-session discover/close;
 - `sas autologon Remote HOST` — sealed crash-safe bootstrap and durable field evidence;
 - `sas autologon Recover HOST` — recovery-only;
 - protected `sas cybernet ...` operations;

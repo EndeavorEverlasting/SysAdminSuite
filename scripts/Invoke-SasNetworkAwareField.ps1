@@ -162,6 +162,7 @@ switch ($normalized) {
     '' { $intent = 'LocalOnly' }
     'platform' { $intent = 'LocalOnly' }
     'clipboard' { $intent = 'LocalOnly' }
+    'chrome' { $intent = 'LocalOnly' }
     'refresh' {
         if ($actualArgs.Count -eq 0) { $intent = 'InternetSync' }
     }

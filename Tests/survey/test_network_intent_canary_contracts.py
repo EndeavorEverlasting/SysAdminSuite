@@ -39,6 +39,7 @@ def test_network_intents_match_operator_workflows() -> None:
         "'printer'",
         "$intent = 'ProtectedNorthwell'",
         "'clipboard' { $intent = 'LocalOnly' }",
+        "'chrome' { $intent = 'LocalOnly' }",
         "'platform' { $intent = 'LocalOnly' }",
         "'network'",
         "'autologon'",

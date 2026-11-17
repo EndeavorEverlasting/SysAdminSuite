@@ -64,6 +64,7 @@ def main() -> None:
         "'printer'",
         "$intent = 'ProtectedNorthwell'",
         "'clipboard' { $intent = 'LocalOnly' }",
+        "'chrome' { $intent = 'LocalOnly' }",
         "Enter-SasNetworkIntent",
         "Restore-SasNetworkIntent",
         "& powershell.exe @childArgs",
@@ -83,8 +84,9 @@ def main() -> None:
         assert marker in network_intent, marker
 
     for marker in (
-        'Assert-SasProtectedNetworkAuthority', "'refresh'", "'printer'", "'clipboard'", "'autologon'", "'cybernet'",
+        'Assert-SasProtectedNetworkAuthority', "'refresh'", "'printer'", "'clipboard'", "'chrome'", "'autologon'", "'cybernet'",
         'Bootstrap-SysAdminSuitePrinter.ps1', 'Bootstrap-SysAdminSuiteAutoLogon.cmd', 'Reset-SasClipboard.ps1',
+        'Close-SasChromeGhostSession.ps1',
         'Run-AutoLogonOnsite.cmd', 'Confirm-SasNorthwellNetwork.ps1', '$env:SAS_RUNTIME_ROOT = $runtimeRoot',
         '$env:SAS_REPO_ROOT = $controllerRoot', '$actualArgs = @(', 'LOCAL_MACHINE_ONLY',
     ):
@@ -148,9 +150,14 @@ def main() -> None:
     assert "@('status','--porcelain','--untracked-files=no','--')" in printer_bootstrap
     assert "$launcherName = if ($Mode -eq 'File')" in printer_bootstrap
 
-    clipboard_block = launcher.split("    'clipboard' {", 1)[1].split("\n    'autologon' {", 1)[0]
+    clipboard_block = launcher.split("    'clipboard' {", 1)[1].split("\n    'chrome' {", 1)[0]
     assert 'Assert-SasProtectedForAction' not in clipboard_block
     assert 'Usage: sas clipboard [reset]' in clipboard_block
+
+    chrome_block = launcher.split("    'chrome' {", 1)[1].split("\n    'autologon' {", 1)[0]
+    assert 'Assert-SasProtectedForAction' not in chrome_block
+    assert 'Usage: sas chrome ghost [close|apply]' in chrome_block
+    assert '-Apply' in chrome_block
 
     assert 'Network readiness probe for $($actualArgs[0])' in launcher
     assert 'Invoke-SasLegacyDispatcher' in launcher
@@ -181,7 +188,7 @@ def main() -> None:
     for marker in (
         'hardwire', 'NSLIJHS-WAB', 'authenticated VPN', 'machine-local', 'not copied to target machines',
         'username-specific path is not execution authority', 'sas printer', 'sas clipboard',
-        'NETWORK REQUIRED', 'automatic return', 'saved WLAN',
+        'sas chrome ghost', 'NETWORK REQUIRED', 'automatic return', 'saved WLAN',
     ):
         assert marker.lower() in doc.lower(), marker
 
