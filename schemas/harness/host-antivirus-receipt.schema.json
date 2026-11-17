@@ -30,7 +30,8 @@
             "none",
             "defender",
             "eset",
-            "clamav"
+            "clamav",
+            "filesteward"
           ]
         },
         "recorded_at_utc": {
@@ -52,7 +53,9 @@
             "SCAN_TIMEOUT",
             "SCAN_UNCONFIRMED",
             "SCAN_INCOMPLETE",
-            "DETECTION_REPORTED"
+            "DETECTION_REPORTED",
+            "DETECTOR_POLICY_REJECTED",
+            "DETECTOR_DEPENDENCY_UNAVAILABLE"
           ]
         },
         "next_action": {
@@ -68,7 +71,9 @@
             "REVIEW_SCAN_TIMEOUT",
             "VERIFY_PROVIDER_COMPLETION",
             "REVIEW_SCAN_COVERAGE",
-            "REVIEW_DETECTIONS_WITH_LOCAL_SCANNER"
+            "REVIEW_DETECTIONS_WITH_LOCAL_SCANNER",
+            "REVIEW_FILESTEWARD_PROFILE",
+            "VERIFY_FILESTEWARD_INSTALL"
           ]
         },
         "repository_sync": {
@@ -83,7 +88,61 @@
         "sync_next_action": {
           "const": "RETRY_LOCAL_QUEUE_SYNC"
         }
-      }
+      },
+      "allOf": [
+        {
+          "if": {
+            "properties": {
+              "provider": {
+                "const": "filesteward"
+              }
+            }
+          },
+          "then": {
+            "properties": {
+              "status": {
+                "enum": [
+                  "RUNNING",
+                  "SCAN_COMPLETED",
+                  "SCAN_INTERRUPTED",
+                  "SCAN_FAILED",
+                  "SCAN_TIMEOUT",
+                  "SCAN_INCOMPLETE",
+                  "UNSUPPORTED_HOST",
+                  "DETECTOR_POLICY_REJECTED",
+                  "DETECTOR_DEPENDENCY_UNAVAILABLE"
+                ]
+              }
+            },
+            "not": {
+              "anyOf": [
+                {
+                  "required": [
+                    "repository_sync"
+                  ]
+                },
+                {
+                  "required": [
+                    "sync_next_action"
+                  ]
+                }
+              ]
+            }
+          },
+          "else": {
+            "properties": {
+              "status": {
+                "not": {
+                  "enum": [
+                    "DETECTOR_POLICY_REJECTED",
+                    "DETECTOR_DEPENDENCY_UNAVAILABLE"
+                  ]
+                }
+              }
+            }
+          }
+        }
+      ]
     },
     {
       "type": "object",

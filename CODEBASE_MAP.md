@@ -93,6 +93,7 @@ Use this map to load only the files needed for a task.
 ## Host antivirus
 
 - `Manage-HostAntivirus.cmd` and `scripts/sas_antivirus.py` — current-account provider discovery, explicit scan, and silent Windows Task Scheduler or native Linux cron registration.
+- FileSteward owns exact-match detection, signed signature policy and local review. SysAdminSuite schedules its opt-in CLI through a status-only adapter.
 - `docs/HOST_ANTIVIRUS.md` — host setup, receipt meanings, privacy boundary, and rollback.
 - `schemas/harness/host-antivirus-receipt.schema.json` — private run receipt and ignored development candidate formats.
 
