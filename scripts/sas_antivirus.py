@@ -22,6 +22,7 @@ from xml.etree import ElementTree as ET
 
 ROOT = Path(__file__).resolve().parents[1]
 QUEUE = Path("evidence/antivirus-queue")
+SCAN_TIMEOUT_SECONDS = 7200
 ACTIONS = {
     "NO_PROVIDER": "REVIEW_PROVIDER_AVAILABILITY",
     "DISCOVERY_FAILED": "DIAGNOSE_PROVIDER_DISCOVERY",
@@ -35,6 +36,10 @@ ACTIONS = {
     "SCAN_INCOMPLETE": "REVIEW_SCAN_COVERAGE",
     "DETECTION_REPORTED": "REVIEW_DETECTIONS_WITH_LOCAL_SCANNER",
 }
+DETECTOR_ACTIONS = {
+    "DETECTOR_POLICY_REJECTED": "REVIEW_FILESTEWARD_PROFILE",
+    "DETECTOR_DEPENDENCY_UNAVAILABLE": "VERIFY_FILESTEWARD_INSTALL",
+}
 
 
 @dataclass(frozen=True)
@@ -43,6 +48,7 @@ class Scanner:
     command: tuple[str, ...]
     results: dict[int, str]
     working_directory: Path | None = None
+    timeout_seconds: int = SCAN_TIMEOUT_SECONDS
 
 
 def choose_scanner(os_name: str, windows_probe: str, has_file: Callable[[Path], bool], program_files: list[Path],
@@ -92,9 +98,10 @@ def development_candidate(status: str) -> dict[str, str] | None:
 
 HISTORY_LIMIT = 32
 HISTORY_FILE = re.compile(r"run-\d{8}T\d{12}Z-[0-9a-f]{32}\.json")
-SCAN_TIMEOUT_SECONDS = 7200
 TASK_SOURCE = "SysAdminSuite Host Antivirus"
 CRON_MARKER = " # SysAdminSuite:host-antivirus/v1"
+FILESTEWARD_TASK_SOURCE = "SysAdminSuite FileSteward Detector"
+FILESTEWARD_CRON_MARKER = " # SysAdminSuite:filesteward-detector/v1"
 DAYS = ("Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday")
 RECEIPT_VERSION = "sas-antivirus-receipt/v1"
 TASK_NS = "http://schemas.microsoft.com/windows/2004/02/mit/task"
@@ -193,7 +200,7 @@ def discover(host: str) -> tuple[Scanner | None, str]:
 def scan(scanner: Scanner) -> str:
     command = powershell(DEFENDER_SCAN) if scanner.provider == "defender" else scanner.command
     try:
-        result = execute(command, timeout=SCAN_TIMEOUT_SECONDS, cwd=scanner.working_directory)
+        result = execute(command, timeout=scanner.timeout_seconds, cwd=scanner.working_directory)
     except subprocess.TimeoutExpired:
         return "SCAN_TIMEOUT"
     except OSError:
@@ -245,7 +252,7 @@ def new_receipt(host: str, provider: str, status: str) -> dict[str, str]:
     return {
         "schema_version": RECEIPT_VERSION, "platform": host, "provider": provider,
         "recorded_at_utc": datetime.now(timezone.utc).isoformat(timespec="seconds"),
-        "status": status, "next_action": ACTIONS.get(status, "NONE"),
+        "status": status, "next_action": ACTIONS.get(status, DETECTOR_ACTIONS.get(status, "NONE")),
     }
 
 
@@ -275,7 +282,8 @@ def sync_candidates(state: Path, repo: Path = ROOT) -> str:
             receipt = json.loads(path.read_text(encoding="utf-8"))
         except (ValueError, OSError):
             continue
-        if not isinstance(receipt, dict) or receipt.get("schema_version") != RECEIPT_VERSION:
+        if (not isinstance(receipt, dict) or receipt.get("schema_version") != RECEIPT_VERSION
+                or receipt.get("provider") == "filesteward"):
             continue
         code = receipt.get("status")
         candidate = development_candidate(code) if isinstance(code, str) else None
@@ -302,32 +310,53 @@ def sync_candidates(state: Path, repo: Path = ROOT) -> str:
     return "SYNCED_LOCAL"
 
 
-def run_once(state: Path) -> tuple[dict[str, str], int]:
+def filesteward_scanner(python: Path | None, profile: str | None, action: str = "run") -> Scanner:
+    if (python is None or not python.is_absolute()
+            or python.drive.startswith("\\\\") or re.search(r"[%\r\n\0]", str(python))
+            or profile is None or not re.fullmatch(r"[0-9a-f]{64}", profile)):
+        raise ValueError("Configure a local FileSteward interpreter and opaque profile ID")
+    # Python isolated mode omits the entrypoint's directory from imports.
+    scripts = str(Path(__file__).resolve().parent)
+    if scripts not in sys.path:
+        sys.path.insert(0, scripts)
+    from sas_antivirus_semantics import FILESTEWARD_RESULTS
+
+    command = (str(python), "-I", "-m", "filesteward.cli", "antivirus", action, "--profile", profile)
+    return Scanner("filesteward", command, FILESTEWARD_RESULTS, timeout_seconds=90)
+
+
+def run_once(state: Path, detector: Scanner | None = None) -> tuple[dict[str, str], int]:
     with state_lock(state) as acquired:
         if not acquired:
             return {"status": "ALREADY_RUNNING"}, 0
         host = platform_name()
         latest = state / "latest.json"
+        provider = detector.provider if detector is not None else "none"
         if latest.exists():
             try:
                 previous = json.loads(latest.read_text(encoding="utf-8"))
             except (OSError, ValueError):
                 previous = {}
             if isinstance(previous, dict) and previous.get("status") == "RUNNING":
-                persist(state, new_receipt(host, "none", "SCAN_INTERRUPTED"))
+                persist(state, new_receipt(host, provider, "SCAN_INTERRUPTED"))
 
-        persist(state, new_receipt(host, "none", "RUNNING"), retain=False)
-        provider = "none"
-        try:
-            scanner, status = discover(host)
-        except (OSError, KeyError, subprocess.SubprocessError):
-            scanner, status = None, "DISCOVERY_FAILED"
+        persist(state, new_receipt(host, provider, "RUNNING"), retain=False)
+        if detector is not None:
+            scanner = detector if host in ("linux", "windows") else None
+            status = "UNSUPPORTED_HOST"
+        else:
+            try:
+                scanner, status = discover(host)
+            except (OSError, KeyError, subprocess.SubprocessError):
+                scanner, status = None, "DISCOVERY_FAILED"
         if scanner:
             provider = scanner.provider
             persist(state, new_receipt(host, provider, "RUNNING"), retain=False)
             status = scan(scanner)
         receipt = new_receipt(host, provider, status)
         persist(state, receipt)
+        if detector is not None:
+            return receipt, int(status in ACTIONS or status in DETECTOR_ACTIONS)
         try:
             receipt["repository_sync"] = sync_candidates(state)
         except (OSError, subprocess.SubprocessError):
@@ -339,24 +368,24 @@ def run_once(state: Path) -> tuple[dict[str, str], int]:
         return receipt, int(status in ACTIONS or failed_sync)
 
 
-def callback(state: Path) -> tuple[str, ...]:
+def callback(state: Path, detector_args: tuple[str, ...] = ()) -> tuple[str, ...]:
     return (str(Path(sys.executable).absolute()), "-I", str(Path(__file__).resolve()),
-            "--state-dir", str(state), "run", "--quiet")
+            "--state-dir", str(state), "run", "--quiet", *detector_args)
 
 
-def cron_line(command: tuple[str, ...], day: str, at: str) -> str:
+def cron_line(command: tuple[str, ...], day: str, at: str, *, detector: bool = False) -> str:
     if any(re.search(r"[%\r\n\0]", arg) for arg in command):
         raise ValueError("Path cannot be represented reliably in crontab")
     hour, minute = at.split(":")
     return (f"{int(minute)} {int(hour)} * * {DAYS.index(day)} " +
             " ".join(shlex.quote(arg) for arg in command) + " </dev/null >/dev/null 2>&1" +
-            CRON_MARKER)
+            (FILESTEWARD_CRON_MARKER if detector else CRON_MARKER))
 
 
-def scheduled_task_xml(command: tuple[str, ...], day: str, at: str) -> str:
+def scheduled_task_xml(command: tuple[str, ...], day: str, at: str, *, detector: bool = False) -> str:
     task = ET.Element("Task", {"xmlns": TASK_NS, "version": "1.3"})
     registration = ET.SubElement(task, "RegistrationInfo")
-    ET.SubElement(registration, "Description").text = TASK_SOURCE
+    ET.SubElement(registration, "Description").text = FILESTEWARD_TASK_SOURCE if detector else TASK_SOURCE
     triggers = ET.SubElement(task, "Triggers")
     trigger = ET.SubElement(triggers, "CalendarTrigger")
     # A local calendar boundary with no timezone offset preserves the selected wall time.
@@ -383,7 +412,7 @@ def scheduled_task_xml(command: tuple[str, ...], day: str, at: str) -> str:
     return ET.tostring(task, encoding="unicode")
 
 
-def apply_cron(line: str | None) -> str:
+def apply_cron(line: str | None, *, detector: bool = False) -> str:
     crontab = shutil.which("crontab")
     if not crontab:
         return "SCHEDULER_UNAVAILABLE"
@@ -393,7 +422,7 @@ def apply_cron(line: str | None) -> str:
     if query.returncode and not (query.returncode == 1 and b"no crontab for " in query.stderr):
         return "SCHEDULER_READ_FAILED"
     old = query.stdout if query.returncode == 0 else b""
-    marker = CRON_MARKER.encode("ascii")
+    marker = (FILESTEWARD_CRON_MARKER if detector else CRON_MARKER).encode("ascii")
     # Split physical cron lines only. Preserve unrelated text byte for byte.
     updated = b"\n".join(entry for entry in old.split(b"\n")
                          if not entry.removesuffix(b"\r").endswith(marker))
@@ -410,15 +439,15 @@ def apply_cron(line: str | None) -> str:
     return "INSTALLED" if line else "REMOVED"
 
 
-def apply_windows_task(xml: str | None) -> str:
+def apply_windows_task(xml: str | None, *, detector: bool = False) -> str:
     encoded = base64.b64encode((xml or "").encode("utf-8")).decode("ascii")
     setup = r"""
 $ErrorActionPreference = 'Stop'
 $ProgressPreference = 'SilentlyContinue'
 $sid = [Security.Principal.WindowsIdentity]::GetCurrent().User.Value
-$name = 'SysAdminSuite-HostAntivirus-' + $sid
+$name = 'JOBNAME-' + $sid
 $existing = Get-ScheduledTask -TaskName $name -TaskPath '\' -ErrorAction SilentlyContinue
-if ($existing -and $existing.Description -ne 'SysAdminSuite Host Antivirus') {
+if ($existing -and $existing.Description -ne 'JOBDESCRIPTION') {
     'SCHEDULER_NAME_CONFLICT'; exit 0
 }
 $xml = [Text.Encoding]::UTF8.GetString([Convert]::FromBase64String('PAYLOAD'))
@@ -430,7 +459,10 @@ if ($xml) {
     Unregister-ScheduledTask -TaskName $name -TaskPath '\' -Confirm:$false
     'REMOVED'
 } else { 'UNCHANGED' }
-""".replace("PAYLOAD", encoded)
+"""
+    name = "SysAdminSuite-FileStewardDetector" if detector else "SysAdminSuite-HostAntivirus"
+    description = FILESTEWARD_TASK_SOURCE if detector else TASK_SOURCE
+    setup = setup.replace("JOBNAME", name).replace("JOBDESCRIPTION", description).replace("PAYLOAD", encoded)
     result = execute(powershell(setup), capture=True)
     return result.stdout.strip() if result.returncode == 0 else "SCHEDULER_WRITE_FAILED"
 
@@ -439,16 +471,30 @@ def manage_schedule(args: argparse.Namespace, state: Path) -> tuple[dict[str, st
     host = platform_name() if args.operation != "plan" else args.platform or platform_name()
     if host not in ("linux", "windows"):
         return {"status": "UNSUPPORTED_HOST"}, 1
-    command = callback(state)
-    plan = cron_line(command, args.day, args.at) if host == "linux" else scheduled_task_xml(
-        command, args.day, args.at
-    )
+    detector = args.mode == "filesteward"
+    plan = None
+    if args.operation != "remove":
+        extra = ()
+        if detector:
+            check = filesteward_scanner(args.filesteward_python, args.profile, "check").command
+            if args.operation == "install":
+                if execute(check, timeout=15).returncode:
+                    return {"status": "DETECTOR_PREFLIGHT_FAILED", "scheduler": host}, 1
+            extra = ("--mode", "filesteward", "--filesteward-python", str(args.filesteward_python),
+                     "--profile", args.profile)
+        command = callback(state, extra)
+        plan = (cron_line(command, args.day, args.at, detector=detector) if host == "linux"
+                else scheduled_task_xml(command, args.day, args.at, detector=detector))
     if args.operation == "plan":
         return {"status": "PLAN_ONLY", "scheduler": host, "plan": plan}, 0
-    if host == "linux":
-        status = apply_cron(plan if args.operation == "install" else None)
-    else:
-        status = apply_windows_task(plan if args.operation == "install" else None)
+    # The default call shape is also used by existing provider-mode callers.
+    apply = apply_cron if host == "linux" else apply_windows_task
+    # Both jobs edit the same per-account scheduler, independent of receipt location.
+    scheduler_state = private_state_path(local_state() / "scheduler", reject_redirect=True)
+    with state_lock(scheduler_state) as acquired:
+        if not acquired:
+            return {"status": "SCHEDULER_BUSY", "scheduler": host}, 1
+        status = apply(plan, detector=True) if detector else apply(plan)
     return {"status": status, "scheduler": host}, int(status not in ("INSTALLED", "REMOVED", "UNCHANGED"))
 
 
@@ -458,8 +504,12 @@ def clock_time(value: str) -> str:
     return value
 
 
-def private_state_path(state: Path) -> Path:
-    state = state.expanduser().resolve()
+def private_state_path(state: Path, *, reject_redirect: bool = False) -> Path:
+    state = state.expanduser()
+    resolved = state.resolve()
+    if reject_redirect and resolved != state:
+        raise ValueError("Detector receipts cannot redirect out of local state")
+    state = resolved
     if any((parent / ".git").exists() for parent in (state, *state.parents)):
         raise ValueError("Private state must be outside Git working trees")
     for name in (".lock", "latest.json", "history"):
@@ -475,17 +525,28 @@ def main() -> int:
     actions = parser.add_subparsers(dest="action", required=True)
     actions.add_parser("inspect", help="detect a provider without scanning")
     actions.add_parser("sync", help="retry ignored checkout queue sync")
-    actions.add_parser("run", help="run one local scan").add_argument("--quiet", action="store_true")
+    run = actions.add_parser("run", help="run one local scan")
+    run.add_argument("--quiet", action="store_true")
     schedule = actions.add_parser("schedule", help="preview, install or remove one weekly job")
     schedule.add_argument("operation", choices=("plan", "install", "remove"))
     schedule.add_argument("--platform", choices=("linux", "windows"), help="preview platform only")
     schedule.add_argument("--day", choices=DAYS, default="Sunday")
     schedule.add_argument("--at", type=clock_time, default="03:30")
+    for action in (run, schedule):
+        action.add_argument("--mode", choices=("provider", "filesteward"), default="provider")
+        action.add_argument("--filesteward-python", type=Path, help="absolute local FileSteward interpreter")
+        action.add_argument("--profile", help="opaque FileSteward detector profile ID")
     args = parser.parse_args()
     try:
         state = private_state_path(args.state_dir)
+        detector_mode = getattr(args, "mode", "provider") == "filesteward"
+        if not detector_mode and (getattr(args, "filesteward_python", None) or getattr(args, "profile", None)):
+            raise ValueError("FileSteward options require FileSteward mode")
         if args.action == "run":
-            result, status = run_once(state)
+            detector = filesteward_scanner(args.filesteward_python, args.profile) if detector_mode else None
+            if detector is not None:
+                state = private_state_path(state / "filesteward", reject_redirect=True)
+            result, status = run_once(state, detector)
         elif args.action == "sync":
             result = {"status": sync_candidates(state)}
             status = int(result["status"] not in ("SYNCED_LOCAL", "NO_ACTIONABLE_GAPS"))

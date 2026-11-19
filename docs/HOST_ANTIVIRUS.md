@@ -44,6 +44,37 @@ local checkout and local state. The Linux job needs an active cron service and
 runs only while it is up. The job launches the stable checkout path captured
 at installation. Reinstall the job if the checkout or Python moves.
 
+## Schedule a FileSteward detector profile
+
+[FileSteward](https://github.com/EndeavorEverlasting/FileSteward/blob/main/docs/antivirus.md)
+owns the approved scan directory, signed SHA-256 signatures, review queue
+and remediation judgment. First approve a profile in FileSteward with its
+antivirus extra installed. Use the absolute local path to that FileSteward
+Python interpreter and the returned opaque profile ID when configuring the
+SysAdminSuite job.
+
+`schedule plan` and `schedule install` accept
+`--mode filesteward --filesteward-python ABSOLUTE_PYTHON_PATH --profile PROFILE_ID`.
+Install runs FileSteward's quiet policy check before registering a separate
+weekly job. `run` accepts the same three flags for an immediate run.
+`schedule remove --mode filesteward` removes only the detector's job.
+Provider-mode commands retain their default behavior, and the two jobs can
+coexist. On Windows they use separate Task Scheduler names. On Linux they use
+separate crontab markers.
+
+The [antivirus ownership and status contract](../CODEBASE_MAP.md#antivirus-ownership-and-status-contract)
+defines the public compatibility check. The scheduler uses that consumer's
+exit-code mapping. A complete run has the same status for either match
+outcome. An unknown exit or an ambiguous process failure becomes `SCAN_FAILED`.
+
+SysAdminSuite launches the detector as a separate local process and drops its
+output. Its private `filesteward/latest.json` and rolling history contain
+completion, incomplete coverage, policy rejection, setup dependency,
+execution failure or timeout status. A completed run produces the same
+SysAdminSuite status whether FileSteward queued matches or found none.
+FileSteward retains the evidence. Its job skips the SysAdminSuite checkout
+queue and uses the approved bundle already present in FileSteward.
+
 ## Receipts and repository sync
 
 The silent job writes `latest.json` and a rolling history of 32 private scan

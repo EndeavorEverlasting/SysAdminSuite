@@ -78,6 +78,22 @@ Use this map to load only the files needed for a task.
 - `.github/workflows/harness-infrastructure.yml` — completeness, outcome/deployment-state contract, local-harness, text-policy, syntax, whitespace, and Windows handoff CI gate.
 - `.github/workflows/harness-registry-integrity.yml` — focused registry/schema/outcome/deployment-state integrity, fresh-agent wiring, report-rendering, hook-syntax, and whitespace CI gate; it reruns when the AutoLogon/Cybernet deployment surfaces or product truths it validates change.
 
+## Antivirus ownership and status contract
+
+SysAdminSuite owns installed antivirus providers, scheduling and operational
+receipts. [FileSteward](https://github.com/EndeavorEverlasting/FileSteward/blob/main/docs/antivirus.md)
+owns opted-in directory inspection, signature trust, match evidence and
+review. An exact match goes to local human review. Remediation requires
+independent operator approval in FileSteward.
+
+The FileSteward scheduler interface consumes only a process exit status.
+Completion does not encode match presence. Partial coverage remains
+incomplete even when FileSteward saw a match. The adapter never imports
+the private review queue, paths, file hashes, or approval state.
+`scripts/sas_antivirus_semantics.py` is the consumer mapping and validates
+the public JSON from `filesteward antivirus contract`. The validation command
+runs without an installed provider or OS scheduler.
+
 ## Package analysis
 
 - `.claude/skills/package-static-analysis/SKILL.md` — umbrella package workflow across static, semantic, offline trust, and VM qualification.
@@ -93,6 +109,7 @@ Use this map to load only the files needed for a task.
 ## Host antivirus
 
 - `Manage-HostAntivirus.cmd` and `scripts/sas_antivirus.py` — current-account provider discovery, explicit scan, and silent Windows Task Scheduler or native Linux cron registration.
+- FileSteward owns exact-match detection, signed signature policy and local review. SysAdminSuite schedules its opt-in CLI through a status-only adapter.
 - `docs/HOST_ANTIVIRUS.md` — host setup, receipt meanings, privacy boundary, and rollback.
 - `schemas/harness/host-antivirus-receipt.schema.json` — private run receipt and ignored development candidate formats.
 
