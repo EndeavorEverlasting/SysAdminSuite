@@ -102,12 +102,6 @@ TASK_SOURCE = "SysAdminSuite Host Antivirus"
 CRON_MARKER = " # SysAdminSuite:host-antivirus/v1"
 FILESTEWARD_TASK_SOURCE = "SysAdminSuite FileSteward Detector"
 FILESTEWARD_CRON_MARKER = " # SysAdminSuite:filesteward-detector/v1"
-FILESTEWARD_RESULTS = {
-    0: "SCAN_COMPLETED",
-    10: "SCAN_INCOMPLETE",
-    12: "DETECTOR_POLICY_REJECTED",
-    13: "DETECTOR_DEPENDENCY_UNAVAILABLE",
-}
 DAYS = ("Sunday", "Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday")
 RECEIPT_VERSION = "sas-antivirus-receipt/v1"
 TASK_NS = "http://schemas.microsoft.com/windows/2004/02/mit/task"
@@ -321,6 +315,12 @@ def filesteward_scanner(python: Path | None, profile: str | None, action: str = 
             or python.drive.startswith("\\\\") or re.search(r"[%\r\n\0]", str(python))
             or profile is None or not re.fullmatch(r"[0-9a-f]{64}", profile)):
         raise ValueError("Configure a local FileSteward interpreter and opaque profile ID")
+    # Python isolated mode omits the entrypoint's directory from imports.
+    scripts = str(Path(__file__).resolve().parent)
+    if scripts not in sys.path:
+        sys.path.insert(0, scripts)
+    from sas_antivirus_semantics import FILESTEWARD_RESULTS
+
     command = (str(python), "-I", "-m", "filesteward.cli", "antivirus", action, "--profile", profile)
     return Scanner("filesteward", command, FILESTEWARD_RESULTS, timeout_seconds=90)
 

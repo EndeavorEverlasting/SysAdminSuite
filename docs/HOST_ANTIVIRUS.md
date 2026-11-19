@@ -62,6 +62,11 @@ Provider-mode commands retain their default behavior, and the two jobs can
 coexist. On Windows they use separate Task Scheduler names. On Linux they use
 separate crontab markers.
 
+The [antivirus ownership and status contract](../CODEBASE_MAP.md#antivirus-ownership-and-status-contract)
+defines the public compatibility check. The scheduler uses that consumer's
+exit-code mapping. A complete run has the same status for either match
+outcome. An unknown exit or an ambiguous process failure becomes `SCAN_FAILED`.
+
 SysAdminSuite launches the detector as a separate local process and drops its
 output. Its private `filesteward/latest.json` and rolling history contain
 completion, incomplete coverage, policy rejection, setup dependency,

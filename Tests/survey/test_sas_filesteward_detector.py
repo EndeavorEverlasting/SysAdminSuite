@@ -10,11 +10,12 @@ from unittest.mock import patch
 ROOT = Path(__file__).resolve().parents[2]
 sys.path.insert(0, str(ROOT / "scripts"))
 import sas_antivirus as av
+from sas_antivirus_semantics import FILESTEWARD_RESULTS
 
 
 class DetectorScheduleTest(unittest.TestCase):
     def test_status_boundary_and_private_receipts(self):
-        for code, expected in av.FILESTEWARD_RESULTS.items():
+        for code, expected in FILESTEWARD_RESULTS.items():
             with self.subTest(code=code), tempfile.TemporaryDirectory() as tmp:
                 directory = Path(tmp)
                 scanner = av.filesteward_scanner(Path(sys.executable), "f" * 64)
