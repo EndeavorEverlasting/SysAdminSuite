@@ -130,6 +130,18 @@ def test_workflow_and_discoverability_are_wired() -> None:
     assert "python3 Tests/survey/test_agent_routing_manifest_contracts.py" in read(WORKFLOW)
 
 
+def test_dock_incident_routes_to_read_only_field_capture() -> None:
+    triggers = load(ROUTING)["triggers"]
+    field = next(item for item in triggers if item["target"] == "field-workflow")
+    assert "Lenovo docking station firmware interworking" in field["deterministic_task_signals"]
+    assert "docking station LED went from white to off" in field["deterministic_task_signals"]
+    skill = read(ROOT / ".claude/skills/field-workflow/SKILL.md")
+    assert "docs/field/DOCK-INCIDENT-CAPTURE.md" in skill
+    launcher = read(ROOT / "Capture-DockIncident.cmd")
+    assert "Get-SasDockIncident.ps1" in launcher
+    assert (ROOT / "scripts/Get-SasDockIncident.ps1").is_file()
+
+
 def test_schema_validation_when_available() -> None:
     try:
         import jsonschema
@@ -139,7 +151,7 @@ def test_schema_validation_when_available() -> None:
 
 
 def main() -> None:
-    tests = [test_schema_and_authority_paths, test_every_skill_has_one_deterministic_route, test_primary_signals_are_unambiguous_and_safety_is_additive, test_harness_operation_targets_exist_and_do_not_mutate, test_package_and_handoff_routes_are_current, test_workflow_and_discoverability_are_wired, test_schema_validation_when_available]
+    tests = [test_schema_and_authority_paths, test_every_skill_has_one_deterministic_route, test_primary_signals_are_unambiguous_and_safety_is_additive, test_harness_operation_targets_exist_and_do_not_mutate, test_package_and_handoff_routes_are_current, test_workflow_and_discoverability_are_wired, test_dock_incident_routes_to_read_only_field_capture, test_schema_validation_when_available]
     for test in tests:
         test()
     print(f"PASS: {len(tests)} agent routing manifest contracts")
