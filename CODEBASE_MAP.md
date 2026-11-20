@@ -2,7 +2,7 @@
 
 ## Dock incident evidence
 
-- `Capture-DockIncident.cmd` → `scripts/Get-SasDockIncident.ps1` → `scripts/SasDockIncident.psm1` collects Windows event and device state before any repair. [Dock Incident Capture](docs/field/DOCK-INCIDENT-CAPTURE.md) documents baseline comparison, coverage limits, and when to continue to Bluetooth recovery.
+- `Capture-DockIncident.cmd` → `scripts/Open-SasDockIncident.ps1` (canonical checkout and freshness) → `scripts/Get-SasDockIncident.ps1` → `scripts/SasDockIncident.psm1` collects Windows event and device state before any repair. [Dock Incident Capture](docs/field/DOCK-INCIDENT-CAPTURE.md) documents baseline comparison, coverage limits, and when to continue to Bluetooth recovery.
 
 ## Bluetooth peripherals and user-session services
 

@@ -138,7 +138,15 @@ def test_dock_incident_routes_to_read_only_field_capture() -> None:
     skill = read(ROOT / ".claude/skills/field-workflow/SKILL.md")
     assert "docs/field/DOCK-INCIDENT-CAPTURE.md" in skill
     launcher = read(ROOT / "Capture-DockIncident.cmd")
-    assert "Get-SasDockIncident.ps1" in launcher
+    assert "Open-SasDockIncident.ps1" in launcher
+    gate = read(ROOT / "scripts/Open-SasDockIncident.ps1")
+    expected = ("Resolve-SasCanonicalDevelopmentPath.ps1", "Get-SasNetworkIntentState",
+                "Enter-SasNetworkIntent -Intent InternetSync", "'fetch'", "'--ff-only'",
+                "Restore-SasNetworkIntent", "Enter-SasNetworkIntent -Intent LocalOnly")
+    offsets = [gate.index(marker) for marker in expected]
+    assert offsets == sorted(offsets)
+    assert gate.rindex("'Get-SasDockIncident.ps1'") > offsets[-1]
+    assert "-AllowAutomaticWlanTransition" not in gate
     assert (ROOT / "scripts/Get-SasDockIncident.ps1").is_file()
 
 

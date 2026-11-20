@@ -4,7 +4,7 @@ Use this path for a Lenovo dock LED turning off, alternating monitors, USB or Et
 
 ## Capture before recovery
 
-From a verified current SysAdminSuite checkout or an approved local copy of its launcher and scripts, open `Capture-DockIncident.cmd`. With no arguments it collects the preceding 10 minutes and takes a current device snapshot. Run once while the setup is working and retain the returned JSON path as a baseline. Run again immediately after a recurrence, before disconnecting the dock, restarting Windows, applying firmware or restarting devices or services. Add `-BaselinePath "FULL_PATH_FROM_THE_FIRST_CAPTURE"` to compare the current captures from the same Windows installation.
+Open `Capture-DockIncident.cmd` from the canonical SysAdminSuite development checkout on the affected workstation. The launcher verifies the checkout against its origin default branch and keeps the current network posture. With no arguments it collects the 10 minutes before launch and takes a current device snapshot after the freshness check. Run once while the setup is working and retain the returned JSON path as a baseline. Run again immediately after a recurrence, before disconnecting the dock, restarting Windows, applying firmware or restarting devices or services. Add `-BaselinePath "FULL_PATH_FROM_THE_FIRST_CAPTURE"` to compare the current captures from the same Windows installation.
 
 For an earlier incident, provide both timestamps with an offset. The end time is exclusive. Include the complete end minute if the finish time was approximate.
 
@@ -12,7 +12,7 @@ For an earlier incident, provide both timestamps with an offset. The end time is
 Capture-DockIncident.cmd -Start "2026-01-15T13:00:00-05:00" -End "2026-01-15T13:03:00-05:00" -Observation "Dock power-button LED went white to off as external monitors alternated. Ethernet still passed traffic. Bluetooth mouse function was not checked."
 ```
 
-Record which LED changed, how the dock connects to the PC, and which displays, USB devices, network, charging and Bluetooth input or audio actually worked. Keep unknowns explicit. Use `-DockType` for the type on the physical label and `-DockFirmwareVersion` for a verified model-specific version. These fields store operator-provided evidence. The capture uses the current connection and network posture and requires neither an installation nor a network transition. It writes to `%LOCALAPPDATA%\SysAdminSuite\Evidence\Dock`. Keep the JSON local and share only reviewed, sanitized findings.
+Record which LED changed, how the dock connects to the PC, and which displays, USB devices, network, charging and Bluetooth input or audio actually worked. Keep unknowns explicit. Use `-DockType` for the type on the physical label and `-DockFirmwareVersion` for a verified model-specific version. These fields store operator-provided evidence. The launcher requires ordinary Internet access to verify the checkout and performs no automatic network switch. If the incident prevents Git access, note the time and preserve relevant Windows event logs locally before changing anything. The historical capture can be run when Git access returns. It writes to `%LOCALAPPDATA%\SysAdminSuite\Evidence\Dock`. Keep the JSON local and share only reviewed, sanitized findings.
 
 ## Read the receipt
 

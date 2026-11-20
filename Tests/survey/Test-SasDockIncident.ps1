@@ -98,3 +98,72 @@ try {
 } finally {
     Remove-Item -LiteralPath $temp -Recurse -Force
 }
+
+# Exercise the actual admission script with synthetic path, Git, network and collector boundaries.
+$admission = Join-Path ([IO.Path]::GetTempPath()) ([guid]::NewGuid().ToString('N'))
+$env:SAS_DOCK_TEST_TRACE = Join-Path $admission 'trace'
+$fixtureScripts = Join-Path $admission 'scripts'
+try {
+    $null = New-Item -Path $fixtureScripts -ItemType Directory -Force
+    Copy-Item (Join-Path $base 'scripts/Open-SasDockIncident.ps1') $fixtureScripts
+    @'
+if ($env:SAS_DOCK_TEST_CASE -eq 'copied') {
+    '{"candidate_classification":"UNREGISTERED_CHECKOUT"}'
+} else {
+    '{"candidate_classification":"CANONICAL_DEVELOPMENT"}'
+}
+exit 0
+'@ | Set-Content (Join-Path $fixtureScripts 'Resolve-SasCanonicalDevelopmentPath.ps1')
+    @'
+function Get-SasNetworkIntentState {
+    @{ classification = 'GUEST_INTERNET'; label = 'fixture' }
+}
+function Enter-SasNetworkIntent {
+    param([string] $Intent)
+    Add-Content $env:SAS_DOCK_TEST_TRACE $Intent
+    if ($env:SAS_DOCK_TEST_CASE -eq 'offline') { throw 'offline fixture' }
+    @{ restore_required = $false }
+}
+function Restore-SasNetworkIntent {
+    Add-Content $env:SAS_DOCK_TEST_TRACE 'restored'
+}
+'@ | Set-Content (Join-Path $fixtureScripts 'SasNetworkIntent.psm1')
+    @'
+param([string]$Start,[string]$End)
+if (-not $Start -or -not $End) { exit 1 }
+Add-Content $env:SAS_DOCK_TEST_TRACE 'collected'
+exit 2
+'@ | Set-Content (Join-Path $fixtureScripts 'Get-SasDockIncident.ps1')
+
+    function git {
+        $global:LASTEXITCODE = 0
+        $sha = 'a' * 40
+        switch ($args[2]) {
+            'branch' { 'main' }
+            'fetch' { Add-Content $env:SAS_DOCK_TEST_TRACE 'fetch' }
+            'ls-remote' { 'ref: refs/heads/main  HEAD'; "$sha  HEAD" }
+            'rev-parse' { $sha }
+        }
+    }
+
+    $entry = Join-Path $fixtureScripts 'Open-SasDockIncident.ps1'
+    $env:SAS_DOCK_TEST_CASE = 'online'
+    $null = & $entry
+    $result = $LASTEXITCODE
+    $trace = (Get-Content $env:SAS_DOCK_TEST_TRACE) -join ','
+    Assert-Dock ($result -eq 2 -and $trace -eq 'InternetSync,fetch,restored,LocalOnly,collected') 'Admitted launcher forwards a bounded window and preserves capture exit status'
+
+    Remove-Item $env:SAS_DOCK_TEST_TRACE
+    $env:SAS_DOCK_TEST_CASE = 'copied'
+    $null = & $entry 2>$null
+    $result = $LASTEXITCODE
+    Assert-Dock ($result -eq 1 -and -not (Test-Path $env:SAS_DOCK_TEST_TRACE)) 'Copied launcher fails before any Git or collector activity'
+
+    $env:SAS_DOCK_TEST_CASE = 'offline'
+    $null = & $entry 2>$null
+    $result = $LASTEXITCODE
+    Assert-Dock ($result -eq 1 -and (Get-Content $env:SAS_DOCK_TEST_TRACE) -eq 'InternetSync') 'Internet admission failure prevents Git and collector activity'
+} finally {
+    Remove-Item Env:SAS_DOCK_TEST_CASE, Env:SAS_DOCK_TEST_TRACE -ErrorAction SilentlyContinue
+    Remove-Item -LiteralPath $admission -Recurse -Force
+}
