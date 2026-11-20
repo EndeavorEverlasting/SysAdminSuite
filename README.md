@@ -384,6 +384,8 @@ Each row in the CSV represents **one physical memory stick**. Every machine alwa
 
 ### Monitor Identification & Dock EDID Analysis
 
+For unexpected display flicker, a dock LED transition, or peripheral loss, [capture the Windows dock incident](docs/field/DOCK-INCIDENT-CAPTURE.md) before clearing the display cache.
+
 ```powershell
 # See which physical monitor is Display 1 / 2 / 3 in Windows Settings
 Import-Module .\GetInfo\Get-MonitorInfo.psm1 -Force
