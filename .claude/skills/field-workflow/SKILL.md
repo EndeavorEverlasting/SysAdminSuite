@@ -2,6 +2,10 @@
 
 Use this skill for technician commands, launchers, menus, QR command capsules, operator runbooks, dashboard entry guidance, and organization-scoped shared-printer mapping.
 
+## Dock display, LED and peripheral incident
+
+For a docking station LED extinguishing during use, monitor flicker or resequencing, or Bluetooth loss following a dock interruption, use [Dock Incident Capture](../../../docs/field/DOCK-INCIDENT-CAPTURE.md). Capture via `Capture-DockIncident.cmd` before any display cache reset, service repair, dock reconnection or firmware decision. Record physical observations separately. If Bluetooth is functionally affected, continue through the existing Bluetooth lane below.
+
 ## Bluetooth discovery, pairing and service incident — first-class field lane
 
 For `SAS BLUETOOTH INCIDENT`, Bluetooth mouse invisibility, pairing PIN failures, stopped `BluetoothUserService_*`, adapter stalls, or driver-recovery requests, load `harness/api/bluetooth-peripheral-incident-route.v1.json` and `docs/field/BLUETOOTH-PERIPHERAL-RECOVERY.md` **before** suggesting repair. This selects the existing `Recover-BluetoothPeripheral.cmd` (Inspect default) and `SasBluetooth.cmd` (capabilities/list/ensure-service/exact pairing), not a newly invented mouse-reset or broad driver script. A stopped Manual per-user service is a clue, not proof of sole causality. Start only stopped uniquely selected services with authorization; physical mouse acceptance before adapter escalation. Repair never changes Print Screen preferences, UAC, service start types, service ACLs or pairing keys. Keep raw device evidence private. For rollout, only promote an independently approved prepared bundle with `Install-BluetoothPeripheralRelease.cmd` side-by-side; do not auto-fetch or overwrite a running release. The installer reports installation, not a verified live repair.
