@@ -1,0 +1,28 @@
+# Local Windows handoff for a dock incident
+
+**Owner:** The local agent in the affected Windows installation and signed-in session. The assignment is to run the collector, inspect its receipt, and return findings on which functionality changed during the specified interval. The [field guide](../field/DOCK-INCIDENT-CAPTURE.md) owns launch and recovery instructions. [PR #574](https://github.com/EndeavorEverlasting/SysAdminSuite/pull/574) establishes the repository implementation.
+
+## Run the investigation
+
+1. Confirm the incident occurred on this Windows installation. Take the incident start, exclusive end, UTC offsets, and user observations from the private assignment. Resolve the canonical development checkout and follow the [operator command handoff](../../harness/skills/operator-command-handoff/SKILL.md), including the starting network, origin/default-branch freshness, and LocalOnly capture. Preserve unrelated local work. Keep the checkout commit and Windows session identification in the private result.
+2. Invoke `Capture-DockIncident.cmd` using the [historical capture form](../field/DOCK-INCIDENT-CAPTURE.md#capture-before-recovery) with the exact private `-Start`, `-End`, and `-Observation`. Include the full reported end minute if the report has minute precision. Read the output file and check that `EventWindow` matches the intended UTC window. Record the exit status, receipt path, and `EventSources`. An exit of 2 merits review of the partial receipt. An exit of 1 requires the exact admission or collection error. If repository freshness is blocked, preserve the available Windows logs locally while that is resolved.
+3. Inspect `Timeline` in UTC order with `SetupApi`. Record decisive events with timestamp, channel, provider, event ID, record ID, affected component, and what the event demonstrates. Check each relevant source's status and `OldestRetainedUtc` against the requested start. Empty, disabled, unreadable, truncated, or rolled-over sources limit findings. An oldest retained event newer than the start leaves the earlier portion uncovered by that log. When the live log misses the window, look for existing archived EVTX or previously saved local logs that cover it. Preserve the original window and label any separately searched lead-in or follow-up as context.
+4. Build today's baseline separately. Verify which displays, USB, network, charging where applicable, and Bluetooth pointer/click or audio functions work now. Save the new receipt as a known-good baseline only for what was actually checked. Use the physical dock type label and documented connection type to verify the model. Treat any firmware version gathered today as current inventory. Keep the present-day `Snapshot` from the historical run separate from the historical events and from physical acceptance.
+
+## Determine what changed
+
+| Candidate | Evidence required on the affected host |
+| --- | --- |
+| Graphics recovery or display-only change | A graphics reset/recovery event or a display topology event in the window, with the graphics provider and affected device identified. Report display behavior independently of the other dock functions. |
+| Shared dock link or hub re-enumeration | Removal, arrival, or power transitions on the identified upstream dock or hub, or a correlated sequence across its confirmed children. Trace the PnP parent rather than using timestamp proximity alone. |
+| Windows or vendor driver installation | A matching SetupAPI installation section, Windows Update activity, or vendor installer evidence tied to the affected device or package. Record installation and any subsequent restart as separate observations. |
+| Dock firmware activity | A model-specific updater or firmware event explicitly tied to the identified dock and incident time. Record the physical LED change independently. |
+| Bluetooth interruption | Contemporaneous evidence of a radio, service, or endpoint change and any available evidence of actual input/audio loss. Determine whether the radio is onboard or shares the dock's PnP path. Verify current physical behavior separately. |
+
+Record a coverage limit when the evidence cannot distinguish candidates. The physical report, Windows record, and proposed cause should be distinguishable in each finding. A present-day device snapshot supports a baseline. A stopped Manual per-user Bluetooth service and the previous Bluetooth repair are context for the investigation. Cached display inventory requires physical corroboration. Preserve unaffected devices and settings. If Bluetooth function is currently affected, follow the field guide's existing Inspect path after the historical evidence is saved. Use separate authorization for repair.
+
+## Return the proof
+
+Write one result alongside the private dock receipts under `%LOCALAPPDATA%\SysAdminSuite\Evidence\Dock`. Include the executing commit, target confirmation, exact local and UTC window, launcher status and receipt path, relevant source coverage, and cited events or archive locations. For the incident and the current baseline, state which display, dock USB, dock Ethernet, charging, and Bluetooth functions were observed working, interrupted, or unobserved. Give the strongest supported explanation and what remains unresolved. If the interval cannot be reconstructed, name the missing source or host and whether another retained source or a future pre-repair capture can answer the question.
+
+Return a sanitized **CHANGED | PROVED | NEXT** summary to the requester. Keep raw logs, component identifiers, host details, and reported private observations on the workstation.

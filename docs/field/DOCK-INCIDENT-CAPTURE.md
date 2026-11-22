@@ -2,6 +2,8 @@
 
 Use this path for a Lenovo dock LED turning off, alternating monitors, USB or Ethernet interruptions, or possible Bluetooth fallout during the same incident. Start on the affected Windows host in the signed-in user's session. Keep a working input path independent of the dock if available.
 
+For a past incident or a request for native verification, assign the [local Windows investigation handoff](../handoff/dock-incident-windows-live-certification.md). It specifies the evidence the agent must collect and return.
+
 ## Capture before recovery
 
 Open `Capture-DockIncident.cmd` from the canonical SysAdminSuite development checkout on the affected workstation. The launcher verifies the checkout against its origin default branch and keeps the current network posture. With no arguments it collects the 10 minutes before launch and takes a current device snapshot after the freshness check. Run once while the setup is working and retain the returned JSON path as a baseline. Run again immediately after a recurrence, before disconnecting the dock, restarting Windows, applying firmware or restarting devices or services. Add `-BaselinePath "FULL_PATH_FROM_THE_FIRST_CAPTURE"` to compare the current captures from the same Windows installation.
