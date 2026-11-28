@@ -1,0 +1,145 @@
+{
+  "schema_version": "sas-fan-cooling-ownership/v1",
+  "purpose": "Route cooling diagnostics and purchasing to independent owners; diagnose without gating an eligible purchase.",
+  "authority": {
+    "diagnostics": "SysAdminSuite",
+    "shopping": "external-shopping-owners",
+    "shopping_source": "operator-authorized shopping repository or original private purchasing ledger",
+    "agent_orchestration": "separate; not the domain owner"
+  },
+  "domains": [
+    {
+      "id": "diagnostics",
+      "owner": "SysAdminSuite",
+      "signals": [
+        "Fan Control",
+        "fan-control diagnostics",
+        "fan control window",
+        "fan RPM",
+        "fan sensor",
+        "fan speed",
+        "PWM channel",
+        "PWM mapping",
+        "CPU_FAN1",
+        "rear fan diagnosis",
+        "fan calibration",
+        "fan isolation",
+        "noisy fan",
+        "rattling fan",
+        "fan controller",
+        "fan stop test"
+      ],
+      "outputs": [
+        "fan/header mapping and RPM/temperature evidence",
+        "non-destructive diagnosis result",
+        "classified runtime proof"
+      ],
+      "never_owns": [
+        "seller comparison",
+        "shopping cart",
+        "discount computation",
+        "product purchases"
+      ]
+    },
+    {
+      "id": "shopping",
+      "owner": "external-shopping-owners",
+      "signals": [
+        "buy fan",
+        "fan purchase",
+        "fan price",
+        "cooling shopping",
+        "shopping cart",
+        "Amazon cart",
+        "checkout",
+        "sale price",
+        "deal watch",
+        "discount",
+        "fan fit",
+        "clearance",
+        "heatsink clearance",
+        "top fan placement",
+        "fan product",
+        "fan SKU",
+        "shopping list",
+        "purchasing",
+        "shipping cost"
+      ],
+      "outputs": [
+        "SKU and compatibility assessment",
+        "out-the-door price comparison",
+        "cart/ordered/received/installed state"
+      ],
+      "never_owns": [
+        "Fan Control GUI",
+        "RPM channel identification",
+        "Windows fan diagnostic commands"
+      ]
+    }
+  ],
+  "outcomes": {
+    "diagnostics": "SYSADMINSUITE_DIAGNOSTICS",
+    "shopping": "SHOPPING_OWNERS",
+    "mixed": "SPLIT_PARALLEL",
+    "none": "UNRESOLVED_READ_ONLY"
+  },
+  "mixed_intent": {
+    "split_by_work_product": true,
+    "shopping_never_waits_for_unrelated_software_diagnostics": true,
+    "diagnostics_not_delegated_to_operator_for_agent_capable_gui_work": true,
+    "do_not_substitute_other_repository_for_domain_owner": true
+  },
+  "safety": {
+    "protect_cpu_fan": true,
+    "read_only_discovery_first": true,
+    "no_unverified_stop_commands": true,
+    "no_live_host_mutation_without_authorization": true,
+    "never_claim_install_as_gui_proof": true
+  },
+  "state_dimensions": [
+    "installed",
+    "process_running",
+    "window_visible",
+    "sensors_observed",
+    "channels_mapped",
+    "control_tested",
+    "noise_source_identified",
+    "cart",
+    "ordered",
+    "received",
+    "installed_hardware",
+    "tested_hardware"
+  ],
+  "synthetic_cases": [
+    {
+      "text": "Fan Control window missing; map the RPM sensors.",
+      "expect": "SYSADMINSUITE_DIAGNOSTICS"
+    },
+    {
+      "text": "The noisy fan needs PWM channel isolation.",
+      "expect": "SYSADMINSUITE_DIAGNOSTICS"
+    },
+    {
+      "text": "Amazon cart has an RGB fan deal. Compare checkout price.",
+      "expect": "SHOPPING_OWNERS"
+    },
+    {
+      "text": "Measure heatsink clearance and choose a fan SKU.",
+      "expect": "SHOPPING_OWNERS"
+    },
+    {
+      "text": "Fan Control diagnostics must not delay my shopping cart.",
+      "expect": "SPLIT_PARALLEL"
+    },
+    {
+      "text": "Identify the rattling fan and assess the fan purchase.",
+      "expect": "SPLIT_PARALLEL"
+    },
+    {
+      "text": "The computer is slow.",
+      "expect": "UNRESOLVED_READ_ONLY"
+    }
+  ],
+  "privacy": "Public repository contains generic behavior only; no hostname, private receipts, hardware photos, account details, cart screenshots, or private Google document IDs.",
+  "proof_ceiling": "Static ownership classification only; no Windows GUI, fan-controller runtime, purchase, or cross-repository invocation is implemented by this route."
+}
