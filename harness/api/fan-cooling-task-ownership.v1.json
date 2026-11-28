@@ -5,7 +5,12 @@
     "diagnostics": "SysAdminSuite",
     "shopping": "external-shopping-owners",
     "shopping_source": "operator-authorized shopping repository or original private purchasing ledger",
-    "agent_orchestration": "separate; not the domain owner"
+    "agent_orchestration": "separate; not the domain owner",
+    "shopping_owner_resolution": {
+      "hardware_price_cart_fit": "Computer Hardware Shopping & Deal Watch (original authorized hardware workbook; independent shopping owner)",
+      "general_purchase_status": "FamilyRecipes Master Shopping List (Google-resident purchase/status writer)",
+      "household_sufficiency_semantics": "PantryPoint (schema/decision semantics only, not a competing shopping ledger)"
+    }
   },
   "domains": [
     {
@@ -138,6 +143,10 @@
     {
       "text": "The computer is slow.",
       "expect": "UNRESOLVED_READ_ONLY"
+    },
+    {
+      "text": "The Fan Control process responds, but the window is invisible; evaluate the ARGB fan discount separately.",
+      "expect": "SPLIT_PARALLEL"
     }
   ],
   "privacy": "Public repository contains generic behavior only; no hostname, private receipts, hardware photos, account details, cart screenshots, or private Google document IDs.",
