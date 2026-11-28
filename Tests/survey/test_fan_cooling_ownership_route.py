@@ -25,6 +25,8 @@ class FanCoolingOwnershipTests(unittest.TestCase):
         self.assertEqual(manifest["schema_version"], "sas-fan-cooling-ownership/v1")
         self.assertEqual(manifest["authority"]["diagnostics"], "SysAdminSuite")
         self.assertEqual(manifest["authority"]["shopping"], "external-shopping-owners")
+        self.assertIn("FamilyRecipes", manifest["authority"]["shopping_owner_resolution"]["general_purchase_status"])
+        self.assertIn("PantryPoint", manifest["authority"]["shopping_owner_resolution"]["household_sufficiency_semantics"])
         self.assertTrue(manifest["mixed_intent"]["shopping_never_waits_for_unrelated_software_diagnostics"])
         self.assertTrue(manifest["safety"]["protect_cpu_fan"])
         resolve = load_resolver().classify
