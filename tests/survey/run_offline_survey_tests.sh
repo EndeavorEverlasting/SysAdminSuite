@@ -77,6 +77,7 @@ python3 Tests/survey/test_machine_info_cmd_contracts.py
 python3 Tests/survey/test_kronos_clock_batch.py
 python3 Tests/survey/test_agent_capability_manifest_contracts.py
 python3 Tests/survey/test_agent_routing_manifest_contracts.py
+python3 Tests/survey/test_fan_cooling_ownership_route.py
 python3 Tests/survey/test_bluetooth_incident_route.py
 python3 Tests/survey/test_autologon_agent_harness_contracts.py
 python3 Tests/survey/test_agent_sprint_capsule_contracts.py
