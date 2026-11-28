@@ -2,6 +2,9 @@
 ## P00/P01/P04 — settled cross-repository product ownership
 AgentSwitchboard is a retired product (donor/verified old callers only). TokenCorridor owns the product control plane. Technical cleanup does not reopen retirement. Never assign new orchestration, policy or website work to AgentSwitchboard.
 `AGENTS.md` is the repository-root governance contract and the single source of truth for how agents operate in SysAdminSuite. Compact routing lives here; detailed procedures remain in task skills under `.claude/skills/`, reusable rules in `.claude/capabilities/`, and machine-readable execution contracts under `harness/`.
+## Fan diagnostics versus shopping — cross-repository ownership
+For Windows Fan Control, fan RPM/sensor/header mapping, fan GUI recovery, and independent fan-isolation diagnostics, **SysAdminSuite is the owner**. Read `harness/api/fan-cooling-task-ownership.v1.json` and `docs/field/FAN-CONTROL-DIAGNOSTICS.md`. Existing shopping repositories and private purchasing ledgers own compatible SKUs, prices, cart/checkout and cooling purchases. Split mixed tasks: diagnostics cannot block shopping. Protect CPU cooling, never mistake installed software for observed UI, and never delegate agent-capable local desktop work to the operator. The read-only resolver `harness/api/sas_fan_cooling_route.py` classifies owner intent; its output is not proof of host action.
+
 ## Required loading sequence
 1. Read this governance contract.
 2. Inspect the current Git state and preserve existing work.
