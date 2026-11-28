@@ -2,14 +2,11 @@
 ## P00/P01/P04 — settled cross-repository product ownership
 AgentSwitchboard is a retired product (donor/verified old callers only). TokenCorridor owns the product control plane. Technical cleanup does not reopen retirement. Never assign new orchestration, policy or website work to AgentSwitchboard.
 `AGENTS.md` is the repository-root governance contract and the single source of truth for how agents operate in SysAdminSuite. Compact routing lives here; detailed procedures remain in task skills under `.claude/skills/`, reusable rules in `.claude/capabilities/`, and machine-readable execution contracts under `harness/`.
-## Fan diagnostics versus shopping — cross-repository ownership
-For Windows Fan Control, fan RPM/sensor/header mapping, fan GUI recovery, and independent fan-isolation diagnostics, **SysAdminSuite is the owner**. Read `harness/api/fan-cooling-task-ownership.v1.json` and `docs/field/FAN-CONTROL-DIAGNOSTICS.md`. Existing shopping repositories and private purchasing ledgers own compatible SKUs, prices, cart/checkout and cooling purchases. Split mixed tasks: diagnostics cannot block shopping. Protect CPU cooling, never mistake installed software for observed UI, and never delegate agent-capable local desktop work to the operator. The read-only resolver `harness/api/sas_fan_cooling_route.py` classifies owner intent; its output is not proof of host action.
-
 ## Required loading sequence
 1. Read this governance contract.
 2. Inspect the current Git state and preserve existing work.
 3. Use `CODEBASE_MAP.md` to locate the smallest relevant surface.
-4. Use `harness/api/agent-routing-manifest.json` for exact task signals; unknown or conflicting signals fail closed to the repository-sprint skill.
+4. Use `harness/api/agent-routing-manifest.json` for exact task signals; unknown or conflicting signals fail closed to the repository-sprint skill. For Fan Control diagnostics SysAdminSuite owns GUI/RPM/PWM diagnosis; separate shopping repositories own cooling SKUs, fit, carts and checkout. Mixed work runs independently; CPU cooling stays protected and local agent-capable GUI work stays with the agent. Route via `harness/api/fan-cooling-task-ownership.v1.json` and `docs/field/FAN-CONTROL-DIAGNOSTICS.md`.
 5. Load only the selected skill and its declared capability dependencies.
 6. Read deeper product or harness documentation only when the selected route points to it. For operator-authored communication, load `docs/OPERATOR_COMMUNICATION_STYLE.md` and `harness/api/operator-communication-semantics.json` before drafting.
 Triggers route work only. They never authorize network activity, target mutation, destructive Git operations, secret handling, or proof claims. Progressive disclosure is a repository requirement; do not preload every skill, capability, plan, or handoff.
