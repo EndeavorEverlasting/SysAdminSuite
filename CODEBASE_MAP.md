@@ -1,5 +1,9 @@
 # SysAdminSuite Codebase Map
 
+## Windows Fan Control diagnostics and external shopping boundary
+- `harness/api/fan-cooling-task-ownership.v1.json` + `harness/api/sas_fan_cooling_route.py` deterministically classify fan-control/thermal-diagnostic requests as SysAdminSuite work, shopping/cart/price requests as external shopping owner work, and mixed prompts as parallel splits. No live host control in the classifier.
+- `docs/field/FAN-CONTROL-DIAGNOSTICS.md` owns the no-operator-desktop-delegation and CPU-fan protection runbook; `Tests/survey/test_fan_cooling_ownership_route.py` enforces synthetic routes. Shopping ledgers remain external and private.
+
 ## Dock incident evidence
 
 - `Capture-DockIncident.cmd` → `scripts/Open-SasDockIncident.ps1` (canonical checkout and freshness) → `scripts/Get-SasDockIncident.ps1` → `scripts/SasDockIncident.psm1` collects Windows event and device state before any repair. [Dock Incident Capture](docs/field/DOCK-INCIDENT-CAPTURE.md) documents baseline comparison, coverage limits, and when to continue to Bluetooth recovery.
