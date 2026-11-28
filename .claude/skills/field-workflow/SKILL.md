@@ -1,5 +1,8 @@
 # Field Workflow Skill
 
+## Fan Control / workstation thermal diagnostics — SysAdminSuite-owned
+Route Fan Control GUI disappearance, RPM readings, PWM header mapping, fan-noise localization, or a fan stop test through `harness/api/fan-cooling-task-ownership.v1.json` and `docs/field/FAN-CONTROL-DIAGNOSTICS.md`. SysAdminSuite owns that diagnosis, not the shopping repository or operator. Use computer-use capabilities on an authorized desktop instead of offloading routine GUI steps to the user. CPU cooling stays protected and unverified controls remain read-only. Price comparison, SKU choice, fan fit and checkout stay in the separately owned shopping workflow; a diagnostic obstacle does not block it.
+
 Use this skill for technician commands, launchers, menus, QR command capsules, operator runbooks, dashboard entry guidance, and organization-scoped shared-printer mapping.
 
 ## Dock display, LED and peripheral incident

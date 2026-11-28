@@ -114,7 +114,12 @@
         "Bluetooth service stopped",
         "BluetoothUserService",
         "Bluetooth peripheral recovery",
-        "wireless mouse driver broke"
+        "wireless mouse driver broke",
+        "Fan Control diagnostics",
+        "Fan Control window missing",
+        "fan PWM header mapping",
+        "noisy chassis fan diagnosis",
+        "fan RPM sensor discovery"
       ],
       "priority": 40,
       "composition_mode": "primary",
@@ -143,7 +148,8 @@
         "stopped Manual user service is not proof of fault",
         "never change service startup policy, UAC or pairing keys to force discovery",
         "preserve other Bluetooth devices and screenshot preferences",
-        "do not deploy a release without source provenance and hash checks"
+        "do not deploy a release without source provenance and hash checks",
+        "SysAdminSuite owns fan diagnostics; shopping repositories own product selection, cart, prices and checkout; split mixed requests"
       ],
       "owner": "Harness Spine",
       "validators": [
